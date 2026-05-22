@@ -8,12 +8,20 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import iptvApi from '../services/iptvApi';
 
 export default function MoviesScreen({ navigation }) {
   const { users, activeUserId, isLoading, setIsLoading, playVideo } = useApp();
+  const { width: screenWidth } = useWindowDimensions();
+
+  // Responsive columns: subtract sidebar on web, then auto-fill at ~172px per category, ~162px per movie
+  const contentWidth = screenWidth - (Platform.OS === 'web' ? 220 : 0);
+  const numCatCols = Math.max(2, Math.floor((contentWidth - 16) / 172));
+  const numMovieCols = Math.max(2, Math.floor((contentWidth - 16) / 162));
 
   const [view, setView] = useState('categories');
   const [categories, setCategories] = useState([]);
@@ -131,9 +139,10 @@ export default function MoviesScreen({ navigation }) {
 
       {view === 'categories' ? (
         <FlatList
+          key={numCatCols}
           data={filteredCategories}
           keyExtractor={(item) => item.category_id}
-          numColumns={2}
+          numColumns={numCatCols}
           contentContainerStyle={styles.grid}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.categoryCard} onPress={() => handleCategoryPress(item)}>
@@ -149,9 +158,10 @@ export default function MoviesScreen({ navigation }) {
         />
       ) : (
         <FlatList
+          key={numMovieCols}
           data={filteredMovies}
           keyExtractor={(item) => String(item.stream_id)}
-          numColumns={2}
+          numColumns={numMovieCols}
           contentContainerStyle={styles.grid}
           renderItem={({ item }) => {
             const poster = item.stream_icon || item.cover || item.movie_image || null;
@@ -205,13 +215,16 @@ const styles = StyleSheet.create({
     margin: 6,
     backgroundColor: '#1a1a2e',
     borderRadius: 12,
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#2a2a4e',
+    minHeight: 80,
+    justifyContent: 'center',
   },
-  categoryIcon: { fontSize: 28, marginBottom: 8 },
-  categoryName: { color: '#fff', fontSize: 13, textAlign: 'center', fontWeight: '500' },
+  categoryIcon: { fontSize: 24, marginBottom: 6 },
+  categoryName: { color: '#fff', fontSize: 12, textAlign: 'center', fontWeight: '500' },
   movieCard: {
     flex: 1,
     margin: 6,

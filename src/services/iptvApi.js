@@ -61,6 +61,16 @@ class IPTVApi {
     return data;
   }
 
+  getLiveCategories() {
+    return this._cached('live_categories', TTL.categories, () => this.fetch(this.buildUrl('get_live_categories')));
+  }
+
+  getLiveStreamsByCategory(categoryId) {
+    return this._cached(`live_streams_${categoryId}`, TTL.streams, () =>
+      this.fetch(this.buildUrl('get_live_streams', { category_id: categoryId }))
+    );
+  }
+
   getLiveStreams() {
     return this._cached('live_streams', TTL.streams, () => this.fetch(this.buildUrl('get_live_streams')));
   }

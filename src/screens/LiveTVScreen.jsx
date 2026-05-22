@@ -10,6 +10,7 @@ import {
   Image,
   Modal,
   Alert,
+  Platform,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import iptvApi from '../services/iptvApi';
@@ -186,13 +187,20 @@ export default function LiveTVScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <TextInput
-        style={styles.search}
-        placeholder="🔍 Search channels..."
-        placeholderTextColor="#666"
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
+      <View style={styles.searchRow}>
+        <TextInput
+          style={[styles.search, { flex: 1, margin: 0 }]}
+          placeholder="🔍 Search channels..."
+          placeholderTextColor="#666"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {Platform.OS === 'web' && (
+          <TouchableOpacity style={styles.addChannelBtn} onPress={() => setShowAddChannel(true)}>
+            <Text style={styles.addChannelBtnText}>+</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       <FlatList
         data={filteredItems}
@@ -266,10 +274,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f23' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f23' },
   loadingText: { color: '#aaa', marginTop: 12 },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: 12,
+    gap: 8,
+  },
   search: {
     backgroundColor: '#1a1a2e',
     color: '#fff',
-    margin: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 10,
@@ -277,6 +290,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333',
   },
+  addChannelBtn: {
+    backgroundColor: '#e94560',
+    borderRadius: 10,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addChannelBtnText: { color: '#fff', fontSize: 22, fontWeight: '700', lineHeight: 26 },
   backBtn: { paddingHorizontal: 16, paddingBottom: 8 },
   backBtnText: { color: '#e94560', fontSize: 14, fontWeight: '600' },
   grid: { paddingHorizontal: 8, paddingBottom: 20 },

@@ -8,12 +8,18 @@ import {
   StyleSheet,
   ActivityIndicator,
   SectionList,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import iptvApi from '../services/iptvApi';
 
 export default function SeriesScreen({ navigation }) {
   const { users, activeUserId, isLoading, setIsLoading, playVideo } = useApp();
+  const { width: screenWidth } = useWindowDimensions();
+
+  const contentWidth = screenWidth - (Platform.OS === 'web' ? 220 : 0);
+  const numCatCols = Math.max(2, Math.floor((contentWidth - 16) / 172));
 
   const [view, setView] = useState('categories'); // 'categories' | 'items' | 'episodes'
   const [categories, setCategories] = useState([]);
@@ -185,9 +191,10 @@ export default function SeriesScreen({ navigation }) {
 
       {view === 'categories' && (
         <FlatList
+          key={numCatCols}
           data={filteredCategories}
           keyExtractor={(item) => item.category_id}
-          numColumns={2}
+          numColumns={numCatCols}
           contentContainerStyle={styles.grid}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.categoryCard} onPress={() => handleCategoryPress(item)}>
@@ -285,13 +292,16 @@ const styles = StyleSheet.create({
     margin: 6,
     backgroundColor: '#1a1a2e',
     borderRadius: 12,
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#2a2a4e',
+    minHeight: 80,
+    justifyContent: 'center',
   },
-  categoryIcon: { fontSize: 28, marginBottom: 8 },
-  categoryName: { color: '#fff', fontSize: 13, textAlign: 'center', fontWeight: '500' },
+  categoryIcon: { fontSize: 24, marginBottom: 6 },
+  categoryName: { color: '#fff', fontSize: 12, textAlign: 'center', fontWeight: '500' },
   list: { paddingHorizontal: 12, paddingBottom: 20 },
   seriesRow: {
     flexDirection: 'row',
