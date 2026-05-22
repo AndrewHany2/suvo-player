@@ -1,0 +1,32 @@
+{
+  "appId": "com.iptv.player",
+  "productName": "IPTV Player",
+  "asar": true,
+  "extraMetadata": {
+    "main": "electron/main.js"
+  },
+  "files": [
+    "dist/**",
+    "electron/main.js",
+    "electron/preload.js"
+  ],
+  "directories": {
+    "buildResources": "electron/assets",
+    "output": "electron/release"
+  },
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "mac": {
+    "target": "dmg"
+  },
+  "linux": {
+    "target": "AppImage"
+  }
+}

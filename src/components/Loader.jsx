@@ -1,18 +1,17 @@
-import PropTypes from "prop-types";
+import { Spinner, YStack, Text } from 'tamagui';
 
-const Loader = ({ message = "Loading..." }) => {
-  return (
-    <div className="loader-overlay">
-      <div className="loader-container">
-        <div className="spinner"></div>
-        <p className="loader-message">{message}</p>
-      </div>
-    </div>
-  );
-};
-
-Loader.propTypes = {
-  message: PropTypes.string,
-};
+export const Loader = ({ message = 'Loading...' }) => (
+  <YStack
+    position="absolute"
+    top={0} left={0} right={0} bottom={0}
+    alignItems="center"
+    justifyContent="center"
+    backgroundColor="rgba(0,0,0,0.85)"
+    zIndex={1000}
+  >
+    <Spinner size="large" color="$blue10" />
+    <Text color="white" marginTop="$3" fontSize="$4">{message}</Text>
+  </YStack>
+);
 
 export default Loader;

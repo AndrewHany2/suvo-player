@@ -1,83 +1,49 @@
 {
   "name": "iptv-player",
   "version": "1.0.0",
-  "description": "",
-  "main": "main.js",
+  "main": "index.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "concurrently \"npm run vite\" \"wait-on http://localhost:3001 && electron .\"",
-    "dev:all": "concurrently \"npm run vite\" \"npm run proxy\" \"wait-on http://localhost:3001 && electron .\"",
-    "vite": "vite",
-    "build": "vite build",
-    "proxy": "node proxy-server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dist": "electron-builder",
-    "build:vite": "vite build",
-    "build:obfuscate": "node scripts/obfuscate.js",
-    "build:electron": "electron-builder",
-    "build:prod": "npm run build:vite && npm run build:obfuscate && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false npm run build:electron"
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web --port 3001",
+    "electron:dev": "concurrently \"npm run web\" \"wait-on http://localhost:3001 && electron electron/main.js\"",
+    "build:web": "expo export --platform web",
+    "build:electron": "npm run build:web && electron-builder --config electron/builder.json",
+    "proxy": "node electron/proxy-server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "express": "^4.22.1"
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^6.6.1",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/native-stack": "^6.11.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "@tamagui/config": "^2.0.0-rc.42",
+    "expo": "~54.0.0",
+    "expo-dev-client": "~6.0.20",
+    "expo-font": "^56.0.5",
+    "expo-screen-orientation": "~9.0.8",
+    "expo-status-bar": "~3.0.9",
+    "expo-video": "~3.0.16",
+    "express": "^4.22.1",
+    "hls.js": "^1.6.16",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-url-polyfill": "^2.0.0",
+    "react-native-web": "^0.21.2",
+    "tamagui": "^2.0.0-rc.42"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^5.1.4",
+    "@tamagui/babel-plugin": "^2.0.0-rc.42",
     "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
     "electron": "^40.6.0",
     "electron-builder": "^26.8.1",
-    "electron-reloader": "^1.2.3",
-    "hls.js": "^1.6.15",
-    "javascript-obfuscator": "^5.3.0",
-    "prop-types": "^15.8.1",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "vite": "^7.3.1",
+    "react-refresh": "^0.18.0",
+    "typescript": "^6.0.3",
     "wait-on": "^9.0.4"
   },
-  "build": {
-    "appId": "com.iptv.player",
-    "productName": "IPTV Player",
-    "asar": true,
-    "asarUnpack": [],
-    "files": [
-      "dist/**",
-      {
-        "from": "dist-electron",
-        "to": ".",
-        "filter": ["main.js", "preload.js"]
-      },
-      "package.json"
-    ],
-    "directories": {
-      "buildResources": "assets",
-      "output": "release"
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    },
-    "mac": {
-      "target": "dmg"
-    },
-    "linux": {
-      "target": "AppImage"
-    }
-  }
+  "private": true
 }
