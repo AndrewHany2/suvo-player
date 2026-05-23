@@ -1,67 +1,124 @@
-import { useState, useEffect, useLayoutEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   View,
   Text,
   TextInput,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   Image,
   Modal,
   Alert,
-  Platform,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import iptvApi from '../services/iptvApi';
 
 const decodeEpgTitle = (title) => {
-  try {
-    return atob(title);
-  } catch {
-    return title;
-  }
+  try { return atob(title); } catch { return title; }
 };
 
-const ChannelRow = memo(({ item, epgCache, fetchEpg, onPress }) => {
-  useEffect(() => {
-    const sid = item.stream_id || item.id;
-    if (epgCache[sid] === undefined) fetchEpg(sid);
-  }, [item.stream_id, item.id]);
+const getAbbrev = (name) => {
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) return (words[0].slice(0, 2) + words[1].slice(0, 1)).toUpperCase();
+  return name.slice(0, 3).toUpperCase();
+};
 
+/* ─── Live Channel Card ─── */
+const ChannelCard = memo(({ item, epg, onPress, fetchEpg }) => {
+  const abbrev = getAbbrev(item.name);
   const sid = item.stream_id || item.id;
-  const epg = epgCache[sid];
+
+  useEffect(() => {
+    if (epg === undefined && fetchEpg) fetchEpg(sid);
+  }, [sid]);
 
   return (
-    <TouchableOpacity style={styles.channelRow} onPress={() => onPress(item)}>
-      {item.logo ? (
-        <Image source={{ uri: item.logo }} style={styles.channelLogo} />
-      ) : (
-        <View style={styles.channelLogoPlaceholder}>
-          <Text style={{ fontSize: 20 }}>📺</Text>
+    <TouchableOpacity style={styles.card} onPress={() => onPress(item)} activeOpacity={0.8}>
+      {/* Logo / abbrev */}
+      <View style={styles.cardHead}>
+        {item.logo ? (
+          <Image source={{ uri: item.logo }} style={styles.cardLogo} resizeMode="contain" />
+        ) : (
+          <View style={styles.cardAbbrev}>
+            <Text style={styles.cardAbbrevText}>{abbrev}</Text>
+          </View>
+        )}
+        <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+        {/* LIVE badge */}
+        <View style={styles.liveBadge}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveText}>LIVE</Text>
         </View>
-      )}
-      <View style={styles.channelInfo}>
-        <Text style={styles.channelName} numberOfLines={1}>{item.name}</Text>
-        {epg ? (
-          <Text style={styles.channelEpg} numberOfLines={1}>▶ {epg}</Text>
-        ) : null}
       </View>
-      <Text style={styles.playIcon}>▶</Text>
+
+      {/* EPG title */}
+      <Text style={styles.cardEpg} numberOfLines={2}>{epg || ' '}</Text>
+
+      {/* Progress bar */}
+      <View style={styles.cardProgress}>
+        <View style={styles.cardProgressBar} />
+      </View>
+
+      <Text style={styles.cardTime}>Live · now playing</Text>
     </TouchableOpacity>
   );
 });
 
-export default function LiveTVScreen({ navigation }) {
-  const { users, activeUserId, channels, setChannels, saveChannels, isLoading, setIsLoading, playVideo } =
-    useApp();
+/* ─── Live Shelf — one per category ─── */
+function LiveShelf({ cat, epgCache, fetchEpg, onPress }) {
+  const channels = cat.channels;
 
-  const [items, setItems] = useState([]);
+  if (channels !== null && !channels.length) return null;
+
+  return (
+    <View style={styles.shelf}>
+      <View style={styles.shelfTitleRow}>
+        <Text style={styles.shelfTitle}>📺 {cat.name}</Text>
+        {channels && <Text style={styles.shelfCount}>{channels.length}</Text>}
+      </View>
+
+      {channels === null ? (
+        <View style={styles.shelfLoading}>
+          <ActivityIndicator size="small" color="#e94560" />
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.shelfTrack}
+        >
+          {channels.map((item) => {
+            const sid = item.stream_id || item.id;
+            return (
+              <ChannelCard
+                key={String(sid)}
+                item={item}
+                epg={epgCache[sid]}
+                onPress={onPress}
+                fetchEpg={fetchEpg}
+              />
+            );
+          })}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+export default function LiveTVScreen({ navigation }) {
+  const { users, activeUserId, channels, setChannels, saveChannels, playVideo } = useApp();
+
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [channelsByCategory, setChannelsByCategory] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [epgCache, setEpgCache] = useState({});
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newStreamUrl, setNewStreamUrl] = useState('');
+  const loadedRef = useRef(new Set());
 
   const fetchEpg = useCallback(async (streamId) => {
     setEpgCache((prev) => {
@@ -83,87 +140,91 @@ export default function LiveTVScreen({ navigation }) {
       Alert.alert('Missing Fields', 'Please enter both a channel name and stream URL.');
       return;
     }
-    const newChannel = {
-      name: newChannelName.trim(),
-      url: newStreamUrl.trim(),
-      id: Date.now().toString(),
-      stream_id: Date.now().toString(),
-      category: 'Custom',
-      type: 'live',
+    const ch = {
+      name: newChannelName.trim(), url: newStreamUrl.trim(),
+      id: Date.now().toString(), stream_id: Date.now().toString(),
       logo: null,
     };
-    const updated = [...channels, newChannel];
-    setChannels(updated);
+    setChannelsByCategory((prev) => ({ ...prev, Custom: [...(prev.Custom || []), ch] }));
+    setCategories((prev) =>
+      prev.some((c) => c.id === 'Custom') ? prev : [...prev, { id: 'Custom', name: 'Custom' }]
+    );
+    setChannels((prev) => [...prev, ch]);
     saveChannels();
-    setNewChannelName('');
-    setNewStreamUrl('');
+    setNewChannelName(''); setNewStreamUrl('');
     setShowAddChannel(false);
-    Alert.alert('Channel Added', `"${newChannel.name}" added to Custom category.`);
+    Alert.alert('Channel Added', `"${ch.name}" added to Custom category.`);
   };
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <View style={{ flexDirection: 'row', gap: 8, marginRight: 12 }}>
-          <TouchableOpacity onPress={() => setShowAddChannel(true)}>
-            <Text style={{ color: '#e94560', fontSize: 22, fontWeight: '700' }}>+</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Accounts')}>
-            <Text style={{ color: '#e94560', fontSize: 14, fontWeight: '600' }}>📡 Accounts</Text>
-          </TouchableOpacity>
-        </View>
-      ),
-    });
-  }, [navigation, channels]);
 
   useEffect(() => {
     setEpgCache({});
-    if (activeUserId) loadCategories();
+    if (activeUserId) loadChannels();
   }, [activeUserId]);
 
-  const loadCategories = async () => {
-    const user = users.find((u) => u.id === activeUserId);
-    if (!user) return;
-
-    setIsLoading(true);
+  const loadChannelCategory = useCallback(async (catId) => {
+    if (loadedRef.current.has(catId)) return;
+    loadedRef.current.add(catId);
     try {
-      iptvApi.setCredentials(user.host, user.username, user.password);
-      const channelsData = await iptvApi.getLiveStreams();
-      const formatted = channelsData.map((ch) => ({
+      const data = await iptvApi.getLiveStreamsByCategory(catId);
+      const formatted = (data || []).map((ch) => ({
         name: ch.name,
         url: iptvApi.buildStreamUrl('live', ch.stream_id, 'm3u8'),
-        id: ch.stream_id,
-        stream_id: ch.stream_id,
-        category: ch.category_name || 'Uncategorized',
+        id: ch.stream_id, stream_id: ch.stream_id,
         logo: ch.stream_icon || null,
       }));
-      setChannels(formatted);
+      setChannelsByCategory((prev) => ({ ...prev, [catId]: formatted }));
+      setChannels((prev) => {
+        const existingIds = new Set(prev.map((c) => String(c.stream_id)));
+        return [...prev, ...formatted.filter((c) => !existingIds.has(String(c.stream_id)))];
+      });
+    } catch {
+      setChannelsByCategory((prev) => ({ ...prev, [catId]: [] }));
+    }
+  }, []);
 
-      // Show all channels directly, skip categories
-      setItems(formatted);
+  const loadChannels = async () => {
+    const user = users.find((u) => u.id === activeUserId);
+    if (!user) return;
+    setLoading(true);
+    loadedRef.current.clear();
+    setCategories([]);
+    setChannelsByCategory({});
+    try {
+      iptvApi.setCredentials(user.host, user.username, user.password);
+      const cats = await iptvApi.getLiveCategories();
+      if (!cats?.length) { setLoading(false); return; }
+      const catList = cats.map((c) => ({ id: c.category_id, name: c.category_name }));
+      setCategories(catList);
+      // Pre-load first few shelves immediately
+      catList.slice(0, 3).forEach((c) => loadChannelCategory(c.id));
     } catch (err) {
       console.error('Error loading channels:', err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   const handleChannelPress = (item) => {
-    const video = {
-      type: 'live',
-      streamId: item.stream_id || item.id,
-      name: item.name,
-      url: item.url,
-    };
-    playVideo(video);
+    playVideo({ type: 'live', streamId: item.stream_id || item.id, name: item.name, url: item.url });
     navigation.navigate('VideoPlayer');
   };
 
-  const filteredItems = items.filter((i) =>
-    i.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Build display categories with search filtering
+  const displayCategories = searchQuery
+    ? categories
+        .map((cat) => {
+          const chs = (channelsByCategory[cat.id] || []).filter((ch) =>
+            ch.name.toLowerCase().includes(searchQuery.toLowerCase())
+          );
+          return { ...cat, channels: chs };
+        })
+        .filter((cat) => cat.channels.length > 0)
+    : categories.map((cat) => ({
+        ...cat,
+        channels: channelsByCategory[cat.id] ?? null,
+      }));
 
-  if (isLoading) {
+  if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#e94560" />
@@ -186,39 +247,48 @@ export default function LiveTVScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.root}>
+      {/* Search + add */}
       <View style={styles.searchRow}>
         <TextInput
-          style={[styles.search, { flex: 1, margin: 0 }]}
+          style={styles.search}
           placeholder="🔍 Search channels..."
           placeholderTextColor="#666"
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        {Platform.OS === 'web' && (
-          <TouchableOpacity style={styles.addChannelBtn} onPress={() => setShowAddChannel(true)}>
-            <Text style={styles.addChannelBtnText}>+</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={styles.addBtn2} onPress={() => setShowAddChannel(true)}>
+          <Text style={styles.addBtn2Text}>+ Add</Text>
+        </TouchableOpacity>
       </View>
 
+      {/* Category shelves */}
       <FlatList
-        data={filteredItems}
-        keyExtractor={(item) => String(item.id || item.stream_id)}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <ChannelRow
-            item={item}
+        data={displayCategories}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={({ item, index }) => (
+          <LiveShelf
+            cat={item}
             epgCache={epgCache}
             fetchEpg={fetchEpg}
             onPress={handleChannelPress}
           />
         )}
+        onViewableItemsChanged={({ viewableItems }) => {
+          viewableItems.forEach(({ item }) => {
+            if (channelsByCategory[item.id] === undefined) {
+              loadChannelCategory(item.id);
+            }
+          });
+        }}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 10 }}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No channels found</Text>
           </View>
         }
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
       />
 
       {/* Add Custom Channel Modal */}
@@ -253,14 +323,11 @@ export default function LiveTVScreen({ navigation }) {
             />
             <Text style={styles.modalHint}>Supported: HLS (.m3u8), DASH (.mpd), direct video</Text>
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setShowAddChannel(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddChannel(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddChannel}>
-                <Text style={styles.modalAddText}>Add Channel</Text>
+              <TouchableOpacity style={styles.confirmBtn} onPress={handleAddChannel}>
+                <Text style={styles.confirmText}>Add Channel</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -271,129 +338,91 @@ export default function LiveTVScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f23' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f23' },
-  loadingText: { color: '#aaa', marginTop: 12 },
+  root: { flex: 1, backgroundColor: '#0f0f23' },
+  scroll: { paddingBottom: 60 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f23', padding: 24 },
+  loadingText: { color: '#aaa', marginTop: 12, fontSize: 14 },
+
   searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    margin: 12,
-    gap: 8,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 14, gap: 10,
   },
   search: {
+    flex: 1, backgroundColor: '#1a1a2e', color: '#fff',
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 10, fontSize: 14, borderWidth: 1, borderColor: '#333',
+  },
+  addBtn2: {
+    backgroundColor: '#e94560', borderRadius: 10,
+    paddingHorizontal: 16, paddingVertical: 10,
+  },
+  addBtn2Text: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  /* ── Shelf ── */
+  shelf: { paddingTop: 8, paddingBottom: 20 },
+  shelfLoading: { paddingHorizontal: 16, paddingVertical: 18 },
+  shelfTitleRow: {
+    flexDirection: 'row', alignItems: 'baseline', gap: 10,
+    paddingHorizontal: 16, marginBottom: 12,
+  },
+  shelfTitle: { color: '#fff', fontSize: 18, fontWeight: '700', letterSpacing: -0.2 },
+  shelfCount: { color: '#555', fontSize: 13, fontWeight: '500' },
+  shelfTrack: { paddingHorizontal: 16, gap: 8 },
+
+  /* ── Live card ── */
+  card: {
+    width: 240,
     backgroundColor: '#1a1a2e',
-    color: '#fff',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#333',
+    borderWidth: 1, borderColor: '#2a2a4e',
+    borderRadius: 10, padding: 14, flexShrink: 0,
   },
-  addChannelBtn: {
-    backgroundColor: '#e94560',
-    borderRadius: 10,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  cardLogo: { width: 36, height: 36, borderRadius: 6, backgroundColor: '#0f0f23' },
+  cardAbbrev: {
+    width: 36, height: 36, borderRadius: 6,
+    backgroundColor: '#16213e', borderWidth: 1, borderColor: '#2a2a4e',
+    justifyContent: 'center', alignItems: 'center', flexShrink: 0,
   },
-  addChannelBtnText: { color: '#fff', fontSize: 22, fontWeight: '700', lineHeight: 26 },
-  backBtn: { paddingHorizontal: 16, paddingBottom: 8 },
-  backBtnText: { color: '#e94560', fontSize: 14, fontWeight: '600' },
-  grid: { paddingHorizontal: 8, paddingBottom: 20 },
-  categoryCard: {
-    flex: 1,
-    margin: 6,
-    backgroundColor: '#1a1a2e',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2a2a4e',
+  cardAbbrevText: { color: '#e94560', fontWeight: '800', fontSize: 11, letterSpacing: 0.5 },
+  cardName: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
+  liveBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(233,69,96,0.15)',
+    borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2,
+    borderWidth: 1, borderColor: 'rgba(233,69,96,0.3)',
   },
-  categoryIcon: { fontSize: 28, marginBottom: 8 },
-  categoryName: { color: '#fff', fontSize: 13, textAlign: 'center', fontWeight: '500' },
-  categoryCount: { color: '#888', fontSize: 11, marginTop: 4 },
-  list: { paddingHorizontal: 12, paddingBottom: 20 },
-  channelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1a1a2e',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#2a2a4e',
-  },
-  channelLogo: { width: 40, height: 40, borderRadius: 6, marginRight: 12 },
-  channelLogoPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 6,
-    backgroundColor: '#0f0f23',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  channelInfo: { flex: 1, justifyContent: 'center' },
-  channelName: { color: '#fff', fontSize: 15 },
-  channelEpg: { color: '#888', fontSize: 12, marginTop: 2 },
-  playIcon: { color: '#e94560', fontSize: 16 },
-  emptyState: { padding: 40, alignItems: 'center' },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#e94560' },
+  liveText: { color: '#e94560', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  cardEpg: { color: '#bbb', fontSize: 12, lineHeight: 17, minHeight: 34 },
+  cardProgress: { height: 3, backgroundColor: '#2a2a4e', borderRadius: 2, marginTop: 10 },
+  cardProgressBar: { width: '35%', height: '100%', backgroundColor: '#e94560', borderRadius: 2 },
+  cardTime: { color: '#666', fontSize: 10, marginTop: 7, letterSpacing: 0.2 },
+
+  /* ── Empty ── */
+  emptyState: { padding: 60, alignItems: 'center' },
   emptyText: { color: '#666', fontSize: 15 },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyTitle: { color: '#fff', fontSize: 18, fontWeight: '600', marginBottom: 8 },
   emptyHint: { color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 20 },
-  addBtn: {
-    backgroundColor: '#e94560',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
+  addBtn: { backgroundColor: '#e94560', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
   addBtnText: { color: '#fff', fontWeight: '600' },
-  // Add channel modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
+
+  /* ── Modal ── */
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalBox: {
-    backgroundColor: '#1a1a2e',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    borderTopWidth: 1,
-    borderColor: '#2a2a4e',
+    backgroundColor: '#1a1a2e', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 24, borderTopWidth: 1, borderColor: '#2a2a4e',
   },
   modalTitle: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 16 },
   modalInput: {
-    backgroundColor: '#0f0f23',
-    color: '#fff',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 12,
+    backgroundColor: '#0f0f23', color: '#fff', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 14,
+    borderWidth: 1, borderColor: '#333', marginBottom: 12,
   },
   modalHint: { color: '#666', fontSize: 12, marginBottom: 20 },
   modalActions: { flexDirection: 'row', gap: 12 },
-  modalCancelBtn: {
-    flex: 1,
-    backgroundColor: '#2a2a4e',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalCancelText: { color: '#aaa', fontWeight: '600' },
-  modalAddBtn: {
-    flex: 1,
-    backgroundColor: '#e94560',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalAddText: { color: '#fff', fontWeight: '700' },
+  cancelBtn: { flex: 1, backgroundColor: '#2a2a4e', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
+  cancelText: { color: '#aaa', fontWeight: '600' },
+  confirmBtn: { flex: 1, backgroundColor: '#e94560', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
+  confirmText: { color: '#fff', fontWeight: '700' },
 });

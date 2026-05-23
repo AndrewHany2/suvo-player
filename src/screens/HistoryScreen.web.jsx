@@ -207,31 +207,6 @@ export default function HistoryScreen({ navigation }) {
           </div>
         </View>
       )}
-
-      {/* Continue Watching */}
-      {continueWatching.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitleInRow}>Continue Watching</Text>
-            <TouchableOpacity onPress={() => {}}>
-              <Text style={styles.seeAll}>See history ›</Text>
-            </TouchableOpacity>
-          </View>
-          <div style={{ position: 'relative' }} className="lumen-shelf-rail">
-            <button className="lumen-shelf-nav" onClick={() => cw$.scrollBy(-800)}>‹</button>
-            <div
-              ref={cw$.railRef}
-              style={{ display: 'flex', overflowX: 'auto', gap: 12, paddingLeft: 48, paddingRight: 48, scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: 'grab' }}
-            >
-              {continueWatching.map((item) => (
-                <CWCard key={item.id} item={item} onPress={() => handlePlay(item)} />
-              ))}
-            </div>
-            <button className="lumen-shelf-nav right" onClick={() => cw$.scrollBy(800)}>›</button>
-          </div>
-        </View>
-      )}
-
     </ScrollView>
   );
 }
