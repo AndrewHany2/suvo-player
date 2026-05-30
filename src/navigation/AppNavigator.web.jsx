@@ -151,6 +151,16 @@ if (typeof document !== 'undefined') {
     .lumen-cw-card:hover .lumen-cw-play { opacity: 1; }
     .lumen-shelf-title-btn { cursor: pointer !important; }
     .lumen-shelf-title-btn:hover span, .lumen-shelf-title-btn:hover div { opacity: 0.8; }
+    /* Load All CTA card */
+    .lumen-load-cta {
+      cursor: pointer !important;
+      transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+    }
+    .lumen-load-cta:hover {
+      background: rgba(233, 69, 96, 0.12) !important;
+      border-color: rgba(233, 69, 96, 0.45) !important;
+      transform: translateY(-1px);
+    }
   `;
 }
 

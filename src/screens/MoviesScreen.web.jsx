@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import iptvApi from '../services/iptvApi';
+import tmdbApi from '../services/tmdbApi';
 
 const formatTimeLeft = (cur, dur) => {
   if (!dur || !cur) return null;
@@ -181,35 +182,26 @@ function PosterCard({ item, onPress }) {
   const poster = item.stream_icon || item.cover || item.movie_image || null;
   return (
     <TouchableOpacity
-      style={styles.poster}
+      style={styles.posterCard}
       onPress={() => onPress(item)}
       {...({ className: 'lumen-poster' })}
     >
-      {poster ? (
-        <Image source={{ uri: poster }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-      ) : (
-        <View style={[StyleSheet.absoluteFillObject, styles.posterNoBg]} />
-      )}
-
-      {/* Gradient overlay — bottom to top */}
-      <View
-        style={[StyleSheet.absoluteFillObject]}
-        {...({ className: 'lumen-poster-gradient' })}
-      />
-
-      {/* HD badge */}
-      <View style={styles.hdBadge}>
-        <Text style={styles.hdText}>HD</Text>
-      </View>
-
-      {/* Title block — always visible */}
-      <View style={styles.posterBottom}>
-        <View style={styles.accentBar} />
-        <Text style={styles.posterTitle} numberOfLines={3}>{item.name?.toUpperCase()}</Text>
+      <View style={styles.poster}>
+        {poster ? (
+          <Image source={{ uri: poster }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        ) : (
+          <View style={[StyleSheet.absoluteFillObject, styles.posterNoBg]} />
+        )}
+        <View style={styles.hdBadge}>
+          <Text style={styles.hdText}>HD</Text>
+        </View>
         {item.rating ? (
-          <Text style={styles.posterMeta}>⭐ {item.rating}</Text>
+          <View style={styles.ratingBadge}>
+            <Text style={styles.ratingBadgeText}>⭐ {item.rating}</Text>
+          </View>
         ) : null}
       </View>
+      <Text style={styles.posterLabel} numberOfLines={2}>{item.name}</Text>
     </TouchableOpacity>
   );
 }
@@ -238,8 +230,6 @@ function Shelf({ catId, title, items, totalCount, hasMore, loadingMore, onVisibl
     obs.observe(el);
     return () => obs.disconnect();
   }, [catId, items, onVisible, manual]);
-
-  if (items !== null && !items?.length) return null;
 
   useEffect(() => {
     const el = railRef.current;
@@ -272,6 +262,8 @@ function Shelf({ catId, title, items, totalCount, hasMore, loadingMore, onVisibl
     };
   }, [items !== null]);
 
+  if (items !== null && !items?.length) return null;
+
   const scrollBy = (delta) => {
     const el = railRef.current;
     if (el) el.scrollLeft = Math.max(0, el.scrollLeft + delta);
@@ -294,16 +286,7 @@ function Shelf({ catId, title, items, totalCount, hasMore, loadingMore, onVisibl
       </View>
       {items === null ? (
         <View style={styles.shelfLoading}>
-          {manual ? (
-            <TouchableOpacity
-              style={styles.loadAllBtn}
-              onPress={() => onTitlePress && onTitlePress(catId, title)}
-            >
-              <Text style={styles.loadAllBtnText}>Load All</Text>
-            </TouchableOpacity>
-          ) : (
-            <ActivityIndicator size="small" color="#e94560" />
-          )}
+          <ActivityIndicator size="small" color="#e94560" />
         </View>
       ) : (
         <div style={{ position: 'relative' }} className="lumen-shelf-rail">
@@ -330,7 +313,7 @@ function Shelf({ catId, title, items, totalCount, hasMore, loadingMore, onVisibl
 }
 
 /* ─── Category Page — paginates 40 items at a time, with search ─── */
-function CategoryPage({ name, items, onBack, onPlay }) {
+function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, loadingMore }) {
   const [displayCount, setDisplayCount] = useState(GRID_PAGE);
   const [search, setSearch] = useState('');
 
@@ -338,13 +321,17 @@ function CategoryPage({ name, items, onBack, onPlay }) {
     ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items)
     : null;
   const displayed = filtered ? filtered.slice(0, displayCount) : null;
-  const hasMore = filtered && displayCount < filtered.length;
+  const hasLocalMore = filtered && displayCount < filtered.length;
+  const hasMore = hasLocalMore || hasRemote;
 
   useEffect(() => { setDisplayCount(GRID_PAGE); }, [search]);
 
   const handleScroll = ({ nativeEvent: { layoutMeasurement, contentOffset, contentSize } }) => {
-    if (hasMore && contentSize.height - contentOffset.y - layoutMeasurement.height < 800) {
+    if (contentSize.height - contentOffset.y - layoutMeasurement.height >= 800) return;
+    if (hasLocalMore) {
       setDisplayCount((c) => Math.min(c + GRID_PAGE, filtered.length));
+    } else if (hasRemote && !loadingMore && onLoadMore) {
+      onLoadMore();
     }
   };
 
@@ -377,7 +364,7 @@ function CategoryPage({ name, items, onBack, onPlay }) {
               <PosterCard key={String(item.stream_id)} item={item} onPress={onPlay} />
             ))}
           </div>
-          {hasMore && (
+          {(hasMore || loadingMore) && (
             <View style={{ alignItems: 'center', paddingVertical: 24 }}>
               <ActivityIndicator size="small" color="#e94560" />
             </View>
@@ -399,6 +386,10 @@ export default function MoviesScreen({ navigation }) {
   const [currentMovieDetail, setCurrentMovieDetail] = useState(null);
   const loadedRef = useRef(new Set());
   const allShuffledRef = useRef([]);
+  const topRatedRef = useRef([]);
+  const topRatedCursorRef = useRef(null); // { streams, page, totalPages, seenIds }
+  const [topRatedLoadingMore, setTopRatedLoadingMore] = useState(false);
+  const [topRatedHasMore, setTopRatedHasMore] = useState(false);
 
   useEffect(() => { if (activeUserId) load(); }, [activeUserId]);
 
@@ -412,10 +403,9 @@ export default function MoviesScreen({ navigation }) {
       iptvApi.setCredentials(user.host, user.username, user.password);
       const cats = await iptvApi.getVODCategories();
       if (!cats?.length) { setLoading(false); return; }
-      setShelves([
-        { id: 'all', name: 'All', items: null, totalCount: null, hasMore: false, loadingMore: false },
-        ...cats.map((c) => ({ id: c.category_id, name: c.category_name, items: null, totalCount: null, hasMore: false, loadingMore: false })),
-      ]);
+      setShelves(cats.map((c) => ({
+        id: c.category_id, name: c.category_name, items: null, totalCount: null, hasMore: false, loadingMore: false,
+      })));
     } catch (err) {
       console.error('Error loading movies:', err);
     } finally {
@@ -433,6 +423,13 @@ export default function MoviesScreen({ navigation }) {
         const streams = await iptvApi.getAllVODStreams();
         all = [...(streams || [])].sort(() => Math.random() - 0.5);
         allShuffledRef.current = all;
+      } else if (catId === 'top_rated') {
+        const streams = await iptvApi.getAllVODStreamsRobust();
+        if (tmdbApi.hasKey) all = await tmdbApi.matchMovies(streams || []);
+        if (!all?.length) {
+          all = [...(streams || [])].filter(s => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+        }
+        topRatedRef.current = all;
       } else {
         const streams = await iptvApi.getVODStreams(catId);
         all = streams || [];
@@ -451,7 +448,9 @@ export default function MoviesScreen({ navigation }) {
   const handleLoadMore = useCallback(async (catId) => {
     setShelves((prev) => prev.map((s) => s.id === catId ? { ...s, loadingMore: true } : s));
     try {
-      const all = catId === 'all' ? allShuffledRef.current : await iptvApi.getVODStreams(catId);
+      const all = catId === 'all' ? allShuffledRef.current
+        : catId === 'top_rated' ? topRatedRef.current
+        : await iptvApi.getVODStreams(catId);
       setShelves((prev) => prev.map((s) => {
         if (s.id !== catId) return s;
         const nextItems = (all || []).slice(0, (s.items?.length || 0) + SHELF_PAGE);
@@ -490,6 +489,28 @@ export default function MoviesScreen({ navigation }) {
           allShuffledRef.current = [...(streams || [])].sort(() => Math.random() - 0.5);
         }
         all = allShuffledRef.current;
+      } else if (catId === 'top_rated') {
+        const streams = await iptvApi.getAllVODStreamsRobust();
+        if (tmdbApi.hasKey) {
+          const seenIds = new Set();
+          const { matched, totalPages, hasMore } = await tmdbApi.matchTopRatedRange({
+            type: 'movie', iptvItems: streams || [], idField: 'stream_id',
+            fromPage: 1, toPage: 5, seenIds,
+          });
+          topRatedCursorRef.current = { streams: streams || [], type: 'movie', idField: 'stream_id', page: 5, totalPages, seenIds, prefetch: null, prefetchTo: 0 };
+          setTopRatedHasMore(hasMore);
+          all = matched;
+          // Fallback to local rating sort if TMDB returned nothing
+          if (!all.length) {
+            all = [...(streams || [])].filter(s => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+            setTopRatedHasMore(false);
+          } else if (hasMore) {
+            kickoffPrefetch(topRatedCursorRef.current);
+          }
+        } else {
+          all = [...(streams || [])].filter(s => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+          setTopRatedHasMore(false);
+        }
       } else {
         all = await iptvApi.getVODStreams(catId);
         if (!loadedRef.current.has(catId)) handleShelfVisible(catId);
@@ -499,6 +520,50 @@ export default function MoviesScreen({ navigation }) {
       setCategoryItems([]);
     }
   };
+
+  // Kick off background fetch of the next page range; results land in cursor.prefetch.
+  const kickoffPrefetch = (cursor) => {
+    if (!cursor || cursor.prefetch) return;
+    const fromPage = cursor.page + 1;
+    const toPage = Math.min(cursor.page + 5, cursor.totalPages || Infinity);
+    if (fromPage > toPage) return;
+    cursor.prefetchTo = toPage;
+    cursor.prefetch = tmdbApi.matchTopRatedRange({
+      type: cursor.type, iptvItems: cursor.streams, idField: cursor.idField,
+      fromPage, toPage, seenIds: cursor.seenIds,
+    }).catch(() => null);
+  };
+
+  const handleTopRatedMore = useCallback(async () => {
+    const cursor = topRatedCursorRef.current;
+    if (!cursor || topRatedLoadingMore) return;
+    if (cursor.page >= cursor.totalPages && !cursor.prefetch) { setTopRatedHasMore(false); return; }
+    setTopRatedLoadingMore(true);
+    try {
+      let result;
+      if (cursor.prefetch) {
+        result = await cursor.prefetch;
+        cursor.page = cursor.prefetchTo;
+        cursor.prefetch = null;
+      } else {
+        const fromPage = cursor.page + 1;
+        const toPage = Math.min(cursor.page + 5, cursor.totalPages);
+        result = await tmdbApi.matchTopRatedRange({
+          type: cursor.type, iptvItems: cursor.streams, idField: cursor.idField,
+          fromPage, toPage, seenIds: cursor.seenIds,
+        });
+        cursor.page = toPage;
+      }
+      if (!result) return;
+      cursor.totalPages = result.totalPages;
+      setTopRatedHasMore(result.hasMore);
+      if (result.matched.length) setCategoryItems((prev) => [...(prev || []), ...result.matched]);
+      // Roll the buffer forward
+      if (result.hasMore) kickoffPrefetch(cursor);
+    } finally {
+      setTopRatedLoadingMore(false);
+    }
+  }, [topRatedLoadingMore]);
 
   if (loading) {
     return (
@@ -535,12 +600,20 @@ export default function MoviesScreen({ navigation }) {
   }
 
   if (currentCategory) {
+    const isTopRated = currentCategory.catId === 'top_rated';
     return (
       <CategoryPage
         name={currentCategory.name}
         items={categoryItems}
-        onBack={() => { setCurrentCategory(null); setCategoryItems(null); }}
+        onBack={() => {
+          setCurrentCategory(null); setCategoryItems(null);
+          topRatedCursorRef.current = null;
+          setTopRatedHasMore(false); setTopRatedLoadingMore(false);
+        }}
         onPlay={handleMoviePress}
+        hasRemote={isTopRated && topRatedHasMore}
+        loadingMore={isTopRated && topRatedLoadingMore}
+        onLoadMore={isTopRated ? handleTopRatedMore : undefined}
       />
     );
   }
@@ -578,6 +651,29 @@ export default function MoviesScreen({ navigation }) {
           </div>
         </View>
       )}
+      <View style={styles.discoverSection}>
+        <Text style={styles.discoverTitle}>Discover</Text>
+        <View style={styles.discoverRow}>
+          <TouchableOpacity
+            style={styles.discoverPill}
+            onPress={() => handleTitlePress('all', 'All Movies')}
+            {...({ className: 'lumen-load-cta' })}
+          >
+            <Text style={styles.discoverIcon}>🎬</Text>
+            <Text style={styles.discoverLabel}>All Movies</Text>
+            <Text style={styles.discoverArrow}>→</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.discoverPill}
+            onPress={() => handleTitlePress('top_rated', 'Top Rated')}
+            {...({ className: 'lumen-load-cta' })}
+          >
+            <Text style={styles.discoverIcon}>⭐</Text>
+            <Text style={styles.discoverLabel}>Top Rated</Text>
+            <Text style={styles.discoverArrow}>→</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       <View style={styles.pageBody}>
         {shelves.length > 0 ? (
           shelves.map((shelf) => (
@@ -593,7 +689,7 @@ export default function MoviesScreen({ navigation }) {
               onPlay={handleMoviePress}
               onTitlePress={handleTitlePress}
               onLoadMore={handleLoadMore}
-              manual={shelf.id === 'all'}
+              manual={false}
             />
           ))
         ) : (
@@ -671,8 +767,20 @@ const styles = StyleSheet.create({
   /* ── Shelf ── */
   shelf: { paddingTop: 28, paddingBottom: 8, overflow: 'visible' },
   shelfLoading: { paddingHorizontal: 48, paddingVertical: 18 },
-  loadAllBtn: { alignSelf: 'flex-start', backgroundColor: '#e94560', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
-  loadAllBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  // Discover row
+  discoverSection: { paddingHorizontal: 48, paddingTop: 24, paddingBottom: 4 },
+  discoverTitle: { color: '#fff', fontSize: 22, fontWeight: '700', letterSpacing: -0.3, marginBottom: 12 },
+  discoverRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  discoverPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 18, paddingVertical: 11,
+    backgroundColor: 'rgba(233, 69, 96, 0.08)',
+    borderWidth: 1, borderColor: 'rgba(233, 69, 96, 0.28)',
+    borderRadius: 999,
+  },
+  discoverIcon: { fontSize: 16 },
+  discoverLabel: { color: '#fff', fontSize: 13, fontWeight: '600', letterSpacing: 0.1 },
+  discoverArrow: { color: '#e94560', fontSize: 16, fontWeight: '700', marginLeft: 2 },
   shelfHead: {
     flexDirection: 'row', alignItems: 'baseline',
     justifyContent: 'space-between',
@@ -690,13 +798,18 @@ const styles = StyleSheet.create({
   seeMoreLabel: { color: '#888', fontSize: 12, marginTop: 4 },
 
   /* ── Poster card ── */
+  posterCard: { width: 200, flexShrink: 0 },
   poster: {
     width: 200,
     aspectRatio: 2 / 3,
     borderRadius: 8,
     backgroundColor: '#16213e',
     overflow: 'hidden',
-    flexShrink: 0,
+    position: 'relative',
+  },
+  posterLabel: {
+    color: '#fff', fontSize: 13, fontWeight: '600',
+    marginTop: 10, lineHeight: 17,
   },
   posterNoBg: { backgroundColor: '#16213e' },
   hdBadge: {
@@ -705,6 +818,12 @@ const styles = StyleSheet.create({
     borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2,
   },
   hdText: { color: '#ccc', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  ratingBadge: {
+    position: 'absolute', top: 8, left: 8, zIndex: 4,
+    backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 4,
+    paddingHorizontal: 5, paddingVertical: 2,
+  },
+  ratingBadgeText: { color: '#ffd700', fontSize: 9, fontWeight: '700' },
   posterBottom: {
     position: 'absolute', left: 12, right: 12, bottom: 14, zIndex: 4,
   },

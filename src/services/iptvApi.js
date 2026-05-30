@@ -89,6 +89,33 @@ class IPTVApi {
     return this._cached('vod_streams_all', TTL.streams, () => this.fetch(this.buildUrl('get_vod_streams')));
   }
 
+  // Tries the "all" endpoint first, falls back to fanning out per-category if
+  // the server blocks bulk fetches (e.g. 403). Dedupes by stream_id.
+  getAllVODStreamsRobust() {
+    return this._cached('vod_streams_robust', TTL.streams, async () => {
+      try {
+        const all = await this.fetch(this.buildUrl('get_vod_streams'));
+        if (Array.isArray(all) && all.length > 0) return all;
+      } catch { /* fall through */ }
+      const cats = await this.getVODCategories();
+      if (!Array.isArray(cats) || !cats.length) return [];
+      const results = await Promise.all(
+        cats.map((c) => this.getVODStreams(c.category_id).catch(() => []))
+      );
+      const seen = new Set();
+      const merged = [];
+      for (const list of results) {
+        for (const item of list || []) {
+          if (item?.stream_id != null && !seen.has(item.stream_id)) {
+            seen.add(item.stream_id);
+            merged.push(item);
+          }
+        }
+      }
+      return merged;
+    });
+  }
+
   getVODInfo(vodId) {
     return this._cached(`vod_info_${vodId}`, TTL.seriesInfo, () =>
       this.fetch(this.buildUrl('get_vod_info', { vod_id: vodId }))
@@ -107,6 +134,33 @@ class IPTVApi {
 
   getAllSeries() {
     return this._cached('series_all', TTL.streams, () => this.fetch(this.buildUrl('get_series')));
+  }
+
+  // Tries the "all" endpoint first, falls back to fanning out per-category if
+  // the server blocks bulk fetches (e.g. 403). Dedupes by series_id.
+  getAllSeriesRobust() {
+    return this._cached('series_robust', TTL.streams, async () => {
+      try {
+        const all = await this.fetch(this.buildUrl('get_series'));
+        if (Array.isArray(all) && all.length > 0) return all;
+      } catch { /* fall through */ }
+      const cats = await this.getSeriesCategories();
+      if (!Array.isArray(cats) || !cats.length) return [];
+      const results = await Promise.all(
+        cats.map((c) => this.getSeries(c.category_id).catch(() => []))
+      );
+      const seen = new Set();
+      const merged = [];
+      for (const list of results) {
+        for (const item of list || []) {
+          if (item?.series_id != null && !seen.has(item.series_id)) {
+            seen.add(item.series_id);
+            merged.push(item);
+          }
+        }
+      }
+      return merged;
+    });
   }
 
   getSeriesInfo(seriesId) {

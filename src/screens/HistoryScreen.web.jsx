@@ -164,6 +164,11 @@ export default function HistoryScreen({ navigation }) {
     navigation.navigate('VideoPlayer');
   };
 
+  const handleContinue = (item) => {
+    playVideo({ ...item, startTime: item.currentTime || 0 });
+    navigation.navigate('VideoPlayer');
+  };
+
   const myList = watchHistory.filter((item) => item.type !== 'live');
   const continueWatching = watchHistory.filter((item) => {
     if (item.type === 'live' || !item.currentTime || item.currentTime <= 0) return false;
@@ -204,6 +209,25 @@ export default function HistoryScreen({ navigation }) {
               ))}
             </div>
             <button className="lumen-shelf-nav right" onClick={() => myList$.scrollBy(800)}>›</button>
+          </div>
+        </View>
+      )}
+
+      {/* Continue Watching */}
+      {continueWatching.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Continue Watching</Text>
+          <div style={{ position: 'relative' }} className="lumen-shelf-rail">
+            <button className="lumen-shelf-nav" onClick={() => cw$.scrollBy(-800)}>‹</button>
+            <div
+              ref={cw$.railRef}
+              style={{ display: 'flex', overflowX: 'auto', gap: 12, paddingLeft: 48, paddingRight: 48, scrollbarWidth: 'none', msOverflowStyle: 'none', cursor: 'grab' }}
+            >
+              {continueWatching.map((item) => (
+                <CWCard key={item.id} item={item} onPress={() => handleContinue(item)} />
+              ))}
+            </div>
+            <button className="lumen-shelf-nav right" onClick={() => cw$.scrollBy(800)}>›</button>
           </div>
         </View>
       )}

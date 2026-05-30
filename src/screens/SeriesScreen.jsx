@@ -20,6 +20,7 @@ const GradientOverlay = memo(({ style }) => (
   </View>
 ));
 import iptvApi from '../services/iptvApi';
+import tmdbApi from '../services/tmdbApi';
 
 const SHELF_PAGE = 12;
 const GRID_PAGE = 40;
@@ -55,21 +56,23 @@ const getEpisodeNumber = (episode) => {
 const PosterCard = memo(function PosterCard({ item, onPress }) {
   const poster = item.cover || item.backdrop_path || item.stream_icon || null;
   return (
-    <TouchableOpacity style={styles.poster} onPress={() => onPress(item)} activeOpacity={0.8}>
-      {poster ? (
-        <Image source={{ uri: poster }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-      ) : (
-        <View style={[StyleSheet.absoluteFillObject, styles.posterNoBg]} />
-      )}
-      <GradientOverlay style={StyleSheet.absoluteFillObject} />
-      <View style={styles.hdBadge}>
-        <Text style={styles.hdText}>HD</Text>
+    <TouchableOpacity style={styles.posterCard} onPress={() => onPress(item)} activeOpacity={0.8}>
+      <View style={styles.poster}>
+        {poster ? (
+          <Image source={{ uri: poster }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        ) : (
+          <View style={[StyleSheet.absoluteFillObject, styles.posterNoBg]} />
+        )}
+        <View style={styles.hdBadge}>
+          <Text style={styles.hdText}>HD</Text>
+        </View>
+        {item.rating ? (
+          <View style={styles.ratingBadge}>
+            <Text style={styles.ratingBadgeText}>⭐ {item.rating}</Text>
+          </View>
+        ) : null}
       </View>
-      <View style={styles.posterBottom}>
-        <View style={styles.accentBar} />
-        <Text style={styles.posterTitle} numberOfLines={3}>{item.name?.toUpperCase()}</Text>
-        {item.rating ? <Text style={styles.posterMeta}>⭐ {item.rating}</Text> : null}
-      </View>
+      <Text style={styles.posterLabel} numberOfLines={2}>{item.name}</Text>
     </TouchableOpacity>
   );
 });
@@ -266,16 +269,7 @@ function Shelf({ shelf, onVisible, onPress, onTitlePress, onLoadMore }) {
 
       {shelf.items === null ? (
         <View style={styles.shelfLoading}>
-          {shelf.manual ? (
-            <TouchableOpacity
-              style={styles.loadAllBtn}
-              onPress={() => onTitlePress && onTitlePress(shelf.id, shelf.name)}
-            >
-              <Text style={styles.loadAllBtnText}>Load All</Text>
-            </TouchableOpacity>
-          ) : (
-            <ActivityIndicator size="small" color="#e94560" />
-          )}
+          <ActivityIndicator size="small" color="#e94560" />
         </View>
       ) : (
         <ScrollView
@@ -307,7 +301,7 @@ function Shelf({ shelf, onVisible, onPress, onTitlePress, onLoadMore }) {
 }
 
 /* ─── Category Page ─── */
-function CategoryPage({ name, items, onBack, onPress }) {
+function CategoryPage({ name, items, onBack, onPress, onLoadMore, hasRemote, loadingMore }) {
   const [displayCount, setDisplayCount] = useState(GRID_PAGE);
   const [search, setSearch] = useState('');
 
@@ -315,7 +309,8 @@ function CategoryPage({ name, items, onBack, onPress }) {
     ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items)
     : null;
   const displayed = filtered ? filtered.slice(0, displayCount) : null;
-  const hasMore = filtered && displayCount < filtered.length;
+  const hasLocalMore = filtered && displayCount < filtered.length;
+  const hasMore = hasLocalMore || hasRemote;
 
   useEffect(() => { setDisplayCount(GRID_PAGE); }, [search]);
 
@@ -349,11 +344,15 @@ function CategoryPage({ name, items, onBack, onPress }) {
           contentContainerStyle={styles.catGrid}
           renderItem={({ item }) => <PosterCard item={item} onPress={onPress} />}
           onEndReached={() => {
-            if (hasMore) setDisplayCount((c) => Math.min(c + GRID_PAGE, filtered.length));
+            if (hasLocalMore) {
+              setDisplayCount((c) => Math.min(c + GRID_PAGE, filtered.length));
+            } else if (hasRemote && !loadingMore && onLoadMore) {
+              onLoadMore();
+            }
           }}
           onEndReachedThreshold={0.5}
           ListFooterComponent={
-            hasMore ? (
+            (hasMore || loadingMore) ? (
               <View style={{ alignItems: 'center', paddingVertical: 20 }}>
                 <ActivityIndicator size="small" color="#e94560" />
               </View>
@@ -380,6 +379,10 @@ export default function SeriesScreen({ navigation }) {
   const [showEpisodeList, setShowEpisodeList] = useState(false);
   const loadedRef = useRef(new Set());
   const allShuffledRef = useRef([]);
+  const topRatedRef = useRef([]);
+  const topRatedCursorRef = useRef(null);
+  const [topRatedLoadingMore, setTopRatedLoadingMore] = useState(false);
+  const [topRatedHasMore, setTopRatedHasMore] = useState(false);
 
   useEffect(() => { if (activeUserId) load(); }, [activeUserId]);
 
@@ -393,10 +396,9 @@ export default function SeriesScreen({ navigation }) {
       iptvApi.setCredentials(user.host, user.username, user.password);
       const cats = await iptvApi.getSeriesCategories();
       if (!cats?.length) { setLoading(false); return; }
-      setShelves([
-        { id: 'all', name: 'All', items: null, totalCount: null, hasMore: false, loadingMore: false, manual: true },
-        ...cats.map((c) => ({ id: c.category_id, name: c.category_name, items: null, totalCount: null, hasMore: false, loadingMore: false, manual: false })),
-      ]);
+      setShelves(cats.map((c) => ({
+        id: c.category_id, name: c.category_name, items: null, totalCount: null, hasMore: false, loadingMore: false, manual: false,
+      })));
     } catch (err) {
       console.error('Error loading series:', err);
     } finally {
@@ -413,6 +415,13 @@ export default function SeriesScreen({ navigation }) {
         const series = await iptvApi.getAllSeries();
         all = [...(series || [])].sort(() => Math.random() - 0.5);
         allShuffledRef.current = all;
+      } else if (catId === 'top_rated') {
+        const series = await iptvApi.getAllSeriesRobust();
+        if (tmdbApi.hasKey) all = await tmdbApi.matchSeries(series || []);
+        if (!all?.length) {
+          all = [...(series || [])].filter(s => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+        }
+        topRatedRef.current = all;
       } else {
         all = await iptvApi.getSeries(catId);
       }
@@ -429,7 +438,9 @@ export default function SeriesScreen({ navigation }) {
   const handleLoadMore = useCallback(async (catId) => {
     setShelves((prev) => prev.map((s) => s.id === catId ? { ...s, loadingMore: true } : s));
     try {
-      const all = catId === 'all' ? allShuffledRef.current : await iptvApi.getSeries(catId);
+      const all = catId === 'all' ? allShuffledRef.current
+        : catId === 'top_rated' ? topRatedRef.current
+        : await iptvApi.getSeries(catId);
       setShelves((prev) => prev.map((s) => {
         if (s.id !== catId) return s;
         const nextItems = (all || []).slice(0, (s.items?.length || 0) + SHELF_PAGE);
@@ -451,6 +462,27 @@ export default function SeriesScreen({ navigation }) {
           allShuffledRef.current = [...(series || [])].sort(() => Math.random() - 0.5);
         }
         all = allShuffledRef.current;
+      } else if (catId === 'top_rated') {
+        const series = await iptvApi.getAllSeriesRobust();
+        if (tmdbApi.hasKey) {
+          const seenIds = new Set();
+          const { matched, totalPages, hasMore } = await tmdbApi.matchTopRatedRange({
+            type: 'tv', iptvItems: series || [], idField: 'series_id',
+            fromPage: 1, toPage: 5, seenIds,
+          });
+          topRatedCursorRef.current = { streams: series || [], type: 'tv', idField: 'series_id', page: 5, totalPages, seenIds, prefetch: null, prefetchTo: 0 };
+          setTopRatedHasMore(hasMore);
+          all = matched;
+          if (!all.length) {
+            all = [...(series || [])].filter(s => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+            setTopRatedHasMore(false);
+          } else if (hasMore) {
+            kickoffPrefetch(topRatedCursorRef.current);
+          }
+        } else {
+          all = [...(series || [])].filter(s => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+          setTopRatedHasMore(false);
+        }
       } else {
         all = await iptvApi.getSeries(catId);
         if (!loadedRef.current.has(catId)) handleShelfVisible(catId);
@@ -460,6 +492,48 @@ export default function SeriesScreen({ navigation }) {
       setCategoryItems([]);
     }
   };
+
+  const kickoffPrefetch = (cursor) => {
+    if (!cursor || cursor.prefetch) return;
+    const fromPage = cursor.page + 1;
+    const toPage = Math.min(cursor.page + 5, cursor.totalPages || Infinity);
+    if (fromPage > toPage) return;
+    cursor.prefetchTo = toPage;
+    cursor.prefetch = tmdbApi.matchTopRatedRange({
+      type: cursor.type, iptvItems: cursor.streams, idField: cursor.idField,
+      fromPage, toPage, seenIds: cursor.seenIds,
+    }).catch(() => null);
+  };
+
+  const handleTopRatedMore = useCallback(async () => {
+    const cursor = topRatedCursorRef.current;
+    if (!cursor || topRatedLoadingMore) return;
+    if (cursor.page >= cursor.totalPages && !cursor.prefetch) { setTopRatedHasMore(false); return; }
+    setTopRatedLoadingMore(true);
+    try {
+      let result;
+      if (cursor.prefetch) {
+        result = await cursor.prefetch;
+        cursor.page = cursor.prefetchTo;
+        cursor.prefetch = null;
+      } else {
+        const fromPage = cursor.page + 1;
+        const toPage = Math.min(cursor.page + 5, cursor.totalPages);
+        result = await tmdbApi.matchTopRatedRange({
+          type: cursor.type, iptvItems: cursor.streams, idField: cursor.idField,
+          fromPage, toPage, seenIds: cursor.seenIds,
+        });
+        cursor.page = toPage;
+      }
+      if (!result) return;
+      cursor.totalPages = result.totalPages;
+      setTopRatedHasMore(result.hasMore);
+      if (result.matched.length) setCategoryItems((prev) => [...(prev || []), ...result.matched]);
+      if (result.hasMore) kickoffPrefetch(cursor);
+    } finally {
+      setTopRatedLoadingMore(false);
+    }
+  }, [topRatedLoadingMore]);
 
   const handleSeriesPress = async (item) => {
     setCurrentSeries({ id: item.series_id, name: item.name, cover: item.cover, seriesInfo: null });
@@ -580,12 +654,20 @@ export default function SeriesScreen({ navigation }) {
 
   /* ── Category page ── */
   if (currentCategory) {
+    const isTopRated = currentCategory.catId === 'top_rated';
     return (
       <CategoryPage
         name={currentCategory.name}
         items={categoryItems}
-        onBack={() => { setCurrentCategory(null); setCategoryItems(null); }}
+        onBack={() => {
+          setCurrentCategory(null); setCategoryItems(null);
+          topRatedCursorRef.current = null;
+          setTopRatedHasMore(false); setTopRatedLoadingMore(false);
+        }}
         onPress={handleSeriesPress}
+        hasRemote={isTopRated && topRatedHasMore}
+        loadingMore={isTopRated && topRatedLoadingMore}
+        onLoadMore={isTopRated ? handleTopRatedMore : undefined}
       />
     );
   }
@@ -611,21 +693,48 @@ export default function SeriesScreen({ navigation }) {
     }
   };
 
-  const cwHeader = continueWatching.length > 0 ? (
-    <View style={styles.cwSection}>
-      <View style={styles.cwHeader}>
-        <Text style={styles.cwSectionTitle}>Continue Watching</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('mylist')}>
-          <Text style={styles.seeHistory}>See history ›</Text>
-        </TouchableOpacity>
+  const listHeader = (
+    <>
+      {continueWatching.length > 0 && (
+        <View style={styles.cwSection}>
+          <View style={styles.cwHeader}>
+            <Text style={styles.cwSectionTitle}>Continue Watching</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('mylist')}>
+              <Text style={styles.seeHistory}>See history ›</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} removeClippedSubviews contentContainerStyle={styles.cwTrack}>
+            {continueWatching.map((item) => (
+              <CWCard key={item.id} item={item} onPress={() => handleCWPress(item)} />
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      <View style={styles.discoverSection}>
+        <Text style={styles.discoverTitle}>Discover</Text>
+        <View style={styles.discoverRow}>
+          <TouchableOpacity
+            style={styles.discoverPill}
+            activeOpacity={0.75}
+            onPress={() => handleTitlePress('all', 'All Series')}
+          >
+            <Text style={styles.discoverIcon}>📺</Text>
+            <Text style={styles.discoverLabel}>All Series</Text>
+            <Text style={styles.discoverArrow}>→</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.discoverPill}
+            activeOpacity={0.75}
+            onPress={() => handleTitlePress('top_rated', 'Top Rated')}
+          >
+            <Text style={styles.discoverIcon}>⭐</Text>
+            <Text style={styles.discoverLabel}>Top Rated</Text>
+            <Text style={styles.discoverArrow}>→</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} removeClippedSubviews contentContainerStyle={styles.cwTrack}>
-        {continueWatching.map((item) => (
-          <CWCard key={item.id} item={item} onPress={() => handleCWPress(item)} />
-        ))}
-      </ScrollView>
-    </View>
-  ) : null;
+    </>
+  );
 
   return (
     <FlatList
@@ -634,7 +743,7 @@ export default function SeriesScreen({ navigation }) {
       showsVerticalScrollIndicator={false}
       data={shelves}
       keyExtractor={(item) => String(item.id)}
-      ListHeaderComponent={cwHeader}
+      ListHeaderComponent={listHeader}
       renderItem={({ item }) => (
         <Shelf
           shelf={item}
@@ -679,8 +788,20 @@ const styles = StyleSheet.create({
   /* ── Shelf ── */
   shelf: { paddingTop: 20, paddingBottom: 8 },
   shelfLoading: { paddingHorizontal: 16, paddingVertical: 18 },
-  loadAllBtn: { alignSelf: 'flex-start', backgroundColor: '#e94560', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, marginLeft: 16 },
-  loadAllBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  // Discover row
+  discoverSection: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4 },
+  discoverTitle: { color: '#fff', fontSize: 20, fontWeight: '700', letterSpacing: -0.3, marginBottom: 12 },
+  discoverRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  discoverPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: 'rgba(233, 69, 96, 0.08)',
+    borderWidth: 1, borderColor: 'rgba(233, 69, 96, 0.28)',
+    borderRadius: 999,
+  },
+  discoverIcon: { fontSize: 14 },
+  discoverLabel: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  discoverArrow: { color: '#e94560', fontSize: 14, fontWeight: '700', marginLeft: 2 },
   shelfHead: {
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
     paddingHorizontal: 16, marginBottom: 14,
@@ -692,11 +813,13 @@ const styles = StyleSheet.create({
   loadMoreSpinner: { width: 60, justifyContent: 'center', alignItems: 'center' },
 
   /* ── Poster card ── */
+  posterCard: { width: 130, flexShrink: 0 },
   poster: {
     width: 130, aspectRatio: 2 / 3,
     borderRadius: 8, backgroundColor: '#16213e',
-    overflow: 'hidden', flexShrink: 0,
+    overflow: 'hidden', position: 'relative',
   },
+  posterLabel: { color: '#fff', fontSize: 12, fontWeight: '600', marginTop: 8, lineHeight: 16 },
   posterNoBg: { backgroundColor: '#16213e' },
   hdBadge: {
     position: 'absolute', top: 8, right: 8, zIndex: 4,
@@ -704,6 +827,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5, paddingVertical: 2,
   },
   hdText: { color: '#ccc', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  ratingBadge: {
+    position: 'absolute', top: 8, left: 8, zIndex: 4,
+    backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 4,
+    paddingHorizontal: 5, paddingVertical: 2,
+  },
+  ratingBadgeText: { color: '#ffd700', fontSize: 9, fontWeight: '700' },
   posterBottom: { position: 'absolute', left: 10, right: 10, bottom: 12, zIndex: 4 },
   accentBar: { width: 20, height: 2, backgroundColor: '#e94560', borderRadius: 1, marginBottom: 6 },
   posterTitle: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.3, lineHeight: 14 },

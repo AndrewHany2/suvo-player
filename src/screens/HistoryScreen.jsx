@@ -523,7 +523,10 @@ export default function HistoryScreen({ navigation }) {
             contentContainerStyle={styles.shelfTrack}
           >
             {continueWatching.map((item) => (
-              <CWCard key={item.id} item={item} onPress={() => openDetail(item)} />
+              <CWCard key={item.id} item={item} onPress={() => {
+                playVideo({ ...item, startTime: item.currentTime || 0 });
+                navigation.navigate('VideoPlayer');
+              }} />
             ))}
           </ScrollView>
         </View>
