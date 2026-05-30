@@ -8,6 +8,7 @@ import {
   Platform,
   Modal,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useApp } from '../context/AppContext';
@@ -29,6 +30,7 @@ export default function VideoPlayerScreen({ navigation }) {
   const [selectedSubtitle, setSelectedSubtitle] = useState(null);
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const controlsTimerRef = useRef(null);
 
   const player = useVideoPlayer(
@@ -53,6 +55,16 @@ export default function VideoPlayerScreen({ navigation }) {
     resetControlsTimer();
     return () => clearTimeout(controlsTimerRef.current);
   }, []);
+
+  // Track buffering/loading state
+  useEffect(() => {
+    if (!player) return;
+    setIsLoading(true);
+    const sub = player.addListener('statusChange', (status) => {
+      setIsLoading(status.status === 'loading' || status.status === 'idle');
+    });
+    return () => sub?.remove();
+  }, [player, currentVideo?.url]);
 
   // Load available audio/subtitle tracks
   useEffect(() => {
@@ -89,6 +101,7 @@ export default function VideoPlayerScreen({ navigation }) {
     setSubtitleTracks([]);
     setSelectedAudio(null);
     setSelectedSubtitle(null);
+    setIsLoading(true);
   }, [currentVideo?.url]);
 
   // Progress tracking every 10 seconds
@@ -222,11 +235,19 @@ export default function VideoPlayerScreen({ navigation }) {
         <VideoView
           player={player}
           style={styles.video}
-          nativeControls
+          nativeControls={!isLoading}
           allowsFullscreen
           allowsPictureInPicture
         />
       </TouchableOpacity>
+
+      {/* Loading overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color="#e94560" />
+          <Text style={styles.loadingText}>Loading stream...</Text>
+        </View>
+      )}
 
       {/* Top overlay */}
       {showControls && (
@@ -434,4 +455,10 @@ const styles = StyleSheet.create({
   menuItemActive: { backgroundColor: 'rgba(233,69,96,0.2)' },
   menuItemText: { color: '#ccc', fontSize: 15 },
   menuItemTextActive: { color: '#e94560', fontWeight: '700' },
+  loadingOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  loadingText: { color: '#fff', marginTop: 10, fontSize: 14 },
 });

@@ -377,8 +377,7 @@ export default function VideoPlayerScreen() {
 
       {/* Video */}
       <div style={S.videoWrapper}>
-        <video ref={videoRef} controls autoPlay playsInline crossOrigin="anonymous"
-          style={{ ...getVideoStyle(), visibility: isLoading ? 'hidden' : 'visible' }} />
+        <video ref={videoRef} controls={!isLoading} autoPlay playsInline crossOrigin="anonymous" style={getVideoStyle()} />
 
         {isLoading && (
           <div style={S.loadingOverlay}>
