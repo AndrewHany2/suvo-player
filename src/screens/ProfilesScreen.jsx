@@ -1,45 +1,92 @@
-import { useState } from 'react';
+import { useState } from "react";
+import { useTVNavigation } from "../hooks/useTVNavigation";
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator, FlatList,
-} from 'react-native';
-import { useApp } from '../context/AppContext';
+  YStack,
+  XStack,
+  Text,
+  Input,
+  ScrollView,
+  Spinner,
+} from "tamagui";
+import { useApp } from "../context/AppContext";
 
-const AVATARS = ['👤','👨','👩','👦','👧','👴','👵','🧑','🎮','🎬','🍿','⚽','🎵','🦸','🎨','🐱'];
+const AVATARS = [
+  "👤", "👨", "👩", "👦", "👧", "👴", "👵", "🧑",
+  "🎮", "🎬", "🍿", "⚽", "🎵", "🦸", "🎨", "🐱",
+];
 
 export default function ProfilesScreen() {
-  const { appProfiles, activeProfileId, switchProfile, addProfile, updateProfile, removeProfile, signOut, authUser } = useApp();
+  const {
+    appProfiles,
+    activeProfileId,
+    switchProfile,
+    addProfile,
+    updateProfile,
+    removeProfile,
+    signOut,
+    authUser,
+  } = useApp();
 
-  const [view, setView] = useState('select'); // 'select' | 'manage' | 'form'
+  const [view, setView] = useState("select"); // 'select' | 'manage' | 'form'
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({ name: '', avatar: '👤' });
+  const [formData, setFormData] = useState({ name: "", avatar: "👤" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
+  const footerItems = [
+    ...(appProfiles.length > 0 ? [{ id: "manage" }] : []),
+    ...(authUser ? [{ id: "signout" }] : []),
+  ];
+
+  const { focusedRow, focusedCol } = useTVNavigation({
+    active: view === "select",
+    rows: [
+      {
+        items: [...appProfiles, { id: "__add__" }],
+        onSelect: (idx) => {
+          if (idx < appProfiles.length) switchProfile(appProfiles[idx].id);
+          else openAdd();
+        },
+      },
+      ...(footerItems.length > 0
+        ? [{
+            items: footerItems,
+            onSelect: (_, item) => {
+              if (item.id === "manage") setView("manage");
+              else if (item.id === "signout") signOut();
+            },
+          }]
+        : []),
+    ],
+  });
+
   const resetForm = () => {
-    setFormData({ name: '', avatar: '👤' });
+    setFormData({ name: "", avatar: "👤" });
     setEditingId(null);
     setError(null);
-    setView('manage');
+    setView("manage");
   };
 
   const openAdd = () => {
-    setFormData({ name: '', avatar: '👤' });
+    setFormData({ name: "", avatar: "👤" });
     setEditingId(null);
     setError(null);
-    setView('form');
+    setView("form");
   };
 
   const openEdit = (p) => {
     setFormData({ name: p.name, avatar: p.avatar });
     setEditingId(p.id);
     setError(null);
-    setView('form');
+    setView("form");
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) { setError('Profile name is required.'); return; }
+    if (!formData.name.trim()) {
+      setError("Profile name is required.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -47,254 +94,419 @@ export default function ProfilesScreen() {
         await updateProfile(editingId, formData);
       } else {
         const p = await addProfile(formData);
-        if (p && view !== 'manage') switchProfile(p.id);
+        if (p && view !== "manage") switchProfile(p.id);
       }
       resetForm();
     } catch (err) {
-      setError(err?.message || 'Failed to save profile.');
+      setError(err?.message || "Failed to save profile.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (profileId) => {
-    if (confirmDeleteId !== profileId) { setConfirmDeleteId(profileId); return; }
+    if (confirmDeleteId !== profileId) {
+      setConfirmDeleteId(profileId);
+      return;
+    }
     setLoading(true);
     setConfirmDeleteId(null);
     try {
       await removeProfile(profileId);
     } catch (err) {
-      setError(err?.message || 'Failed to delete.');
+      setError(err?.message || "Failed to delete.");
     } finally {
       setLoading(false);
     }
   };
 
   // ── Form view (add / edit) ────────────────────────────────────────────────
-  if (view === 'form') {
+  if (view === "form") {
     return (
-      <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.formScroll}>
-          <Text style={styles.formTitle}>{editingId ? 'Edit Profile' : 'New Profile'}</Text>
+      <YStack flex={1} backgroundColor="#0f0f23">
+        <ScrollView flex={1}>
+          <YStack padding={24}>
+            <Text fontSize={22} fontWeight="700" color="#fff" marginBottom={24}>
+              {editingId ? "Edit Profile" : "New Profile"}
+            </Text>
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
+            {!!error && (
+              <Text color="#e94560" fontSize={13} marginTop={8} textAlign="center">
+                {error}
+              </Text>
+            )}
 
-          <Text style={styles.label}>Name *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Dad, Kids…"
-            placeholderTextColor="#666"
-            value={formData.name}
-            onChangeText={(v) => setFormData({ ...formData, name: v })}
-            autoCapitalize="words"
-            editable={!loading}
-          />
+            <Text fontSize={13} color="#ccc" marginBottom={6} marginTop={16}>
+              Name *
+            </Text>
+            <Input
+              placeholder="e.g. Dad, Kids…"
+              placeholderTextColor="#666"
+              value={formData.name}
+              onChangeText={(v) => setFormData({ ...formData, name: v })}
+              autoCapitalize="words"
+              disabled={loading}
+              backgroundColor="#1a1a2e"
+              borderColor="#333"
+              color="#fff"
+              borderRadius={10}
+              paddingHorizontal={14}
+              paddingVertical={12}
+              fontSize={15}
+              borderWidth={1}
+            />
 
-          <Text style={styles.label}>Avatar</Text>
-          <View style={styles.avatarGrid}>
-            {AVATARS.map((emoji) => (
-              <TouchableOpacity
-                key={emoji}
-                style={[styles.avatarBtn, formData.avatar === emoji && styles.avatarBtnActive]}
-                onPress={() => setFormData({ ...formData, avatar: emoji })}
+            <Text fontSize={13} color="#ccc" marginBottom={6} marginTop={16}>
+              Avatar
+            </Text>
+            <XStack flexWrap="wrap" gap={10} marginTop={8}>
+              {AVATARS.map((emoji) => (
+                <YStack
+                  key={emoji}
+                  width={52}
+                  height={52}
+                  borderRadius={10}
+                  backgroundColor={formData.avatar === emoji ? "rgba(233,69,96,0.15)" : "#1a1a2e"}
+                  borderWidth={2}
+                  borderColor={formData.avatar === emoji ? "#e94560" : "transparent"}
+                  justifyContent="center"
+                  alignItems="center"
+                  cursor="pointer"
+                  onPress={() => setFormData({ ...formData, avatar: emoji })}
+                  pressStyle={{ opacity: 0.8 }}
+                >
+                  <Text fontSize={26}>{emoji}</Text>
+                </YStack>
+              ))}
+            </XStack>
+
+            <XStack gap={12} marginTop={32}>
+              <YStack
+                flex={1}
+                backgroundColor="#2a2a4e"
+                borderRadius={10}
+                paddingVertical={13}
+                alignItems="center"
+                cursor="pointer"
+                onPress={loading ? undefined : resetForm}
+                pressStyle={{ opacity: 0.8 }}
               >
-                <Text style={styles.avatarEmoji}>{emoji}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.formActions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={resetForm} disabled={loading}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.saveBtn, (loading || !formData.name.trim()) && styles.btnDisabled]}
-              onPress={handleSave}
-              disabled={loading || !formData.name.trim()}
-            >
-              {loading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.saveBtnText}>{editingId ? 'Save Changes' : 'Create Profile'}</Text>
-              }
-            </TouchableOpacity>
-          </View>
+                <Text color="#aaa" fontSize={15} fontWeight="600">
+                  Cancel
+                </Text>
+              </YStack>
+              <YStack
+                flex={1}
+                backgroundColor="#e94560"
+                borderRadius={10}
+                paddingVertical={13}
+                alignItems="center"
+                opacity={loading || !formData.name.trim() ? 0.5 : 1}
+                cursor={loading || !formData.name.trim() ? "not-allowed" : "pointer"}
+                onPress={loading || !formData.name.trim() ? undefined : handleSave}
+                pressStyle={{ opacity: 0.9 }}
+              >
+                {loading ? (
+                  <Spinner color="#fff" />
+                ) : (
+                  <Text color="#fff" fontSize={15} fontWeight="600">
+                    {editingId ? "Save Changes" : "Create Profile"}
+                  </Text>
+                )}
+              </YStack>
+            </XStack>
+          </YStack>
         </ScrollView>
-      </View>
+      </YStack>
     );
   }
 
   // ── Manage view (list with edit/delete) ──────────────────────────────────
-  if (view === 'manage') {
+  if (view === "manage") {
     return (
-      <View style={styles.container}>
-        <View style={styles.manageHeader}>
-          <TouchableOpacity onPress={() => { setView('select'); setError(null); setConfirmDeleteId(null); }}>
-            <Text style={styles.backBtn}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.manageTitle}>Manage Profiles</Text>
-          <TouchableOpacity style={styles.addBtn} onPress={openAdd} disabled={loading}>
-            <Text style={styles.addBtnText}>+ Add</Text>
-          </TouchableOpacity>
-        </View>
+      <YStack flex={1} backgroundColor="#0f0f23">
+        <XStack
+          alignItems="center"
+          justifyContent="space-between"
+          paddingHorizontal={16}
+          paddingTop={20}
+          paddingBottom={12}
+        >
+          <XStack
+            padding={4}
+            cursor="pointer"
+            onPress={() => { setView("select"); setError(null); setConfirmDeleteId(null); }}
+            pressStyle={{ opacity: 0.7 }}
+          >
+            <Text color="#e94560" fontSize={15} fontWeight="600">
+              ← Back
+            </Text>
+          </XStack>
+          <Text color="#fff" fontSize={18} fontWeight="700">
+            Manage Profiles
+          </Text>
+          <YStack
+            backgroundColor="#e94560"
+            borderRadius={8}
+            paddingHorizontal={14}
+            paddingVertical={7}
+            cursor="pointer"
+            onPress={loading ? undefined : openAdd}
+            pressStyle={{ opacity: 0.9 }}
+          >
+            <Text color="#fff" fontSize={14} fontWeight="600">
+              + Add
+            </Text>
+          </YStack>
+        </XStack>
 
-        {!!error && <Text style={[styles.error, { marginHorizontal: 20 }]}>{error}</Text>}
+        {!!error && (
+          <Text color="#e94560" fontSize={13} marginHorizontal={20} textAlign="center">
+            {error}
+          </Text>
+        )}
 
         {appProfiles.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>No profiles yet.</Text>
-            <TouchableOpacity style={styles.primaryBtn} onPress={openAdd}>
-              <Text style={styles.primaryBtnText}>Create First Profile</Text>
-            </TouchableOpacity>
-          </View>
+          <YStack flex={1} justifyContent="center" alignItems="center" gap={16}>
+            <Text color="#888" fontSize={16}>
+              No profiles yet.
+            </Text>
+            <YStack
+              backgroundColor="#e94560"
+              borderRadius={10}
+              paddingHorizontal={24}
+              paddingVertical={12}
+              cursor="pointer"
+              onPress={openAdd}
+              pressStyle={{ opacity: 0.9 }}
+            >
+              <Text color="#fff" fontSize={15} fontWeight="600">
+                Create First Profile
+              </Text>
+            </YStack>
+          </YStack>
         ) : (
-          <FlatList
-            data={appProfiles}
-            keyExtractor={(p) => p.id}
-            contentContainerStyle={styles.manageList}
-            renderItem={({ item: p }) => (
-              <View style={[styles.manageCard, activeProfileId === p.id && styles.manageCardActive]}>
-                <View style={styles.manageCardLeft}>
-                  <Text style={styles.manageCardAvatar}>{p.avatar}</Text>
-                  <View>
-                    <Text style={styles.manageCardName}>{p.name}</Text>
-                    {activeProfileId === p.id && (
-                      <Text style={styles.activeBadge}>✓ Active</Text>
+          <ScrollView flex={1}>
+            <YStack paddingHorizontal={16} paddingBottom={20}>
+              {appProfiles.map((p) => (
+                <XStack
+                  key={p.id}
+                  alignItems="center"
+                  justifyContent="space-between"
+                  backgroundColor="#1a1a2e"
+                  borderRadius={12}
+                  padding={14}
+                  marginBottom={10}
+                  borderWidth={1}
+                  borderColor={activeProfileId === p.id ? "#e94560" : "#2a2a4e"}
+                >
+                  <XStack alignItems="center" gap={12} flex={1}>
+                    <Text fontSize={32}>{p.avatar}</Text>
+                    <YStack>
+                      <Text color="#fff" fontSize={15} fontWeight="600">
+                        {p.name}
+                      </Text>
+                      {activeProfileId === p.id && (
+                        <Text color="#4caf50" fontSize={12} marginTop={2} fontWeight="600">
+                          ✓ Active
+                        </Text>
+                      )}
+                      {confirmDeleteId === p.id && (
+                        <Text color="#e94560" fontSize={11} marginTop={2}>
+                          Tap Delete again to confirm
+                        </Text>
+                      )}
+                    </YStack>
+                  </XStack>
+                  <XStack gap={8}>
+                    {activeProfileId !== p.id && (
+                      <YStack
+                        backgroundColor="#e94560"
+                        borderRadius={8}
+                        paddingHorizontal={12}
+                        paddingVertical={7}
+                        justifyContent="center"
+                        cursor="pointer"
+                        onPress={loading ? undefined : () => { switchProfile(p.id); setView("select"); }}
+                        pressStyle={{ opacity: 0.9 }}
+                      >
+                        <Text color="#fff" fontSize={13} fontWeight="600">
+                          Switch
+                        </Text>
+                      </YStack>
                     )}
-                    {confirmDeleteId === p.id && (
-                      <Text style={styles.confirmText}>Tap Delete again to confirm</Text>
-                    )}
-                  </View>
-                </View>
-                <View style={styles.manageCardActions}>
-                  {activeProfileId !== p.id && (
-                    <TouchableOpacity
-                      style={styles.switchBtn}
-                      onPress={() => { switchProfile(p.id); setView('select'); }}
-                      disabled={loading}
+                    <YStack
+                      width={36}
+                      height={36}
+                      backgroundColor="#16213e"
+                      borderRadius={8}
+                      justifyContent="center"
+                      alignItems="center"
+                      cursor="pointer"
+                      onPress={loading ? undefined : () => openEdit(p)}
+                      pressStyle={{ opacity: 0.7 }}
                     >
-                      <Text style={styles.switchBtnText}>Switch</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(p)} disabled={loading}>
-                    <Text style={styles.editBtnText}>✏️</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.deleteBtn, confirmDeleteId === p.id && styles.deleteBtnConfirm]}
-                    onPress={() => handleDelete(p.id)}
-                    disabled={loading}
-                  >
-                    <Text style={styles.deleteBtnText}>{confirmDeleteId === p.id ? 'Confirm' : '🗑️'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          />
+                      <Text fontSize={16}>✏️</Text>
+                    </YStack>
+                    <YStack
+                      backgroundColor={confirmDeleteId === p.id ? "rgba(233,69,96,0.25)" : "#16213e"}
+                      borderRadius={8}
+                      borderWidth={confirmDeleteId === p.id ? 1 : 0}
+                      borderColor={confirmDeleteId === p.id ? "#e94560" : "transparent"}
+                      paddingHorizontal={confirmDeleteId === p.id ? 10 : 0}
+                      width={confirmDeleteId === p.id ? undefined : 36}
+                      height={36}
+                      justifyContent="center"
+                      alignItems="center"
+                      cursor="pointer"
+                      onPress={loading ? undefined : () => handleDelete(p.id)}
+                      pressStyle={{ opacity: 0.7 }}
+                    >
+                      <Text fontSize={13} color="#e94560" fontWeight="600">
+                        {confirmDeleteId === p.id ? "Confirm" : "🗑️"}
+                      </Text>
+                    </YStack>
+                  </XStack>
+                </XStack>
+              ))}
+            </YStack>
+          </ScrollView>
         )}
-      </View>
+      </YStack>
     );
   }
 
   // ── Select view ("Who's watching?") ──────────────────────────────────────
   return (
-    <View style={styles.container}>
-      <Text style={styles.whoTitle}>Who's watching?</Text>
+    <YStack flex={1} backgroundColor="#0f0f23">
+      {/* Vertically centered main area */}
+      <YStack flex={1} justifyContent="center" alignItems="center" gap={48}>
+        <Text color="#fff" fontSize={32} fontWeight="700" textAlign="center">
+          Who's watching?
+        </Text>
 
-      <ScrollView contentContainerStyle={styles.profilesRow}>
-        {appProfiles.map((p) => (
-          <TouchableOpacity key={p.id} style={styles.profileCard} onPress={() => switchProfile(p.id)}>
-            <View style={styles.profileCardAvatar}>
-              <Text style={styles.profileCardEmoji}>{p.avatar}</Text>
-            </View>
-            <Text style={styles.profileCardName} numberOfLines={1}>{p.name}</Text>
-          </TouchableOpacity>
-        ))}
+        <XStack flexWrap="wrap" justifyContent="center" gap={24} paddingHorizontal={20}>
+          {appProfiles.map((p, idx) => {
+            const focused = focusedRow === 0 && focusedCol === idx;
+            return (
+              <YStack
+                key={p.id}
+                alignItems="center"
+                width={110}
+                cursor="pointer"
+                onPress={() => switchProfile(p.id)}
+                pressStyle={{ opacity: 0.8 }}
+                hoverStyle={{ scale: 1.05 }}
+                animation="quick"
+              >
+                <YStack
+                  width={90}
+                  height={90}
+                  borderRadius={12}
+                  backgroundColor="#1a1a2e"
+                  justifyContent="center"
+                  alignItems="center"
+                  borderWidth={2}
+                  borderColor={focused ? "#e94560" : "#2a2a4e"}
+                  marginBottom={10}
+                  scale={focused ? 1.08 : 1}
+                  hoverStyle={{ borderColor: "#e94560", backgroundColor: "#1e1e38" }}
+                  animation="quick"
+                >
+                  <Text fontSize={44}>{p.avatar}</Text>
+                </YStack>
+                <Text color={focused ? "#fff" : "#ccc"} fontSize={14} textAlign="center" fontWeight="500" numberOfLines={1}>
+                  {p.name}
+                </Text>
+              </YStack>
+            );
+          })}
 
-        <TouchableOpacity style={[styles.profileCard, styles.profileCardAdd]} onPress={openAdd}>
-          <View style={[styles.profileCardAvatar, styles.profileCardAvatarAdd]}>
-            <Text style={styles.profileCardPlusIcon}>+</Text>
-          </View>
-          <Text style={styles.profileCardName}>Add Profile</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          {(() => {
+            const focused = focusedRow === 0 && focusedCol === appProfiles.length;
+            return (
+              <YStack
+                alignItems="center"
+                width={110}
+                opacity={focused ? 1 : 0.7}
+                cursor="pointer"
+                onPress={openAdd}
+                pressStyle={{ opacity: 0.5 }}
+                hoverStyle={{ scale: 1.05, opacity: 1 }}
+                animation="quick"
+              >
+                <YStack
+                  width={90}
+                  height={90}
+                  borderRadius={12}
+                  backgroundColor="#1a1a2e"
+                  justifyContent="center"
+                  alignItems="center"
+                  borderWidth={2}
+                  borderColor={focused ? "#e94560" : "#444"}
+                  borderStyle="dashed"
+                  marginBottom={10}
+                  scale={focused ? 1.08 : 1}
+                  hoverStyle={{ borderColor: "#e94560" }}
+                  animation="quick"
+                >
+                  <Text fontSize={36} color={focused ? "#e94560" : "#888"}>+</Text>
+                </YStack>
+                <Text color={focused ? "#fff" : "#ccc"} fontSize={14} textAlign="center" fontWeight="500">
+                  Add Profile
+                </Text>
+              </YStack>
+            );
+          })()}
+        </XStack>
+      </YStack>
 
-      <View style={styles.bottomRow}>
-        {appProfiles.length > 0 && (
-          <TouchableOpacity onPress={() => setView('manage')} style={styles.manageLink}>
-            <Text style={styles.manageLinkText}>Manage Profiles</Text>
-          </TouchableOpacity>
-        )}
-        {authUser && (
-          <TouchableOpacity onPress={signOut} style={styles.signOutLink}>
-            <Text style={styles.signOutLinkText}>Sign Out</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
+      <XStack justifyContent="center" alignItems="center" gap={32} paddingBottom={40}>
+        {appProfiles.length > 0 && (() => {
+          const focused = focusedRow === 1 && focusedCol === 0;
+          return (
+            <XStack
+              padding={10}
+              cursor="pointer"
+              onPress={() => setView("manage")}
+              pressStyle={{ opacity: 0.7 }}
+              hoverStyle={{ opacity: 1 }}
+              animation="quick"
+              borderBottomWidth={2}
+              borderColor={focused ? "#e94560" : "transparent"}
+            >
+              <Text color={focused ? "#fff" : "#888"} fontSize={14} fontWeight={focused ? "700" : "400"}
+                hoverStyle={{ color: "#fff" }}
+              >
+                Manage Profiles
+              </Text>
+            </XStack>
+          );
+        })()}
+        {authUser && (() => {
+          // Sign Out is the last footer item; its col index depends on whether Manage exists
+          const col = appProfiles.length > 0 ? 1 : 0;
+          const focused = focusedRow === 1 && focusedCol === col;
+          return (
+            <XStack
+              padding={10}
+              cursor="pointer"
+              onPress={signOut}
+              pressStyle={{ opacity: 0.7 }}
+              hoverStyle={{ opacity: 1 }}
+              animation="quick"
+              borderBottomWidth={2}
+              borderColor={focused ? "#e94560" : "transparent"}
+            >
+              <Text color={focused ? "#fff" : "#e94560"} fontSize={14} fontWeight="600"
+                hoverStyle={{ color: "#ff6b81" }}
+              >
+                Sign Out
+              </Text>
+            </XStack>
+          );
+        })()}
+      </XStack>
+    </YStack>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f23' },
-
-  // Who's watching
-  whoTitle: { color: '#fff', fontSize: 28, fontWeight: '700', textAlign: 'center', marginTop: 60, marginBottom: 40 },
-  profilesRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 20, paddingHorizontal: 20, paddingBottom: 30 },
-  profileCard: { alignItems: 'center', width: 110 },
-  profileCardAvatar: { width: 90, height: 90, borderRadius: 12, backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#2a2a4e', marginBottom: 10 },
-  profileCardAvatarAdd: { borderStyle: 'dashed', borderColor: '#444' },
-  profileCardEmoji: { fontSize: 44 },
-  profileCardPlusIcon: { fontSize: 36, color: '#888' },
-  profileCardName: { color: '#ccc', fontSize: 14, textAlign: 'center', fontWeight: '500' },
-  profileCardAdd: { opacity: 0.7 },
-  bottomRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 32, marginTop: 20, marginBottom: 40 },
-  manageLink: { padding: 10 },
-  manageLinkText: { color: '#888', fontSize: 14, textDecorationLine: 'underline' },
-  signOutLink: { padding: 10 },
-  signOutLinkText: { color: '#e94560', fontSize: 14, fontWeight: '600' },
-
-  // Manage
-  manageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 },
-  backBtn: { color: '#e94560', fontSize: 15, fontWeight: '600' },
-  manageTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  addBtn: { backgroundColor: '#e94560', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 },
-  addBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  manageList: { paddingHorizontal: 16, paddingBottom: 20 },
-  manageCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1a1a2e', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#2a2a4e' },
-  manageCardActive: { borderColor: '#e94560' },
-  manageCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  manageCardAvatar: { fontSize: 32 },
-  manageCardName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  activeBadge: { color: '#4caf50', fontSize: 12, marginTop: 2, fontWeight: '600' },
-  confirmText: { color: '#e94560', fontSize: 11, marginTop: 2 },
-  manageCardActions: { flexDirection: 'row', gap: 8 },
-  switchBtn: { backgroundColor: '#e94560', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, justifyContent: 'center' },
-  switchBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  editBtn: { width: 36, height: 36, backgroundColor: '#16213e', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  editBtnText: { fontSize: 16 },
-  deleteBtn: { width: 36, height: 36, backgroundColor: '#16213e', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  deleteBtnConfirm: { backgroundColor: 'rgba(233,69,96,0.25)', borderWidth: 1, borderColor: '#e94560', width: 'auto', paddingHorizontal: 10 },
-  deleteBtnText: { fontSize: 13, color: '#e94560', fontWeight: '600' },
-
-  // Form
-  formScroll: { padding: 24 },
-  formTitle: { color: '#fff', fontSize: 22, fontWeight: '700', marginBottom: 24 },
-  label: { color: '#ccc', fontSize: 13, marginBottom: 6, marginTop: 16 },
-  input: { backgroundColor: '#1a1a2e', color: '#fff', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: '#333' },
-  avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
-  avatarBtn: { width: 52, height: 52, borderRadius: 10, backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
-  avatarBtnActive: { borderColor: '#e94560', backgroundColor: 'rgba(233,69,96,0.15)' },
-  avatarEmoji: { fontSize: 26 },
-  formActions: { flexDirection: 'row', gap: 12, marginTop: 32 },
-  cancelBtn: { flex: 1, backgroundColor: '#2a2a4e', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
-  cancelBtnText: { color: '#aaa', fontSize: 15, fontWeight: '600' },
-  saveBtn: { flex: 1, backgroundColor: '#e94560', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
-  saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  btnDisabled: { opacity: 0.5 },
-  error: { color: '#e94560', fontSize: 13, marginTop: 8, textAlign: 'center' },
-
-  // Empty
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  emptyText: { color: '#888', fontSize: 16 },
-  primaryBtn: { backgroundColor: '#e94560', borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-});

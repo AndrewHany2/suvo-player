@@ -10,3 +10,37 @@ iptv-player-win32-x64
 .claude
 design/
 ios/
+
+# TV build artifacts
+tv/dist/
+tv/packaging/lg/out/
+tv/packaging/lg/_expo/
+tv/packaging/lg/favicon.ico
+tv/packaging/lg/index.html
+tv/packaging/lg/metadata.json
+
+# Expo
+.expo/
+.expo-shared/
+
+# Build outputs
+*.ipk
+*.apk
+*.ipa
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

@@ -1,15 +1,6 @@
-import { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { useState, useEffect } from "react";
+import { KeyboardAvoidingView, Platform } from "react-native";
+import { YStack, XStack, Text, Input, ScrollView, Spinner } from "tamagui";
 import { useApp } from "../context/AppContext";
 
 export default function AuthScreen() {
@@ -33,15 +24,12 @@ export default function AuthScreen() {
 
   const handleSubmit = async () => {
     setError("");
-
     if (!username.trim() || !password) {
       setError("Username and password are required.");
       return;
     }
     if (mode === "register" && !/^[a-zA-Z0-9_]{3,30}$/.test(username.trim())) {
-      setError(
-        "Username must be 3–30 characters: letters, numbers, underscores only.",
-      );
+      setError("Username must be 3–30 characters: letters, numbers, underscores only.");
       return;
     }
     if (password.length < 6) {
@@ -56,40 +44,23 @@ export default function AuthScreen() {
       setError("Passwords do not match.");
       return;
     }
-
     setLoading(true);
     try {
       if (mode === "login") {
         await signIn(username.trim(), password);
       } else {
         await signUp(username.trim(), password, email.trim());
-        // signUp now upserts the profile when email confirmation is disabled.
-        // onAuthStateChange in AppContext will fire automatically if a session
-        // was returned. We also call signIn to ensure the session is set.
         await signIn(email.trim(), password);
       }
     } catch (err) {
       const msg = err.message || "";
-      if (
-        msg.toLowerCase().includes("rate limit") ||
-        msg.toLowerCase().includes("email rate limit")
-      ) {
-        setError(
-          "Too many sign-up attempts. Please wait a few minutes and try again.",
-        );
+      if (msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("email rate limit")) {
+        setError("Too many sign-up attempts. Please wait a few minutes and try again.");
       } else if (msg.toLowerCase().includes("email not confirmed")) {
-        setError(
-          "Please check your email and confirm your account before signing in.",
-        );
-      } else if (
-        msg.toLowerCase().includes("invalid login credentials") ||
-        msg.toLowerCase().includes("invalid username or password")
-      ) {
+        setError("Please check your email and confirm your account before signing in.");
+      } else if (msg.toLowerCase().includes("invalid login credentials") || msg.toLowerCase().includes("invalid username or password")) {
         setError("Invalid username/email or password.");
-      } else if (
-        msg.toLowerCase().includes("already registered") ||
-        msg.toLowerCase().includes("already been registered")
-      ) {
+      } else if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already been registered")) {
         setError("This email is already registered. Please sign in instead.");
       } else {
         setError(msg);
@@ -99,45 +70,64 @@ export default function AuthScreen() {
     }
   };
 
+  // TV / keyboard: Enter submits the form
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.key === "Enter" || e.keyCode === 13) && !loading) handleSubmit();
+    };
+    globalThis.addEventListener("keydown", handler);
+    return () => globalThis.removeEventListener("keydown", handler);
+  }, [username, email, password, confirmPassword, mode, loading]);
+
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={{ flex: 1, backgroundColor: "#0f0f23" }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.card}>
-          <Text style={styles.logo}>📺</Text>
-          <Text style={styles.title}>IPTV Player</Text>
-          <Text style={styles.subtitle}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 20 }} keyboardShouldPersistTaps="handled">
+        <YStack
+          backgroundColor="#1a1a2e"
+          borderRadius={16}
+          padding={28}
+          shadowColor="#000"
+          shadowOffset={{ width: 0, height: 4 }}
+          shadowOpacity={0.3}
+          shadowRadius={8}
+          elevation={8}
+        >
+          <Text fontSize={48} textAlign="center" marginBottom={8}>📺</Text>
+          <Text fontSize={26} fontWeight="bold" color="#fff" textAlign="center" marginBottom={4}>
+            IPTV Player
+          </Text>
+          <Text fontSize={14} color="#aaa" textAlign="center" marginBottom={24}>
             {mode === "login" ? "Sign in to your account" : "Create an account"}
           </Text>
 
-          <Text style={styles.label}>
+          <Text fontSize={13} color="#ccc" marginBottom={6} marginTop={12}>
             {mode === "login" ? "Username or Email" : "Username"}
           </Text>
-          <TextInput
-            style={styles.input}
-            placeholder={
-              mode === "login"
-                ? "your_username or you@example.com"
-                : "your_username"
-            }
+          <Input
+            placeholder={mode === "login" ? "your_username or you@example.com" : "your_username"}
             placeholderTextColor="#666"
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
             autoCorrect={false}
-            editable={!loading}
+            disabled={loading}
+            backgroundColor="#0f0f23"
+            color="#fff"
+            borderRadius={10}
+            paddingHorizontal={14}
+            paddingVertical={12}
+            fontSize={15}
+            borderWidth={1}
+            borderColor="#333"
           />
 
           {mode === "register" && (
             <>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
+              <Text fontSize={13} color="#ccc" marginBottom={6} marginTop={12}>Email</Text>
+              <Input
                 placeholder="you@example.com"
                 placeholderTextColor="#666"
                 value={email}
@@ -145,125 +135,114 @@ export default function AuthScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                editable={!loading}
+                disabled={loading}
+                backgroundColor="#0f0f23"
+                color="#fff"
+                borderRadius={10}
+                paddingHorizontal={14}
+                paddingVertical={12}
+                fontSize={15}
+                borderWidth={1}
+                borderColor="#333"
               />
             </>
           )}
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
+          <Text fontSize={13} color="#ccc" marginBottom={6} marginTop={12}>Password</Text>
+          <Input
             placeholder="••••••••"
             placeholderTextColor="#666"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            editable={!loading}
+            disabled={loading}
+            backgroundColor="#0f0f23"
+            color="#fff"
+            borderRadius={10}
+            paddingHorizontal={14}
+            paddingVertical={12}
+            fontSize={15}
+            borderWidth={1}
+            borderColor="#333"
           />
 
           {mode === "register" && (
             <>
-              <Text style={styles.label}>Confirm Password</Text>
-              <TextInput
-                style={styles.input}
+              <Text fontSize={13} color="#ccc" marginBottom={6} marginTop={12}>Confirm Password</Text>
+              <Input
                 placeholder="••••••••"
                 placeholderTextColor="#666"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
-                editable={!loading}
+                disabled={loading}
+                backgroundColor="#0f0f23"
+                color="#fff"
+                borderRadius={10}
+                paddingHorizontal={14}
+                paddingVertical={12}
+                fontSize={15}
+                borderWidth={1}
+                borderColor="#333"
               />
             </>
           )}
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
+          {!!error && (
+            <Text color="#e94560" fontSize={13} marginTop={12} textAlign="center">{error}</Text>
+          )}
 
-          <TouchableOpacity
-            style={[styles.btn, loading && styles.btnDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
+          <YStack
+            backgroundColor="#e94560"
+            borderRadius={10}
+            paddingVertical={14}
+            marginTop={20}
+            alignItems="center"
+            opacity={loading ? 0.6 : 1}
+            cursor={loading ? "not-allowed" : "pointer"}
+            onPress={loading ? undefined : handleSubmit}
+            pressStyle={{ opacity: 0.9 }}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>
+            {loading ? <Spinner color="#fff" /> : (
+              <Text color="#fff" fontSize={16} fontWeight="600">
                 {mode === "login" ? "Sign In" : "Create Account"}
               </Text>
             )}
-          </TouchableOpacity>
+          </YStack>
 
-          <View style={styles.toggle}>
+          <XStack justifyContent="center" marginTop={20}>
             {mode === "login" ? (
               <>
-                <Text style={styles.toggleText}>Don't have an account? </Text>
-                <TouchableOpacity onPress={() => switchMode("register")}>
-                  <Text style={styles.toggleLink}>Register</Text>
-                </TouchableOpacity>
+                <Text color="#aaa" fontSize={14}>Don't have an account? </Text>
+                <Text
+                  color="#e94560"
+                  fontSize={14}
+                  fontWeight="600"
+                  cursor="pointer"
+                  onPress={() => switchMode("register")}
+                  pressStyle={{ opacity: 0.7 }}
+                >
+                  Register
+                </Text>
               </>
             ) : (
               <>
-                <Text style={styles.toggleText}>Already have an account? </Text>
-                <TouchableOpacity onPress={() => switchMode("login")}>
-                  <Text style={styles.toggleLink}>Sign In</Text>
-                </TouchableOpacity>
+                <Text color="#aaa" fontSize={14}>Already have an account? </Text>
+                <Text
+                  color="#e94560"
+                  fontSize={14}
+                  fontWeight="600"
+                  cursor="pointer"
+                  onPress={() => switchMode("login")}
+                  pressStyle={{ opacity: 0.7 }}
+                >
+                  Sign In
+                </Text>
               </>
             )}
-          </View>
-        </View>
+          </XStack>
+        </YStack>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f0f23" },
-  scroll: { flexGrow: 1, justifyContent: "center", padding: 20 },
-  card: {
-    backgroundColor: "#1a1a2e",
-    borderRadius: 16,
-    padding: 28,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  logo: { fontSize: 48, textAlign: "center", marginBottom: 8 },
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#fff",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#aaa",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  label: { fontSize: 13, color: "#ccc", marginBottom: 6, marginTop: 12 },
-  input: {
-    backgroundColor: "#0f0f23",
-    color: "#fff",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: "#333",
-  },
-  error: { color: "#e94560", fontSize: 13, marginTop: 12, textAlign: "center" },
-  btn: {
-    backgroundColor: "#e94560",
-    borderRadius: 10,
-    paddingVertical: 14,
-    marginTop: 20,
-    alignItems: "center",
-  },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  toggle: { flexDirection: "row", justifyContent: "center", marginTop: 20 },
-  toggleText: { color: "#aaa", fontSize: 14 },
-  toggleLink: { color: "#e94560", fontSize: 14, fontWeight: "600" },
-});

@@ -1,11 +1,13 @@
-import { useState } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Image, Alert,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useApp } from '../context/AppContext';
-import MovieDetail from '../components/MovieDetail';
-import SeriesDetail from '../components/SeriesDetail';
+import { useState } from "react";
+import { Image, Alert, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { YStack, XStack, Text, ScrollView } from "tamagui";
+import { useApp } from "../context/AppContext";
+import { useTVNavigation } from "../hooks/useTVNavigation";
+import MovieDetail from "../components/MovieDetail";
+import SeriesDetail from "../components/SeriesDetail";
+
+const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
 const formatTimeLeft = (currentTime, duration) => {
   if (!duration || !currentTime) return null;
@@ -17,44 +19,37 @@ const formatTimeLeft = (currentTime, duration) => {
 };
 
 const getEpLabel = (item) => {
-  if (item.type === 'series' && item.seasonNum && item.episodeNum) {
-    return `S${item.seasonNum} · E${String(item.episodeNum).padStart(2, '0')}`;
-  }
+  if (item.type === "series" && item.seasonNum && item.episodeNum)
+    return `S${item.seasonNum} · E${String(item.episodeNum).padStart(2, "0")}`;
   return null;
 };
 
-/* ── My List Poster Card (portrait 2:3) ── */
-function MyListCard({ item, onPress, onRemove }) {
+/* ── My List Poster Card ── */
+function MyListCard({ item, onPress, onRemove, focused }) {
   const poster = item.cover || item.movie_image || item.stream_icon || null;
   const epLabel = getEpLabel(item);
 
   return (
-    <TouchableOpacity style={styles.posterCard} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.poster}>
-        {poster ? (
-          <Image source={{ uri: poster }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-        ) : (
-          <View style={[StyleSheet.absoluteFillObject, styles.posterNoBg]} />
-        )}
-        <View style={styles.hdBadge}>
-          <Text style={styles.hdText}>HD</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.removeBtn}
-          onPress={onRemove}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <Text style={styles.removeBtnText}>✕</Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.posterLabel} numberOfLines={2}>{item.name}</Text>
-      {epLabel && <Text style={styles.posterMeta}>{epLabel}</Text>}
-    </TouchableOpacity>
+    <YStack width={130} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick">
+      <YStack width={130} aspectRatio={2 / 3} borderRadius={8} backgroundColor="#16213e" overflow="hidden" borderWidth={2} borderColor={focused ? "#e94560" : "transparent"}>
+        {poster
+          ? <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
+          : <View style={[FILL, { backgroundColor: "#16213e" }]} />}
+        <YStack position="absolute" top={8} right={8} zIndex={4} backgroundColor="rgba(0,0,0,0.65)" borderRadius={4} paddingHorizontal={5} paddingVertical={2}>
+          <Text color="#ccc" fontSize={9} fontWeight="700" letterSpacing={0.5}>HD</Text>
+        </YStack>
+        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor="rgba(0,0,0,0.6)" borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }}>
+          <Text color="#fff" fontSize={9} fontWeight="700">✕</Text>
+        </YStack>
+      </YStack>
+      <Text color="#fff" fontSize={12} fontWeight="600" marginTop={8} lineHeight={16} numberOfLines={2}>{item.name}</Text>
+      {epLabel && <Text color="#aaa" fontSize={9} marginTop={4} letterSpacing={0.3}>{epLabel}</Text>}
+    </YStack>
   );
 }
 
-/* ── Watch History Card (landscape ~16:9) ── */
-function CWCard({ item, onPress, onRemove }) {
+/* ── Watch History Card ── */
+function CWCard({ item, onPress, onRemove, focused }) {
   const progress = item.duration > 0 ? Math.min((item.currentTime / item.duration) * 100, 100) : 15;
   const timeLeft = formatTimeLeft(item.currentTime, item.duration);
   const epLabel = getEpLabel(item);
@@ -64,48 +59,40 @@ function CWCard({ item, onPress, onRemove }) {
   const epTitle = item.seriesName && item.name !== item.seriesName ? item.name : null;
 
   return (
-    <TouchableOpacity style={styles.cwCard} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.cwInner}>
-        {bg ? (
-          <Image source={{ uri: bg }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-        ) : (
-          <View style={[StyleSheet.absoluteFillObject, styles.cwNoBg]} />
-        )}
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.75)']}
-          style={StyleSheet.absoluteFillObject}
-        />
+    <YStack width={260} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.85 }} hoverStyle={{ scale: 1.02 }} animation="quick">
+      <YStack width={260} height={148} borderRadius={8} backgroundColor="#16213e" overflow="hidden" borderWidth={2} borderColor={focused ? "#e94560" : "transparent"}>
+        {bg
+          ? <Image source={{ uri: bg }} style={FILL} resizeMode="cover" />
+          : <View style={[FILL, { backgroundColor: "#16213e" }]} />}
+        <LinearGradient colors={["transparent", "rgba(0,0,0,0.75)"]} style={FILL} />
         {seasonBadge && (
-          <View style={styles.cwSeason}>
-            <Text style={styles.cwSeasonText}>{seasonBadge}</Text>
-          </View>
+          <YStack position="absolute" top={10} left={12} zIndex={4}>
+            <Text color="#fff" fontSize={13} fontWeight="700">{seasonBadge}</Text>
+          </YStack>
         )}
-        <TouchableOpacity
-          style={styles.removeBtn}
-          onPress={onRemove}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <Text style={styles.removeBtnText}>✕</Text>
-        </TouchableOpacity>
-        <View style={styles.cwPlayOverlay}>
-          <Text style={styles.cwPlayIcon}>▶</Text>
-        </View>
-        <View style={styles.cwBottom}>
-          <View style={styles.cwBar}>
-            <View style={[styles.cwBarFill, { width: `${progress}%` }]} />
+        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor="rgba(0,0,0,0.6)" borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }}>
+          <Text color="#fff" fontSize={9} fontWeight="700">✕</Text>
+        </YStack>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={3} justifyContent="center" alignItems="center">
+          <Text color="rgba(255,255,255,0.75)" fontSize={28}>▶</Text>
+        </YStack>
+        {/* Progress bar — keep as RN Views for % string width compatibility */}
+        <YStack position="absolute" left={0} right={0} bottom={0} zIndex={4} padding={10}>
+          <View style={{ height: 3, backgroundColor: "rgba(255,255,255,0.18)" }}>
+            <View style={{ height: "100%", width: `${progress}%`, backgroundColor: "#e94560" }} />
           </View>
-        </View>
-      </View>
-      <View style={styles.cwMeta}>
-        <Text style={styles.cwShowName} numberOfLines={1}>{showTitle}</Text>
+        </YStack>
+      </YStack>
+      <YStack paddingTop={8} paddingHorizontal={2}>
+        <Text color="#fff" fontSize={12} fontWeight="600" marginBottom={2} numberOfLines={1}>{showTitle}</Text>
         {(epLabel || epTitle) && (
-          <Text style={styles.cwEpLine} numberOfLines={1}>
-            {[epLabel, epTitle].filter(Boolean).join(' · ')}
+          <Text color="#888" fontSize={11} marginBottom={2} numberOfLines={1}>
+            {[epLabel, epTitle].filter(Boolean).join(" · ")}
           </Text>
         )}
-        {timeLeft && <Text style={styles.cwTimeLeft}>{timeLeft}</Text>}
-      </View>
-    </TouchableOpacity>
+        {timeLeft && <Text color="#888" fontSize={11}>{timeLeft}</Text>}
+      </YStack>
+    </YStack>
   );
 }
 
@@ -115,151 +102,78 @@ export default function HistoryScreen({ navigation }) {
   const [currentDetail, setCurrentDetail] = useState(null);
 
   const openDetail = (item) => {
-    if (item.type === 'live') {
-      playVideo({ ...item, startTime: 0 });
-      navigation.navigate('VideoPlayer');
-      return;
-    }
+    if (item.type === "live") { playVideo({ ...item, startTime: 0 }); navigation.navigate("VideoPlayer"); return; }
     setCurrentDetail(item);
   };
-
   const closeDetail = () => setCurrentDetail(null);
-  const handlePlay = (videoObj) => {
-    playVideo(videoObj);
-    navigation.navigate('VideoPlayer');
-    setCurrentDetail(null);
-  };
-
+  const handlePlay = (videoObj) => { playVideo(videoObj); navigation.navigate("VideoPlayer"); setCurrentDetail(null); };
   const confirmRemove = (item) => {
-    Alert.alert('Remove from History', `Remove "${item.name}" from history?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => removeFromWatchHistory(item.id) },
+    Alert.alert("Remove from History", `Remove "${item.name}" from history?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: () => removeFromWatchHistory(item.id) },
     ]);
   };
 
-  if (currentDetail?.type === 'movies') {
-    return <MovieDetail item={currentDetail} onBack={closeDetail} onPlay={handlePlay} />;
-  }
+  const watchedHistory = watchHistory.filter((item) => item.type !== "live");
 
-  if (currentDetail?.type === 'series') {
-    return <SeriesDetail item={currentDetail} onBack={closeDetail} onPlayEpisode={handlePlay} />;
-  }
+  // Build TV navigation rows dynamically
+  const tvRows = [
+    ...(myList.length > 0 ? [{ items: myList, onSelect: (i) => openDetail(myList[i]) }] : []),
+    ...(watchedHistory.length > 0 ? [{ items: watchedHistory, onSelect: (i) => openDetail(watchedHistory[i]) }] : []),
+  ];
+  const myListRowIdx = myList.length > 0 ? 0 : -1;
+  const historyRowIdx = watchedHistory.length > 0 ? (myList.length > 0 ? 1 : 0) : -1;
 
-  const watchedHistory = watchHistory.filter((item) => item.type !== 'live');
+  const { focusedRow, focusedCol } = useTVNavigation({ active: !currentDetail, rows: tvRows });
+
+  if (currentDetail?.type === "movies") return <MovieDetail item={currentDetail} onBack={closeDetail} onPlay={handlePlay} />;
+  if (currentDetail?.type === "series") return <SeriesDetail item={currentDetail} onBack={closeDetail} onPlayEpisode={handlePlay} />;
 
   if (myList.length === 0 && watchedHistory.length === 0) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.emptyIcon}>🎬</Text>
-        <Text style={styles.emptyTitle}>Your list is empty</Text>
-        <Text style={styles.emptyHint}>Open a movie and tap ♡ Favorites to save it here</Text>
-      </View>
+      <YStack flex={1} justifyContent="center" alignItems="center" backgroundColor="#0f0f23" padding={24}>
+        <Text fontSize={48} marginBottom={12}>🎬</Text>
+        <Text color="#fff" fontSize={20} fontWeight="700" marginBottom={8}>Your list is empty</Text>
+        <Text color="#888" fontSize={14} textAlign="center">Open a movie and tap ♡ Favorites to save it here</Text>
+      </YStack>
     );
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-      {/* Favorites */}
+    <ScrollView flex={1} backgroundColor="#0f0f23" contentContainerStyle={{ paddingTop: 24, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
       {myList.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Favorites</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.shelfTrack}
-          >
-            {myList.map((item) => (
+        <YStack paddingBottom={40}>
+          <Text color="#fff" fontSize={22} fontWeight="700" letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Favorites</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
+            {myList.map((item, idx) => (
               <MyListCard
                 key={item.id}
                 item={item}
+                focused={focusedRow === myListRowIdx && focusedCol === idx}
                 onPress={() => openDetail(item)}
                 onRemove={() => removeFromMyList(item.id)}
               />
             ))}
           </ScrollView>
-        </View>
+        </YStack>
       )}
 
-      {/* Watch History */}
       {watchedHistory.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Watch History</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.shelfTrack}
-          >
-            {watchedHistory.map((item) => (
+        <YStack paddingBottom={40}>
+          <Text color="#fff" fontSize={22} fontWeight="700" letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Watch History</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
+            {watchedHistory.map((item, idx) => (
               <CWCard
                 key={item.id}
                 item={item}
+                focused={focusedRow === historyRowIdx && focusedCol === idx}
                 onPress={() => openDetail(item)}
                 onRemove={() => confirmRemove(item)}
               />
             ))}
           </ScrollView>
-        </View>
+        </YStack>
       )}
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0f0f23' },
-  scroll: { paddingTop: 24, paddingBottom: 80 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f23', padding: 24 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { color: '#fff', fontSize: 20, fontWeight: '700', marginBottom: 8 },
-  emptyHint: { color: '#888', fontSize: 14, textAlign: 'center' },
-
-  section: { paddingBottom: 40 },
-  sectionTitle: {
-    color: '#fff', fontSize: 22, fontWeight: '700', letterSpacing: -0.3,
-    paddingHorizontal: 16, marginBottom: 16,
-  },
-  shelfTrack: { paddingHorizontal: 16, gap: 12 },
-
-  /* ── My List poster (portrait 2:3) ── */
-  posterCard: { width: 130, flexShrink: 0 },
-  poster: {
-    width: 130, aspectRatio: 2 / 3,
-    borderRadius: 8, backgroundColor: '#16213e', overflow: 'hidden',
-  },
-  posterLabel: { color: '#fff', fontSize: 12, fontWeight: '600', marginTop: 8, lineHeight: 16 },
-  posterNoBg: { backgroundColor: '#16213e' },
-  hdBadge: {
-    position: 'absolute', top: 8, right: 8, zIndex: 4,
-    backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 4,
-    paddingHorizontal: 5, paddingVertical: 2,
-  },
-  hdText: { color: '#ccc', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
-  removeBtn: {
-    position: 'absolute', top: 8, left: 8, zIndex: 5,
-    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12,
-    width: 22, height: 22, justifyContent: 'center', alignItems: 'center',
-  },
-  removeBtnText: { color: '#fff', fontSize: 9, fontWeight: '700' },
-  posterMeta: { color: '#aaa', fontSize: 9, marginTop: 4, letterSpacing: 0.3 },
-
-  /* ── Watch History card (landscape ~16:9) ── */
-  cwCard: { width: 260, flexShrink: 0 },
-  cwInner: {
-    width: 260, height: 148,
-    borderRadius: 8, backgroundColor: '#16213e', overflow: 'hidden',
-  },
-  cwNoBg: { backgroundColor: '#16213e' },
-  cwSeason: { position: 'absolute', top: 10, left: 12, zIndex: 4 },
-  cwSeasonText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  cwPlayOverlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    justifyContent: 'center', alignItems: 'center', zIndex: 3,
-  },
-  cwPlayIcon: { color: 'rgba(255,255,255,0.75)', fontSize: 28 },
-  cwBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 4, padding: 10 },
-  cwBar: { height: 3, backgroundColor: 'rgba(255,255,255,0.18)' },
-  cwBarFill: { height: '100%', backgroundColor: '#e94560' },
-  cwMeta: { paddingTop: 8, paddingHorizontal: 2 },
-  cwShowName: { color: '#fff', fontSize: 12, fontWeight: '600', marginBottom: 2 },
-  cwEpLine: { color: '#888', fontSize: 11, marginBottom: 2 },
-  cwTimeLeft: { color: '#888', fontSize: 11 },
-});

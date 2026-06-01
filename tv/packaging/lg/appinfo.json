@@ -1,0 +1,10 @@
+{
+  "id": "com.andrew1h1.iptvplayer",
+  "version": "1.0.0",
+  "vendor": "Andrew Hany",
+  "type": "web",
+  "main": "index.html",
+  "title": "Lumen IPTV Player",
+  "icon": "icon.png",
+  "largeIcon": "icon.png"
+}
