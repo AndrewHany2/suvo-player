@@ -44,6 +44,12 @@ export default function MovieDetail({ item, onBack, onPlay }) {
     iptvApi.getVODInfo(streamId).then(setInfo).catch(() => setInfo({}));
   }, [streamId]);
 
+  const isLoading = info === null;
+  const data = info?.info || {};
+  const backdrop = data.backdrop_path?.[0] || data.cover_big || cover;
+  const year = (data.releasedate || data.release_date || "").slice(0, 4);
+  const trailer = getTrailerUrl(data.youtube_trailer);
+
   // TV / keyboard navigation
   useEffect(() => {
     const handler = (e) => {
@@ -55,12 +61,6 @@ export default function MovieDetail({ item, onBack, onPlay }) {
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
   }, [resumeTime, isLoading]);
-
-  const data = info?.info || {};
-  const backdrop = data.backdrop_path?.[0] || data.cover_big || cover;
-  const year = (data.releasedate || data.release_date || "").slice(0, 4);
-  const trailer = getTrailerUrl(data.youtube_trailer);
-  const isLoading = info === null;
 
   const handlePlay = (startTime) => {
     const url = iptvApi.buildStreamUrl("movie", streamId, item.container_extension || "mp4");

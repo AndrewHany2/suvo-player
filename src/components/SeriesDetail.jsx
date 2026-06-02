@@ -58,6 +58,11 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
       .catch(() => setInfo({}));
   }, [seriesId]);
 
+  const isLoading = info === null;
+  const data = info || {};
+  const backdrop = data.backdrop_path?.[0] || data.cover || cover;
+  const year = (data.release_date || data.releasedate || "").slice(0, 4);
+
   // TV / keyboard navigation
   useEffect(() => {
     const handler = (e) => {
@@ -72,11 +77,6 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
   }, [showEpisodes, isLoading, historyEntry]);
-
-  const isLoading = info === null;
-  const data = info || {};
-  const backdrop = data.backdrop_path?.[0] || data.cover || cover;
-  const year = (data.release_date || data.releasedate || "").slice(0, 4);
   const trailer = getTrailerUrl(data.youtube_trailer);
 
   const handleEpisodePress = (ep, seasonNum) => {

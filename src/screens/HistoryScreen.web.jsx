@@ -3,6 +3,7 @@ import { Image, View } from "react-native";
 import { YStack, Text, ScrollView } from "tamagui";
 import { useApp } from "../context/AppContext";
 import { useTVNavigation } from "../hooks/useTVNavigation";
+import { ss } from "../utils/scaleSize";
 import MovieDetail from "../components/MovieDetail.web";
 import SeriesDetail from "../components/SeriesDetail.web";
 
@@ -73,20 +74,20 @@ function MyListCard({ item, onPress, onRemove, focused }) {
   const epLabel = getEpLabel(item);
 
   return (
-    <YStack width={200} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick" {...({ className: "lumen-poster" })}>
-      <YStack width={200} aspectRatio={2 / 3} borderRadius={8} backgroundColor="#16213e" overflow="hidden" borderWidth={2} borderColor={focused ? "#e94560" : "transparent"}>
+    <YStack width={ss(200)} flexShrink={0} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick" {...({ className: "lumen-poster" })}>
+      <YStack width={ss(200)} aspectRatio={2 / 3} borderRadius={ss(8)} backgroundColor="#16213e" overflow="hidden" position="relative" borderWidth={2} borderColor={focused ? "#e94560" : "transparent"}>
         {poster
           ? <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
           : <View style={[FILL, { backgroundColor: "#16213e" }]} />}
-        <YStack position="absolute" top={8} right={8} zIndex={4} backgroundColor="rgba(0,0,0,0.65)" borderRadius={4} paddingHorizontal={5} paddingVertical={2}>
-          <Text color="#ccc" fontSize={9} fontWeight="700" letterSpacing={0.5}>HD</Text>
+        <YStack position="absolute" top={ss(8)} right={ss(8)} zIndex={4} backgroundColor="rgba(0,0,0,0.65)" borderRadius={ss(4)} paddingHorizontal={ss(5)} paddingVertical={ss(2)}>
+          <Text color="#ccc" fontSize={ss(9)} fontWeight="700" letterSpacing={0.5}>HD</Text>
         </YStack>
-        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor="rgba(0,0,0,0.6)" borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }}>
-          <Text color="#fff" fontSize={9} fontWeight="700">✕</Text>
+        <YStack position="absolute" top={ss(8)} left={ss(8)} zIndex={5} backgroundColor="rgba(0,0,0,0.6)" borderRadius={ss(12)} width={ss(22)} height={ss(22)} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }}>
+          <Text color="#fff" fontSize={ss(9)} fontWeight="700">✕</Text>
         </YStack>
       </YStack>
-      <Text color="#fff" fontSize={13} fontWeight="600" marginTop={8} lineHeight={17} numberOfLines={2}>{item.name}</Text>
-      {epLabel && <Text color="#aaa" fontSize={10} marginTop={5} letterSpacing={0.3}>{epLabel}</Text>}
+      <Text color="#fff" fontSize={ss(13)} fontWeight="600" marginTop={ss(8)} lineHeight={ss(17)} numberOfLines={2}>{item.name}</Text>
+      {epLabel && <Text color="#aaa" fontSize={ss(10)} marginTop={ss(5)} letterSpacing={0.3}>{epLabel}</Text>}
     </YStack>
   );
 }
@@ -102,37 +103,35 @@ function CWCard({ item, onPress, onRemove, focused }) {
   const epTitle = item.seriesName && item.name !== item.seriesName ? item.name : null;
 
   return (
-    <YStack width={320} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.85 }} hoverStyle={{ scale: 1.02 }} animation="quick" {...({ className: "lumen-cw-card" })}>
-      <YStack width={320} height={180} borderRadius={8} backgroundColor="#16213e" overflow="hidden" borderWidth={2} borderColor={focused ? "#e94560" : "transparent"}>
+    <YStack width={ss(320)} flexShrink={0} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.85 }} hoverStyle={{ scale: 1.02 }} animation="quick" {...({ className: "lumen-cw-card" })}>
+      <YStack width={ss(320)} height={ss(180)} borderRadius={ss(8)} backgroundColor="#16213e" overflow="hidden" position="relative" borderWidth={2} borderColor={focused ? "#e94560" : "transparent"}>
         {bg
           ? <Image source={{ uri: bg }} style={FILL} resizeMode="cover" />
           : <View style={[FILL, { backgroundColor: "#16213e" }]} />}
-        {/* CSS gradient — keep as raw View */}
         <View style={[FILL, { background: "linear-gradient(to top right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0) 100%)" }]} />
         {seasonBadge && (
-          <YStack position="absolute" top={10} left={12} zIndex={4}>
-            <Text color="#fff" fontSize={13} fontWeight="700">{seasonBadge}</Text>
+          <YStack position="absolute" top={ss(10)} left={ss(12)} zIndex={4}>
+            <Text color="#fff" fontSize={ss(13)} fontWeight="700">{seasonBadge}</Text>
           </YStack>
         )}
-        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor="rgba(0,0,0,0.6)" borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }}>
-          <Text color="#fff" fontSize={9} fontWeight="700">✕</Text>
+        <YStack position="absolute" top={ss(8)} left={ss(8)} zIndex={5} backgroundColor="rgba(0,0,0,0.6)" borderRadius={ss(12)} width={ss(22)} height={ss(22)} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }}>
+          <Text color="#fff" fontSize={ss(9)} fontWeight="700">✕</Text>
         </YStack>
         <div className="lumen-cw-play">▶</div>
-        {/* Progress bar — keep as RN Views for % string width */}
-        <YStack position="absolute" left={0} right={0} bottom={0} zIndex={4} paddingHorizontal={12}>
-          <View style={{ height: 3, backgroundColor: "rgba(255,255,255,0.18)" }}>
+        <YStack position="absolute" left={0} right={0} bottom={0} zIndex={4} paddingHorizontal={ss(12)}>
+          <View style={{ height: ss(3), backgroundColor: "rgba(255,255,255,0.18)" }}>
             <View style={{ height: "100%", width: `${progress}%`, backgroundColor: "#e94560" }} />
           </View>
         </YStack>
       </YStack>
-      <YStack paddingTop={10} paddingHorizontal={2}>
-        <Text color="#fff" fontSize={13} fontWeight="600" marginBottom={2} numberOfLines={1}>{showTitle}</Text>
+      <YStack paddingTop={ss(10)} paddingHorizontal={ss(2)}>
+        <Text color="#fff" fontSize={ss(13)} fontWeight="600" marginBottom={ss(2)} numberOfLines={1}>{showTitle}</Text>
         {(epLabel || epTitle) && (
-          <Text color="#888" fontSize={12} marginBottom={2} numberOfLines={1}>
+          <Text color="#888" fontSize={ss(12)} marginBottom={ss(2)} numberOfLines={1}>
             {[epLabel, epTitle].filter(Boolean).join(" · ")}
           </Text>
         )}
-        {timeLeft && <Text color="#888" fontSize={12}>{timeLeft}</Text>}
+        {timeLeft && <Text color="#888" fontSize={ss(12)}>{timeLeft}</Text>}
       </YStack>
     </YStack>
   );
@@ -166,22 +165,22 @@ export default function HistoryScreen({ navigation }) {
 
   if (myList.length === 0 && watchedHistory.length === 0) {
     return (
-      <YStack flex={1} justifyContent="center" alignItems="center" backgroundColor="#0f0f23" padding={24}>
-        <Text fontSize={48} marginBottom={12}>🎬</Text>
-        <Text color="#fff" fontSize={20} fontWeight="700" marginBottom={8}>Your list is empty</Text>
-        <Text color="#888" fontSize={14} textAlign="center">Open a movie or series and tap ♡ Favorites to save it here</Text>
+      <YStack flex={1} justifyContent="center" alignItems="center" backgroundColor="#0f0f23" padding={ss(24)}>
+        <Text fontSize={ss(48)} marginBottom={ss(12)}>🎬</Text>
+        <Text color="#fff" fontSize={ss(20)} fontWeight="700" marginBottom={ss(8)}>Your list is empty</Text>
+        <Text color="#888" fontSize={ss(14)} textAlign="center">Open a movie or series and tap ♡ Favorites to save it here</Text>
       </YStack>
     );
   }
 
   return (
-    <ScrollView flex={1} backgroundColor="#0f0f23" contentContainerStyle={{ paddingTop: 40, paddingBottom: 80 }}>
+    <ScrollView flex={1} backgroundColor="#0f0f23" contentContainerStyle={{ paddingTop: ss(40), paddingBottom: ss(80) }}>
       {myList.length > 0 && (
-        <YStack paddingBottom={48}>
-          <Text color="#fff" fontSize={26} fontWeight="700" letterSpacing={-0.5} paddingHorizontal={48} marginBottom={20}>Favorites</Text>
+        <YStack paddingBottom={ss(48)}>
+          <Text color="#fff" fontSize={ss(26)} fontWeight="700" letterSpacing={-0.5} paddingHorizontal={ss(48)} marginBottom={ss(20)}>Favorites</Text>
           <div style={{ position: "relative" }} className="lumen-shelf-rail">
             <button className="lumen-shelf-nav" onClick={() => fav$.scrollBy(-800)}>‹</button>
-            <div ref={fav$.railRef} style={{ display: "flex", overflowX: "auto", gap: 12, paddingLeft: 48, paddingRight: 48, scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab" }}>
+            <div ref={fav$.railRef} style={{ display: "flex", overflowX: "auto", gap: ss(12), paddingLeft: ss(48), paddingRight: ss(48), scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab" }}>
               {myList.map((item, idx) => (
                 <MyListCard key={item.id} item={item} focused={focusedRow === myListRowIdx && focusedCol === idx} onPress={() => openDetail(item)} onRemove={() => removeFromMyList(item.id)} />
               ))}
@@ -192,11 +191,11 @@ export default function HistoryScreen({ navigation }) {
       )}
 
       {watchedHistory.length > 0 && (
-        <YStack paddingBottom={48}>
-          <Text color="#fff" fontSize={26} fontWeight="700" letterSpacing={-0.5} paddingHorizontal={48} marginBottom={20}>Watch History</Text>
+        <YStack paddingBottom={ss(48)}>
+          <Text color="#fff" fontSize={ss(26)} fontWeight="700" letterSpacing={-0.5} paddingHorizontal={ss(48)} marginBottom={ss(20)}>Watch History</Text>
           <div style={{ position: "relative" }} className="lumen-shelf-rail">
             <button className="lumen-shelf-nav" onClick={() => cw$.scrollBy(-800)}>‹</button>
-            <div ref={cw$.railRef} style={{ display: "flex", overflowX: "auto", gap: 12, paddingLeft: 48, paddingRight: 48, scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab" }}>
+            <div ref={cw$.railRef} style={{ display: "flex", overflowX: "auto", gap: ss(12), paddingLeft: ss(48), paddingRight: ss(48), scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab" }}>
               {watchedHistory.map((item, idx) => (
                 <CWCard key={item.id} item={item} focused={focusedRow === historyRowIdx && focusedCol === idx} onPress={() => openDetail(item)} onRemove={() => removeFromWatchHistory(item.id)} />
               ))}
