@@ -271,7 +271,9 @@ export function useMovies({ navigation } = {}) {
   const getCategoryItems = useCallback(async (catId) => {
     const cached = itemsCacheRef.current.get(catId);
     if (cached) return cached;
-    const items = await contentService.getMoviesByCategory(catId);
+    const items = catId === "all"
+      ? await contentService.getAllMovies()
+      : await contentService.getMoviesByCategory(catId);
     itemsCacheRef.current.set(catId, items);
     return items;
   }, [contentService]);

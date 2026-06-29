@@ -128,8 +128,9 @@ export default function SeriesScreenTV({ navigation, route }) {
     try {
       const list = await contentService.getSeriesCategories();
       if (!list?.length) return;
-      setCats(list);
-      catsRef.current = list;
+      const withAll = [{ id: "all", name: "All Series" }, ...list];
+      setCats(withAll);
+      catsRef.current = withAll;
     } catch (e) {
       console.error("SeriesScreenTV:", e);
     } finally {
@@ -151,7 +152,9 @@ export default function SeriesScreenTV({ navigation, route }) {
     try {
       let all = allItemsRef.current.get(cat.id);
       if (!all) {
-        all = await contentService.getSeriesByCategory(cat.id);
+        all = cat.id === "all"
+          ? await contentService.getAllSeries()
+          : await contentService.getSeriesByCategory(cat.id);
         allItemsRef.current.set(cat.id, all);
       }
       const updated = { ...next, items: all };

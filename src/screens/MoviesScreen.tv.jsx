@@ -54,7 +54,9 @@ export default function MoviesScreenTV({ navigation, route }) {
   const [filterLetter, setFilterLetter] = useState("all");
   const filterLetterRef = useRef("all");
 
-  const cats = categories;
+  const cats = categories.length
+    ? [{ id: "all", name: "All Movies" }, ...categories]
+    : categories;
   useEffect(() => { catsRef.current = cats; }, [cats]);
   useEffect(() => { pageRef.current = page; }, [page]);
   useEffect(() => { detailRef.current = detail; }, [detail]);
