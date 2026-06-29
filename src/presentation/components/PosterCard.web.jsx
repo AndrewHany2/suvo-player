@@ -29,12 +29,16 @@ function ensureHoverGlowRule() {
   if (hoverGlowInjected || tv || typeof document === "undefined") return;
   hoverGlowInjected = true;
   const el = document.createElement("style");
+  // Hover = same weight as focus: a clear 2px cyan border + soft glow on the
+  // poster image (box-sizing:border-box, so the 2px border doesn't shift layout).
   el.textContent =
     "body:not(.keyboard-nav) .lumen-poster-card:hover .lumen-poster-box{box-shadow:" +
     GLOW_WEB +
     ";border-color:" +
     focusRing.color +
-    "}";
+    ";border-width:" +
+    focusRing.width +
+    "px}";
   document.head.appendChild(el);
 }
 
