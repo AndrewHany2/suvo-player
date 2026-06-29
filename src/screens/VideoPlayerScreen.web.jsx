@@ -5,6 +5,34 @@ import iptvApi from "../services/iptvApi";
 import { usePlatform } from "../platform";
 import { createHlsDriver } from "../playback/drivers/hlsDriver";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
+import { usePlayerPreferences } from "../playback/usePlayerPreferences";
+import { useResumePosition } from "../playback/useResumePosition";
+import { useSleepTimer, SLEEP_PRESETS, formatRemaining } from "../playback/useSleepTimer";
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  toCssTextTrackStyle,
+  clampOffset,
+} from "../playback/subtitleStyle";
+import { nextChannel, prevChannel, fetchNowNext } from "../playback/liveExtras";
+import {
+  isPipSupported,
+  enterPip,
+  exitPip,
+  isPipActive,
+  isWebCastAvailable,
+  isRemotePlaybackSupported,
+  promptRemotePlayback,
+  setMediaSessionMetadata,
+  setMediaSessionHandlers,
+  setMediaSessionPosition,
+} from "../playback/mediaCapabilities";
+import ResumePrompt from "../playback/components/ResumePrompt";
+import SubtitleSettings from "../playback/components/SubtitleSettings";
+import StatsOverlay from "../playback/components/StatsOverlay";
+import storage from "../utils/storage";
+
+/** Namespaced storage key remembering the last live channel stream_id. */
+const LAST_CHANNEL_KEY = "lumen_last_live_channel";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 const ASPECT_RATIOS = [
@@ -35,6 +63,32 @@ function heightToCap(height) {
   if (height >= 720) return "720";
   if (height >= 480) return "480";
   return "data-saver";
+}
+
+// Numeric ceiling for a quality-cap ladder value, used to pick the best hls
+// level at or below a remembered cap. 'auto' (or unknown) => Infinity (no cap).
+function capToMaxHeight(cap) {
+  switch (cap) {
+    case "1080": return 1080;
+    case "720": return 720;
+    case "480": return 480;
+    case "data-saver": return 360;
+    default: return Infinity;
+  }
+}
+
+// Given the available hls levels and a remembered cap, return the index of the
+// best (tallest) level whose height is at/below the cap, or -1 for Auto.
+function levelForCap(levels, cap) {
+  if (!cap || cap === "auto" || !Array.isArray(levels) || levels.length === 0) return -1;
+  const max = capToMaxHeight(cap);
+  let bestIdx = -1;
+  let bestH = -1;
+  for (let i = 0; i < levels.length; i++) {
+    const h = levels[i]?.height || 0;
+    if (h <= max && h > bestH) { bestH = h; bestIdx = i; }
+  }
+  return bestIdx;
 }
 
 const S = {
@@ -319,6 +373,7 @@ export default function VideoPlayerScreen() {
     addToWatchHistory,
     playVideo,
     flushProgress,
+    channels,
   } = useApp();
 
   const videoRef = useRef(null);
@@ -359,6 +414,56 @@ export default function VideoPlayerScreen() {
   const audioRef = useRef(null);
   const subtitleRef = useRef(null);
   const aspectRef = useRef(null);
+  const moreRef = useRef(null);
+
+  // ── Phase 2 state ───────────────────────────────────────────────────────────
+  // Remembered preferences (per-stream, merged over global) — see usePlayerPreferences.
+  const streamKey = currentVideo
+    ? `${currentVideo.type}_${currentVideo.streamId}`
+    : null;
+  const { prefs, loaded: prefsLoaded, setPref } = usePlayerPreferences(streamKey);
+
+  // Resume resolution for VOD. `startTime` fed to the hook is decided once the
+  // user picks (web prompt) or auto-resume (TV).
+  const resume = useResumePosition(currentVideo);
+  const [startTime, setStartTime] = useState(0);
+  // Whether we still owe the user a resume decision (web prompt visible).
+  const [resumePending, setResumePending] = useState(false);
+
+  // Subtitle styling + a/v delay offsets (live-applied, persisted via prefs).
+  const subtitleStyle = useMemo(
+    () => ({ ...DEFAULT_SUBTITLE_STYLE, ...(prefs.subtitleStyle || {}) }),
+    [prefs.subtitleStyle],
+  );
+  const subtitleOffsetMs = clampOffset(Number(prefs.subtitleOffsetMs) || 0);
+  const audioOffsetMs = clampOffset(Number(prefs.audioOffsetMs) || 0);
+
+  // Stats overlay toggle + gathered stats snapshot.
+  const [showStats, setShowStats] = useState(false);
+  const [stats, setStats] = useState({});
+
+  // PiP / cast capability + active flags.
+  const [pipActive, setPipActive] = useState(false);
+  const pipSupported = isPipSupported(videoRef.current);
+  const castSupported = isWebCastAvailable(videoRef.current);
+
+  // EPG now/next for live.
+  const [nowNext, setNowNext] = useState({ now: null, next: null });
+
+  // Sleep timer: pause + close when it elapses.
+  const handleSleepElapsed = useCallback(() => {
+    const video = videoRef.current;
+    if (video) video.pause();
+    handleCloseRef.current?.();
+  }, []);
+  const sleep = useSleepTimer(handleSleepElapsed);
+  // handleClose is defined below; capture it in a ref so the sleep callback
+  // (created before handleClose) can reach the latest version.
+  const handleCloseRef = useRef(null);
+  // next-episode handler + availability are computed lower down; mirror them in
+  // refs so the MediaSession effect (declared earlier) can reach the latest.
+  const handleNextEpisodeRef = useRef(null);
+  const nextEpisodeAvailableRef = useRef(false);
 
   const stopProgress = useCallback(() => {
     clearInterval(progressRef.current);
@@ -444,7 +549,9 @@ export default function VideoPlayerScreen() {
     driver,
     source,
     isLive,
-    startTime: currentVideo?.startTime || 0,
+    // Resolved resume/start-over decision (web) or auto-resume (TV); falls back
+    // to any explicit startTime carried on currentVideo (e.g. next-episode).
+    startTime,
     manualCap,
     // AUTH-refresh hook. The recovery machine calls this once on a 401/403 before
     // retrying; re-loading the same signed URL forces a fresh handshake. A real
@@ -477,6 +584,11 @@ export default function VideoPlayerScreen() {
     stopProgress();
     closeVideo();
   }, [currentVideo, updateWatchProgress, flushProgress, stopProgress, closeVideo]);
+
+  // Keep the sleep-timer's close handler pointed at the latest handleClose.
+  useEffect(() => {
+    handleCloseRef.current = handleClose;
+  }, [handleClose]);
 
   // Show TV controls and restart hide timer
   const showTvControls = useCallback(() => {
@@ -512,6 +624,10 @@ export default function VideoPlayerScreen() {
     setSelectedSubtitle(-1);
     setTvCurrentTime(0);
     setTvDuration(0);
+    setShowStats(false);
+    setStats({});
+    setNowNext({ now: null, next: null });
+    setOpenMenu(null);
 
     if (currentVideo.type !== "live") {
       addToWatchHistory({
@@ -530,6 +646,186 @@ export default function VideoPlayerScreen() {
       }
     };
   }, [currentVideo?.url]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Resume resolution ───────────────────────────────────────────────────────
+  // The resilient-playback hook reads `startTime` only at source-load time, and
+  // the resume decision settles asynchronously (after the load effect captured
+  // the old value). So we ALSO carry the desired position in pendingSeekRef and
+  // apply it directly to the <video> once it can seek (seekToPending). startTime
+  // is still set so a fresh load (e.g. a recovery RELOAD) resumes correctly too.
+  const pendingSeekRef = useRef(0);
+  const seekToPending = useCallback(() => {
+    const video = videoRef.current;
+    const t = pendingSeekRef.current;
+    if (video && Number.isFinite(t) && t > 0) {
+      try {
+        if (Math.abs(video.currentTime - t) > 1) video.currentTime = t;
+        // Consume the pending seek so a later buffer-stall 'canplay' can't yank
+        // the user back after they've moved away from the resume point.
+        pendingSeekRef.current = 0;
+      } catch { /* not seekable yet */ }
+    }
+  }, []);
+
+  // Decide the start time for the new source. An explicit startTime carried on
+  // currentVideo (e.g. next-episode auto-advance) always wins. Otherwise, when a
+  // resume point exists: TV auto-resumes (no modal — keeps remote focus simple,
+  // a 'Start over' control is offered in the overlay); web shows ResumePrompt and
+  // holds startTime at 0 until the user chooses.
+  useEffect(() => {
+    if (!currentVideo) return;
+    const explicit = Number(currentVideo.startTime) || 0;
+    if (explicit > 0) {
+      setStartTime(explicit);
+      pendingSeekRef.current = explicit;
+      setResumePending(false);
+      return;
+    }
+    if (resume.hasResume) {
+      if (isTV) {
+        // Auto-resume on TV; surface a Start-over control instead of a prompt.
+        setStartTime(resume.resumeTime);
+        pendingSeekRef.current = resume.resumeTime;
+        setResumePending(false);
+      } else {
+        // Web: hold at 0, show the prompt and let the user decide.
+        setStartTime(0);
+        pendingSeekRef.current = 0;
+        setResumePending(true);
+      }
+    } else {
+      setStartTime(0);
+      pendingSeekRef.current = 0;
+      setResumePending(false);
+    }
+    // resume.* is derived from watchHistory + currentVideo; key on the source.
+  }, [currentVideo?.url, resume.hasResume, resume.resumeTime, isTV]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Apply a pending resume seek once the media is ready (covers the case where
+  // the hook loaded before the resume decision settled).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+    video.addEventListener("loadedmetadata", seekToPending);
+    video.addEventListener("canplay", seekToPending);
+    return () => {
+      video.removeEventListener("loadedmetadata", seekToPending);
+      video.removeEventListener("canplay", seekToPending);
+    };
+  }, [currentVideo?.url, seekToPending]);
+
+  // Resolve a resume choice from the web prompt: feed the chosen start time into
+  // the hook and dismiss the prompt. 'startOver' seeks to 0.
+  const resolveResume = useCallback(
+    (choice) => {
+      const t = resume.decide(choice);
+      setStartTime(t);
+      pendingSeekRef.current = t;
+      setResumePending(false);
+      const video = videoRef.current;
+      if (video && Number.isFinite(t) && t > 0) {
+        try { video.currentTime = t; } catch { /* not seekable yet */ }
+      }
+    },
+    [resume],
+  );
+
+  // 'Start over' control (both branches): seek to 0 now.
+  const handleStartOver = useCallback(() => {
+    setStartTime(0);
+    pendingSeekRef.current = 0;
+    setResumePending(false);
+    const video = videoRef.current;
+    if (video) {
+      try { video.currentTime = 0; } catch { /* ignore */ }
+    }
+  }, []);
+
+  // ── Remembered preferences: apply on open ───────────────────────────────────
+  // Per-source application guards so a remembered value is applied once, then
+  // the user's in-session changes (and their persistence) take over.
+  const prefsAppliedRef = useRef({ scalar: false, audio: false, subtitle: false, quality: false });
+
+  // Reset the per-source application guards whenever the source changes.
+  useEffect(() => {
+    prefsAppliedRef.current = { scalar: false, audio: false, subtitle: false, quality: false };
+  }, [currentVideo?.url]);
+
+  // Scalar prefs (aspect ratio, playback speed, quality cap) — once loaded.
+  useEffect(() => {
+    if (!prefsLoaded || !currentVideo || prefsAppliedRef.current.scalar) return;
+    prefsAppliedRef.current.scalar = true;
+
+    if (typeof prefs.aspectRatio === "string") setAspectRatio(prefs.aspectRatio);
+
+    const spd = Number(prefs.playbackSpeed);
+    if (Number.isFinite(spd) && spd > 0) {
+      if (videoRef.current) videoRef.current.playbackRate = spd;
+      setPlaybackRate(spd);
+    }
+
+    if (typeof prefs.qualityCap === "string" && prefs.qualityCap !== "auto") {
+      setManualCap(prefs.qualityCap);
+    }
+  }, [prefsLoaded, currentVideo, prefs.aspectRatio, prefs.playbackSpeed, prefs.qualityCap]);
+
+  // Audio track — apply once tracks are known (matched by name, falling back to index).
+  useEffect(() => {
+    if (!prefsLoaded || audioTracks.length <= 1 || prefsAppliedRef.current.audio) return;
+    const want = prefs.audioTrack;
+    if (want == null) return;
+    prefsAppliedRef.current.audio = true;
+    let idx = -1;
+    if (typeof want === "string") {
+      idx = audioTracks.findIndex((t) => (t.name || "") === want);
+    }
+    if (idx < 0 && Number.isInteger(want) && want >= 0 && want < audioTracks.length) {
+      idx = want;
+    }
+    if (idx >= 0 && idx !== selectedAudio) {
+      if (hlsRef.current) hlsRef.current.audioTrack = idx;
+      setSelectedAudio(idx);
+    }
+  }, [prefsLoaded, audioTracks, prefs.audioTrack, selectedAudio]);
+
+  // Subtitle track — apply once tracks are known. -1 / 'off' means disabled.
+  useEffect(() => {
+    if (!prefsLoaded || subtitleTracks.length === 0 || prefsAppliedRef.current.subtitle) return;
+    const want = prefs.subtitleTrack;
+    if (want == null) return;
+    prefsAppliedRef.current.subtitle = true;
+    if (want === "off" || want === -1) {
+      if (hlsRef.current) hlsRef.current.subtitleTrack = -1;
+      setSelectedSubtitle(-1);
+      return;
+    }
+    let idx = -1;
+    if (typeof want === "string") {
+      idx = subtitleTracks.findIndex((t) => (t.name || "") === want);
+    }
+    if (idx < 0 && Number.isInteger(want) && want >= 0 && want < subtitleTracks.length) {
+      idx = want;
+    }
+    if (idx >= 0) {
+      if (hlsRef.current) hlsRef.current.subtitleTrack = idx;
+      setSelectedSubtitle(idx);
+    }
+  }, [prefsLoaded, subtitleTracks, prefs.subtitleTrack]);
+
+  // Quality level — apply the remembered cap to a concrete level once levels are
+  // known (manualCap already restored above feeds the recovery machine; this
+  // also pins the hls currentLevel + the menu's selectedLevel for clarity).
+  useEffect(() => {
+    if (!prefsLoaded || qualityLevels.length <= 1 || prefsAppliedRef.current.quality) return;
+    const cap = prefs.qualityCap;
+    if (typeof cap !== "string" || cap === "auto") return;
+    prefsAppliedRef.current.quality = true;
+    const idx = levelForCap(qualityLevels, cap);
+    if (idx >= 0) {
+      if (hlsRef.current) hlsRef.current.currentLevel = idx;
+      setSelectedLevel(idx);
+    }
+  }, [prefsLoaded, qualityLevels, prefs.qualityCap]);
 
   // Video event listeners — progress writes, TV transport state, time mirroring.
   // Loading / error / reconnecting are owned by the recovery hook now, so this
@@ -567,7 +863,17 @@ export default function VideoPlayerScreen() {
     const onDurationChange = () => {
       if (Number.isFinite(video.duration)) setTvDuration(video.duration);
     };
-    const onTimeUpdate = () => setTvCurrentTime(video.currentTime);
+    const onTimeUpdate = () => {
+      setTvCurrentTime(video.currentTime);
+      // Keep the OS media-controls scrubber in sync (VOD only; live has no duration).
+      if (!isLive && Number.isFinite(video.duration)) {
+        setMediaSessionPosition({
+          duration: video.duration,
+          position: video.currentTime,
+          playbackRate: video.playbackRate,
+        });
+      }
+    };
 
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -579,7 +885,7 @@ export default function VideoPlayerScreen() {
       video.removeEventListener("durationchange", onDurationChange);
       video.removeEventListener("timeupdate", onTimeUpdate);
     };
-  }, [currentVideo, updateWatchProgress]);
+  }, [currentVideo, updateWatchProgress, isLive]);
 
   // Flush progress on teardown — tab hide / app backgrounding is the most
   // common resume-loss case (the unmount cleanup never runs on a hard kill).
@@ -609,110 +915,8 @@ export default function VideoPlayerScreen() {
     };
   }, [currentVideo, updateWatchProgress, flushProgress]);
 
-  // Keyboard shortcuts (desktop + TV remote)
-  useEffect(() => {
-    const onKey = (e) => {
-      if (!currentVideo || !videoRef.current) return;
-      const video = videoRef.current;
-      const k = e.keyCode || e.which;
-
-      if (isTV) showTvControls();
-
-      // Block D-pad UP/DOWN from moving browser focus to overlay buttons on TV
-      if (isTV && (k === 38 || k === 40)) {
-        e.preventDefault();
-        return;
-      }
-
-      // TV remote-specific keys
-      if (TV_KEYS.BACK.has(k)) {
-        e.preventDefault();
-        handleClose();
-        return;
-      }
-      if (k === TV_KEYS.PLAY) {
-        e.preventDefault();
-        video.play();
-        return;
-      }
-      if (k === TV_KEYS.PAUSE) {
-        e.preventDefault();
-        video.pause();
-        return;
-      }
-      if (k === TV_KEYS.FF) {
-        e.preventDefault();
-        video.currentTime += 30;
-        return;
-      }
-      if (k === TV_KEYS.REW) {
-        e.preventDefault();
-        video.currentTime -= 30;
-        return;
-      }
-
-      switch (e.key) {
-        case "Enter":
-          e.preventDefault();
-          video.paused ? video.play() : video.pause();
-          break;
-        case " ":
-        case "k":
-          e.preventDefault();
-          e.stopPropagation();
-          video.paused ? video.play() : video.pause();
-          break;
-        case "f":
-          e.preventDefault();
-          document.fullscreenElement
-            ? document.exitFullscreen()
-            : video.requestFullscreen();
-          break;
-        case "Escape":
-          if (!isTV) handleClose();
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          video.currentTime -= 10;
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          video.currentTime += 10;
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          if (!isTV) video.volume = Math.min(1, video.volume + 0.1);
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          if (!isTV) video.volume = Math.max(0, video.volume - 0.1);
-          break;
-        case "[": {
-          e.preventDefault();
-          const i = SPEEDS.indexOf(video.playbackRate);
-          const r = SPEEDS[Math.max(0, (i < 0 ? SPEEDS.indexOf(1) : i) - 1)];
-          video.playbackRate = r;
-          setPlaybackRate(r);
-          break;
-        }
-        case "]": {
-          e.preventDefault();
-          const i = SPEEDS.indexOf(video.playbackRate);
-          const r =
-            SPEEDS[
-              Math.min(SPEEDS.length - 1, (i < 0 ? SPEEDS.indexOf(1) : i) + 1)
-            ];
-          video.playbackRate = r;
-          setPlaybackRate(r);
-          break;
-        }
-        default:
-          break;
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    return () => document.removeEventListener("keydown", onKey, true);
-  }, [currentVideo, handleClose, showTvControls]);
+  // (Keyboard shortcuts effect is declared further down, after the channel-zap /
+  // PiP / applySpeed handlers it depends on, to avoid a temporal-dead-zone ref.)
 
   // Close dropdowns on outside click (web only)
   useEffect(() => {
@@ -720,7 +924,7 @@ export default function VideoPlayerScreen() {
     if (!openMenu) return undefined;
     const onClick = (e) => {
       if (
-        ![qualityRef, speedRef, audioRef, subtitleRef, aspectRef].some((r) =>
+        ![qualityRef, speedRef, audioRef, subtitleRef, aspectRef, moreRef].some((r) =>
           r.current?.contains(e.target),
         )
       ) {
@@ -806,14 +1010,403 @@ export default function VideoPlayerScreen() {
       hlsRef.current.currentLevel = levelIdx;
     }
     setSelectedLevel(levelIdx);
+    let cap;
     if (levelIdx === -1) {
-      setManualCap("auto");
+      cap = "auto";
     } else {
       const lvl = qualityLevels[levelIdx];
-      setManualCap(heightToCap(lvl?.height));
+      cap = heightToCap(lvl?.height);
     }
+    setManualCap(cap);
+    setPref("qualityCap", cap);
     setOpenMenu(null);
-  }, [qualityLevels]);
+  }, [qualityLevels, setPref]);
+
+  // Centralized, persistence-aware setters (used by both menus and shortcuts).
+  const applySpeed = useCallback((r) => {
+    if (videoRef.current) videoRef.current.playbackRate = r;
+    setPlaybackRate(r);
+    setPref("playbackSpeed", r);
+  }, [setPref]);
+
+  const applyAudio = useCallback((i) => {
+    if (hlsRef.current) hlsRef.current.audioTrack = i;
+    setSelectedAudio(i);
+    setPref("audioTrack", audioTracks[i]?.name ?? i);
+  }, [setPref, audioTracks]);
+
+  const applySubtitle = useCallback((i) => {
+    if (hlsRef.current) hlsRef.current.subtitleTrack = i;
+    setSelectedSubtitle(i);
+    setPref("subtitleTrack", i === -1 ? "off" : (subtitleTracks[i]?.name ?? i));
+  }, [setPref, subtitleTracks]);
+
+  const applyAspect = useCallback((value) => {
+    setAspectRatio(value);
+    setPref("aspectRatio", value);
+  }, [setPref]);
+
+  // SubtitleSettings onChange: persist subtitle style + a/v offsets via prefs.
+  const handleSubtitleSettingsChange = useCallback((partial) => {
+    if (partial.style) {
+      setPref("subtitleStyle", { ...subtitleStyle, ...partial.style });
+    }
+    if ("subtitleOffsetMs" in partial) {
+      setPref("subtitleOffsetMs", clampOffset(Number(partial.subtitleOffsetMs) || 0));
+    }
+    if ("audioOffsetMs" in partial) {
+      setPref("audioOffsetMs", clampOffset(Number(partial.audioOffsetMs) || 0));
+    }
+  }, [setPref, subtitleStyle]);
+
+  // ── PiP / Cast ──────────────────────────────────────────────────────────────
+  const handleTogglePip = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isPipActive(video)) {
+      await exitPip();
+    } else {
+      await enterPip(video);
+    }
+    setPipActive(isPipActive(video));
+  }, []);
+
+  const handleCast = useCallback(async () => {
+    const video = videoRef.current;
+    if (video && isRemotePlaybackSupported(video)) {
+      await promptRemotePlayback(video);
+    }
+    // If only the Cast SDK is present (no Remote Playback), there's nothing we
+    // can prompt without the framework UI; the button still surfaces presence.
+  }, []);
+
+  // ── Live: channel list + zap ────────────────────────────────────────────────
+  // Live channels in stable order, restricted to entries that carry a stream_id
+  // (the zap helpers key on stream_id). Falls back to the full channels list.
+  const liveChannelList = useMemo(
+    () => (Array.isArray(channels) ? channels.filter((c) => c && (c.stream_id ?? c.id) != null) : []),
+    [channels],
+  );
+
+  const zapToChannel = useCallback(
+    (ch) => {
+      if (!ch) return;
+      const sid = ch.stream_id ?? ch.id;
+      const url = ch.url || iptvApi.buildStreamUrl("live", sid, ch.stream_type || "ts");
+      playVideo({ type: "live", streamId: sid, name: ch.name, url });
+      storage.setItem(LAST_CHANNEL_KEY, String(sid)).catch(() => {});
+    },
+    [playVideo],
+  );
+
+  const handleChannelUp = useCallback(() => {
+    if (!isLive) return;
+    const sid = currentVideo?.streamId;
+    zapToChannel(nextChannel(liveChannelList, sid));
+  }, [isLive, currentVideo, liveChannelList, zapToChannel]);
+
+  const handleChannelDown = useCallback(() => {
+    if (!isLive) return;
+    const sid = currentVideo?.streamId;
+    zapToChannel(prevChannel(liveChannelList, sid));
+  }, [isLive, currentVideo, liveChannelList, zapToChannel]);
+
+  // Keyboard shortcuts (desktop + TV remote). Declared here — after the channel,
+  // PiP and speed handlers it references — so none are in the temporal dead zone.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!currentVideo || !videoRef.current) return;
+      const video = videoRef.current;
+      const k = e.keyCode || e.which;
+
+      if (isTV) showTvControls();
+
+      // Block D-pad UP/DOWN from moving browser focus to overlay buttons on TV.
+      // For LIVE on TV, repurpose Up/Down as channel zap (ch+/ch-).
+      if (isTV && (k === 38 || k === 40)) {
+        e.preventDefault();
+        if (isLive) {
+          if (k === 38) handleChannelUp();
+          else handleChannelDown();
+        }
+        return;
+      }
+      // Dedicated channel +/- remote keys (where present): 427 = ch up, 428 = ch down.
+      if (isLive && (k === 427 || k === 428)) {
+        e.preventDefault();
+        if (k === 427) handleChannelUp();
+        else handleChannelDown();
+        return;
+      }
+
+      // TV remote-specific keys
+      if (TV_KEYS.BACK.has(k)) {
+        e.preventDefault();
+        handleClose();
+        return;
+      }
+      if (k === TV_KEYS.PLAY) {
+        e.preventDefault();
+        video.play();
+        return;
+      }
+      if (k === TV_KEYS.PAUSE) {
+        e.preventDefault();
+        video.pause();
+        return;
+      }
+      if (k === TV_KEYS.FF) {
+        e.preventDefault();
+        video.currentTime += 30;
+        return;
+      }
+      if (k === TV_KEYS.REW) {
+        e.preventDefault();
+        video.currentTime -= 30;
+        return;
+      }
+
+      switch (e.key) {
+        case "Enter":
+          e.preventDefault();
+          video.paused ? video.play() : video.pause();
+          break;
+        case " ":
+        case "k":
+          e.preventDefault();
+          e.stopPropagation();
+          video.paused ? video.play() : video.pause();
+          break;
+        case "f":
+          e.preventDefault();
+          document.fullscreenElement
+            ? document.exitFullscreen()
+            : video.requestFullscreen();
+          break;
+        case "Escape":
+          if (!isTV) handleClose();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          video.currentTime -= 10;
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          video.currentTime += 10;
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          if (isLive) handleChannelUp();
+          else if (!isTV) video.volume = Math.min(1, video.volume + 0.1);
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          if (isLive) handleChannelDown();
+          else if (!isTV) video.volume = Math.max(0, video.volume - 0.1);
+          break;
+        case "[": {
+          e.preventDefault();
+          const i = SPEEDS.indexOf(video.playbackRate);
+          applySpeed(SPEEDS[Math.max(0, (i < 0 ? SPEEDS.indexOf(1) : i) - 1)]);
+          break;
+        }
+        case "]": {
+          e.preventDefault();
+          const i = SPEEDS.indexOf(video.playbackRate);
+          applySpeed(
+            SPEEDS[Math.min(SPEEDS.length - 1, (i < 0 ? SPEEDS.indexOf(1) : i) + 1)],
+          );
+          break;
+        }
+        case "p":
+        case "P":
+          e.preventDefault();
+          handleTogglePip();
+          break;
+        case "i":
+        case "I":
+          e.preventDefault();
+          setShowStats((v) => !v);
+          break;
+        default:
+          break;
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [currentVideo, handleClose, showTvControls, isLive, handleChannelUp, handleChannelDown, applySpeed, handleTogglePip]);
+
+  // Remember the last live channel on open + fetch EPG now/next.
+  useEffect(() => {
+    if (!isLive || !currentVideo?.streamId) return undefined;
+    storage.setItem(LAST_CHANNEL_KEY, String(currentVideo.streamId)).catch(() => {});
+    let cancelled = false;
+    fetchNowNext(iptvApi, currentVideo.streamId)
+      .then((nn) => { if (!cancelled) setNowNext(nn || { now: null, next: null }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isLive, currentVideo?.streamId]);
+
+  // ── Subtitle styling: inject a scoped ::cue rule from the remembered style ───
+  // DOM ::cue properties aren't settable inline, so we drive them off a one-off
+  // <style> element kept in sync with the subtitle-style preference.
+  const cueStyleElRef = useRef(/** @type {HTMLStyleElement|null} */ (null));
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    let el = cueStyleElRef.current;
+    if (!el) {
+      el = document.createElement("style");
+      el.setAttribute("data-lumen-cue", "1");
+      document.head.appendChild(el);
+      cueStyleElRef.current = el;
+    }
+    const css = toCssTextTrackStyle(subtitleStyle);
+    el.textContent =
+      `video::cue{` +
+      `color:${css.color};` +
+      `background-color:${css.backgroundColor};` +
+      `font-size:${css.fontSize};` +
+      `text-shadow:${css.textShadow};` +
+      `}`;
+    return undefined;
+  }, [subtitleStyle]);
+
+  useEffect(() => {
+    return () => {
+      const el = cueStyleElRef.current;
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+      cueStyleElRef.current = null;
+    };
+  }, []);
+
+  // ── Subtitle delay offset: shift active text-track cue timings ───────────────
+  // We can't ask hls.js to re-time cues, but we can nudge the rendered cue
+  // start/end on the active TextTrack. Re-applied whenever the offset or the
+  // selected subtitle changes. NOTE: audioOffsetMs is persisted and surfaced in
+  // the UI, but neither the HTML <video> element nor hls.js exposes an a/v sync
+  // delay we can drive on the web, so audio offset is a no-op here (documented).
+  const appliedSubOffsetRef = useRef(0);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !video.textTracks) return undefined;
+    const deltaSec = (subtitleOffsetMs - appliedSubOffsetRef.current) / 1000;
+    if (deltaSec === 0) return undefined;
+
+    const shiftActive = () => {
+      for (let i = 0; i < video.textTracks.length; i++) {
+        const tt = video.textTracks[i];
+        if (tt.mode === "disabled") continue;
+        const cues = tt.cues;
+        if (!cues) continue;
+        for (let c = 0; c < cues.length; c++) {
+          const cue = cues[c];
+          // Clamp to non-negative; a cue can't start before 0.
+          cue.startTime = Math.max(0, cue.startTime + deltaSec);
+          cue.endTime = Math.max(cue.startTime, cue.endTime + deltaSec);
+        }
+      }
+    };
+    shiftActive();
+    appliedSubOffsetRef.current = subtitleOffsetMs;
+    return undefined;
+  }, [subtitleOffsetMs, selectedSubtitle, subtitleTracks]);
+
+  // Reset the applied-offset baseline when the source changes.
+  useEffect(() => { appliedSubOffsetRef.current = 0; }, [currentVideo?.url]);
+
+  // ── MediaSession metadata + action handlers (OS media controls/lockscreen) ──
+  useEffect(() => {
+    if (!currentVideo) return undefined;
+    setMediaSessionMetadata({
+      title: currentVideo.name || "",
+      artist: currentVideo.seriesName || (isLive ? "Live" : ""),
+      artwork: currentVideo.cover ? [{ src: currentVideo.cover, sizes: "512x512" }] : [],
+    });
+    const applied = setMediaSessionHandlers({
+      play: () => { videoRef.current?.play(); },
+      pause: () => { videoRef.current?.pause(); },
+      seekbackward: (d) => {
+        const v = videoRef.current; if (v) v.currentTime -= (d?.seekOffset || 10);
+      },
+      seekforward: (d) => {
+        const v = videoRef.current; if (v) v.currentTime += (d?.seekOffset || 10);
+      },
+      nexttrack: isLive ? handleChannelUp : (nextEpisodeAvailableRef.current ? handleNextEpisodeRef.current : null),
+      previoustrack: isLive ? handleChannelDown : null,
+    });
+    return () => {
+      // Clear the handlers we set so a stale closure can't fire after teardown.
+      const clear = {};
+      for (const a of applied) clear[a] = null;
+      setMediaSessionHandlers(clear);
+    };
+  }, [currentVideo, isLive, handleChannelUp, handleChannelDown]);
+
+  // Keep pipActive in sync with the browser (covers native exit from the PiP
+  // window's own controls).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+    const onEnter = () => setPipActive(true);
+    const onLeave = () => setPipActive(false);
+    video.addEventListener("enterpictureinpicture", onEnter);
+    video.addEventListener("leavepictureinpicture", onLeave);
+    return () => {
+      video.removeEventListener("enterpictureinpicture", onEnter);
+      video.removeEventListener("leavepictureinpicture", onLeave);
+    };
+  }, [currentVideo?.url]);
+
+  // ── Stats gathering (only while the overlay is shown) ───────────────────────
+  useEffect(() => {
+    if (!showStats) return undefined;
+    const collect = () => {
+      const video = videoRef.current;
+      const hls = hlsRef.current;
+      if (!video) return;
+      let resolution;
+      if (video.videoWidth && video.videoHeight) {
+        resolution = `${video.videoWidth}x${video.videoHeight}`;
+      }
+      let levelLabel;
+      let bitrateKbps;
+      if (hls && Array.isArray(hls.levels) && hls.currentLevel >= 0) {
+        const lvl = hls.levels[hls.currentLevel];
+        if (lvl) {
+          levelLabel = lvl.height ? `${lvl.height}p` : `${Math.round((lvl.bitrate || 0) / 1000)}k`;
+          if (lvl.bitrate) bitrateKbps = Math.round(lvl.bitrate / 1000);
+        }
+      } else if (hls && hls.autoLevelEnabled) {
+        levelLabel = "auto";
+      }
+      let bufferSec;
+      try {
+        const b = video.buffered;
+        if (b && b.length) bufferSec = Math.max(0, b.end(b.length - 1) - video.currentTime);
+      } catch { /* ignore */ }
+      let droppedFrames;
+      let fps;
+      try {
+        if (typeof video.getVideoPlaybackQuality === "function") {
+          const q = video.getVideoPlaybackQuality();
+          droppedFrames = q.droppedVideoFrames;
+        }
+      } catch { /* ignore */ }
+      let connectionType;
+      try {
+        const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        if (conn && conn.effectiveType) connectionType = conn.effectiveType;
+      } catch { /* ignore */ }
+      setStats({ resolution, levelLabel, bitrateKbps, bufferSec, droppedFrames, fps, connectionType });
+    };
+    collect();
+    const id = setInterval(collect, 1000);
+    return () => clearInterval(id);
+  }, [showStats]);
+
+  // ── Sleep timer: keep MediaSession position fresh + nothing else here. The
+  // countdown lives in useSleepTimer; the elapse handler pauses + closes.
+  // (No effect needed beyond the hook; the control lives in the overlay/menu.)
 
   const getVideoStyle = useMemo(() => {
     const base = { ...S.video };
@@ -856,6 +1449,13 @@ export default function VideoPlayerScreen() {
   // Memoize so we don't recompute the next-episode lookup on every render
   // (e.g. each 1s progress tick). getNextEpisode is stable per currentVideo.
   const nextEpisode = useMemo(() => getNextEpisode(), [getNextEpisode]);
+
+  // Mirror the next-episode handler + availability into refs for the
+  // MediaSession effect declared earlier in the component.
+  useEffect(() => {
+    handleNextEpisodeRef.current = handleNextEpisode;
+    nextEpisodeAvailableRef.current = !!nextEpisode;
+  }, [handleNextEpisode, nextEpisode]);
 
   if (!currentVideo) return null;
 
@@ -915,7 +1515,25 @@ export default function VideoPlayerScreen() {
             <button style={TV.closeBtn} tabIndex={-1} onClick={handleClose}>
               ✕
             </button>
-            <span style={TV.title}>{currentVideo.name}</span>
+            <span style={TV.title}>
+              {currentVideo.name}
+              {isLive && nowNext.now && (
+                <span style={{ display: "block", fontSize: 18, fontWeight: 500, color: "#22D3EE" }}>
+                  {`NOW: ${nowNext.now.title}`}
+                  {nowNext.next ? `  ·  NEXT: ${nowNext.next.title}` : ""}
+                </span>
+              )}
+            </span>
+            {/* Start over — VOD only, shown when we auto-resumed (TV has no prompt). */}
+            {!isLive && resume.hasResume && startTime > 0 && (
+              <button
+                style={{ ...TV.nextBtn, background: "rgba(255,255,255,0.15)" }}
+                tabIndex={-1}
+                onClick={handleStartOver}
+              >
+                ↺ Start over
+              </button>
+            )}
             {nextEpisode && (
               <button style={TV.nextBtn} tabIndex={-1} onClick={handleNextEpisode}>
                 {`Next ▶ S${String(nextEpisode.seasonNum).padStart(2, "0")}E${String(nextEpisode.episode.episode_num).padStart(2, "0")}`}
@@ -943,7 +1561,7 @@ export default function VideoPlayerScreen() {
 
           {/* Bottom bar — progress + time */}
           <div style={TV.bottomBar}>
-            {currentVideo.type !== "live" && (
+            {currentVideo.type !== "live" ? (
               <>
                 <div
                   style={TV.progressTrack}
@@ -964,9 +1582,14 @@ export default function VideoPlayerScreen() {
                   <span>{fmtTime(tvDuration)}</span>
                 </div>
               </>
+            ) : (
+              <div style={TV.seekHint}>▲▼ Channel · OK: play/pause</div>
             )}
           </div>
         </div>
+
+        {/* Stats overlay (toggle with 'i' on the remote/keyboard). */}
+        {showStats && <StatsOverlay stats={stats} />}
 
         {/* Error */}
         {isFatal && (
@@ -1037,10 +1660,7 @@ export default function VideoPlayerScreen() {
                   key={r}
                   style={S.menuItem(playbackRate === r)}
                   onClick={() => {
-                    if (videoRef.current) {
-                      videoRef.current.playbackRate = r;
-                    }
-                    setPlaybackRate(r);
+                    applySpeed(r);
                     setOpenMenu(null);
                   }}
                 >
@@ -1063,10 +1683,7 @@ export default function VideoPlayerScreen() {
                     key={t.id ?? i}
                     style={S.menuItem(selectedAudio === i)}
                     onClick={() => {
-                      if (hlsRef.current) {
-                        hlsRef.current.audioTrack = i;
-                      }
-                      setSelectedAudio(i);
+                      applyAudio(i);
                       setOpenMenu(null);
                     }}
                   >
@@ -1092,10 +1709,7 @@ export default function VideoPlayerScreen() {
                 <button
                   style={S.menuItem(selectedSubtitle === -1)}
                   onClick={() => {
-                    if (hlsRef.current) {
-                      hlsRef.current.subtitleTrack = -1;
-                    }
-                    setSelectedSubtitle(-1);
+                    applySubtitle(-1);
                     setOpenMenu(null);
                   }}
                 >
@@ -1106,10 +1720,7 @@ export default function VideoPlayerScreen() {
                     key={t.id ?? i}
                     style={S.menuItem(selectedSubtitle === i)}
                     onClick={() => {
-                      if (hlsRef.current) {
-                        hlsRef.current.subtitleTrack = i;
-                      }
-                      setSelectedSubtitle(i);
+                      applySubtitle(i);
                       setOpenMenu(null);
                     }}
                   >
@@ -1132,7 +1743,7 @@ export default function VideoPlayerScreen() {
                   key={value}
                   style={S.menuItem(aspectRatio === value)}
                   onClick={() => {
-                    setAspectRatio(value);
+                    applyAspect(value);
                     setOpenMenu(null);
                   }}
                 >
@@ -1173,6 +1784,84 @@ export default function VideoPlayerScreen() {
           </div>
         )}
 
+        {/* PiP toggle (when the browser supports it). Shortcut: 'p'. */}
+        {pipSupported && (
+          <button
+            style={S.btn}
+            onClick={handleTogglePip}
+            title="Picture-in-Picture (p)"
+          >
+            {pipActive ? "◱ PiP On" : "◰ PiP"}
+          </button>
+        )}
+
+        {/* Cast / Remote Playback (when available). */}
+        {castSupported && (
+          <button style={S.btn} onClick={handleCast} title="Cast / AirPlay">
+            ⧉ Cast
+          </button>
+        )}
+
+        {/* Stats overlay toggle. Shortcut: 'i'. */}
+        <button
+          style={{ ...S.btn, color: showStats ? "#22D3EE" : "#fff" }}
+          onClick={() => setShowStats((v) => !v)}
+          title="Stats for nerds (i)"
+        >
+          ⓘ
+        </button>
+
+        {/* More: subtitle/audio tuning + sleep timer. */}
+        <div style={S.dropdown} ref={moreRef}>
+          <button style={S.btn} onClick={() => setOpenMenu((m) => (m === "more" ? null : "more"))}>
+            ⋯ {sleep.active ? formatRemaining(sleep.secondsLeft) : "More"}
+          </button>
+          {openMenu === "more" && (
+            <div style={{ ...S.menu, minWidth: 300, padding: 0, maxHeight: 520 }}>
+              <SubtitleSettings
+                style={subtitleStyle}
+                subtitleOffsetMs={subtitleOffsetMs}
+                audioOffsetMs={audioOffsetMs}
+                onChange={handleSubtitleSettingsChange}
+              />
+              <div style={{ padding: "10px 12px", borderTop: "1px solid #28324E" }}>
+                <div style={{ color: "#7A86A8", fontSize: 13, marginBottom: 8 }}>
+                  Sleep timer
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {SLEEP_PRESETS.map((p) => (
+                    <button
+                      key={p.label}
+                      style={S.menuItem(false)}
+                      onClick={() => {
+                        if (p.kind === "end-of-episode") {
+                          // No fixed duration: arm a long timer the end-of-media
+                          // handler can cancel; simplest is to cancel any timer
+                          // and rely on the 'ended' auto-advance/close.
+                          sleep.cancel();
+                        } else if (p.minutes) {
+                          sleep.start(p.minutes);
+                        }
+                        setOpenMenu(null);
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  {sleep.active && (
+                    <button
+                      style={{ ...S.menuItem(false), color: "#E5484D" }}
+                      onClick={() => { sleep.cancel(); setOpenMenu(null); }}
+                    >
+                      Cancel timer
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {nextEpisode && (
           <button
             style={S.nextBtn}
@@ -1183,6 +1872,39 @@ export default function VideoPlayerScreen() {
           </button>
         )}
       </div>
+
+      {/* Live EPG now/next strip. */}
+      {isLive && (nowNext.now || nowNext.next) && (
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            padding: "4px 12px 8px",
+            backgroundColor: "rgba(0,0,0,0.7)",
+            color: "#EAF0FF",
+            fontSize: 12,
+            flexShrink: 0,
+            alignItems: "center",
+          }}
+        >
+          {nowNext.now && (
+            <span style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+              <strong style={{ color: "#22D3EE" }}>NOW</strong>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {nowNext.now.title}
+              </span>
+              {typeof nowNext.now.progressPct === "number" && (
+                <span style={{ color: "#7A86A8" }}>{nowNext.now.progressPct}%</span>
+              )}
+            </span>
+          )}
+          {nowNext.next && (
+            <span style={{ color: "#7A86A8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <strong>NEXT</strong> {nowNext.next.title}
+            </span>
+          )}
+        </div>
+      )}
 
       <div style={S.videoWrapper}>
         <video
@@ -1195,6 +1917,15 @@ export default function VideoPlayerScreen() {
         >
           <track kind="captions" />
         </video>
+        {showStats && <StatsOverlay stats={stats} />}
+        {/* Resume prompt (VOD, web). Held until the user chooses. */}
+        <ResumePrompt
+          visible={resumePending && !isLive}
+          resumeTime={resume.resumeTime}
+          percent={resume.percent}
+          onResume={() => resolveResume("resume")}
+          onStartOver={() => resolveResume("startOver")}
+        />
         {isLoading && (
           <div style={S.loadingOverlay}>
             <div
@@ -1228,8 +1959,9 @@ export default function VideoPlayerScreen() {
       </div>
 
       <div style={S.footer}>
-        Space/K: Play/Pause · F: Fullscreen · ←→: Seek · ↑↓: Volume · [ ]: Speed
-        · Esc: Close
+        Space/K: Play/Pause · F: Fullscreen · ←→: Seek ·{" "}
+        {isLive ? "↑↓: Channel" : "↑↓: Volume"} · [ ]: Speed · P: PiP · I: Stats ·
+        Esc: Close
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
