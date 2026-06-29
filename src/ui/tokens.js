@@ -28,6 +28,10 @@ export const colors = {
  *  e.g. accentAlpha(0.18) → 'rgba(108,92,231,0.18)'. Keep in sync with accent. */
 export const accentAlpha = (a) => "rgba(108,92,231," + a + ")";
 
+/** Accent2 (cyan #22D3EE → rgb 34,211,238) at a given alpha — focus ring glow.
+ *  Mirrors accentAlpha; keep in sync with accent2. */
+export const accent2Alpha = (a) => "rgba(34,211,238," + a + ")";
+
 /** Static gradient — used for the nav band and active/selected states.
  *  Never animated (TV strips animations and would jank). */
 export const gradient = {
@@ -88,7 +92,65 @@ export const shadows = {
   }),
 };
 
+/** Hero gradient scrim — left→transparent wash so backdrop art stays legible
+ *  under the hero title. Web/TV consume the literal `css` linear-gradient
+ *  (opaque bg on the left → transparent on the right, ~100deg to echo `gradient`).
+ *  Native consumes `stops` with expo-linear-gradient (the only gradient dep
+ *  available — react-native-svg is NOT installed): same opaque-bg→transparent
+ *  ramp expressed as a colors[] + locations[] pair, with start/end coords for a
+ *  left→right sweep. Inline rgba literals (bg #0A0E1A → 10,14,26) so old webOS
+ *  Chromium needs no var(). */
+export const scrim = {
+  css: "linear-gradient(100deg, rgba(10,14,26,0.95) 0%, rgba(10,14,26,0.7) 40%, rgba(10,14,26,0) 100%)",
+  native: {
+    colors: ["rgba(10,14,26,0.95)", "rgba(10,14,26,0.7)", "rgba(10,14,26,0)"],
+    locations: [0, 0.4, 1],
+    start: { x: 0, y: 0.5 },
+    end: { x: 1, y: 0.5 },
+  },
+};
+
+/** Focus-glow elevation preset — the cyan (accent2) "interaction" glow used on
+ *  focus/hover only (never resting). Native gets a real shadow object; web/TV
+ *  return {} because CSS owns box-shadow there (and TV strips shadows for perf),
+ *  so spreading is a safe no-op. Web components apply GLOW_WEB inline instead. */
+export const glow = Platform.select({
+  native: {
+    shadowColor: colors.accent2,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  default: {},
+});
+
+/** Inline box-shadow string for web focus/hover glow (accent2 cyan at 0.45).
+ *  TV strips this — gate callers on isTV(). Mirrors glow's native radius/alpha. */
+export const GLOW_WEB = "0 0 16px " + accent2Alpha(0.45); // 0 0 16px rgba(34,211,238,0.45)
+
+/** Focus ring — cyan (accent2) outline for keyboard/remote focus. `offset` is
+ *  the gap between element edge and ring (CSS outline-offset / RN inset). */
+export const focusRing = { color: colors.accent2, width: 2, offset: 2 };
+
+/** Motion timings (ms) + standard easing for web/native transitions.
+ *  TV ignores motion entirely (no animations on old webOS Chromium). */
+export const motion = { fast: 120, base: 200, slow: 320 };
+export const easing = "cubic-bezier(0.4,0,0.2,1)";
+
+/** Reference hero heights (pre-ss) — pass through ss()/useScale at call sites
+ *  to scale on TV/web. TV runs tallest for 10-foot viewing. */
+export const heroHeights = { web: 420, native: 340, tv: 480 };
+
+/** Line-icon glyph box sizes (pre-ss) for the inline-SVG / RN Icon set. */
+export const iconSizes = { sm: 16, md: 20, lg: 28 };
+
+/** Translucent dark wash for scrims/badges over art (bg #0A0E1A → 10,14,26). */
+export const overlay = "rgba(10,14,26,0.72)";
+
 export default {
   colors, gradient, radii, space, fonts,
   fontSizes, fontWeights, lineHeights, zIndex, shadows, accentAlpha,
+  accent2Alpha, scrim, glow, GLOW_WEB, focusRing, motion, easing,
+  heroHeights, iconSizes, overlay,
 };
