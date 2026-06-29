@@ -56,8 +56,8 @@ export function useMovies({ navigation } = {}) {
   const openAbortRef = useRef(null);
 
   const discoverItems = [
-    { id: "all", label: "All Movies" },
-    { id: "top_rated", label: "Top Rated" },
+    { id: "all", label: "All Movies", icon: "🎬" },
+    { id: "top_rated", label: "Top Rated", icon: "⭐" },
   ];
 
   // ── Top-rated prefetch (TMDB) ───────────────────────────────────────────────

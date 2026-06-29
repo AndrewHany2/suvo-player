@@ -26,6 +26,23 @@ async function runPool(tasks, limit) {
   return results;
 }
 
+// Dedupe a stream/series list by its id field, dropping entries whose id is
+// null/undefined. The provider's bulk endpoints can return the same title in
+// multiple categories (or id-less placeholder rows); without this the grid keys
+// on a non-unique id and React mis-reconciles cards (ghosted badges / glitches).
+export function dedupeById(list, idField) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const id = item?.[idField];
+    if (id == null || seen.has(id)) continue;
+    seen.add(id);
+    out.push(item);
+  }
+  return out;
+}
+
 class IPTVApi {
   _cache = new Map();
   baseUrl = null;
@@ -124,7 +141,7 @@ class IPTVApi {
     return this._cached('vod_streams_robust', TTL.streams, async () => {
       try {
         const all = await this.fetch(this.buildUrl('get_vod_streams'));
-        if (Array.isArray(all) && all.length > 0) return all;
+        if (Array.isArray(all) && all.length > 0) return dedupeById(all, 'stream_id');
       } catch { /* fall through */ }
       const cats = await this.getVODCategories();
       if (!Array.isArray(cats) || !cats.length) return [];
@@ -175,7 +192,7 @@ class IPTVApi {
     return this._cached('series_robust', TTL.streams, async () => {
       try {
         const all = await this.fetch(this.buildUrl('get_series'));
-        if (Array.isArray(all) && all.length > 0) return all;
+        if (Array.isArray(all) && all.length > 0) return dedupeById(all, 'series_id');
       } catch { /* fall through */ }
       const cats = await this.getSeriesCategories();
       if (!Array.isArray(cats) || !cats.length) return [];

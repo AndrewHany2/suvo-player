@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Image, Alert, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { YStack, XStack, Text, ScrollView } from "tamagui";
+import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
+import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import MovieDetail from "../components/MovieDetail";
@@ -32,19 +33,19 @@ function MyListCard({ item, onPress, onRemove, focused }) {
 
   return (
     <YStack width={130} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick">
-      <YStack width={130} aspectRatio={2 / 3} borderRadius={8} backgroundColor="#141A2E" overflow="hidden" borderWidth={2} borderColor={focused ? "#22D3EE" : "transparent"}>
+      <YStack width={130} aspectRatio={2 / 3} borderRadius={8} backgroundColor={colors.surface} overflow="hidden" borderWidth={2} borderColor={focused ? colors.accent2 : "transparent"}>
         {poster
           ? <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
-          : <View style={[FILL, { backgroundColor: "#141A2E" }]} />}
+          : <View style={[FILL, { backgroundColor: colors.surface }]} />}
         <YStack position="absolute" top={8} right={8} zIndex={4} backgroundColor="rgba(0,0,0,0.65)" borderRadius={4} paddingHorizontal={5} paddingVertical={2}>
-          <Text color="#7A86A8" fontSize={9} fontWeight="700" letterSpacing={0.5}>HD</Text>
+          <Text color={colors.muted} fontSize={9} fontWeight="700" letterSpacing={0.5}>HD</Text>
         </YStack>
         <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor="rgba(0,0,0,0.6)" borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11}>
-          <Text color="#fff" fontSize={9} fontWeight="700">✕</Text>
+          <Text color={colors.text} fontSize={9} fontWeight="700">✕</Text>
         </YStack>
       </YStack>
-      <Text color="#fff" fontSize={12} fontWeight="600" marginTop={8} lineHeight={16} numberOfLines={2}>{item.name}</Text>
-      {epLabel && <Text color="#7A86A8" fontSize={9} marginTop={4} letterSpacing={0.3}>{epLabel}</Text>}
+      <Text color={colors.text} fontSize={12} fontWeight="600" marginTop={8} lineHeight={16} numberOfLines={2}>{item.name}</Text>
+      {epLabel && <Text color={colors.muted} fontSize={9} marginTop={4} letterSpacing={0.3}>{epLabel}</Text>}
     </YStack>
   );
 }
@@ -61,18 +62,18 @@ function CWCard({ item, onPress, onRemove, focused }) {
 
   return (
     <YStack width={260} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.85 }} hoverStyle={{ scale: 1.02 }} animation="quick">
-      <YStack width={260} height={148} borderRadius={8} backgroundColor="#141A2E" overflow="hidden" borderWidth={2} borderColor={focused ? "#22D3EE" : "transparent"}>
+      <YStack width={260} height={148} borderRadius={8} backgroundColor={colors.surface} overflow="hidden" borderWidth={2} borderColor={focused ? colors.accent2 : "transparent"}>
         {bg
           ? <Image source={{ uri: bg }} style={FILL} resizeMode="cover" />
-          : <View style={[FILL, { backgroundColor: "#141A2E" }]} />}
+          : <View style={[FILL, { backgroundColor: colors.surface }]} />}
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.75)"]} style={FILL} />
         {seasonBadge && (
           <YStack position="absolute" top={10} left={12} zIndex={4}>
-            <Text color="#fff" fontSize={13} fontWeight="700">{seasonBadge}</Text>
+            <Text color={colors.text} fontSize={13} fontWeight="700">{seasonBadge}</Text>
           </YStack>
         )}
         <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor="rgba(0,0,0,0.6)" borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11}>
-          <Text color="#fff" fontSize={9} fontWeight="700">✕</Text>
+          <Text color={colors.text} fontSize={9} fontWeight="700">✕</Text>
         </YStack>
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={3} justifyContent="center" alignItems="center">
           <Text color="rgba(255,255,255,0.75)" fontSize={28}>▶</Text>
@@ -80,18 +81,18 @@ function CWCard({ item, onPress, onRemove, focused }) {
         {/* Progress bar — keep as RN Views for % string width compatibility */}
         <YStack position="absolute" left={0} right={0} bottom={0} zIndex={4} padding={10}>
           <View style={{ height: 3, backgroundColor: "rgba(255,255,255,0.18)" }}>
-            <View style={{ height: "100%", width: `${progress}%`, backgroundColor: "#6C5CE7" }} />
+            <View style={{ height: "100%", width: `${progress}%`, backgroundColor: colors.accent }} />
           </View>
         </YStack>
       </YStack>
       <YStack paddingTop={8} paddingHorizontal={2}>
-        <Text color="#fff" fontSize={12} fontWeight="600" marginBottom={2} numberOfLines={1}>{showTitle}</Text>
+        <Text color={colors.text} fontSize={12} fontWeight="600" marginBottom={2} numberOfLines={1}>{showTitle}</Text>
         {(epLabel || epTitle) && (
-          <Text color="#7A86A8" fontSize={11} marginBottom={2} numberOfLines={1}>
+          <Text color={colors.muted} fontSize={11} marginBottom={2} numberOfLines={1}>
             {[epLabel, epTitle].filter(Boolean).join(" · ")}
           </Text>
         )}
-        {timeLeft && <Text color="#7A86A8" fontSize={11}>{timeLeft}</Text>}
+        {timeLeft && <Text color={colors.muted} fontSize={11}>{timeLeft}</Text>}
       </YStack>
     </YStack>
   );
@@ -133,19 +134,19 @@ export default function HistoryScreen({ navigation }) {
 
   if (myList.length === 0 && watchedHistory.length === 0) {
     return (
-      <YStack flex={1} justifyContent="center" alignItems="center" backgroundColor="#0A0E1A" padding={24} paddingTop={insets.top + 24} paddingBottom={insets.bottom + 24}>
+      <YStack flex={1} justifyContent="center" alignItems="center" backgroundColor={colors.bg} padding={24} paddingTop={insets.top + 24} paddingBottom={insets.bottom + 24}>
         <Text fontSize={48} marginBottom={12}>🎬</Text>
-        <Text color="#fff" fontSize={20} fontWeight="700" marginBottom={8}>Your list is empty</Text>
-        <Text color="#7A86A8" fontSize={14} textAlign="center">Open a movie and tap ♡ Favorites to save it here</Text>
+        <Text color={colors.text} fontSize={20} fontWeight="700" marginBottom={8}>Your list is empty</Text>
+        <Text color={colors.muted} fontSize={14} textAlign="center">Open a movie and tap ♡ Favorites to save it here</Text>
       </YStack>
     );
   }
 
   return (
-    <ScrollView flex={1} backgroundColor="#0A0E1A" contentContainerStyle={{ paddingTop: 24, paddingBottom: insets.bottom + 80 }} showsVerticalScrollIndicator={false}>
+    <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingTop: 24, paddingBottom: insets.bottom + 80 }} showsVerticalScrollIndicator={false}>
       {myList.length > 0 && (
         <YStack paddingBottom={40}>
-          <Text color="#fff" fontSize={22} fontWeight="700" letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Favorites</Text>
+          <Text color={colors.text} fontSize={22} fontWeight="700" letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Favorites</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
             {myList.map((item, idx) => (
               <MyListCard
@@ -162,7 +163,7 @@ export default function HistoryScreen({ navigation }) {
 
       {watchedHistory.length > 0 && (
         <YStack paddingBottom={40}>
-          <Text color="#fff" fontSize={22} fontWeight="700" letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Watch History</Text>
+          <Text color={colors.text} fontSize={22} fontWeight="700" letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Watch History</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
             {watchedHistory.map((item, idx) => (
               <CWCard

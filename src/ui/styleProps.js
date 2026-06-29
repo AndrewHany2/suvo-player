@@ -30,7 +30,8 @@ export const STYLE_KEYS = new Set([
   "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
   "paddingHorizontal", "paddingVertical",
   // border
-  "borderWidth", "borderColor", "borderRadius",
+  "borderWidth", "borderColor", "borderRadius", "borderStyle",
+  "borderTopColor", "borderBottomColor", "borderLeftColor", "borderRightColor",
   "borderTopWidth", "borderBottomWidth", "borderLeftWidth", "borderRightWidth",
   "borderTopLeftRadius", "borderTopRightRadius",
   "borderBottomLeftRadius", "borderBottomRightRadius",

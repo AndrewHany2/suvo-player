@@ -8,6 +8,7 @@ import { colors } from "../ui/tokens";
 import { getPlatformConfig, detectPlatform } from "../platform/configs/detectPlatform";
 import ContentShelf from "../presentation/components/ContentShelf.web";
 import PosterCard from "../presentation/components/PosterCard.web";
+import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import MovieDetail from "../components/MovieDetail.web";
 
 const _cfg = getPlatformConfig(detectPlatform());
@@ -125,7 +126,7 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
         <ScrollView flex={1} minHeight={0} contentContainerStyle={{ paddingHorizontal: ss(48), paddingVertical: ss(32) }} onScroll={handleScroll} scrollEventThrottle={200}>
           <div ref={gridContainerRef} style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, ${ss(200)}px)`, gap: ss(16), justifyContent: "center", alignItems: "start" }}>
             {displayed.map((item, idx) => (
-              <PosterCard key={String(item.stream_id)} item={item} onPress={onPlay} isFocused={idx === focusedIdx} width={ss(200)} />
+              <PosterCard key={item.stream_id != null ? String(item.stream_id) : `i${idx}`} item={item} onPress={onPlay} isFocused={idx === focusedIdx} width={ss(200)} />
             ))}
           </div>
           {(hasMore || loadingMore) && (
@@ -194,24 +195,11 @@ export default function MoviesScreen({ navigation }) {
         <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
         <YStack paddingHorizontal={ss(48)} paddingTop={ss(24)} paddingBottom={ss(4)}>
           <Text color="#fff" fontSize={ss(22)} fontWeight="700" letterSpacing={-0.3} marginBottom={ss(12)}>Discover</Text>
-          <XStack gap={ss(10)} flexWrap="wrap">
-            {discoverItems.map((pill, idx) => {
-              const active = focusedRow === 0 && focusedCol === idx;
-              return (
-                <XStack
-                  key={pill.id} alignItems="center" gap={ss(10)} paddingHorizontal={ss(18)} paddingVertical={ss(11)}
-                  backgroundColor={active ? undefined : "rgba(108, 92, 231,0.08)"} borderWidth={1}
-                  borderColor={active ? "#22D3EE" : "rgba(108, 92, 231,0.28)"}
-                  borderRadius={999} onPress={() => openCategory(pill.id, pill.label)}
-                  {...(active ? { className: "aurora-grad-bg" } : {})}
-                >
-                  <Text fontSize={ss(16)}>{pill.id === "all" ? "🎬" : "⭐"}</Text>
-                  <Text color="#fff" fontSize={ss(13)} fontWeight="600" letterSpacing={0.1}>{pill.label}</Text>
-                  <Text color={active ? "#fff" : "#22D3EE"} fontSize={ss(16)} fontWeight="700">→</Text>
-                </XStack>
-              );
-            })}
-          </XStack>
+          <DiscoverPills
+            items={discoverItems}
+            focusedCol={focusedRow === 0 ? focusedCol : -1}
+            onSelect={(pill) => openCategory(pill.id, pill.label)}
+          />
         </YStack>
         <YStack>
           {shelves.length > 0 ? (

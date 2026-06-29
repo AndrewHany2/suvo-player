@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { Modal, Alert, TouchableOpacity } from "react-native";
-import { YStack, XStack, Text, Input, ScrollView, Spinner } from "tamagui";
+import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
+import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { useContentService } from "../domain/hooks/useContentService";
 import { ss, useScale } from "../utils/scaleSize";
@@ -52,15 +53,15 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
   return (
     <YStack
       width={ss(270)}
-      backgroundColor="#1B2236"
+      backgroundColor={colors.surface2}
       borderWidth={1}
-      borderColor="#28324E"
+      borderColor={colors.border}
       borderRadius={ss(8)}
       padding={ss(14)}
       cursor="pointer"
       onPress={() => onPress(item)}
       pressStyle={{ opacity: 0.8 }}
-      hoverStyle={{ borderColor: "#6C5CE7" }}
+      hoverStyle={{ borderColor: colors.accent }}
       animation="quick"
       {...{ className: "lumen-live-card" }}
     >
@@ -72,10 +73,10 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
               width: ss(40),
               height: ss(40),
               borderRadius: ss(6),
-              backgroundColor: "#0A0E1A",
+              backgroundColor: colors.bg,
             }}
             resizeMode="contain"
-            fallbackColor="#141A2E"
+            fallbackColor={colors.surface}
             showPlaceholder={false}
           />
         ) : (
@@ -83,14 +84,14 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
             width={ss(40)}
             height={ss(40)}
             borderRadius={ss(6)}
-            backgroundColor="#141A2E"
+            backgroundColor={colors.surface}
             borderWidth={1}
-            borderColor="#28324E"
+            borderColor={colors.border}
             justifyContent="center"
             alignItems="center"
           >
             <Text
-              color="#6C5CE7"
+              color={colors.accent}
               fontWeight="800"
               fontSize={ss(12)}
               letterSpacing={0.5}
@@ -100,7 +101,7 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
           </YStack>
         )}
         <Text
-          color="#fff"
+          color={colors.text}
           fontSize={ss(13)}
           fontWeight="600"
           flex={1}
@@ -115,7 +116,7 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
         >
           <Text
             style={{
-              color: inFav ? "#6C5CE7" : "#555",
+              color: inFav ? colors.accent : "#555",
               fontSize: ss(16),
               marginRight: ss(6),
             }}
@@ -126,7 +127,7 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
         <span className="lumen-live-dot">LIVE</span>
       </XStack>
       <Text
-        color="#7A86A8"
+        color={colors.muted}
         fontSize={ss(13)}
         lineHeight={ss(18)}
         minHeight={ss(36)}
@@ -136,14 +137,14 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
       </Text>
       <YStack
         height={ss(3)}
-        backgroundColor="#28324E"
+        backgroundColor={colors.border}
         borderRadius={ss(2)}
         marginTop={ss(10)}
       >
         <YStack
           width="35%"
           height="100%"
-          backgroundColor="#6C5CE7"
+          backgroundColor={colors.accent}
           borderRadius={ss(2)}
         />
       </YStack>
@@ -264,7 +265,7 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
         marginBottom={ss(14)}
       >
         <Text
-          color="#fff"
+          color={colors.text}
           fontSize={ss(22)}
           fontWeight="700"
           letterSpacing={-0.2}
@@ -279,7 +280,7 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
       </XStack>
       {displayed === null ? (
         <YStack paddingHorizontal={ss(48)} paddingVertical={ss(18)}>
-          <Spinner size="small" color="#6C5CE7" />
+          <Spinner size="small" color={colors.accent} />
         </YStack>
       ) : (
         <div style={{ position: "relative" }} className="lumen-shelf-rail">
@@ -492,11 +493,11 @@ export default function LiveTVScreen({ navigation }) {
         flex={1}
         justifyContent="center"
         alignItems="center"
-        backgroundColor="#0A0E1A"
+        backgroundColor={colors.bg}
         padding={ss(24)}
       >
-        <Spinner size="large" color="#6C5CE7" />
-        <Text color="#7A86A8" marginTop={ss(12)} fontSize={ss(14)}>
+        <Spinner size="large" color={colors.accent} />
+        <Text color={colors.muted} marginTop={ss(12)} fontSize={ss(14)}>
           Loading channels...
         </Text>
       </YStack>
@@ -509,14 +510,14 @@ export default function LiveTVScreen({ navigation }) {
         flex={1}
         justifyContent="center"
         alignItems="center"
-        backgroundColor="#0A0E1A"
+        backgroundColor={colors.bg}
         padding={ss(24)}
       >
         <Text fontSize={ss(48)} marginBottom={ss(12)}>
           ⚠️
         </Text>
         <Text
-          color="#fff"
+          color={colors.text}
           fontSize={ss(18)}
           fontWeight="600"
           marginBottom={ss(8)}
@@ -524,7 +525,7 @@ export default function LiveTVScreen({ navigation }) {
           Couldn't load channels
         </Text>
         <Text
-          color="#7A86A8"
+          color={colors.muted}
           fontSize={ss(14)}
           textAlign="center"
           marginBottom={ss(20)}
@@ -532,7 +533,7 @@ export default function LiveTVScreen({ navigation }) {
           Check your connection or IPTV account and try again
         </Text>
         <YStack
-          backgroundColor="#6C5CE7"
+          backgroundColor={colors.accent}
           paddingHorizontal={ss(24)}
           paddingVertical={ss(12)}
           borderRadius={ss(10)}
@@ -540,7 +541,7 @@ export default function LiveTVScreen({ navigation }) {
           onPress={loadChannels}
           pressStyle={{ opacity: 0.9 }}
         >
-          <Text color="#fff" fontWeight="600">
+          <Text color={colors.text} fontWeight="600">
             Retry
           </Text>
         </YStack>
@@ -554,14 +555,14 @@ export default function LiveTVScreen({ navigation }) {
         flex={1}
         justifyContent="center"
         alignItems="center"
-        backgroundColor="#0A0E1A"
+        backgroundColor={colors.bg}
         padding={ss(24)}
       >
         <Text fontSize={ss(48)} marginBottom={ss(12)}>
           📡
         </Text>
         <Text
-          color="#fff"
+          color={colors.text}
           fontSize={ss(18)}
           fontWeight="600"
           marginBottom={ss(8)}
@@ -569,7 +570,7 @@ export default function LiveTVScreen({ navigation }) {
           No IPTV Account
         </Text>
         <Text
-          color="#7A86A8"
+          color={colors.muted}
           fontSize={ss(14)}
           textAlign="center"
           marginBottom={ss(20)}
@@ -577,7 +578,7 @@ export default function LiveTVScreen({ navigation }) {
           Tap "Accounts" to add your IPTV service
         </Text>
         <YStack
-          backgroundColor="#6C5CE7"
+          backgroundColor={colors.accent}
           paddingHorizontal={ss(24)}
           paddingVertical={ss(12)}
           borderRadius={ss(10)}
@@ -585,7 +586,7 @@ export default function LiveTVScreen({ navigation }) {
           onPress={() => navigation.navigate("Accounts")}
           pressStyle={{ opacity: 0.9 }}
         >
-          <Text color="#fff" fontWeight="600">
+          <Text color={colors.text} fontWeight="600">
             Add Account
           </Text>
         </YStack>
@@ -596,7 +597,7 @@ export default function LiveTVScreen({ navigation }) {
   return (
     <ScrollView
       flex={1}
-      backgroundColor="#0A0E1A"
+      backgroundColor={colors.bg}
       contentContainerStyle={{ paddingBottom: ss(60) }}
     >
       <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
@@ -612,17 +613,17 @@ export default function LiveTVScreen({ navigation }) {
           placeholderTextColor="#666"
           value={searchQuery}
           onChangeText={setSearchQuery}
-          backgroundColor="#1B2236"
-          color="#fff"
+          backgroundColor={colors.surface2}
+          color={colors.text}
           paddingHorizontal={ss(14)}
           paddingVertical={ss(10)}
           borderRadius={ss(10)}
           fontSize={ss(14)}
           borderWidth={1}
-          borderColor="#28324E"
+          borderColor={colors.border}
         />
         <YStack
-          backgroundColor="#6C5CE7"
+          backgroundColor={colors.accent}
           borderRadius={ss(10)}
           paddingHorizontal={ss(16)}
           paddingVertical={ss(10)}
@@ -630,7 +631,7 @@ export default function LiveTVScreen({ navigation }) {
           onPress={() => setShowAddChannel(true)}
           pressStyle={{ opacity: 0.9 }}
         >
-          <Text color="#fff" fontSize={ss(14)} fontWeight="700">
+          <Text color={colors.text} fontSize={ss(14)} fontWeight="700">
             + Add
           </Text>
         </YStack>
@@ -673,17 +674,17 @@ export default function LiveTVScreen({ navigation }) {
         >
           <TouchableOpacity
             style={{
-              backgroundColor: "#1B2236",
+              backgroundColor: colors.surface2,
               borderTopLeftRadius: ss(20),
               borderTopRightRadius: ss(20),
               padding: ss(24),
               borderTopWidth: 1,
-              borderColor: "#28324E",
+              borderColor: colors.border,
             }}
             activeOpacity={1}
           >
             <Text
-              color="#fff"
+              color={colors.text}
               fontSize={ss(17)}
               fontWeight="700"
               marginBottom={ss(16)}
@@ -695,14 +696,14 @@ export default function LiveTVScreen({ navigation }) {
               placeholderTextColor="#666"
               value={newChannelName}
               onChangeText={setNewChannelName}
-              backgroundColor="#0A0E1A"
-              color="#fff"
+              backgroundColor={colors.bg}
+              color={colors.text}
               borderRadius={ss(10)}
               paddingHorizontal={ss(14)}
               paddingVertical={ss(12)}
               fontSize={ss(14)}
               borderWidth={1}
-              borderColor="#28324E"
+              borderColor={colors.border}
               marginBottom={ss(12)}
             />
             <Input
@@ -711,14 +712,14 @@ export default function LiveTVScreen({ navigation }) {
               value={newStreamUrl}
               onChangeText={setNewStreamUrl}
               autoCapitalize="none"
-              backgroundColor="#0A0E1A"
-              color="#fff"
+              backgroundColor={colors.bg}
+              color={colors.text}
               borderRadius={ss(10)}
               paddingHorizontal={ss(14)}
               paddingVertical={ss(12)}
               fontSize={ss(14)}
               borderWidth={1}
-              borderColor="#28324E"
+              borderColor={colors.border}
               marginBottom={ss(12)}
             />
             <Text color="#666" fontSize={ss(12)} marginBottom={ss(20)}>
@@ -727,7 +728,7 @@ export default function LiveTVScreen({ navigation }) {
             <XStack gap={ss(12)}>
               <YStack
                 flex={1}
-                backgroundColor="#28324E"
+                backgroundColor={colors.border}
                 paddingVertical={ss(14)}
                 borderRadius={ss(10)}
                 alignItems="center"
@@ -735,13 +736,13 @@ export default function LiveTVScreen({ navigation }) {
                 onPress={() => setShowAddChannel(false)}
                 pressStyle={{ opacity: 0.8 }}
               >
-                <Text color="#7A86A8" fontWeight="600">
+                <Text color={colors.muted} fontWeight="600">
                   Cancel
                 </Text>
               </YStack>
               <YStack
                 flex={1}
-                backgroundColor="#6C5CE7"
+                backgroundColor={colors.accent}
                 paddingVertical={ss(14)}
                 borderRadius={ss(10)}
                 alignItems="center"
@@ -749,7 +750,7 @@ export default function LiveTVScreen({ navigation }) {
                 onPress={handleAddChannel}
                 pressStyle={{ opacity: 0.9 }}
               >
-                <Text color="#fff" fontWeight="700">
+                <Text color={colors.text} fontWeight="700">
                   Add Channel
                 </Text>
               </YStack>

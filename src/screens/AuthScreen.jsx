@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, Input, ScrollView, Spinner } from "tamagui";
+import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
 import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 
@@ -85,12 +85,12 @@ export default function AuthScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#0A0E1A", paddingTop: insets.top, paddingBottom: insets.bottom }}
+      style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 20 }} keyboardShouldPersistTaps="handled">
         <YStack
-          backgroundColor="#1B2236"
+          backgroundColor={colors.surface2}
           borderRadius={16}
           padding={28}
           shadowColor="#000"
@@ -100,14 +100,14 @@ export default function AuthScreen() {
           elevation={8}
         >
           <Text fontSize={48} textAlign="center" marginBottom={8}>📺</Text>
-          <Text fontSize={26} fontWeight="bold" color="#fff" textAlign="center" marginBottom={4}>
+          <Text fontSize={26} fontWeight="bold" color={colors.text} textAlign="center" marginBottom={4}>
             IPTV Player
           </Text>
-          <Text fontSize={14} color="#7A86A8" textAlign="center" marginBottom={24}>
+          <Text fontSize={14} color={colors.muted} textAlign="center" marginBottom={24}>
             {mode === "login" ? "Sign in to your account" : "Create an account"}
           </Text>
 
-          <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={12}>
+          <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={12}>
             {mode === "login" ? "Username or Email" : "Username"}
           </Text>
           <Input
@@ -118,19 +118,19 @@ export default function AuthScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             disabled={loading}
-            backgroundColor="#0A0E1A"
-            color="#fff"
+            backgroundColor={colors.bg}
+            color={colors.text}
             borderRadius={10}
             paddingHorizontal={14}
             paddingVertical={12}
             fontSize={15}
             borderWidth={1}
-            borderColor="#28324E"
+            borderColor={colors.border}
           />
 
           {mode === "register" && (
             <>
-              <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={12}>Email</Text>
+              <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={12}>Email</Text>
               <Input
                 placeholder="you@example.com"
                 placeholderTextColor="#666"
@@ -140,19 +140,19 @@ export default function AuthScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 disabled={loading}
-                backgroundColor="#0A0E1A"
-                color="#fff"
+                backgroundColor={colors.bg}
+                color={colors.text}
                 borderRadius={10}
                 paddingHorizontal={14}
                 paddingVertical={12}
                 fontSize={15}
                 borderWidth={1}
-                borderColor="#28324E"
+                borderColor={colors.border}
               />
             </>
           )}
 
-          <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={12}>Password</Text>
+          <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={12}>Password</Text>
           <Input
             placeholder="••••••••"
             placeholderTextColor="#666"
@@ -160,19 +160,19 @@ export default function AuthScreen() {
             onChangeText={setPassword}
             secureTextEntry
             disabled={loading}
-            backgroundColor="#0A0E1A"
-            color="#fff"
+            backgroundColor={colors.bg}
+            color={colors.text}
             borderRadius={10}
             paddingHorizontal={14}
             paddingVertical={12}
             fontSize={15}
             borderWidth={1}
-            borderColor="#28324E"
+            borderColor={colors.border}
           />
 
           {mode === "register" && (
             <>
-              <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={12}>Confirm Password</Text>
+              <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={12}>Confirm Password</Text>
               <Input
                 placeholder="••••••••"
                 placeholderTextColor="#666"
@@ -180,14 +180,14 @@ export default function AuthScreen() {
                 onChangeText={setConfirmPassword}
                 secureTextEntry
                 disabled={loading}
-                backgroundColor="#0A0E1A"
-                color="#fff"
+                backgroundColor={colors.bg}
+                color={colors.text}
                 borderRadius={10}
                 paddingHorizontal={14}
                 paddingVertical={12}
                 fontSize={15}
                 borderWidth={1}
-                borderColor="#28324E"
+                borderColor={colors.border}
               />
             </>
           )}
@@ -197,7 +197,7 @@ export default function AuthScreen() {
           )}
 
           <YStack
-            backgroundColor="#6C5CE7"
+            backgroundColor={colors.accent}
             borderRadius={10}
             paddingVertical={14}
             marginTop={20}
@@ -207,8 +207,8 @@ export default function AuthScreen() {
             onPress={loading ? undefined : handleSubmit}
             pressStyle={{ opacity: 0.9 }}
           >
-            {loading ? <Spinner color="#fff" /> : (
-              <Text color="#fff" fontSize={16} fontWeight="600">
+            {loading ? <Spinner color={colors.text} /> : (
+              <Text color={colors.text} fontSize={16} fontWeight="600">
                 {mode === "login" ? "Sign In" : "Create Account"}
               </Text>
             )}
@@ -217,9 +217,9 @@ export default function AuthScreen() {
           <XStack justifyContent="center" marginTop={20}>
             {mode === "login" ? (
               <>
-                <Text color="#7A86A8" fontSize={14}>Don't have an account? </Text>
+                <Text color={colors.muted} fontSize={14}>Don't have an account? </Text>
                 <Text
-                  color="#6C5CE7"
+                  color={colors.accent}
                   fontSize={14}
                   fontWeight="600"
                   cursor="pointer"
@@ -231,9 +231,9 @@ export default function AuthScreen() {
               </>
             ) : (
               <>
-                <Text color="#7A86A8" fontSize={14}>Already have an account? </Text>
+                <Text color={colors.muted} fontSize={14}>Already have an account? </Text>
                 <Text
-                  color="#6C5CE7"
+                  color={colors.accent}
                   fontSize={14}
                   fontWeight="600"
                   cursor="pointer"

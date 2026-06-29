@@ -11,7 +11,7 @@ import {
   Input,
   ScrollView,
   Spinner,
-} from "tamagui";
+} from "../ui/primitives";
 import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 
@@ -129,10 +129,10 @@ export default function ProfilesScreen() {
   // ── Form view (add / edit) ────────────────────────────────────────────────
   if (view === "form") {
     return (
-      <YStack flex={1} backgroundColor="#0A0E1A" paddingTop={insets.top} paddingBottom={insets.bottom}>
+      <YStack flex={1} backgroundColor={colors.bg} paddingTop={insets.top} paddingBottom={insets.bottom}>
         <ScrollView flex={1}>
           <YStack padding={24}>
-            <Text fontSize={22} fontWeight="700" color="#fff" marginBottom={24}>
+            <Text fontSize={22} fontWeight="700" color={colors.text} marginBottom={24}>
               {editingId ? "Edit Profile" : "New Profile"}
             </Text>
 
@@ -142,7 +142,7 @@ export default function ProfilesScreen() {
               </Text>
             )}
 
-            <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={16}>
+            <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={16}>
               Name *
             </Text>
             <Input
@@ -152,9 +152,9 @@ export default function ProfilesScreen() {
               onChangeText={(v) => setFormData({ ...formData, name: v })}
               autoCapitalize="words"
               disabled={loading}
-              backgroundColor="#1B2236"
-              borderColor="#28324E"
-              color="#fff"
+              backgroundColor={colors.surface2}
+              borderColor={colors.border}
+              color={colors.text}
               borderRadius={10}
               paddingHorizontal={14}
               paddingVertical={12}
@@ -162,7 +162,7 @@ export default function ProfilesScreen() {
               borderWidth={1}
             />
 
-            <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={16}>
+            <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={16}>
               Avatar
             </Text>
             <XStack flexWrap="wrap" gap={10} marginTop={8}>
@@ -172,9 +172,9 @@ export default function ProfilesScreen() {
                   width={52}
                   height={52}
                   borderRadius={10}
-                  backgroundColor={formData.avatar === emoji ? "rgba(108, 92, 231,0.15)" : "#1B2236"}
+                  backgroundColor={formData.avatar === emoji ? "rgba(108, 92, 231,0.15)" : colors.surface2}
                   borderWidth={2}
-                  borderColor={formData.avatar === emoji ? "#6C5CE7" : "transparent"}
+                  borderColor={formData.avatar === emoji ? colors.accent : "transparent"}
                   justifyContent="center"
                   alignItems="center"
                   cursor="pointer"
@@ -189,7 +189,7 @@ export default function ProfilesScreen() {
             <XStack gap={12} marginTop={32}>
               <YStack
                 flex={1}
-                backgroundColor="#28324E"
+                backgroundColor={colors.border}
                 borderRadius={10}
                 paddingVertical={13}
                 alignItems="center"
@@ -197,13 +197,13 @@ export default function ProfilesScreen() {
                 onPress={loading ? undefined : resetForm}
                 pressStyle={{ opacity: 0.8 }}
               >
-                <Text color="#7A86A8" fontSize={15} fontWeight="600">
+                <Text color={colors.muted} fontSize={15} fontWeight="600">
                   Cancel
                 </Text>
               </YStack>
               <YStack
                 flex={1}
-                backgroundColor="#6C5CE7"
+                backgroundColor={colors.accent}
                 borderRadius={10}
                 paddingVertical={13}
                 alignItems="center"
@@ -213,9 +213,9 @@ export default function ProfilesScreen() {
                 pressStyle={{ opacity: 0.9 }}
               >
                 {loading ? (
-                  <Spinner color="#fff" />
+                  <Spinner color={colors.text} />
                 ) : (
-                  <Text color="#fff" fontSize={15} fontWeight="600">
+                  <Text color={colors.text} fontSize={15} fontWeight="600">
                     {editingId ? "Save Changes" : "Create Profile"}
                   </Text>
                 )}
@@ -230,7 +230,7 @@ export default function ProfilesScreen() {
   // ── Manage view (list with edit/delete) ──────────────────────────────────
   if (view === "manage") {
     return (
-      <YStack flex={1} backgroundColor="#0A0E1A" paddingBottom={insets.bottom}>
+      <YStack flex={1} backgroundColor={colors.bg} paddingBottom={insets.bottom}>
         <XStack
           alignItems="center"
           justifyContent="space-between"
@@ -244,15 +244,15 @@ export default function ProfilesScreen() {
             onPress={() => { setView("select"); setError(null); setConfirmDeleteId(null); }}
             pressStyle={{ opacity: 0.7 }}
           >
-            <Text color="#6C5CE7" fontSize={15} fontWeight="600">
+            <Text color={colors.accent} fontSize={15} fontWeight="600">
               ← Back
             </Text>
           </XStack>
-          <Text color="#fff" fontSize={18} fontWeight="700">
+          <Text color={colors.text} fontSize={18} fontWeight="700">
             Manage Profiles
           </Text>
           <YStack
-            backgroundColor="#6C5CE7"
+            backgroundColor={colors.accent}
             borderRadius={8}
             paddingHorizontal={14}
             paddingVertical={7}
@@ -260,7 +260,7 @@ export default function ProfilesScreen() {
             onPress={loading ? undefined : openAdd}
             pressStyle={{ opacity: 0.9 }}
           >
-            <Text color="#fff" fontSize={14} fontWeight="600">
+            <Text color={colors.text} fontSize={14} fontWeight="600">
               + Add
             </Text>
           </YStack>
@@ -274,11 +274,11 @@ export default function ProfilesScreen() {
 
         {appProfiles.length === 0 ? (
           <YStack flex={1} justifyContent="center" alignItems="center" gap={16}>
-            <Text color="#7A86A8" fontSize={16}>
+            <Text color={colors.muted} fontSize={16}>
               No profiles yet.
             </Text>
             <YStack
-              backgroundColor="#6C5CE7"
+              backgroundColor={colors.accent}
               borderRadius={10}
               paddingHorizontal={24}
               paddingVertical={12}
@@ -286,7 +286,7 @@ export default function ProfilesScreen() {
               onPress={openAdd}
               pressStyle={{ opacity: 0.9 }}
             >
-              <Text color="#fff" fontSize={15} fontWeight="600">
+              <Text color={colors.text} fontSize={15} fontWeight="600">
                 Create First Profile
               </Text>
             </YStack>
@@ -299,21 +299,21 @@ export default function ProfilesScreen() {
                   key={p.id}
                   alignItems="center"
                   justifyContent="space-between"
-                  backgroundColor="#1B2236"
+                  backgroundColor={colors.surface2}
                   borderRadius={12}
                   padding={14}
                   marginBottom={10}
                   borderWidth={1}
-                  borderColor={activeProfileId === p.id ? "#6C5CE7" : "#28324E"}
+                  borderColor={activeProfileId === p.id ? colors.accent : colors.border}
                 >
                   <XStack alignItems="center" gap={12} flex={1}>
                     <Text fontSize={32}>{p.avatar}</Text>
                     <YStack>
-                      <Text color="#fff" fontSize={15} fontWeight="600">
+                      <Text color={colors.text} fontSize={15} fontWeight="600">
                         {p.name}
                       </Text>
                       {activeProfileId === p.id && (
-                        <Text color="#22D3EE" fontSize={12} marginTop={2} fontWeight="600">
+                        <Text color={colors.accent2} fontSize={12} marginTop={2} fontWeight="600">
                           ✓ Active
                         </Text>
                       )}
@@ -327,7 +327,7 @@ export default function ProfilesScreen() {
                   <XStack gap={8}>
                     {activeProfileId !== p.id && (
                       <YStack
-                        backgroundColor="#6C5CE7"
+                        backgroundColor={colors.accent}
                         borderRadius={8}
                         paddingHorizontal={12}
                         paddingVertical={7}
@@ -336,7 +336,7 @@ export default function ProfilesScreen() {
                         onPress={loading ? undefined : () => { switchProfile(p.id); setView("select"); }}
                         pressStyle={{ opacity: 0.9 }}
                       >
-                        <Text color="#fff" fontSize={13} fontWeight="600">
+                        <Text color={colors.text} fontSize={13} fontWeight="600">
                           Switch
                         </Text>
                       </YStack>
@@ -344,7 +344,7 @@ export default function ProfilesScreen() {
                     <YStack
                       width={36}
                       height={36}
-                      backgroundColor="#141A2E"
+                      backgroundColor={colors.surface}
                       borderRadius={8}
                       justifyContent="center"
                       alignItems="center"
@@ -356,7 +356,7 @@ export default function ProfilesScreen() {
                       <Text fontSize={16}>✏️</Text>
                     </YStack>
                     <YStack
-                      backgroundColor={confirmDeleteId === p.id ? "rgba(229,72,77,0.18)" : "#141A2E"}
+                      backgroundColor={confirmDeleteId === p.id ? "rgba(229,72,77,0.18)" : colors.surface}
                       borderRadius={8}
                       borderWidth={confirmDeleteId === p.id ? 1 : 0}
                       borderColor={confirmDeleteId === p.id ? colors.danger : "transparent"}
@@ -386,10 +386,10 @@ export default function ProfilesScreen() {
 
   // ── Select view ("Who's watching?") ──────────────────────────────────────
   return (
-    <YStack flex={1} backgroundColor="#0A0E1A" paddingTop={insets.top}>
+    <YStack flex={1} backgroundColor={colors.bg} paddingTop={insets.top}>
       {/* Vertically centered main area */}
       <YStack flex={1} justifyContent="center" alignItems="center" gap={48}>
-        <Text color="#fff" fontSize={32} fontWeight="700" textAlign="center">
+        <Text color={colors.text} fontSize={32} fontWeight="700" textAlign="center">
           Who's watching?
         </Text>
 
@@ -410,17 +410,17 @@ export default function ProfilesScreen() {
                   width={90}
                   height={90}
                   borderRadius={12}
-                  backgroundColor="#1B2236"
+                  backgroundColor={colors.surface2}
                   justifyContent="center"
                   alignItems="center"
                   borderWidth={2}
-                  borderColor={focused ? "#22D3EE" : "#28324E"}
+                  borderColor={focused ? colors.accent2 : colors.border}
                   marginBottom={10}
-                  {...(!isNative && { scale: focused ? 1.08 : 1, hoverStyle: { borderColor: "#22D3EE", backgroundColor: "#1B2236" }, animation: "quick" })}
+                  {...(!isNative && { scale: focused ? 1.08 : 1, hoverStyle: { borderColor: colors.accent2, backgroundColor: colors.surface2 }, animation: "quick" })}
                 >
                   <Text fontSize={44}>{p.avatar}</Text>
                 </YStack>
-                <Text color={focused ? "#fff" : "#7A86A8"} fontSize={14} textAlign="center" fontWeight="500" numberOfLines={1}>
+                <Text color={focused ? colors.text : colors.muted} fontSize={14} textAlign="center" fontWeight="500" numberOfLines={1}>
                   {p.name}
                 </Text>
               </YStack>
@@ -443,18 +443,18 @@ export default function ProfilesScreen() {
                   width={90}
                   height={90}
                   borderRadius={12}
-                  backgroundColor="#1B2236"
+                  backgroundColor={colors.surface2}
                   justifyContent="center"
                   alignItems="center"
                   borderWidth={2}
-                  borderColor={focused ? "#22D3EE" : "#28324E"}
+                  borderColor={focused ? colors.accent2 : colors.border}
                   borderStyle="dashed"
                   marginBottom={10}
-                  {...(!isNative && { scale: focused ? 1.08 : 1, hoverStyle: { borderColor: "#22D3EE" }, animation: "quick" })}
+                  {...(!isNative && { scale: focused ? 1.08 : 1, hoverStyle: { borderColor: colors.accent2 }, animation: "quick" })}
                 >
-                  <Text fontSize={36} color={focused ? "#22D3EE" : "#7A86A8"}>+</Text>
+                  <Text fontSize={36} color={focused ? colors.accent2 : colors.muted}>+</Text>
                 </YStack>
-                <Text color={focused ? "#fff" : "#7A86A8"} fontSize={14} textAlign="center" fontWeight="500">
+                <Text color={focused ? colors.text : colors.muted} fontSize={14} textAlign="center" fontWeight="500">
                   Add Profile
                 </Text>
               </YStack>
@@ -473,10 +473,10 @@ export default function ProfilesScreen() {
               onPress={() => setView("manage")}
               pressStyle={{ opacity: 0.7 }}
               borderBottomWidth={2}
-              borderColor={focused ? "#22D3EE" : "transparent"}
+              borderColor={focused ? colors.accent2 : "transparent"}
               {...(!isNative && { hoverStyle: { opacity: 1 }, animation: "quick" })}
             >
-              <Text color={focused ? "#fff" : "#7A86A8"} fontSize={14} fontWeight={focused ? "700" : "400"}>
+              <Text color={focused ? colors.text : colors.muted} fontSize={14} fontWeight={focused ? "700" : "400"}>
                 Manage Profiles
               </Text>
             </XStack>
@@ -493,10 +493,10 @@ export default function ProfilesScreen() {
               onPress={signOut}
               pressStyle={{ opacity: 0.7 }}
               borderBottomWidth={2}
-              borderColor={focused ? "#22D3EE" : "transparent"}
+              borderColor={focused ? colors.accent2 : "transparent"}
               {...(!isNative && { hoverStyle: { opacity: 1 }, animation: "quick" })}
             >
-              <Text color={focused ? "#fff" : "#22D3EE"} fontSize={14} fontWeight="600">
+              <Text color={focused ? colors.text : colors.accent2} fontSize={14} fontWeight="600">
                 Sign Out
               </Text>
             </XStack>

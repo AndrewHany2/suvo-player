@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { Image, View } from "react-native";
-import { YStack, Text, ScrollView } from "tamagui";
+import { YStack, Text, ScrollView } from "../ui/primitives";
+import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import MovieDetail from "../components/MovieDetail.web";
@@ -100,14 +101,14 @@ function MyListCard({ item, onPress, onRemove }) {
         width={ss(200)}
         aspectRatio={2 / 3}
         borderRadius={ss(8)}
-        backgroundColor="#141A2E"
+        backgroundColor={colors.surface}
         overflow="hidden"
         position="relative"
       >
         {poster ? (
           <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
         ) : (
-          <View style={[FILL, { backgroundColor: "#141A2E" }]} />
+          <View style={[FILL, { backgroundColor: colors.surface }]} />
         )}
         <YStack
           position="absolute"
@@ -120,7 +121,7 @@ function MyListCard({ item, onPress, onRemove }) {
           paddingVertical={ss(2)}
         >
           <Text
-            color="#7A86A8"
+            color={colors.muted}
             fontSize={ss(9)}
             fontWeight="700"
             letterSpacing={0.5}
@@ -146,13 +147,13 @@ function MyListCard({ item, onPress, onRemove }) {
           }}
           pressStyle={{ opacity: 0.7 }}
         >
-          <Text color="#fff" fontSize={ss(9)} fontWeight="700">
+          <Text color={colors.text} fontSize={ss(9)} fontWeight="700">
             ✕
           </Text>
         </YStack>
       </YStack>
       <Text
-        color="#fff"
+        color={colors.text}
         fontSize={ss(13)}
         fontWeight="600"
         marginTop={ss(8)}
@@ -163,7 +164,7 @@ function MyListCard({ item, onPress, onRemove }) {
       </Text>
       {epLabel && (
         <Text
-          color="#7A86A8"
+          color={colors.muted}
           fontSize={ss(10)}
           marginTop={ss(5)}
           letterSpacing={0.3}
@@ -202,14 +203,14 @@ function CWCard({ item, onPress, onRemove }) {
         width={ss(320)}
         height={ss(180)}
         borderRadius={ss(8)}
-        backgroundColor="#141A2E"
+        backgroundColor={colors.surface}
         overflow="hidden"
         position="relative"
       >
         {bg ? (
           <Image source={{ uri: bg }} style={FILL} resizeMode="cover" />
         ) : (
-          <View style={[FILL, { backgroundColor: "#141A2E" }]} />
+          <View style={[FILL, { backgroundColor: colors.surface }]} />
         )}
         <View
           style={[
@@ -222,7 +223,7 @@ function CWCard({ item, onPress, onRemove }) {
         />
         {seasonBadge && (
           <YStack position="absolute" top={ss(10)} left={ss(12)} zIndex={4}>
-            <Text color="#fff" fontSize={ss(13)} fontWeight="700">
+            <Text color={colors.text} fontSize={ss(13)} fontWeight="700">
               {seasonBadge}
             </Text>
           </YStack>
@@ -245,7 +246,7 @@ function CWCard({ item, onPress, onRemove }) {
           }}
           pressStyle={{ opacity: 0.7 }}
         >
-          <Text color="#fff" fontSize={ss(9)} fontWeight="700">
+          <Text color={colors.text} fontSize={ss(9)} fontWeight="700">
             ✕
           </Text>
         </YStack>
@@ -265,7 +266,7 @@ function CWCard({ item, onPress, onRemove }) {
               style={{
                 height: "100%",
                 width: `${progress}%`,
-                backgroundColor: "#6C5CE7",
+                backgroundColor: colors.accent,
               }}
             />
           </View>
@@ -273,7 +274,7 @@ function CWCard({ item, onPress, onRemove }) {
       </YStack>
       <YStack paddingTop={ss(10)} paddingHorizontal={ss(2)}>
         <Text
-          color="#fff"
+          color={colors.text}
           fontSize={ss(13)}
           fontWeight="600"
           marginBottom={ss(2)}
@@ -283,7 +284,7 @@ function CWCard({ item, onPress, onRemove }) {
         </Text>
         {(epLabel || epTitle) && (
           <Text
-            color="#7A86A8"
+            color={colors.muted}
             fontSize={ss(12)}
             marginBottom={ss(2)}
             numberOfLines={1}
@@ -292,7 +293,7 @@ function CWCard({ item, onPress, onRemove }) {
           </Text>
         )}
         {timeLeft && (
-          <Text color="#7A86A8" fontSize={ss(12)}>
+          <Text color={colors.muted} fontSize={ss(12)}>
             {timeLeft}
           </Text>
         )}
@@ -362,21 +363,21 @@ export default function HistoryScreen({ navigation }) {
         flex={1}
         justifyContent="center"
         alignItems="center"
-        backgroundColor="#0A0E1A"
+        backgroundColor={colors.bg}
         padding={ss(24)}
       >
         <Text fontSize={ss(48)} marginBottom={ss(12)}>
           🎬
         </Text>
         <Text
-          color="#fff"
+          color={colors.text}
           fontSize={ss(20)}
           fontWeight="700"
           marginBottom={ss(8)}
         >
           Nothing here yet
         </Text>
-        <Text color="#7A86A8" fontSize={ss(14)} textAlign="center">
+        <Text color={colors.muted} fontSize={ss(14)} textAlign="center">
           Start watching something and it will appear here
         </Text>
       </YStack>
@@ -386,14 +387,14 @@ export default function HistoryScreen({ navigation }) {
   return (
     <ScrollView
       flex={1}
-      backgroundColor="#0A0E1A"
+      backgroundColor={colors.bg}
       contentContainerStyle={{ paddingTop: ss(40), paddingBottom: ss(80) }}
     >
       <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
       {myList.length > 0 && (
         <YStack paddingBottom={ss(48)}>
           <Text
-            color="#fff"
+            color={colors.text}
             fontSize={ss(26)}
             fontWeight="700"
             letterSpacing={-0.5}
@@ -444,7 +445,7 @@ export default function HistoryScreen({ navigation }) {
       {watchedHistory.length > 0 && (
         <YStack paddingBottom={ss(48)}>
           <Text
-            color="#fff"
+            color={colors.text}
             fontSize={ss(26)}
             fontWeight="700"
             letterSpacing={-0.5}

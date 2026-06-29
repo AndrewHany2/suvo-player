@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { View } from "react-native";
-import { YStack, XStack, Text, Input, ScrollView, Spinner } from "tamagui";
+import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
+import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { useContentService } from "../domain/hooks/useContentService";
 import { useTVNavigation } from "../hooks/useTVNavigation";
@@ -9,6 +10,7 @@ import iptvApi from "../services/iptvApi";
 import tmdbApi from "../services/tmdbApi";
 import SeriesDetail from "../components/SeriesDetail.web";
 import TVPosterCard from "../components/TVPosterCard";
+import DiscoverPills from "../presentation/components/DiscoverPills.web";
 
 // Caps the browse content width on ultrawide monitors (centered via margin auto).
 const MAX_W = 1700;
@@ -167,13 +169,13 @@ function Shelf({
           {...{ className: "lumen-shelf-title-btn" }}
         >
           <Text
-            color="#fff"
+            color={colors.text}
             fontSize={ss(22)}
             fontWeight="700"
             letterSpacing={-0.3}
           >
             {title}{" "}
-            <Text color="#6C5CE7" fontSize={ss(18)}>
+            <Text color={colors.accent} fontSize={ss(18)}>
               ›
             </Text>
           </Text>
@@ -186,7 +188,7 @@ function Shelf({
       </XStack>
       {items === null ? (
         <YStack paddingHorizontal={ss(48)} paddingVertical={ss(18)}>
-          <Spinner size="small" color="#6C5CE7" />
+          <Spinner size="small" color={colors.accent} />
         </YStack>
       ) : (
         <div style={{ position: "relative" }} className="lumen-shelf-rail">
@@ -196,6 +198,7 @@ function Shelf({
           <div
             ref={railRef}
             onScroll={handleScroll}
+            onDragStart={(e) => e.preventDefault()}
             style={{
               display: "flex",
               overflowX: "auto",
@@ -205,6 +208,7 @@ function Shelf({
               scrollbarWidth: "none",
               msOverflowStyle: "none",
               cursor: "grab",
+              userSelect: "none",
             }}
           >
             {items.map((item) => (
@@ -219,13 +223,13 @@ function Shelf({
                 width={ss(200)}
                 aspectRatio={2 / 3}
                 borderRadius={ss(8)}
-                backgroundColor="#141A2E"
+                backgroundColor={colors.surface}
                 borderWidth={1}
-                borderColor="#28324E"
+                borderColor={colors.border}
                 justifyContent="center"
                 alignItems="center"
               >
-                <Spinner size="small" color="#6C5CE7" />
+                <Spinner size="small" color={colors.accent} />
               </YStack>
             )}
           </div>
@@ -376,29 +380,29 @@ function CategoryPage({
   };
 
   return (
-    <YStack flex={1} backgroundColor="#0A0E1A">
+    <YStack flex={1} backgroundColor={colors.bg}>
       <XStack
         alignItems="center"
         gap={ss(14)}
         paddingHorizontal={ss(48)}
         paddingVertical={ss(18)}
         borderBottomWidth={1}
-        borderBottomColor="#28324E"
+        borderBottomColor={colors.border}
       >
         <YStack
           paddingVertical={ss(8)}
           paddingHorizontal={ss(14)}
-          backgroundColor="#1B2236"
+          backgroundColor={colors.surface2}
           borderRadius={ss(8)}
           cursor="pointer"
           onPress={onBack}
           pressStyle={{ opacity: 0.8 }}
         >
-          <Text color="#6C5CE7" fontSize={ss(14)} fontWeight="600">
+          <Text color={colors.accent} fontSize={ss(14)} fontWeight="600">
             ← Back
           </Text>
         </YStack>
-        <Text color="#fff" fontSize={ss(22)} fontWeight="700">
+        <Text color={colors.text} fontSize={ss(22)} fontWeight="700">
           {name}
         </Text>
         {filtered != null && (
@@ -408,7 +412,7 @@ function CategoryPage({
             paddingHorizontal={ss(10)}
             paddingVertical={ss(4)}
           >
-            <Text color="#7A86A8" fontSize={ss(12)} fontWeight="600">
+            <Text color={colors.muted} fontSize={ss(12)} fontWeight="600">
               {filtered.length.toLocaleString()}
             </Text>
           </YStack>
@@ -419,19 +423,19 @@ function CategoryPage({
           placeholderTextColor="#555"
           value={search}
           onChangeText={setSearch}
-          backgroundColor="#1B2236"
-          color="#fff"
+          backgroundColor={colors.surface2}
+          color={colors.text}
           borderRadius={ss(10)}
           paddingHorizontal={ss(14)}
           paddingVertical={ss(10)}
           fontSize={ss(14)}
           borderWidth={1}
-          borderColor="#28324E"
+          borderColor={colors.border}
         />
       </XStack>
       {!displayed ? (
         <YStack flex={1} justifyContent="center" alignItems="center">
-          <Spinner size="large" color="#6C5CE7" />
+          <Spinner size="large" color={colors.accent} />
         </YStack>
       ) : (
         <ScrollView
@@ -465,7 +469,7 @@ function CategoryPage({
           </div>
           {(hasMore || loadingMore) && (
             <YStack alignItems="center" paddingVertical={ss(24)}>
-              <Spinner size="small" color="#6C5CE7" />
+              <Spinner size="small" color={colors.accent} />
             </YStack>
           )}
         </ScrollView>
@@ -764,8 +768,8 @@ export default function SeriesScreen({ navigation }) {
   }, [topRatedLoadingMore]);
 
   const discoverItems = [
-    { id: "all", label: "All Series" },
-    { id: "top_rated", label: "Top Rated" },
+    { id: "all", label: "All Series", icon: "📺" },
+    { id: "top_rated", label: "Top Rated", icon: "⭐" },
   ];
   const { focusedRow, focusedCol } = useTVNavigation({
     active: !currentCategory && !currentSeries,
@@ -784,11 +788,11 @@ export default function SeriesScreen({ navigation }) {
         flex={1}
         justifyContent="center"
         alignItems="center"
-        backgroundColor="#0A0E1A"
+        backgroundColor={colors.bg}
         padding={ss(24)}
       >
-        <Spinner size="large" color="#6C5CE7" />
-        <Text color="#7A86A8" marginTop={ss(12)} fontSize={ss(14)}>
+        <Spinner size="large" color={colors.accent} />
+        <Text color={colors.muted} marginTop={ss(12)} fontSize={ss(14)}>
           Loading series...
         </Text>
       </YStack>
@@ -801,14 +805,14 @@ export default function SeriesScreen({ navigation }) {
         flex={1}
         justifyContent="center"
         alignItems="center"
-        backgroundColor="#0A0E1A"
+        backgroundColor={colors.bg}
         padding={ss(24)}
       >
         <Text fontSize={ss(48)} marginBottom={ss(12)}>
           ⚠️
         </Text>
         <Text
-          color="#fff"
+          color={colors.text}
           fontSize={ss(18)}
           fontWeight="600"
           marginBottom={ss(8)}
@@ -816,7 +820,7 @@ export default function SeriesScreen({ navigation }) {
           Couldn't load series
         </Text>
         <Text
-          color="#7A86A8"
+          color={colors.muted}
           fontSize={ss(14)}
           textAlign="center"
           marginBottom={ss(20)}
@@ -824,7 +828,7 @@ export default function SeriesScreen({ navigation }) {
           Check your connection or IPTV account and try again
         </Text>
         <YStack
-          backgroundColor="#6C5CE7"
+          backgroundColor={colors.accent}
           paddingHorizontal={ss(24)}
           paddingVertical={ss(12)}
           borderRadius={ss(10)}
@@ -832,7 +836,7 @@ export default function SeriesScreen({ navigation }) {
           onPress={load}
           pressStyle={{ opacity: 0.9 }}
         >
-          <Text color="#fff" fontWeight="600">
+          <Text color={colors.text} fontWeight="600">
             Retry
           </Text>
         </YStack>
@@ -846,14 +850,14 @@ export default function SeriesScreen({ navigation }) {
         flex={1}
         justifyContent="center"
         alignItems="center"
-        backgroundColor="#0A0E1A"
+        backgroundColor={colors.bg}
         padding={ss(24)}
       >
         <Text fontSize={ss(48)} marginBottom={ss(12)}>
           📺
         </Text>
         <Text
-          color="#fff"
+          color={colors.text}
           fontSize={ss(18)}
           fontWeight="600"
           marginBottom={ss(8)}
@@ -861,7 +865,7 @@ export default function SeriesScreen({ navigation }) {
           No IPTV Account
         </Text>
         <Text
-          color="#7A86A8"
+          color={colors.muted}
           fontSize={ss(14)}
           textAlign="center"
           marginBottom={ss(20)}
@@ -869,7 +873,7 @@ export default function SeriesScreen({ navigation }) {
           Add your IPTV service from Settings
         </Text>
         <YStack
-          backgroundColor="#6C5CE7"
+          backgroundColor={colors.accent}
           paddingHorizontal={ss(24)}
           paddingVertical={ss(12)}
           borderRadius={ss(10)}
@@ -877,7 +881,7 @@ export default function SeriesScreen({ navigation }) {
           onPress={() => navigation.navigate("Accounts")}
           pressStyle={{ opacity: 0.9 }}
         >
-          <Text color="#fff" fontWeight="600">
+          <Text color={colors.text} fontWeight="600">
             Add Account
           </Text>
         </YStack>
@@ -888,7 +892,7 @@ export default function SeriesScreen({ navigation }) {
   const isTopRated = currentCategory?.catId === "top_rated";
 
   return (
-    <YStack flex={1} backgroundColor="#0A0E1A" position="relative">
+    <YStack flex={1} backgroundColor={colors.bg} position="relative">
       <ScrollView flex={1} contentContainerStyle={{ paddingBottom: ss(80) }}>
         <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
         <YStack
@@ -897,7 +901,7 @@ export default function SeriesScreen({ navigation }) {
           paddingBottom={ss(4)}
         >
           <Text
-            color="#fff"
+            color={colors.text}
             fontSize={ss(22)}
             fontWeight="700"
             letterSpacing={-0.3}
@@ -905,43 +909,11 @@ export default function SeriesScreen({ navigation }) {
           >
             Discover
           </Text>
-          <XStack gap={ss(10)} flexWrap="wrap">
-            {discoverItems.map((pill, idx) => (
-              <XStack
-                key={pill.id}
-                alignItems="center"
-                gap={ss(10)}
-                paddingHorizontal={ss(18)}
-                paddingVertical={ss(11)}
-                backgroundColor="rgba(108, 92, 231,0.08)"
-                borderWidth={1}
-                borderColor={
-                  focusedRow === 0 && focusedCol === idx
-                    ? "#22D3EE"
-                    : "rgba(108, 92, 231,0.28)"
-                }
-                borderRadius={999}
-                cursor="pointer"
-                onPress={() => handleTitlePress(pill.id, pill.label)}
-                pressStyle={{ opacity: 0.75 }}
-                hoverStyle={{ borderColor: "#22D3EE" }}
-                {...{ className: "lumen-load-cta" }}
-              >
-                <Text fontSize={ss(16)}>{pill.id === "all" ? "📺" : "⭐"}</Text>
-                <Text
-                  color="#fff"
-                  fontSize={ss(13)}
-                  fontWeight="600"
-                  letterSpacing={0.1}
-                >
-                  {pill.label}
-                </Text>
-                <Text color="#6C5CE7" fontSize={ss(16)} fontWeight="700">
-                  →
-                </Text>
-              </XStack>
-            ))}
-          </XStack>
+          <DiscoverPills
+            items={discoverItems}
+            focusedCol={focusedRow === 0 ? focusedCol : -1}
+            onSelect={(pill) => handleTitlePress(pill.id, pill.label)}
+          />
         </YStack>
         <YStack>
           {shelves.length > 0 ? (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { FlatList, Alert, KeyboardAvoidingView, Platform } from "react-native";
-import { YStack, XStack, Text, Input, ScrollView, Spinner } from "tamagui";
+import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
+import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 
@@ -113,32 +114,32 @@ export default function AccountsScreen({ navigation }) {
   if (showForm) {
     return (
       <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: "#0A0E1A" }}
+        style={{ flex: 1, backgroundColor: colors.bg }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView contentContainerStyle={{ padding: 20 }}>
-          <Text color="#fff" fontSize={20} fontWeight="700" marginBottom={20}>
+          <Text color={colors.text} fontSize={20} fontWeight="700" marginBottom={20}>
             {editingId ? "Edit Account" : "Add New Account"}
           </Text>
 
-          <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={14}>Nickname (optional)</Text>
-          <Input placeholder="e.g., My IPTV Service" placeholderTextColor="#666" value={formData.nickname} onChangeText={(v) => setFormData({ ...formData, nickname: v })} disabled={loading} backgroundColor="#1B2236" color="#fff" borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={15} borderWidth={1} borderColor="#28324E" />
+          <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={14}>Nickname (optional)</Text>
+          <Input placeholder="e.g., My IPTV Service" placeholderTextColor="#666" value={formData.nickname} onChangeText={(v) => setFormData({ ...formData, nickname: v })} disabled={loading} backgroundColor={colors.surface2} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={15} borderWidth={1} borderColor={colors.border} />
 
-          <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={14}>Server / Host *</Text>
-          <Input placeholder="s1.example.com:8080" placeholderTextColor="#666" value={formData.host} onChangeText={(v) => setFormData({ ...formData, host: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} backgroundColor="#1B2236" color="#fff" borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={15} borderWidth={1} borderColor="#28324E" />
+          <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={14}>Server / Host *</Text>
+          <Input placeholder="s1.example.com:8080" placeholderTextColor="#666" value={formData.host} onChangeText={(v) => setFormData({ ...formData, host: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} backgroundColor={colors.surface2} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={15} borderWidth={1} borderColor={colors.border} />
 
-          <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={14}>Username *</Text>
-          <Input placeholder="your_username" placeholderTextColor="#666" value={formData.username} onChangeText={(v) => setFormData({ ...formData, username: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} backgroundColor="#1B2236" color="#fff" borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={15} borderWidth={1} borderColor="#28324E" />
+          <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={14}>Username *</Text>
+          <Input placeholder="your_username" placeholderTextColor="#666" value={formData.username} onChangeText={(v) => setFormData({ ...formData, username: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} backgroundColor={colors.surface2} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={15} borderWidth={1} borderColor={colors.border} />
 
-          <Text fontSize={13} color="#7A86A8" marginBottom={6} marginTop={14}>Password *</Text>
-          <Input placeholder="your_password" placeholderTextColor="#666" value={formData.password} onChangeText={(v) => setFormData({ ...formData, password: v })} secureTextEntry disabled={loading} backgroundColor="#1B2236" color="#fff" borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={15} borderWidth={1} borderColor="#28324E" />
+          <Text fontSize={13} color={colors.muted} marginBottom={6} marginTop={14}>Password *</Text>
+          <Input placeholder="your_password" placeholderTextColor="#666" value={formData.password} onChangeText={(v) => setFormData({ ...formData, password: v })} secureTextEntry disabled={loading} backgroundColor={colors.surface2} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={15} borderWidth={1} borderColor={colors.border} />
 
           <XStack gap={12} marginTop={28}>
-            <YStack flex={1} backgroundColor="#28324E" borderRadius={10} paddingVertical={13} alignItems="center" cursor="pointer" onPress={loading ? undefined : resetForm} pressStyle={{ opacity: 0.8 }}>
-              <Text color="#7A86A8" fontSize={15} fontWeight="600">Cancel</Text>
+            <YStack flex={1} backgroundColor={colors.border} borderRadius={10} paddingVertical={13} alignItems="center" cursor="pointer" onPress={loading ? undefined : resetForm} pressStyle={{ opacity: 0.8 }}>
+              <Text color={colors.muted} fontSize={15} fontWeight="600">Cancel</Text>
             </YStack>
-            <YStack flex={1} backgroundColor="#6C5CE7" borderRadius={10} paddingVertical={13} alignItems="center" opacity={loading ? 0.6 : 1} cursor={loading ? "not-allowed" : "pointer"} onPress={loading ? undefined : handleSave} pressStyle={{ opacity: 0.9 }}>
-              {loading ? <Spinner color="#fff" /> : <Text color="#fff" fontSize={15} fontWeight="600">💾 Save</Text>}
+            <YStack flex={1} backgroundColor={colors.accent} borderRadius={10} paddingVertical={13} alignItems="center" opacity={loading ? 0.6 : 1} cursor={loading ? "not-allowed" : "pointer"} onPress={loading ? undefined : handleSave} pressStyle={{ opacity: 0.9 }}>
+              {loading ? <Spinner color={colors.text} /> : <Text color={colors.text} fontSize={15} fontWeight="600">💾 Save</Text>}
             </YStack>
           </XStack>
         </ScrollView>
@@ -148,37 +149,37 @@ export default function AccountsScreen({ navigation }) {
 
   // ── List view ─────────────────────────────────────────────────────────────
   return (
-    <YStack flex={1} backgroundColor="#0A0E1A">
+    <YStack flex={1} backgroundColor={colors.bg}>
       {authUser && (
-        <XStack alignItems="center" backgroundColor="#1B2236" marginHorizontal={16} marginTop={16} marginBottom={4} borderRadius={12} padding={14} borderWidth={1} borderColor="#28324E">
+        <XStack alignItems="center" backgroundColor={colors.surface2} marginHorizontal={16} marginTop={16} marginBottom={4} borderRadius={12} padding={14} borderWidth={1} borderColor={colors.border}>
           <XStack flex={1} alignItems="center" gap={10}>
             <Text fontSize={24}>👤</Text>
             <YStack>
-              <Text color="#fff" fontSize={14} fontWeight="600">{profile?.username ?? authUser.email}</Text>
-              <Text color="#7A86A8" fontSize={12} marginTop={1}>{authUser.email}</Text>
+              <Text color={colors.text} fontSize={14} fontWeight="600">{profile?.username ?? authUser.email}</Text>
+              <Text color={colors.muted} fontSize={12} marginTop={1}>{authUser.email}</Text>
             </YStack>
           </XStack>
           <YStack backgroundColor="rgba(108, 92, 231,0.15)" borderRadius={8} paddingHorizontal={12} paddingVertical={7} borderWidth={1} borderColor="rgba(108, 92, 231,0.3)" cursor="pointer" onPress={handleSignOut} pressStyle={{ opacity: 0.8 }}>
-            <Text color="#6C5CE7" fontSize={13} fontWeight="600">Sign Out</Text>
+            <Text color={colors.accent} fontSize={13} fontWeight="600">Sign Out</Text>
           </YStack>
         </XStack>
       )}
 
-      <YStack margin={16} backgroundColor="#6C5CE7" borderRadius={10} paddingVertical={13} alignItems="center" cursor={loading ? "not-allowed" : "pointer"} onPress={loading ? undefined : handleAddNew} pressStyle={{ opacity: 0.9 }} hoverStyle={{ opacity: 0.85 }} animation="quick">
-        <Text color="#fff" fontSize={15} fontWeight="600">➕ Add IPTV Account</Text>
+      <YStack margin={16} backgroundColor={colors.accent} borderRadius={10} paddingVertical={13} alignItems="center" cursor={loading ? "not-allowed" : "pointer"} onPress={loading ? undefined : handleAddNew} pressStyle={{ opacity: 0.9 }} hoverStyle={{ opacity: 0.85 }} animation="quick">
+        <Text color={colors.text} fontSize={15} fontWeight="600">➕ Add IPTV Account</Text>
       </YStack>
 
       {loading && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} justifyContent="center" alignItems="center" backgroundColor="rgba(0,0,0,0.4)" zIndex={10} pointerEvents="none">
-          <Spinner size="large" color="#6C5CE7" />
+          <Spinner size="large" color={colors.accent} />
         </YStack>
       )}
 
       {users.length === 0 ? (
         <YStack flex={1} justifyContent="center" alignItems="center" padding={40}>
           <Text fontSize={48} marginBottom={12}>📡</Text>
-          <Text color="#fff" fontSize={18} fontWeight="600" marginBottom={8}>No IPTV Accounts</Text>
-          <Text color="#7A86A8" fontSize={14} textAlign="center">Tap "Add Account" to add your first IPTV service</Text>
+          <Text color={colors.text} fontSize={18} fontWeight="600" marginBottom={8}>No IPTV Accounts</Text>
+          <Text color={colors.muted} fontSize={14} textAlign="center">Tap "Add Account" to add your first IPTV service</Text>
         </YStack>
       ) : (
         <FlatList
@@ -186,26 +187,26 @@ export default function AccountsScreen({ navigation }) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
           renderItem={({ item }) => (
-            <XStack backgroundColor="#1B2236" borderRadius={12} padding={16} marginBottom={12} alignItems="center" borderWidth={1} borderColor="#28324E">
+            <XStack backgroundColor={colors.surface2} borderRadius={12} padding={16} marginBottom={12} alignItems="center" borderWidth={1} borderColor={colors.border}>
               <YStack flex={1}>
-                <Text color="#fff" fontSize={15} fontWeight="600" marginBottom={3}>
+                <Text color={colors.text} fontSize={15} fontWeight="600" marginBottom={3}>
                   {item.nickname || `${item.username}@${item.host}`}
                 </Text>
-                <Text color="#7A86A8" fontSize={13}>{item.host}</Text>
+                <Text color={colors.muted} fontSize={13}>{item.host}</Text>
                 {activeUserId === item.id && (
                   <YStack marginTop={6} backgroundColor="#103A44" borderRadius={6} paddingHorizontal={8} paddingVertical={3} alignSelf="flex-start">
-                    <Text color="#22D3EE" fontSize={12} fontWeight="600">✓ Active</Text>
+                    <Text color={colors.accent2} fontSize={12} fontWeight="600">✓ Active</Text>
                   </YStack>
                 )}
               </YStack>
               <XStack gap={8}>
-                <YStack width={36} height={36} backgroundColor="#141A2E" borderRadius={8} justifyContent="center" alignItems="center" cursor="pointer" onPress={() => handleConnect(item.id)} pressStyle={{ opacity: 0.7 }} hoverStyle={{ backgroundColor: "#1B2236" }} animation="quick" hitSlop={8}>
+                <YStack width={36} height={36} backgroundColor={colors.surface} borderRadius={8} justifyContent="center" alignItems="center" cursor="pointer" onPress={() => handleConnect(item.id)} pressStyle={{ opacity: 0.7 }} hoverStyle={{ backgroundColor: colors.surface2 }} animation="quick" hitSlop={8}>
                   <Text fontSize={18}>🔗</Text>
                 </YStack>
-                <YStack width={36} height={36} backgroundColor="#141A2E" borderRadius={8} justifyContent="center" alignItems="center" cursor="pointer" onPress={() => handleEdit(item)} pressStyle={{ opacity: 0.7 }} hoverStyle={{ backgroundColor: "#1B2236" }} animation="quick" hitSlop={8}>
+                <YStack width={36} height={36} backgroundColor={colors.surface} borderRadius={8} justifyContent="center" alignItems="center" cursor="pointer" onPress={() => handleEdit(item)} pressStyle={{ opacity: 0.7 }} hoverStyle={{ backgroundColor: colors.surface2 }} animation="quick" hitSlop={8}>
                   <Text fontSize={18}>✏️</Text>
                 </YStack>
-                <YStack width={36} height={36} backgroundColor="#141A2E" borderRadius={8} justifyContent="center" alignItems="center" cursor="pointer" onPress={() => handleDelete(item.id, item.nickname)} pressStyle={{ opacity: 0.7 }} hoverStyle={{ backgroundColor: "#1B2236" }} animation="quick" hitSlop={8}>
+                <YStack width={36} height={36} backgroundColor={colors.surface} borderRadius={8} justifyContent="center" alignItems="center" cursor="pointer" onPress={() => handleDelete(item.id, item.nickname)} pressStyle={{ opacity: 0.7 }} hoverStyle={{ backgroundColor: colors.surface2 }} animation="quick" hitSlop={8}>
                   <Text fontSize={18}>🗑️</Text>
                 </YStack>
               </XStack>

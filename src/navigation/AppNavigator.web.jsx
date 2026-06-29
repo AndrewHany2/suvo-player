@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { YStack, XStack, Text } from "tamagui";
+import { YStack, XStack, Text } from "../ui/primitives";
+import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { isSupabaseConfigured } from "../services/supabase";
 import { ss } from "../utils/scaleSize";
@@ -29,6 +30,10 @@ const HistoryScreen = _isTV ? HistoryScreenTV : HistoryScreenWeb;
 const AccountsScreen = _isTV ? AccountsScreenTV : AccountsScreenWeb;
 
 // ── Global CSS injected once ──────────────────────────────────────────────────
+// token-mirror block: the hex literals inside the CSS template string below
+// intentionally duplicate the values in src/ui/tokens.js. They are kept literal
+// (not var()) because old webOS Chromium can't be assumed to support custom
+// properties — kept in sync manually with tokens.js.
 if (typeof document !== "undefined") {
   let style = document.getElementById("lumen-global");
   if (!style) {
@@ -160,7 +165,7 @@ function NavLink({ item, isActive, isFocused, onPress, fontSize }) {
         pressStyle={{ opacity: 0.7 }}
       >
         <Text
-          color={isFocused || isActive ? "#fff" : "#ccc"}
+          color={isFocused || isActive ? colors.text : "#ccc"}
           fontSize={fontSize ?? ss(14)}
           fontWeight={isFocused || isActive ? "700" : "500"}
         >
@@ -174,7 +179,7 @@ function NavLink({ item, isActive, isFocused, onPress, fontSize }) {
           borderRadius={2}
           marginTop={ss(6)}
           {...(isFocused
-            ? { backgroundColor: "#22D3EE" } // cyan keyboard-focus ring
+            ? { backgroundColor: colors.accent2 } // cyan keyboard-focus ring
             : { className: "aurora-grad-bg" })}
         />
       )}
@@ -238,7 +243,7 @@ function TopNav({
       gap={S.gap}
       backgroundColor="rgba(10, 14, 26,0.97)"
       borderBottomWidth={1}
-      borderBottomColor="#28324E"
+      borderBottomColor={colors.border}
       {...{ className: "lumen-topnav" }}
     >
       <XStack
@@ -250,7 +255,7 @@ function TopNav({
       >
         <BrandGlyph />
         <Text
-          color="#6C5CE7"
+          color={colors.accent}
           fontSize={S.brand}
           fontWeight="700"
           letterSpacing={-0.5}
@@ -283,7 +288,7 @@ function TopNav({
           onPress={onAccounts}
           pressStyle={{ opacity: 0.7 }}
           borderWidth={accountsFocused ? 2 : 0}
-          borderColor={accountsFocused ? "#22D3EE" : "transparent"}
+          borderColor={accountsFocused ? colors.accent2 : "transparent"}
           {...{ className: "lumen-icon-btn" }}
         >
           <Text fontSize={S.iconFont}>📡</Text>
@@ -298,7 +303,7 @@ function TopNav({
           onPress={onSettings}
           pressStyle={{ opacity: 0.7 }}
           borderWidth={settingsFocused ? 2 : 0}
-          borderColor={settingsFocused ? "#22D3EE" : "transparent"}
+          borderColor={settingsFocused ? colors.accent2 : "transparent"}
           {...{ className: "lumen-icon-btn" }}
         >
           <Text fontSize={S.iconFont}>⚙</Text>
@@ -307,9 +312,9 @@ function TopNav({
           width={S.avatar}
           height={S.avatar}
           borderRadius={S.avatarR}
-          backgroundColor="#1B2236"
+          backgroundColor={colors.surface2}
           borderWidth={2}
-          borderColor={profileFocused ? "#22D3EE" : "#28324E"}
+          borderColor={profileFocused ? colors.accent2 : colors.border}
           justifyContent="center"
           alignItems="center"
           cursor="pointer"
@@ -496,7 +501,7 @@ export default function AppNavigator() {
   const ContentComponent = CONTENT_MAP[activeTab] || LiveTVScreen;
 
   return (
-    <YStack flex={1} backgroundColor="#0A0E1A" position="relative">
+    <YStack flex={1} backgroundColor={colors.bg} position="relative">
       <TopNav
         active={activeTab}
         onSelect={(tab) => {
@@ -551,7 +556,7 @@ export default function AppNavigator() {
               border: "none",
               width: ss(600),
               maxWidth: "90vw",
-              backgroundColor: "#1B2236",
+              backgroundColor: colors.surface2,
               borderRadius: ss(16),
               overflow: "hidden",
             }}
@@ -562,11 +567,11 @@ export default function AppNavigator() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: `${ss(16)}px ${ss(20)}px`,
-                borderBottom: "1px solid #28324E",
+                borderBottom: `1px solid ${colors.border}`,
               }}
             >
               <span
-                style={{ color: "#fff", fontSize: ss(18), fontWeight: 700 }}
+                style={{ color: colors.text, fontSize: ss(18), fontWeight: 700 }}
               >
                 Accounts
               </span>
@@ -619,7 +624,7 @@ export default function AppNavigator() {
               border: "none",
               width: ss(560),
               maxWidth: "90vw",
-              backgroundColor: "#1B2236",
+              backgroundColor: colors.surface2,
               borderRadius: ss(16),
               overflow: "hidden",
             }}
@@ -630,11 +635,11 @@ export default function AppNavigator() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: `${ss(16)}px ${ss(20)}px`,
-                borderBottom: "1px solid #28324E",
+                borderBottom: `1px solid ${colors.border}`,
               }}
             >
               <span
-                style={{ color: "#fff", fontSize: ss(18), fontWeight: 700 }}
+                style={{ color: colors.text, fontSize: ss(18), fontWeight: 700 }}
               >
                 Settings
               </span>

@@ -90,7 +90,8 @@ export default function ContentShelf({
           <div
             ref={railRef}
             onScroll={handleScroll}
-            style={{ display: "flex", overflowX: "auto", gap: ss(8), paddingLeft: ss(48), paddingRight: ss(48), scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab" }}
+            onDragStart={(e) => e.preventDefault()}
+            style={{ display: "flex", overflowX: "auto", gap: ss(8), paddingLeft: ss(48), paddingRight: ss(48), scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab", userSelect: "none" }}
           >
             {items.map((item) => (renderItem
               ? renderItem(item)

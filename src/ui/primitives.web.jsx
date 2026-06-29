@@ -53,7 +53,10 @@ export const Text = forwardRef(function Text(props, ref) {
   const { styleProps, rest } = splitStyleProps(props);
   const { style, children, numberOfLines, onPress, cursor, ...other } = rest;
   for (const k of DROP) delete other[k];
-  const css = { margin: 0, ...toWebStyle(styleProps), ...clampStyle(numberOfLines), ...(cursor ? { cursor } : null), ...style };
+  // Reset margins with LONGHAND zeros (not the `margin` shorthand): callers pass
+  // marginTop/marginBottom/etc, and mixing shorthand + longhand on one element
+  // makes React warn when the longhand toggles across renders.
+  const css = { marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0, ...toWebStyle(styleProps), ...clampStyle(numberOfLines), ...(cursor ? { cursor } : null), ...style };
   return <div ref={ref} onClick={onPress} style={css} {...other}>{children}</div>;
 });
 

@@ -1,4 +1,5 @@
-import { YStack, XStack, Text } from "tamagui";
+import { YStack, XStack, Text } from "../ui/primitives";
+import { colors } from "../ui/tokens";
 import { useSettings } from "../hooks/useSettings";
 import { ss } from "../utils/scaleSize";
 
@@ -13,7 +14,7 @@ const ASPECT_OPTIONS = [
 function SectionTitle({ children }) {
   return (
     <Text
-      color="#7A86A8"
+      color={colors.muted}
       fontSize={ss(11)}
       fontWeight="700"
       letterSpacing={1}
@@ -32,9 +33,9 @@ function ToggleRow({ label, value, onChange }) {
       alignItems="center"
       paddingVertical={ss(14)}
       borderBottomWidth={1}
-      borderBottomColor="#28324E"
+      borderBottomColor={colors.border}
     >
-      <Text color="#fff" fontSize={ss(14)}>
+      <Text color={colors.text} fontSize={ss(14)}>
         {label}
       </Text>
       <div
@@ -43,7 +44,7 @@ function ToggleRow({ label, value, onChange }) {
           width: ss(44),
           height: ss(24),
           borderRadius: ss(12),
-          backgroundColor: value ? "#6C5CE7" : "#28324E",
+          backgroundColor: value ? colors.accent : colors.border,
           position: "relative",
           cursor: "pointer",
           transition: "background 0.2s",
@@ -69,8 +70,8 @@ function ToggleRow({ label, value, onChange }) {
 
 function ChipRow({ label, options, value, onChange }) {
   return (
-    <YStack paddingVertical={ss(14)} borderBottomWidth={1} borderBottomColor="#28324E">
-      <Text color="#7A86A8" fontSize={ss(13)} marginBottom={ss(10)}>
+    <YStack paddingVertical={ss(14)} borderBottomWidth={1} borderBottomColor={colors.border}>
+      <Text color={colors.muted} fontSize={ss(13)} marginBottom={ss(10)}>
         {label}
       </Text>
       <XStack gap={ss(8)} flexWrap="wrap">
@@ -81,9 +82,9 @@ function ChipRow({ label, options, value, onChange }) {
             style={{
               padding: `${ss(6)}px ${ss(14)}px`,
               borderRadius: ss(6),
-              border: `1.5px solid ${value === opt.value ? "#6C5CE7" : "#28324E"}`,
+              border: `1.5px solid ${value === opt.value ? colors.accent : colors.border}`,
               backgroundColor: value === opt.value ? "rgba(108, 92, 231,0.12)" : "transparent",
-              color: value === opt.value ? "#6C5CE7" : "#7A86A8",
+              color: value === opt.value ? colors.accent : colors.muted,
               fontSize: ss(13),
               cursor: "pointer",
               fontWeight: value === opt.value ? "700" : "400",
@@ -104,7 +105,7 @@ export default function SettingsScreen() {
   return (
     <YStack
       flex={1}
-      backgroundColor="#0A0E1A"
+      backgroundColor={colors.bg}
       padding={ss(24)}
       maxWidth={ss(520)}
       alignSelf="center"

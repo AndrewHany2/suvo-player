@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { View } from "react-native";
-import { YStack, XStack, Text, ScrollView, Spinner } from "tamagui";
+import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
+import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import iptvApi from "../services/iptvApi";
@@ -102,7 +103,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
   return (
     <ScrollView
       flex={1}
-      backgroundColor="#0A0E1A"
+      backgroundColor={colors.bg}
       contentContainerStyle={{ paddingBottom: ss(80) }}
     >
       {/* Hero */}
@@ -116,15 +117,14 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           source={{ uri: backdrop }}
           style={FILL}
           resizeMode="cover"
-          fallbackColor="#141A2E"
+          fallbackColor={colors.surface}
         />
         {/* CSS gradient — keep as raw View since Tamagui doesn't forward the `background` CSS prop */}
         <View
           style={[
             FILL,
             {
-              background:
-                "linear-gradient(to top, #0A0E1A 0%, rgba(10, 14, 26,0.6) 55%, rgba(10, 14, 26,0.15) 100%)",
+              background: `linear-gradient(to top, ${colors.bg} 0%, rgba(10, 14, 26,0.6) 55%, rgba(10, 14, 26,0.15) 100%)`,
             },
           ]}
         />
@@ -143,7 +143,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           pressStyle={{ opacity: 0.8 }}
         >
           <Text
-            color="#6C5CE7"
+            color={colors.accent}
             fontSize={backSize}
             fontWeight={isTV ? "700" : "600"}
           >
@@ -160,7 +160,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           paddingBottom={ss(isTV ? 60 : 40)}
         >
           <Text
-            color="#fff"
+            color={colors.text}
             fontSize={titleSize}
             fontWeight="900"
             letterSpacing={isTV ? -1.5 : -1}
@@ -170,7 +170,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           </Text>
 
           {isLoading ? (
-            <Spinner color="#6C5CE7" marginVertical={ss(12)} />
+            <Spinner color={colors.accent} marginVertical={ss(12)} />
           ) : (
             <XStack
               alignItems="center"
@@ -181,13 +181,13 @@ export default function MovieDetail({ item, onBack, onPlay }) {
               {year ? (
                 <YStack
                   borderWidth={isTV ? 2 : 1}
-                  borderColor="#28324E"
+                  borderColor={colors.border}
                   borderRadius={ss(isTV ? 8 : 4)}
                   paddingHorizontal={ss(isTV ? 14 : 8)}
                   paddingVertical={ss(isTV ? 8 : 3)}
                 >
                   <Text
-                    color="#7A86A8"
+                    color={colors.muted}
                     fontSize={metaSize}
                     fontWeight={isTV ? "600" : "400"}
                   >
@@ -198,13 +198,13 @@ export default function MovieDetail({ item, onBack, onPlay }) {
               {data.genre ? (
                 <YStack
                   borderWidth={isTV ? 2 : 1}
-                  borderColor="#28324E"
+                  borderColor={colors.border}
                   borderRadius={ss(isTV ? 8 : 4)}
                   paddingHorizontal={ss(isTV ? 14 : 8)}
                   paddingVertical={ss(isTV ? 8 : 3)}
                 >
                   <Text
-                    color="#7A86A8"
+                    color={colors.muted}
                     fontSize={metaSize}
                     fontWeight={isTV ? "600" : "400"}
                   >
@@ -214,7 +214,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
               ) : null}
               {data.rating ? (
                 <Text
-                  color="#ffd700"
+                  color={colors.rating}
                   fontSize={ratingSize}
                   fontWeight={isTV ? "700" : "600"}
                 >
@@ -224,13 +224,13 @@ export default function MovieDetail({ item, onBack, onPlay }) {
               {data.age ? (
                 <YStack
                   borderWidth={isTV ? 2 : 1}
-                  borderColor="#6C5CE7"
+                  borderColor={colors.accent}
                   borderRadius={ss(isTV ? 8 : 4)}
                   paddingHorizontal={ss(isTV ? 14 : 8)}
                   paddingVertical={ss(isTV ? 8 : 3)}
                 >
                   <Text
-                    color="#6C5CE7"
+                    color={colors.accent}
                     fontSize={metaSize}
                     fontWeight={isTV ? "700" : "400"}
                   >
@@ -265,14 +265,14 @@ export default function MovieDetail({ item, onBack, onPlay }) {
                   paddingVertical={buttonPadV}
                   borderRadius={ss(isTV ? 12 : 8)}
                   borderWidth={isTV ? 2 : 1}
-                  borderColor="#28324E"
+                  borderColor={colors.border}
                   cursor="pointer"
                   onPress={() => handlePlay(0)}
                   pressStyle={{ opacity: 0.8 }}
                   hoverStyle={{ borderColor: "#fff" }}
                   animation="quick"
                 >
-                  <Text color="#fff" fontSize={buttonTextSize} fontWeight="600">
+                  <Text color={colors.text} fontSize={buttonTextSize} fontWeight="600">
                     ↺ From Start
                   </Text>
                 </YStack>
@@ -301,14 +301,14 @@ export default function MovieDetail({ item, onBack, onPlay }) {
                 paddingVertical={buttonPadV}
                 borderRadius={ss(isTV ? 12 : 8)}
                 borderWidth={isTV ? 2 : 1}
-                borderColor="#28324E"
+                borderColor={colors.border}
                 cursor="pointer"
                 onPress={() => setShowTrailer((v) => !v)}
                 pressStyle={{ opacity: 0.8 }}
                 hoverStyle={{ borderColor: "#fff" }}
                 animation="quick"
               >
-                <Text color="#fff" fontSize={buttonTextSize} fontWeight="600">
+                <Text color={colors.text} fontSize={buttonTextSize} fontWeight="600">
                   {showTrailer ? "✕  Close Trailer" : "🎬  Watch Trailer"}
                 </Text>
               </YStack>
@@ -321,14 +321,14 @@ export default function MovieDetail({ item, onBack, onPlay }) {
               paddingVertical={buttonPadV}
               borderRadius={ss(isTV ? 12 : 8)}
               borderWidth={isTV ? 2 : 1}
-              borderColor={inFav ? "#6C5CE7" : "#28324E"}
+              borderColor={inFav ? colors.accent : colors.border}
               cursor="pointer"
               onPress={toggleFav}
               pressStyle={{ opacity: 0.8 }}
-              hoverStyle={{ borderColor: "#6C5CE7" }}
+              hoverStyle={{ borderColor: colors.accent }}
               animation="quick"
             >
-              <Text color="#fff" fontSize={buttonTextSize} fontWeight="600">
+              <Text color={colors.text} fontSize={buttonTextSize} fontWeight="600">
                 {inFav ? "♥  Saved" : "♡  Add to Favorites"}
               </Text>
             </YStack>
@@ -379,10 +379,10 @@ export default function MovieDetail({ item, onBack, onPlay }) {
               padding={ss(isTV ? 24 : 0)}
               borderRadius={ss(isTV ? 12 : 0)}
               borderLeftWidth={isTV ? 4 : 0}
-              borderLeftColor={isTV ? "#6C5CE7" : "transparent"}
+              borderLeftColor={isTV ? colors.accent : "transparent"}
             >
               <Text
-                color={isTV ? "#e0e0e0" : "#7A86A8"}
+                color={isTV ? "#e0e0e0" : colors.muted}
                 fontSize={descSize}
                 lineHeight={descLineHeight}
                 marginBottom={ss(isTV ? 20 : 12)}
@@ -394,16 +394,16 @@ export default function MovieDetail({ item, onBack, onPlay }) {
             </YStack>
           )}
           {data.cast && (
-            <Text color="#7A86A8" fontSize={castSize} lineHeight={castLineHeight} maxWidth="70ch">
-              <Text color="#fff" fontWeight="700" fontSize={ss(isTV ? 22 : 14)}>
+            <Text color={colors.muted} fontSize={castSize} lineHeight={castLineHeight} maxWidth="70ch">
+              <Text color={colors.text} fontWeight="700" fontSize={ss(isTV ? 22 : 14)}>
                 Cast:{" "}
               </Text>
               {data.cast}
             </Text>
           )}
           {data.director && (
-            <Text color="#7A86A8" fontSize={castSize} lineHeight={castLineHeight} maxWidth="70ch">
-              <Text color="#fff" fontWeight="700" fontSize={ss(isTV ? 22 : 14)}>
+            <Text color={colors.muted} fontSize={castSize} lineHeight={castLineHeight} maxWidth="70ch">
+              <Text color={colors.text} fontWeight="700" fontSize={ss(isTV ? 22 : 14)}>
                 Director:{" "}
               </Text>
               {data.director}

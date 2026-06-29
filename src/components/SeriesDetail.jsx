@@ -1,7 +1,8 @@
 import { useState, useEffect, memo } from "react";
 import { Image, Linking, View, SectionList, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { YStack, XStack, Text, ScrollView, Spinner } from "tamagui";
+import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
+import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 
@@ -104,12 +105,12 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
       .map((num) => ({ title: `Season ${num}`, seasonNum: num, data: episodes[num] || [] }));
 
     return (
-      <YStack flex={1} backgroundColor="#0A0E1A">
-        <XStack alignItems="center" gap={14} paddingHorizontal={16} paddingTop={insets.top + 16} paddingBottom={14} borderBottomWidth={1} borderBottomColor="#28324E">
-          <YStack paddingVertical={8} paddingHorizontal={12} backgroundColor="#1B2236" borderRadius={8} cursor="pointer" onPress={() => setShowEpisodes(false)} pressStyle={{ opacity: 0.8 }}>
-            <Text color="#6C5CE7" fontSize={14} fontWeight="600">← Back</Text>
+      <YStack flex={1} backgroundColor={colors.bg}>
+        <XStack alignItems="center" gap={14} paddingHorizontal={16} paddingTop={insets.top + 16} paddingBottom={14} borderBottomWidth={1} borderBottomColor={colors.border}>
+          <YStack paddingVertical={8} paddingHorizontal={12} backgroundColor={colors.surface2} borderRadius={8} cursor="pointer" onPress={() => setShowEpisodes(false)} pressStyle={{ opacity: 0.8 }}>
+            <Text color={colors.accent} fontSize={14} fontWeight="600">← Back</Text>
           </YStack>
-          <Text color="#fff" fontSize={18} fontWeight="700" flex={1} numberOfLines={1}>{seriesName}</Text>
+          <Text color={colors.text} fontSize={18} fontWeight="700" flex={1} numberOfLines={1}>{seriesName}</Text>
         </XStack>
         <SectionList
           sections={sections}
@@ -117,20 +118,20 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
           contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 80 }}
           showsVerticalScrollIndicator={false}
           renderSectionHeader={({ section: { title } }) => (
-            <YStack backgroundColor="#141A2E" paddingHorizontal={14} paddingVertical={10} marginBottom={6} marginTop={12} borderRadius={8}>
-              <Text color="#6C5CE7" fontSize={15} fontWeight="700">{title}</Text>
+            <YStack backgroundColor={colors.surface} paddingHorizontal={14} paddingVertical={10} marginBottom={6} marginTop={12} borderRadius={8}>
+              <Text color={colors.accent} fontSize={15} fontWeight="700">{title}</Text>
             </YStack>
           )}
           renderItem={({ item: ep, section }) => (
-            <XStack alignItems="center" backgroundColor="#1B2236" borderRadius={10} padding={12} marginBottom={6} borderWidth={1} borderColor="#28324E" cursor="pointer" onPress={() => handleEpisodePress(ep, section.seasonNum)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: "#6C5CE7" }} animation="quick">
-              <YStack backgroundColor="#6C5CE7" borderRadius={6} paddingHorizontal={8} paddingVertical={4} marginRight={12}>
-                <Text color="#fff" fontSize={12} fontWeight="700">E{getEpisodeNumber(ep)}</Text>
+            <XStack alignItems="center" backgroundColor={colors.surface2} borderRadius={10} padding={12} marginBottom={6} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => handleEpisodePress(ep, section.seasonNum)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.accent }} animation="quick">
+              <YStack backgroundColor={colors.accent} borderRadius={6} paddingHorizontal={8} paddingVertical={4} marginRight={12}>
+                <Text color={colors.text} fontSize={12} fontWeight="700">E{getEpisodeNumber(ep)}</Text>
               </YStack>
               <YStack flex={1}>
-                <Text color="#fff" fontSize={14} numberOfLines={1}>{ep.title || "Untitled"}</Text>
-                {!!ep.info?.duration && <Text color="#7A86A8" fontSize={12} marginTop={2}>{ep.info.duration}</Text>}
+                <Text color={colors.text} fontSize={14} numberOfLines={1}>{ep.title || "Untitled"}</Text>
+                {!!ep.info?.duration && <Text color={colors.muted} fontSize={12} marginTop={2}>{ep.info.duration}</Text>}
               </YStack>
-              <Text color="#6C5CE7" fontSize={16}>▶</Text>
+              <Text color={colors.accent} fontSize={16}>▶</Text>
             </XStack>
           )}
         />
@@ -140,27 +141,27 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
 
   // ── Hero / detail view ────────────────────────────────────────────────────
   return (
-    <ScrollView flex={1} backgroundColor="#0A0E1A" contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
+    <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
       <YStack width="100%" height={420} position="relative">
         {backdrop
           ? <Image source={{ uri: backdrop }} style={FILL} resizeMode="cover" />
-          : <View style={[FILL, { backgroundColor: "#141A2E" }]} />}
+          : <View style={[FILL, { backgroundColor: colors.surface }]} />}
         <GradientOverlay />
 
         <YStack position="absolute" top={50} left={16} zIndex={10} paddingVertical={8} paddingHorizontal={14} backgroundColor="rgba(0,0,0,0.55)" borderRadius={8} cursor="pointer" onPress={onBack} pressStyle={{ opacity: 0.8 }}>
-          <Text color="#6C5CE7" fontSize={14} fontWeight="600">← Back</Text>
+          <Text color={colors.accent} fontSize={14} fontWeight="600">← Back</Text>
         </YStack>
 
         <YStack position="absolute" bottom={0} left={16} right={16} zIndex={5} paddingBottom={24}>
-          <Text color="#fff" fontSize={28} fontWeight="900" letterSpacing={-0.5} marginBottom={10}>{seriesName}</Text>
+          <Text color={colors.text} fontSize={28} fontWeight="900" letterSpacing={-0.5} marginBottom={10}>{seriesName}</Text>
 
           {isLoading ? (
-            <Spinner color="#6C5CE7" marginVertical={12} />
+            <Spinner color={colors.accent} marginVertical={12} />
           ) : (
             <XStack alignItems="center" gap={8} marginBottom={16} flexWrap="wrap">
-              {year ? <YStack borderWidth={1} borderColor="#28324E" borderRadius={4} paddingHorizontal={8} paddingVertical={3}><Text color="#7A86A8" fontSize={12}>{year}</Text></YStack> : null}
-              {data.genre ? <YStack borderWidth={1} borderColor="#28324E" borderRadius={4} paddingHorizontal={8} paddingVertical={3}><Text color="#7A86A8" fontSize={12}>{data.genre.split(",")[0].trim()}</Text></YStack> : null}
-              {data.rating ? <Text color="#ffd700" fontSize={13} fontWeight="600">⭐ {Number.parseFloat(data.rating).toFixed(1)}</Text> : null}
+              {year ? <YStack borderWidth={1} borderColor={colors.border} borderRadius={4} paddingHorizontal={8} paddingVertical={3}><Text color={colors.muted} fontSize={12}>{year}</Text></YStack> : null}
+              {data.genre ? <YStack borderWidth={1} borderColor={colors.border} borderRadius={4} paddingHorizontal={8} paddingVertical={3}><Text color={colors.muted} fontSize={12}>{data.genre.split(",")[0].trim()}</Text></YStack> : null}
+              {data.rating ? <Text color={colors.rating} fontSize={13} fontWeight="600">⭐ {Number.parseFloat(data.rating).toFixed(1)}</Text> : null}
             </XStack>
           )}
 
@@ -179,18 +180,18 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
               paddingVertical={12}
               borderRadius={8}
               borderWidth={historyEntry ? 1 : 0}
-              borderColor="#28324E"
+              borderColor={colors.border}
               cursor="pointer"
               onPress={() => setShowEpisodes(true)}
               pressStyle={{ opacity: 0.8 }}
-              hoverStyle={{ borderColor: "#fff" }}
+              hoverStyle={{ borderColor: colors.text }}
               animation="quick"
             >
-              <Text color={historyEntry ? "#fff" : "#000"} fontSize={15} fontWeight={historyEntry ? "600" : "700"}>☰  Browse Episodes</Text>
+              <Text color={historyEntry ? colors.text : "#000"} fontSize={15} fontWeight={historyEntry ? "600" : "700"}>☰  Browse Episodes</Text>
             </YStack>
             {!isLoading && !!trailer && (
-              <YStack backgroundColor="rgba(40,40,60,0.85)" paddingHorizontal={20} paddingVertical={12} borderRadius={8} borderWidth={1} borderColor="#28324E" cursor="pointer" onPress={() => Linking.openURL(trailer)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: "#fff" }} animation="quick">
-                <Text color="#fff" fontSize={15} fontWeight="600">🎬  Trailer</Text>
+              <YStack backgroundColor="rgba(40,40,60,0.85)" paddingHorizontal={20} paddingVertical={12} borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => Linking.openURL(trailer)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.text }} animation="quick">
+                <Text color={colors.text} fontSize={15} fontWeight="600">🎬  Trailer</Text>
               </YStack>
             )}
             <YStack
@@ -199,14 +200,14 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
               paddingVertical={12}
               borderRadius={8}
               borderWidth={1}
-              borderColor={inFav ? "#6C5CE7" : "#28324E"}
+              borderColor={inFav ? colors.accent : colors.border}
               cursor="pointer"
               onPress={toggleFav}
               pressStyle={{ opacity: 0.8 }}
-              hoverStyle={{ borderColor: "#6C5CE7" }}
+              hoverStyle={{ borderColor: colors.accent }}
               animation="quick"
             >
-              <Text color="#fff" fontSize={15} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
+              <Text color={colors.text} fontSize={15} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
             </YStack>
           </XStack>
         </YStack>
@@ -215,12 +216,12 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
       {(data.plot || data.description || data.overview || data.cast || data.director) ? (
         <YStack paddingHorizontal={16} paddingTop={20} gap={10}>
           {(data.plot || data.description || data.overview) ? (
-            <Text color="#7A86A8" fontSize={14} lineHeight={22} marginBottom={10}>
+            <Text color={colors.muted} fontSize={14} lineHeight={22} marginBottom={10}>
               {data.plot || data.description || data.overview}
             </Text>
           ) : null}
-          {data.cast ? <Text color="#7A86A8" fontSize={13} lineHeight={20}><Text color="#fff" fontWeight="700">Cast  </Text>{data.cast}</Text> : null}
-          {data.director ? <Text color="#7A86A8" fontSize={13} lineHeight={20}><Text color="#fff" fontWeight="700">Director  </Text>{data.director}</Text> : null}
+          {data.cast ? <Text color={colors.muted} fontSize={13} lineHeight={20}><Text color={colors.text} fontWeight="700">Cast  </Text>{data.cast}</Text> : null}
+          {data.director ? <Text color={colors.muted} fontSize={13} lineHeight={20}><Text color={colors.text} fontWeight="700">Director  </Text>{data.director}</Text> : null}
         </YStack>
       ) : null}
     </ScrollView>
