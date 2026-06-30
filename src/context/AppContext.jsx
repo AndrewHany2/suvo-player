@@ -444,11 +444,13 @@ export const AppProvider = ({ children }) => {
     if (!authUser) return;
     const meta = authUser.user_metadata;
     if (meta?.username) {
-      upsertProfile(authUser.id, meta.username, authUser.email)
-        .then(() => fetchProfile(authUser.id).then((p) => setProfile(p)).catch(() => {}))
-        .catch(() => fetchProfile(authUser.id).then((p) => setProfile(p)).catch(() => {}));
+      // Set the profile optimistically from the JWT metadata we already hold so
+      // first paint doesn't wait on two serial Supabase calls. Reconcile in the
+      // background: fire-and-forget upsert, then re-read for any server fields.
+      setProfile({ username: meta.username, email: authUser.email });
+      upsertProfile(authUser.id, meta.username, authUser.email).catch(() => {});
     } else {
-      fetchProfile(authUser.id).then((p) => setProfile(p)).catch(() => {});
+      fetchProfile(authUser.id).then((p) => { if (p) setProfile(p); }).catch(() => {});
     }
     fetchAppProfiles(authUser.id).then(setAppProfiles).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -456,43 +458,45 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     if (!activeProfileId) return;
+    let cancelled = false;
     (async () => {
-      let accounts = [];
-      if (isSupabaseConfigured()) accounts = await fetchIptvAccounts(activeProfileId);
-      if (accounts.length === 0) {
-        try {
-          const raw = await storage.getItem(`iptv_users_${activeProfileId}`);
-          if (raw) { const p = JSON.parse(raw); accounts = p.users || []; }
-        } catch { /**/ }
-      }
-      if (accounts.length === 0) { setUsers([]); setActiveUserId(null); return; }
-      setUsers(accounts);
-
-      let savedActiveId = null;
+      // Read the cached account blob ONCE up front (was read twice before).
+      let cached = null;
       try {
         const raw = await storage.getItem(`iptv_users_${activeProfileId}`);
-        if (raw) savedActiveId = JSON.parse(raw)?.activeUserId || null;
+        if (raw) cached = JSON.parse(raw);
       } catch { /**/ }
+      const savedActiveId = cached?.activeUserId || null;
 
-      const user = accounts.find((u) => u.id === savedActiveId) || accounts[0];
-      setActiveUserId(user.id);
-      iptvApi.setCredentials(user.host, user.username, user.password);
+      let applied = false;
+      const applyAccounts = (accounts) => {
+        if (cancelled || !accounts || accounts.length === 0) return;
+        setUsers(accounts);
+        const user = accounts.find((u) => u.id === savedActiveId) || accounts[0];
+        setActiveUserId(user.id);
+        iptvApi.setCredentials(user.host, user.username, user.password);
+        if (!applied) loadSavedChannels();
+        applied = true;
+      };
 
-      loadSavedChannels();
-      setIsLoading(true);
-      try {
-        const data = await iptvApi.getLiveStreams();
-        setChannels(data.map((ch) => ({
-          name: ch.name,
-          url: iptvApi.buildStreamUrl('live', ch.stream_id, ch.stream_type || 'ts'),
-          id: ch.stream_id, stream_id: ch.stream_id,
-        })));
-      } catch (e) { console.error('[AutoLoad] channels:', e); }
-      finally { setIsLoading(false); }
+      // Apply cached credentials immediately so the first screen can load
+      // without blocking on the Supabase round-trip.
+      applyAccounts(cached?.users || []);
 
-      iptvApi.getVODCategories().catch(() => {});
-      iptvApi.getSeriesCategories().catch(() => {});
+      // Reconcile with the server in the background — do NOT await before
+      // applying the cached account. Per-category fetches in the LiveTV/Movies/
+      // Series screens populate channels and warm category caches on tab mount,
+      // so we no longer eagerly pull the unfiltered all-channels endpoint here.
+      if (isSupabaseConfigured()) {
+        try {
+          const remote = await fetchIptvAccounts(activeProfileId);
+          if (!cancelled && remote.length > 0) applyAccounts(remote);
+        } catch { /**/ }
+      }
+
+      if (!cancelled && !applied) { setUsers([]); setActiveUserId(null); }
     })();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfileId]);
 
@@ -507,7 +511,15 @@ export const AppProvider = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeUserId]);
 
-  useEffect(() => { if (channels.length > 0) saveChannels(); }, [channels]);
+  // Persist the accumulated channel list, debounced: web/native LiveTV appends
+  // categories incrementally, so without debouncing every append would
+  // re-stringify the whole growing array on the JS thread.
+  useEffect(() => {
+    if (channels.length === 0) return;
+    const t = setTimeout(() => { saveChannels(); }, 1000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels]);
 
   // Library (watch history + favorites) load, keyed on userKey (NOT
   // activeProfileId) so the fetch target always matches the write target.
