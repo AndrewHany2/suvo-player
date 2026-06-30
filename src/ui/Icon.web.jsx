@@ -64,6 +64,20 @@ const PATHS = {
       <path d="M21 21l-4.3-4.3" />
     </>
   ),
+  // Eye (password reveal): almond outline + iris.
+  eye: (
+    <>
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  // Eye-off (password hide): eye with a diagonal slash.
+  "eye-off": (
+    <>
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <path d="M1 1l22 22" />
+    </>
+  ),
   // Settings gear: ring + eight teeth (approximated as spokes for a clean line look).
   settings: (
     <>

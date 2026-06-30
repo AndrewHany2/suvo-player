@@ -39,6 +39,8 @@ export default function MoviesScreenTV({ navigation, route }) {
   const [catFocus, setCatFocus] = useState(0);
   const [page, setPage] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [query, setQuery] = useState("");
+  const [catZone, setCatZone] = useState("grid");
 
   const catsRef = useRef([]);
   const catFocusRef = useRef(0);
@@ -46,6 +48,8 @@ export default function MoviesScreenTV({ navigation, route }) {
   const detailRef = useRef(null);
   const catElRef = useRef(null);
   const btnElRef = useRef(null);
+  const catZoneRef = useRef("grid");
+  const searchInputRef = useRef(null);
 
   const [filterZone, setFilterZone] = useState("grid");
   const filterZoneRef = useRef("grid");
@@ -54,17 +58,34 @@ export default function MoviesScreenTV({ navigation, route }) {
   const [filterLetter, setFilterLetter] = useState("all");
   const filterLetterRef = useRef("all");
 
+  // Grid-view text search (composes with the alpha filter below).
+  const [gridQuery, setGridQuery] = useState("");
+  const gridQueryRef = useRef("");
+  const gridSearchInputRef = useRef(null);
+
+  const q = query.trim().toLowerCase();
   const cats = categories.length
-    ? [{ id: "all", name: "All Movies" }, ...categories]
+    ? [
+        { id: "all", name: "All Movies" },
+        ...(q ? categories.filter((c) => c.name?.toLowerCase().includes(q)) : categories),
+      ]
     : categories;
   useEffect(() => { catsRef.current = cats; }, [cats]);
+  // Keep category focus in range whenever the filtered list shrinks.
+  useEffect(() => {
+    if (catFocusRef.current > cats.length - 1) { catFocusRef.current = 0; setCatFocus(0); }
+  }, [cats.length]);
   useEffect(() => { pageRef.current = page; }, [page]);
   useEffect(() => { detailRef.current = detail; }, [detail]);
 
   const getFilteredItems = (items) => {
+    if (!items) return [];
     const letter = filterLetterRef.current;
-    if (!items || letter === "all") return items || [];
-    return items.filter((m) => m.name?.toLowerCase().startsWith(letter));
+    const gridQ = gridQueryRef.current;
+    let out = items;
+    if (letter !== "all") out = out.filter((m) => m.name?.toLowerCase().startsWith(letter));
+    if (gridQ) out = out.filter((m) => m.name?.toLowerCase().includes(gridQ));
+    return out;
   };
 
   // Open detail directly when navigated from history.
@@ -102,6 +123,15 @@ export default function MoviesScreenTV({ navigation, route }) {
     filterLetterRef.current = "all"; setFilterLetter("all");
     filterZoneRef.current = "grid"; setFilterZone("grid");
     filterIdxRef.current = 0; setFilterIdx(0);
+    gridQueryRef.current = ""; setGridQuery("");
+  };
+
+  // Reset grid focus + scroll to top whenever the text query changes.
+  const onGridQueryChange = (val) => {
+    setGridQuery(val);
+    gridQueryRef.current = val.trim().toLowerCase();
+    const pg = pageRef.current;
+    if (pg) { const n = { ...pg, focus: 0 }; pageRef.current = n; setPage(n); }
   };
   const closePage = () => { setPage(null); pageRef.current = null; resetFilter(); };
 
@@ -134,12 +164,18 @@ export default function MoviesScreenTV({ navigation, route }) {
   };
 
   // ── Category keys ─────────────────────────────────────────────────────────
+  const setCatZoneBoth = (z) => { catZoneRef.current = z; setCatZone(z); };
   const movCatFocus = (n) => { catFocusRef.current = n; setCatFocus(n); };
   const onCatLeft = () => { const f = catFocusRef.current; if (f > 0) movCatFocus(f - 1); };
   const onCatRight = () => { const f = catFocusRef.current; if (f < catsRef.current.length - 1) movCatFocus(f + 1); };
-  const onCatUp = () => { const f = catFocusRef.current; if (f >= CAT_COLS) movCatFocus(f - CAT_COLS); else yieldFocusToNav(); };
+  const onCatUp = () => { const f = catFocusRef.current; if (f >= CAT_COLS) movCatFocus(f - CAT_COLS); else setCatZoneBoth("search"); };
   const onCatDown = () => { const f = catFocusRef.current; movCatFocus(Math.min(f + CAT_COLS, catsRef.current.length - 1)); };
   const onCatEnter = () => { const cat = catsRef.current[catFocusRef.current]; if (cat) openCat(cat); };
+
+  // ── Search-bar zone (above category grid) ─────────────────────────────────
+  const onSearchUp = () => yieldFocusToNav();
+  const onSearchDown = () => setCatZoneBoth("grid");
+  const onSearchEnter = () => searchInputRef.current?.focus();
 
   // ── Movie grid keys ───────────────────────────────────────────────────────
   // The grid is virtualized (VirtualGridTV), so focus may roam the whole
@@ -166,8 +202,14 @@ export default function MoviesScreenTV({ navigation, route }) {
 
   const onFilterLeft = () => { if (filterIdxRef.current > 0) { filterIdxRef.current -= 1; setFilterIdx(filterIdxRef.current); } };
   const onFilterRight = () => { if (filterIdxRef.current < ALPHA.length - 1) { filterIdxRef.current += 1; setFilterIdx(filterIdxRef.current); } };
-  const onFilterUp = () => { filterZoneRef.current = "grid"; setFilterZone("grid"); yieldFocusToNav(); };
+  const onFilterUp = () => { filterZoneRef.current = "search"; setFilterZone("search"); };
   const onFilterDown = () => { filterZoneRef.current = "grid"; setFilterZone("grid"); };
+
+  // Grid search-bar zone (above the alpha-filter letter bar).
+  const gridInputFocused = () => document.activeElement === gridSearchInputRef.current;
+  const onGridSearchUp = () => { filterZoneRef.current = "grid"; setFilterZone("grid"); yieldFocusToNav(); };
+  const onGridSearchDown = () => { filterZoneRef.current = "filter"; setFilterZone("filter"); };
+  const onGridSearchEnter = () => gridSearchInputRef.current?.focus();
   const onFilterEnter = () => {
     const letter = ALPHA[filterIdxRef.current] === "ALL" ? "all" : ALPHA[filterIdxRef.current].toLowerCase();
     filterLetterRef.current = letter; setFilterLetter(letter);
@@ -180,25 +222,35 @@ export default function MoviesScreenTV({ navigation, route }) {
     filterZoneRef.current = "grid"; setFilterZone("grid");
   };
 
+  // While a search input has focus, let typing/cursor keys work normally —
+  // the key handler yields (except Back/Escape, handled below).
+  const inputFocused = () =>
+    document.activeElement === searchInputRef.current ||
+    document.activeElement === gridSearchInputRef.current;
+
   // ── D-pad wiring (replaces inline keyCodes + keydown listener) ──────────────
   useEffect(() => {
     return register(
       {
         left: () => {
-          if (currentVideoRef.current) return;
+          if (currentVideoRef.current || inputFocused()) return;
           if (detailRef.current) closeDetail();
           else if (pageRef.current) onMovOrFilter("left");
           else onCatLeft();
         },
-        right: () => { if (!currentVideoRef.current) routeDir("right"); },
-        up: () => { if (!currentVideoRef.current) routeDir("up"); },
-        down: () => { if (!currentVideoRef.current) routeDir("down"); },
-        enter: () => { if (!currentVideoRef.current) routeDir("enter"); },
+        right: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("right"); },
+        up: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("up"); },
+        down: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("down"); },
+        enter: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("enter"); },
         back: () => {
+          // TEMP DIAGNOSTIC
+          console.log("[Movies.back]", "video=", !!currentVideoRef.current, "gridInput=", gridInputFocused(), "input=", inputFocused(), "detail=", !!detailRef.current, "page=", !!pageRef.current, "filterZone=", filterZoneRef.current);
           if (currentVideoRef.current) return;
+          if (gridInputFocused()) { gridSearchInputRef.current?.blur(); filterZoneRef.current = "search"; setFilterZone("search"); return; }
+          if (inputFocused()) { searchInputRef.current?.blur(); setCatZoneBoth("search"); return; }
           if (detailRef.current) closeDetail();
           else if (pageRef.current) {
-            if (filterZoneRef.current === "filter") { filterZoneRef.current = "grid"; setFilterZone("grid"); }
+            if (filterZoneRef.current === "filter" || filterZoneRef.current === "search") { filterZoneRef.current = "grid"; setFilterZone("grid"); }
             else closePage();
           } else navigation.goBack?.();
         },
@@ -213,7 +265,13 @@ export default function MoviesScreenTV({ navigation, route }) {
   const routeDir = (dir) => {
     if (detailRef.current) return handleDetailDir(dir);
     if (pageRef.current) return onMovOrFilter(dir);
-    // category grid
+    // category grid — search zone above the grid
+    if (catZoneRef.current === "search") {
+      if (dir === "up") return onSearchUp();
+      if (dir === "down") return onSearchDown();
+      if (dir === "enter") return onSearchEnter();
+      return;
+    }
     if (dir === "right") return onCatRight();
     if (dir === "up") return onCatUp();
     if (dir === "down") return onCatDown();
@@ -221,6 +279,12 @@ export default function MoviesScreenTV({ navigation, route }) {
   };
 
   const onMovOrFilter = (dir) => {
+    if (filterZoneRef.current === "search") {
+      if (dir === "up") return onGridSearchUp();
+      if (dir === "down") return onGridSearchDown();
+      if (dir === "enter") return onGridSearchEnter();
+      return;
+    }
     if (filterZoneRef.current === "filter") {
       if (dir === "left") return onFilterLeft();
       if (dir === "right") return onFilterRight();
@@ -390,6 +454,19 @@ export default function MoviesScreenTV({ navigation, route }) {
           <button className="tvl-topbar-title tvl-topbar-title--back" onClick={closePage}>{page.name}</button>
           {filteredItems && <span className="tvl-topbar-count">{filteredItems.length.toLocaleString()}</span>}
         </div>
+        <div className={filterZone === "search" ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>
+          <span className="tvl-cat-search-icon"><Icon name="search" size={iconSizes.md} color="currentColor" /></span>
+          <input
+            ref={gridSearchInputRef}
+            className="tvl-cat-search-input"
+            type="text"
+            dir="auto"
+            autoComplete="off"
+            placeholder="Search movies…"
+            value={gridQuery}
+            onChange={(e) => onGridQueryChange(e.target.value)}
+          />
+        </div>
         <div className="tvl-letter-bar">
           {ALPHA.map((letter, i) => {
             const val = letter === "ALL" ? "all" : letter.toLowerCase();
@@ -405,7 +482,7 @@ export default function MoviesScreenTV({ navigation, route }) {
           })}
         </div>
         {!filteredItems && <div className="tvl-center"><div className="tvl-spinner" /><p>Loading movies…</p></div>}
-        {filteredItems?.length === 0 && <div className="tvl-center"><p className="tvl-empty-msg">No titles starting with "{filterLetter.toUpperCase()}"</p></div>}
+        {filteredItems?.length === 0 && <div className="tvl-center"><p className="tvl-empty-msg">{gridQuery.trim() ? "No results" : `No titles starting with "${filterLetter.toUpperCase()}"`}</p></div>}
         {filteredItems && filteredItems.length > 0 && (
           <div className="tvl-mov-grid-window">
             <VirtualGridTV
@@ -430,18 +507,34 @@ export default function MoviesScreenTV({ navigation, route }) {
     <div className="tvl-screen">
       <div className="tvl-topbar"><span className="tvl-topbar-title">Movies</span></div>
       <div className="tvl-scroll">
+        <div className={catZone === "search" ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>
+          <span className="tvl-cat-search-icon"><Icon name="search" size={iconSizes.md} color="currentColor" /></span>
+          <input
+            ref={searchInputRef}
+            className="tvl-cat-search-input"
+            type="text"
+            dir="auto"
+            autoComplete="off"
+            placeholder="Search categories…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         <div className="tvl-cat-grid">
           {cats.map((cat, i) => (
             <button
               key={cat.id}
               ref={i === catFocus ? catElRef : null}
-              className={i === catFocus ? "tvl-cat-card tvl-cat-card--on" : "tvl-cat-card"}
+              className={catZone === "grid" && i === catFocus ? "tvl-cat-card tvl-cat-card--on" : "tvl-cat-card"}
               onClick={() => openCat(cat)}
             >
               {cat.name}
             </button>
           ))}
         </div>
+        {q && cats.length <= 1 && (
+          <div className="tvl-center"><p className="tvl-empty-msg">No categories match</p></div>
+        )}
       </div>
     </div>
   );

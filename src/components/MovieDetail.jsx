@@ -89,7 +89,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
         </YStack>
 
         <YStack position="absolute" bottom={0} left={16} right={16} zIndex={5} paddingBottom={24}>
-          <Text color={colors.text} fontSize={28} fontWeight="900" letterSpacing={-0.5} marginBottom={10}>{name}</Text>
+          <Text color={colors.text} fontSize={26} fontWeight="900" lineHeight={32} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{name}</Text>
 
           {isLoading ? (
             <Spinner color={colors.accent} marginVertical={12} />
@@ -102,45 +102,49 @@ export default function MovieDetail({ item, onBack, onPlay }) {
             </XStack>
           )}
 
-          <XStack alignItems="center" gap={10} flexWrap="wrap">
+          <YStack gap={8}>
             {resumeTime > 0 ? (
-              <>
-                <YStack backgroundColor="#fff" paddingHorizontal={24} paddingVertical={12} borderRadius={8} cursor="pointer" onPress={() => handlePlay(resumeTime)} pressStyle={{ opacity: 0.85 }} hoverStyle={{ opacity: 0.9 }} animation="quick">
-                  <Text color="#000" fontSize={15} fontWeight="700">▶  Continue</Text>
+              <XStack gap={8}>
+                <YStack flex={1} backgroundColor="#fff" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} cursor="pointer" onPress={() => handlePlay(resumeTime)} pressStyle={{ opacity: 0.85 }} hoverStyle={{ opacity: 0.9 }} animation="quick">
+                  <Text color="#000" fontSize={13} fontWeight="700">▶  Continue</Text>
                 </YStack>
-                <YStack backgroundColor="rgba(40,40,60,0.85)" paddingHorizontal={20} paddingVertical={12} borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => handlePlay(0)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: "#fff" }} animation="quick">
-                  <Text color={colors.text} fontSize={15} fontWeight="600">↺  From Start</Text>
+                <YStack flex={1} backgroundColor="rgba(40,40,60,0.85)" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => handlePlay(0)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: "#fff" }} animation="quick">
+                  <Text color={colors.text} fontSize={13} fontWeight="600">↺  From Start</Text>
                 </YStack>
-              </>
+              </XStack>
             ) : (
-              <YStack backgroundColor="#fff" paddingHorizontal={24} paddingVertical={12} borderRadius={8} cursor="pointer" onPress={() => handlePlay(0)} pressStyle={{ opacity: 0.85 }} hoverStyle={{ opacity: 0.9 }} animation="quick">
-                <Text color="#000" fontSize={15} fontWeight="700">▶  Play Now</Text>
+              <YStack backgroundColor="#fff" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} cursor="pointer" onPress={() => handlePlay(0)} pressStyle={{ opacity: 0.85 }} hoverStyle={{ opacity: 0.9 }} animation="quick">
+                <Text color="#000" fontSize={13} fontWeight="700">▶  Play Now</Text>
               </YStack>
             )}
-            {!isLoading && !!trailer && (
-              <YStack backgroundColor="rgba(40,40,60,0.85)" paddingHorizontal={20} paddingVertical={12} borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => Linking.openURL(trailer)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: "#fff" }} animation="quick">
-                <XStack alignItems="center" gap={6}>
-                  <Icon name="film" color={colors.muted} size={15} />
-                  <Text color={colors.text} fontSize={15} fontWeight="600">Trailer</Text>
-                </XStack>
+            <XStack gap={8}>
+              {!isLoading && !!trailer && (
+                <YStack flex={1} backgroundColor="rgba(40,40,60,0.85)" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => Linking.openURL(trailer)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: "#fff" }} animation="quick">
+                  <XStack alignItems="center" gap={6}>
+                    <Icon name="film" color={colors.muted} size={15} />
+                    <Text color={colors.text} fontSize={13} fontWeight="600">Trailer</Text>
+                  </XStack>
+                </YStack>
+              )}
+              <YStack
+                flex={1}
+                backgroundColor={inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"}
+                minHeight={36}
+                alignItems="center"
+                justifyContent="center"
+                borderRadius={8}
+                borderWidth={1}
+                borderColor={inFav ? colors.accent : colors.border}
+                cursor="pointer"
+                onPress={toggleFav}
+                pressStyle={{ opacity: 0.8 }}
+                hoverStyle={{ borderColor: colors.accent }}
+                animation="quick"
+              >
+                <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
               </YStack>
-            )}
-            <YStack
-              backgroundColor={inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"}
-              paddingHorizontal={20}
-              paddingVertical={12}
-              borderRadius={8}
-              borderWidth={1}
-              borderColor={inFav ? colors.accent : colors.border}
-              cursor="pointer"
-              onPress={toggleFav}
-              pressStyle={{ opacity: 0.8 }}
-              hoverStyle={{ borderColor: colors.accent }}
-              animation="quick"
-            >
-              <Text color={colors.text} fontSize={15} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
-            </YStack>
-          </XStack>
+            </XStack>
+          </YStack>
         </YStack>
       </YStack>
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { YStack, XStack, Text } from "../ui/primitives";
 import Icon from "../ui/Icon";
-import { colors } from "../ui/tokens";
+import { colors, accentAlpha } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { isSupabaseConfigured } from "../services/supabase";
 import { ss } from "../utils/scaleSize";
@@ -21,6 +21,7 @@ import AccountsScreenTV from "../screens/AccountsScreen.tv";
 import VideoPlayerScreen from "../screens/VideoPlayerScreen";
 import SettingsScreen from "../screens/SettingsScreen.web";
 import { usePlatform } from "../platform/PlatformProvider";
+import { go as historyGo, back as historyBack } from "./tabHistory";
 
 // Use TV-optimized screens on TV platforms (resolved at module load from build flag)
 const _isTV = !!globalThis.__TV__;
@@ -58,13 +59,17 @@ if (typeof document !== "undefined") {
     }
     .lumen-topnav { position: sticky !important; top: 0 !important; z-index: 30 !important; }
     .lumen-poster {
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-      cursor: pointer !important; overflow: hidden !important;
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+      cursor: pointer !important;
     }
-    /* No OUTER hover ring on poster cards — the hover border + glow live on the
-       inner .lumen-poster-box (injected in PosterCard.web). The old outer outline
-       wrapped the whole card incl. the title and got cropped by the rail overflow. */
-    body:not(.keyboard-nav) .lumen-poster:hover { transform: scale(1.05); z-index: 2; box-shadow: 0 0 0 1.5px #6C5CE7, 0 ${ss(8)}px ${ss(28)}px rgba(0,0,0,0.6); }
+    /* Unified Aurora hover language (matches PosterCard.web): cyan ring + soft
+       glow on the inner .lumen-poster-box ONLY (the image, never the title), no
+       scale. The outer card must NOT clip overflow or the glow gets cropped. */
+    body:not(.keyboard-nav) .lumen-poster:hover .lumen-poster-box,
+    body:not(.keyboard-nav) .lumen-cw-card:hover .lumen-poster-box {
+      box-shadow: 0 0 0 2px #22D3EE, 0 0 24px 2px rgba(34,211,238,0.55);
+      border-color: #22D3EE; z-index: 2;
+    }
     .lumen-live-card { transition: border-color 0.15s ease, background-color 0.15s ease; cursor: pointer !important; }
     body:not(.keyboard-nav) .lumen-live-card:hover { border-color: #6C5CE7 !important; background-color: #1B2236 !important; }
     body:not(.keyboard-nav) .lumen-icon-btn:hover { background: rgba(255,255,255,0.10) !important; }
@@ -88,10 +93,9 @@ if (typeof document !== "undefined") {
       background: #6C5CE7; animation: lumen-blink 1.6s ease-in-out infinite; flex-shrink: 0;
     }
     .lumen-cw-card {
-      border-radius: ${ss(8)}px; transition: transform 0.2s ease, box-shadow 0.2s ease;
-      cursor: pointer !important; overflow: hidden !important; position: relative !important;
+      border-radius: ${ss(8)}px; transition: box-shadow 0.2s ease, border-color 0.2s ease;
+      cursor: pointer !important; position: relative !important;
     }
-    body:not(.keyboard-nav) .lumen-cw-card:hover { transform: scale(1.04); z-index: 2; box-shadow: 0 0 0 1.5px #6C5CE7, 0 ${ss(8)}px ${ss(24)}px rgba(0,0,0,0.5); }
     .lumen-cw-play {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.15s ease;
@@ -106,8 +110,7 @@ if (typeof document !== "undefined") {
       globalThis.__TV__
         ? `
       *, *::before, *::after { transition: none !important; animation: none !important; will-change: auto !important; }
-      .lumen-poster:hover { transform: none !important; box-shadow: none !important; }
-      .lumen-cw-card:hover { transform: none !important; box-shadow: none !important; }
+      .lumen-poster:hover .lumen-poster-box, .lumen-cw-card:hover .lumen-poster-box { box-shadow: none !important; border-color: #28324E !important; }
       .lumen-live-card:hover { border-color: #28324E !important; background-color: #1B2236 !important; }
       .lumen-load-cta:hover { transform: none !important; }
       .lumen-shelf-rail { contain: layout style; }
@@ -289,7 +292,8 @@ function TopNav({
           cursor="pointer"
           onPress={onAccounts}
           pressStyle={{ opacity: 0.7 }}
-          borderWidth={accountsFocused ? 2 : 0}
+          backgroundColor={accountsFocused ? accentAlpha(0.18) : "transparent"}
+          borderWidth={2}
           borderColor={accountsFocused ? colors.accent2 : "transparent"}
           {...{ className: "lumen-icon-btn" }}
         >
@@ -304,7 +308,8 @@ function TopNav({
           cursor="pointer"
           onPress={onSettings}
           pressStyle={{ opacity: 0.7 }}
-          borderWidth={settingsFocused ? 2 : 0}
+          backgroundColor={settingsFocused ? accentAlpha(0.18) : "transparent"}
+          borderWidth={2}
           borderColor={settingsFocused ? colors.accent2 : "transparent"}
           {...{ className: "lumen-icon-btn" }}
         >
@@ -314,8 +319,8 @@ function TopNav({
           width={S.avatar}
           height={S.avatar}
           borderRadius={S.avatarR}
-          backgroundColor={colors.surface2}
-          borderWidth={2}
+          backgroundColor={profileFocused ? colors.accent : colors.surface2}
+          borderWidth={profileFocused ? 3 : 2}
           borderColor={profileFocused ? colors.accent2 : colors.border}
           justifyContent="center"
           alignItems="center"
@@ -348,6 +353,16 @@ export default function AppNavigator() {
   const [navFocused, setNavFocused] = useState(false);
   const [focusedNavIdx, setFocusedNavIdx] = useState(0);
   const navIdxRef = useRef(0);
+  // Tab navigation history so the remote Back key can go "history -1" (return
+  // to the previously-viewed tab) once the active screen is at its root.
+  const tabHistoryRef = useRef([]);
+  const goToTab = (tab) => {
+    setActiveTab((prev) => {
+      const next = historyGo({ activeTab: prev, stack: tabHistoryRef.current }, tab);
+      tabHistoryRef.current = next.stack;
+      return next.activeTab;
+    });
+  };
   // Suppress hover effects while the user is navigating with the keyboard.
   // Any keydown adds .keyboard-nav to <body>; mousemove removes it.
   useEffect(() => {
@@ -364,13 +379,27 @@ export default function AppNavigator() {
   // Capture-phase handler: preventDefault on LG back key so webOS doesn't
   // exit the app or navigate browser history. Bubble-phase handlers in each
   // screen and in the nav/accounts effects below handle the actual action.
+  //
+  // preventDefault alone isn't enough on-device: webOS closes the app when the
+  // browser history underflows on Back. So we also keep a sentinel history
+  // entry and re-push it on every popstate — Back can never empty the history
+  // stack, which is what triggers the platform exit. Our in-app handlers still
+  // own the actual navigation (the keydown is consumed before any popstate).
   useEffect(() => {
     if (!isTV) return;
     const onBack = (e) => {
-      if (e.keyCode === 461 || e.keyCode === 10009) e.preventDefault();
+      if (e.keyCode === 461 || e.keyCode === 10009 || e.keyCode === 91) e.preventDefault();
+    };
+    const onPop = () => {
+      window.history.pushState(null, "", window.location.href);
     };
     document.addEventListener("keydown", onBack, true);
-    return () => document.removeEventListener("keydown", onBack, true);
+    window.history.pushState(null, "", window.location.href);
+    window.addEventListener("popstate", onPop);
+    return () => {
+      document.removeEventListener("keydown", onBack, true);
+      window.removeEventListener("popstate", onPop);
+    };
   }, []);
 
   // Content signals "go to nav" by dispatching this custom event
@@ -413,7 +442,7 @@ export default function AppNavigator() {
       } else if (e.key === "Enter" || e.keyCode === 13) {
         const idx = navIdxRef.current;
         if (idx < NAV_ITEMS.length) {
-          setActiveTab(NAV_ITEMS[idx].id);
+          goToTab(NAV_ITEMS[idx].id);
         } else if (idx === IDX_ACCOUNTS) {
           setShowAccounts(true);
         } else if (idx === IDX_SETTINGS) {
@@ -428,7 +457,8 @@ export default function AppNavigator() {
         e.key === "Escape" ||
         e.keyCode === 27 ||
         e.keyCode === 461 ||
-        e.keyCode === 10009
+        e.keyCode === 10009 ||
+        e.keyCode === 91
       ) {
         e.preventDefault();
         blurNav();
@@ -441,7 +471,7 @@ export default function AppNavigator() {
   useEffect(() => {
     if (!showAccounts) return;
     const handler = (e) => {
-      if (e.key === "Escape" || e.keyCode === 461 || e.keyCode === 10009) {
+      if (e.key === "Escape" || e.keyCode === 461 || e.keyCode === 10009 || e.keyCode === 91) {
         e.preventDefault();
         setShowAccounts(false);
       }
@@ -453,7 +483,7 @@ export default function AppNavigator() {
   useEffect(() => {
     if (!showSettings) return;
     const handler = (e) => {
-      if (e.key === "Escape" || e.keyCode === 461 || e.keyCode === 10009) {
+      if (e.key === "Escape" || e.keyCode === 461 || e.keyCode === 10009 || e.keyCode === 91) {
         e.preventDefault();
         setShowSettings(false);
       }
@@ -472,21 +502,35 @@ export default function AppNavigator() {
         return;
       }
       if (screen === "Movies" || screen === "movies") {
-        setActiveTab("movies");
+        goToTab("movies");
         if (params) setRouteParams({ movies: params });
         return;
       }
       if (screen === "Series" || screen === "series") {
-        setActiveTab("series");
+        goToTab("series");
         if (params) setRouteParams({ series: params });
         return;
       }
       if (CONTENT_MAP[screen]) {
-        setActiveTab(screen);
+        goToTab(screen);
         if (params) setRouteParams({ [screen]: params });
       }
     },
-    goBack: () => setShowAccounts(false),
+    goBack: () => {
+      // TEMP DIAGNOSTIC
+      console.log("[goBack]", "stack=", JSON.stringify(tabHistoryRef.current), "showAccounts=", showAccounts, "showSettings=", showSettings);
+      // Modals first (their own key handlers also close them, but content
+      // screens funnel here too).
+      if (showSettings) { setShowSettings(false); return; }
+      if (showAccounts) { setShowAccounts(false); return; }
+      // History -1: return to the previously-viewed tab.
+      if (tabHistoryRef.current.length) {
+        const next = historyBack({ activeTab, stack: tabHistoryRef.current });
+        tabHistoryRef.current = next.stack;
+        setActiveTab(next.activeTab);
+        setNavFocused(false);
+      }
+    },
     getParent: () => webNavigation,
     setParams: (params) => {
       setRouteParams((prev) => ({
@@ -508,7 +552,7 @@ export default function AppNavigator() {
         active={activeTab}
         onSelect={(tab) => {
           if (tab !== activeTab) setSearchQuery("");
-          setActiveTab(tab);
+          goToTab(tab);
           setNavFocused(false);
         }}
         activeProfile={activeProfile}

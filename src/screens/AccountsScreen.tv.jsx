@@ -13,7 +13,7 @@ const KEY_DOWN  = 40;
 const KEY_LEFT  = 37;
 const KEY_RIGHT = 39;
 const KEY_ENTER = 13;
-const KEY_BACK  = new Set([27, 461, 10009, 8]);
+const KEY_BACK  = new Set([27, 461, 10009, 8, 91]);
 
 const FORM_INPUTS = 4; // first 4 fieldFocus indices are text inputs
 const FORM_TOTAL  = 6; // + cancel(4) + save(5)
@@ -30,6 +30,7 @@ export default function AccountsScreenTV({ navigation }) {
   const [editId,       setEditId]       = useState(null);
   const [delId,        setDelId]        = useState(null);
   const [form,         setForm]         = useState({ nickname: "", host: "", username: "", password: "" });
+  const [showPwd,      setShowPwd]      = useState(false);
 
   const focusRef      = useRef(0);
   const fieldFocRef   = useRef(0);
@@ -158,11 +159,13 @@ export default function AccountsScreenTV({ navigation }) {
 
   const openAddForm = () => {
     setForm({ nickname: "", host: "", username: "", password: "" });
+    setShowPwd(false);
     setEditId(null); setError(""); setView("form");
   };
 
   const openEditForm = (user) => {
     setForm({ nickname: user.nickname || "", host: user.host, username: user.username, password: user.password });
+    setShowPwd(false);
     setEditId(user.id); setError(""); setView("form");
   };
 
@@ -258,17 +261,30 @@ export default function AccountsScreenTV({ navigation }) {
               onClick={() => { fieldFocRef.current = i; setFieldFocus(i); f.ref.current?.focus(); }}
             >
               <label>{f.label}</label>
-              <input
-                ref={f.ref}
-                type={f.type}
-                placeholder={f.placeholder}
-                value={form[f.key]}
-                onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                onBlur={() => { fieldFocRef.current = i; setFieldFocus(i); }}
-                disabled={loading}
-                autoCapitalize={f.autoCapitalize}
-                autoCorrect={f.autoCorrect}
-              />
+              <div style={{ position: "relative" }}>
+                <input
+                  ref={f.ref}
+                  type={f.type === "password" && showPwd ? "text" : f.type}
+                  placeholder={f.placeholder}
+                  value={form[f.key]}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  onBlur={() => { fieldFocRef.current = i; setFieldFocus(i); }}
+                  disabled={loading}
+                  autoCapitalize={f.autoCapitalize}
+                  autoCorrect={f.autoCorrect}
+                  style={f.type === "password" ? { paddingRight: 48 } : undefined}
+                />
+                {f.type === "password" && (
+                  <button
+                    type="button"
+                    className="tvl-pwd-eye"
+                    aria-label={showPwd ? "Hide password" : "Show password"}
+                    onClick={(e) => { e.stopPropagation(); setShowPwd((s) => !s); }}
+                  >
+                    <Icon name={showPwd ? "eye-off" : "eye"} size={iconSizes.md} color={colors.muted} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
 

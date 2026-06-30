@@ -155,6 +155,11 @@ export function useResilientPlayback({
             }
           }
           break;
+        case 'CANCEL_RETRY':
+          // The stream recovered on its own — drop the pending retry timer so it
+          // can't fire a stale RELOAD and bounce us into a reload loop.
+          clearRetryTimer();
+          break;
         case 'SHOW_RECONNECTING':
         case 'HIDE_RECONNECTING':
           // Reflected by machine state (recovering); no imperative work needed.
@@ -182,7 +187,12 @@ export function useResilientPlayback({
   // future fatal re-notifies.
   useEffect(() => {
     if (machine.state !== 'fatal') fatalNotifiedRef.current = false;
-  }, [machine.state]);
+    // Defense in depth: once we're healthily playing, no retry should be
+    // pending. The machine already emits CANCEL_RETRY on self-recovery; this
+    // guarantees a stale timer can never survive into playback regardless of
+    // which event drove the transition.
+    if (machine.state === 'playing') clearRetryTimer();
+  }, [machine.state, clearRetryTimer]);
 
   // ── Initial / source-change LOAD ────────────────────────────────────────────
   const sourceKey = source?.uri ?? null;

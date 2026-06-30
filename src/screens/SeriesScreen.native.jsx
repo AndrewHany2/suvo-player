@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
-import { FlatList, Image, RefreshControl } from "react-native";
+import { FlatList, Image, RefreshControl, useWindowDimensions } from "react-native";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
@@ -15,6 +15,9 @@ import { selectHeroItem } from "../presentation/heroItem";
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 const SHELF_PAGE = 12;
 const GRID_PAGE = 40;
+const GRID_COLS = 3;
+const GRID_OUTER = 16; // equal left/right screen margin
+const GRID_GAP = 12; // gap between posters (columns and rows)
 
 async function prefetchTopRatedSeries() {
   try {
@@ -36,15 +39,15 @@ async function prefetchTopRatedSeries() {
 }
 
 /* ─── Poster Card ─── */
-const PosterCard = memo(function PosterCard({ item, onPress }) {
+const PosterCard = memo(function PosterCard({ item, onPress, width = 130 }) {
   const poster = item.cover || item.backdrop_path || item.stream_icon || null;
   const ratingValue = item.tmdb_rating ?? item.rating;
   const ratingLabel = ratingValue != null && ratingValue !== ""
     ? (typeof ratingValue === "number" ? ratingValue.toFixed(1) : ratingValue)
     : null;
   return (
-    <YStack width={130} cursor="pointer" onPress={() => onPress(item)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick">
-      <YStack width={130} aspectRatio={2 / 3} borderRadius={8} backgroundColor={colors.surface} overflow="hidden" position="relative">
+    <YStack width={width} cursor="pointer" onPress={() => onPress(item)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick">
+      <YStack width={width} aspectRatio={2 / 3} borderRadius={8} backgroundColor={colors.surface} overflow="hidden" position="relative">
         {poster
           ? <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
           : <YStack style={FILL} backgroundColor={colors.surface} />}
@@ -111,6 +114,9 @@ function Shelf({ shelf, onVisible, onPress, onTitlePress, onLoadMore }) {
 function CategoryPage({ name, items, onBack, onPress, onLoadMore, hasRemote, loadingMore }) {
   const [displayCount, setDisplayCount] = useState(GRID_PAGE);
   const [search, setSearch] = useState("");
+  const { width: winW } = useWindowDimensions();
+  // Responsive card width so GRID_COLS fit with equal outer margins + gaps.
+  const cardW = Math.floor((winW - GRID_OUTER * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
   const filtered = items ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items) : null;
   const displayed = filtered ? filtered.slice(0, displayCount) : null;
   const hasLocalMore = filtered && displayCount < filtered.length;
@@ -139,9 +145,10 @@ function CategoryPage({ name, items, onBack, onPress, onLoadMore, hasRemote, loa
           style={{ flex: 1 }}
           data={displayed}
           keyExtractor={(item) => String(item.series_id)}
-          numColumns={3}
-          contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 12 }}
-          renderItem={({ item }) => <PosterCard item={item} onPress={onPress} />}
+          numColumns={GRID_COLS}
+          contentContainerStyle={{ paddingHorizontal: GRID_OUTER, paddingVertical: 12 }}
+          columnWrapperStyle={{ gap: GRID_GAP, marginBottom: GRID_GAP }}
+          renderItem={({ item }) => <PosterCard item={item} onPress={onPress} width={cardW} />}
           onEndReached={() => { if (hasLocalMore) setDisplayCount((c) => Math.min(c + GRID_PAGE, filtered.length)); else if (hasRemote && !loadingMore && onLoadMore) onLoadMore(); }}
           onEndReachedThreshold={0.5}
           ListFooterComponent={(hasMore || loadingMore) ? <YStack alignItems="center" paddingVertical={20}><Spinner size="small" color={colors.accent} /></YStack> : null}

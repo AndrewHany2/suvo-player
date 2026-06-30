@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FlatList } from "react-native";
+import { FlatList, useWindowDimensions } from "react-native";
 import { YStack, XStack, Text, Input, Spinner } from "../ui/primitives";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useTVNavigation } from "../hooks/useTVNavigation";
@@ -14,11 +14,17 @@ import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 
 const GRID_PAGE = 40;
+const GRID_COLS = 3;
+const GRID_OUTER = 16; // equal left/right screen margin
+const GRID_GAP = 12; // gap between posters (columns and rows)
 
 /* ─── Category Page (drill-in grid) ─── */
 function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, loadingMore }) {
   const [displayCount, setDisplayCount] = useState(GRID_PAGE);
   const [search, setSearch] = useState("");
+  const { width: winW } = useWindowDimensions();
+  // Responsive card width so GRID_COLS fit with equal outer margins + gaps.
+  const cardW = Math.floor((winW - GRID_OUTER * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
 
   const filtered = items
     ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items)
@@ -53,9 +59,10 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
           style={{ flex: 1 }}
           data={displayed}
           keyExtractor={(item) => String(item.stream_id)}
-          numColumns={3}
-          contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 12 }}
-          renderItem={({ item }) => <PosterCard item={item} onPress={onPlay} />}
+          numColumns={GRID_COLS}
+          contentContainerStyle={{ paddingHorizontal: GRID_OUTER, paddingVertical: 12 }}
+          columnWrapperStyle={{ gap: GRID_GAP, marginBottom: GRID_GAP }}
+          renderItem={({ item }) => <PosterCard item={item} onPress={onPlay} width={cardW} />}
           onEndReached={() => {
             if (hasLocalMore) setDisplayCount((c) => Math.min(c + GRID_PAGE, filtered.length));
             else if (hasRemote && !loadingMore && onLoadMore) onLoadMore();

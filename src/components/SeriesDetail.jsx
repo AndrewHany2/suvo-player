@@ -160,7 +160,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
         </YStack>
 
         <YStack position="absolute" bottom={0} left={16} right={16} zIndex={5} paddingBottom={24}>
-          <Text color={colors.text} fontSize={28} fontWeight="900" letterSpacing={-0.5} marginBottom={10}>{seriesName}</Text>
+          <Text color={colors.text} fontSize={26} fontWeight="900" lineHeight={32} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{seriesName}</Text>
 
           {isLoading ? (
             <Spinner color={colors.accent} marginVertical={12} />
@@ -177,10 +177,10 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
             </XStack>
           )}
 
-          <XStack alignItems="center" gap={10} flexWrap="wrap">
+          <YStack gap={8}>
             {historyEntry && (
-              <YStack backgroundColor="#fff" paddingHorizontal={24} paddingVertical={12} borderRadius={8} cursor="pointer" onPress={handleContinue} pressStyle={{ opacity: 0.85 }} hoverStyle={{ opacity: 0.9 }} animation="quick">
-                <Text color="#000" fontSize={15} fontWeight="700">
+              <YStack backgroundColor="#fff" paddingHorizontal={20} minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} cursor="pointer" onPress={handleContinue} pressStyle={{ opacity: 0.85 }} hoverStyle={{ opacity: 0.9 }} animation="quick">
+                <Text color="#000" fontSize={13} fontWeight="700">
                   {"▶  Continue"}
                   {historyEntry.seasonNum ? ` S${historyEntry.seasonNum}E${String(historyEntry.episodeNum).padStart(2, "0")}` : ""}
                 </Text>
@@ -188,8 +188,10 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
             )}
             <YStack
               backgroundColor={historyEntry ? "rgba(40,40,60,0.85)" : "#fff"}
-              paddingHorizontal={historyEntry ? 20 : 24}
-              paddingVertical={12}
+              paddingHorizontal={20}
+              minHeight={36}
+              alignItems="center"
+              justifyContent="center"
               borderRadius={8}
               borderWidth={historyEntry ? 1 : 0}
               borderColor={colors.border}
@@ -199,32 +201,36 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
               hoverStyle={{ borderColor: colors.text }}
               animation="quick"
             >
-              <Text color={historyEntry ? colors.text : "#000"} fontSize={15} fontWeight={historyEntry ? "600" : "700"}>☰  Browse Episodes</Text>
+              <Text color={historyEntry ? colors.text : "#000"} fontSize={13} fontWeight={historyEntry ? "600" : "700"}>☰  Browse Episodes</Text>
             </YStack>
-            {!isLoading && !!trailer && (
-              <YStack backgroundColor="rgba(40,40,60,0.85)" paddingHorizontal={20} paddingVertical={12} borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => Linking.openURL(trailer)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.text }} animation="quick">
-                <XStack alignItems="center" gap={7}>
-                  <Icon name="film" color={colors.muted} size={15} />
-                  <Text color={colors.text} fontSize={15} fontWeight="600">Trailer</Text>
-                </XStack>
+            <XStack gap={8}>
+              {!isLoading && !!trailer && (
+                <YStack flex={1} backgroundColor="rgba(40,40,60,0.85)" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => Linking.openURL(trailer)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.text }} animation="quick">
+                  <XStack alignItems="center" gap={7}>
+                    <Icon name="film" color={colors.muted} size={15} />
+                    <Text color={colors.text} fontSize={13} fontWeight="600">Trailer</Text>
+                  </XStack>
+                </YStack>
+              )}
+              <YStack
+                flex={1}
+                backgroundColor={inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"}
+                minHeight={36}
+                alignItems="center"
+                justifyContent="center"
+                borderRadius={8}
+                borderWidth={1}
+                borderColor={inFav ? colors.accent : colors.border}
+                cursor="pointer"
+                onPress={toggleFav}
+                pressStyle={{ opacity: 0.8 }}
+                hoverStyle={{ borderColor: colors.accent }}
+                animation="quick"
+              >
+                <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
               </YStack>
-            )}
-            <YStack
-              backgroundColor={inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"}
-              paddingHorizontal={20}
-              paddingVertical={12}
-              borderRadius={8}
-              borderWidth={1}
-              borderColor={inFav ? colors.accent : colors.border}
-              cursor="pointer"
-              onPress={toggleFav}
-              pressStyle={{ opacity: 0.8 }}
-              hoverStyle={{ borderColor: colors.accent }}
-              animation="quick"
-            >
-              <Text color={colors.text} fontSize={15} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
-            </YStack>
-          </XStack>
+            </XStack>
+          </YStack>
         </YStack>
       </YStack>
 

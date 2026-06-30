@@ -46,6 +46,49 @@ describe("happy path", () => {
   });
 });
 
+describe("self-recovery cancels a pending retry", () => {
+  test("PLAYING after a STALL emits HIDE_RECONNECTING + CANCEL_RETRY", () => {
+    let s = initialState();
+    s = reduce(s, { type: "PLAYING" }).state;
+    // A transient buffering blip schedules a retry and enters recovering.
+    const stall = reduce(s, { type: "STALL" });
+    assert.equal(stall.state.state, "recovering");
+    assert.ok(effect(stall.effects, "SCHEDULE_RETRY"));
+    // Stream recovers on its own — the scheduled retry must be cancelled.
+    const r = reduce(stall.state, { type: "PLAYING" });
+    assert.equal(r.state.state, "playing");
+    assert.ok(effect(r.effects, "HIDE_RECONNECTING"));
+    assert.ok(effect(r.effects, "CANCEL_RETRY"));
+  });
+
+  test("RECOVERED emits CANCEL_RETRY", () => {
+    let s = initialState();
+    s = reduce(s, { type: "STALL" }).state;
+    const r = reduce(s, { type: "RECOVERED" });
+    assert.equal(r.state.state, "playing");
+    assert.ok(effect(r.effects, "HIDE_RECONNECTING"));
+    assert.ok(effect(r.effects, "CANCEL_RETRY"));
+  });
+
+  test("PROGRESS from recovering emits HIDE_RECONNECTING + CANCEL_RETRY", () => {
+    let s = initialState();
+    s = reduce(s, { type: "STALL" }).state;
+    assert.equal(s.state, "recovering");
+    const r = reduce(s, { type: "PROGRESS", currentTime: 10 });
+    assert.equal(r.state.state, "playing");
+    assert.ok(effect(r.effects, "HIDE_RECONNECTING"));
+    assert.ok(effect(r.effects, "CANCEL_RETRY"));
+  });
+
+  test("PLAYING during a clean load (not recovering) does not emit CANCEL_RETRY", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    const r = reduce(s, { type: "PLAYING" });
+    assert.ok(!effect(r.effects, "CANCEL_RETRY"));
+    assert.ok(!effect(r.effects, "HIDE_RECONNECTING"));
+  });
+});
+
 describe("GONE -> fatal", () => {
   test("404 raw error goes fatal", () => {
     let s = initialState();

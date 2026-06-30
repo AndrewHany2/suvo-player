@@ -42,7 +42,6 @@ import {
   focusRing,
   motion,
   easing,
-  GLOW_WEB,
 } from "../ui/tokens";
 
 /** Namespaced storage key remembering the last live channel stream_id. */
@@ -64,7 +63,7 @@ const TV_KEYS = {
   STOP: 413,
   FF: 417,
   REW: 412,
-  BACK: new Set([27, 461, 10009, 8]),
+  BACK: new Set([27, 461, 10009, 8, 91]),
 };
 
 // Map an hls.js level height to a quality-cap ladder value (see backoff.js
@@ -1481,51 +1480,9 @@ export default function VideoPlayerScreen() {
   const pct =
     tvDuration > 0 ? Math.min((tvCurrentTime / tvDuration) * 100, 100) : 0;
 
-  // Reconnecting indicator — driven by the recovery machine's recovering/
-  // buffering status. A frosted-glass pill with a cyan spinner ring; uses the
-  // shared `spin` keyframes defined in each render branch's <style>.
-  const spinnerSize = isTV ? 22 : 14;
-  const liveToast = isRecovering && !isFatal && (
-    <div
-      style={{
-        position: "absolute",
-        bottom: isTV ? 48 : 16,
-        right: isTV ? 48 : 16,
-        display: "flex",
-        alignItems: "center",
-        gap: isTV ? 12 : 8,
-        backgroundColor: isTV ? colors.surface2 : "rgba(12,16,24,0.55)",
-        backdropFilter: isTV ? undefined : "blur(12px)",
-        WebkitBackdropFilter: isTV ? undefined : "blur(12px)",
-        border: `1px solid ${accentAlpha(0.35)}`,
-        boxShadow: isTV ? undefined : GLOW_WEB,
-        color: colors.text,
-        fontFamily: fonts.body,
-        padding: isTV ? "12px 22px" : "8px 14px",
-        borderRadius: radii.pill,
-        fontSize: isTV ? 18 : 13,
-        fontWeight: 600,
-        zIndex: 30,
-      }}
-    >
-      <span
-        style={{
-          width: spinnerSize,
-          height: spinnerSize,
-          border: `2px solid ${accentAlpha(0.25)}`,
-          borderTopColor: colors.accent2,
-          borderRadius: "50%",
-          animation: "spin 0.8s linear infinite",
-          flexShrink: 0,
-        }}
-      />
-      Reconnecting
-    </div>
-  );
-
-  // TV: while recovering/buffering, show a centred loading spinner over the
+  // While recovering/buffering, show a centred loading spinner over the
   // video's frozen last frame (the <video> element holds the last decoded
-  // frame) instead of the "Reconnecting" text pill.
+  // frame) instead of a "Reconnecting" text pill.
   const recoveryLoading = isRecovering && !isFatal && (
     <div
       style={{
@@ -2011,7 +1968,7 @@ export default function VideoPlayerScreen() {
             </div>
           </div>
         )}
-        {liveToast}
+        {recoveryLoading}
       </div>
 
       <div style={S.footer}>

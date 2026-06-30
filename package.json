@@ -15,6 +15,8 @@
     "build:web": "expo export --platform web --clear",
     "build:electron": "npx rimraf dist && npm run build:web && electron-builder --config electron/builder.json",
     "build:tv": "expo export --platform web --output-dir tv/dist --clear && node tv/patch-index.js",
+    "sim:lg": "npm run build:tv && cp -r tv/dist/* tv/packaging/lg/ && ares-launch -s 26 tv/packaging/lg",
+    "sim:lg:inspect": "npm run build:tv && cp -r tv/dist/* tv/packaging/lg/ && node tv/enable-inspector.js && (pkill -f webOS_TV_26_Simulator_1.5.0 || true) && sleep 3 && ares-launch -s 26 tv/packaging/lg",
     "deploy:lg": "npm run build:tv && cp -r tv/dist/* tv/packaging/lg/ && ares-package tv/packaging/lg -o tv/packaging/lg/out && ares-install tv/packaging/lg/out/*.ipk -d lg && ares-launch com.andrew1h1.iptvplayer -d lg",
     "debug:lg": "npm run build:tv && cp -r tv/dist/* tv/packaging/lg/ && ares-package tv/packaging/lg -o tv/packaging/lg/out --no-minify && ares-install tv/packaging/lg/out/*.ipk -d lg && ares-inspect -d lg -a com.andrew1h1.iptvplayer --open",
     "test": "node --test $(find src -name '*.test.js' | tr '\\n' ' ')",

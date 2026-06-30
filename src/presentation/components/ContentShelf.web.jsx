@@ -46,7 +46,9 @@ export default function ContentShelf({
     const onMouseMove = (e) => {
       if (!isDragging.current) return;
       const dx = e.pageX - dragStartX.current;
-      if (Math.abs(dx) > 4) { hasDragged.current = true; el.scrollLeft = dragStartLeft.current - dx; }
+      // Only a deliberate drag (>10px) cancels the click; a few px of jitter
+      // during a normal click must still register as a select.
+      if (Math.abs(dx) > 10) { hasDragged.current = true; el.scrollLeft = dragStartLeft.current - dx; }
     };
     const onMouseUp = () => { isDragging.current = false; el.style.cursor = "grab"; };
     const onClickCapture = (e) => {
@@ -104,7 +106,7 @@ export default function ContentShelf({
             ref={railRef}
             onScroll={handleScroll}
             onDragStart={(e) => e.preventDefault()}
-            style={{ display: "flex", overflowX: "auto", gap: ss(8), paddingLeft: ss(48), paddingRight: ss(48), scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab", userSelect: "none" }}
+            style={{ display: "flex", overflowX: "auto", gap: ss(8), paddingLeft: ss(48), paddingRight: ss(48), paddingTop: ss(10), paddingBottom: ss(10), scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab", userSelect: "none" }}
           >
             {items.map((item) => (renderItem
               ? renderItem(item)

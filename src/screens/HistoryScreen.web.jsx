@@ -34,7 +34,9 @@ function useDragScroll() {
     const onMouseMove = (e) => {
       if (!isDragging.current) return;
       const dx = e.pageX - dragStartX.current;
-      if (Math.abs(dx) > 4) {
+      // Only treat as a drag past a deliberate threshold — a few px of pointer
+      // jitter during a click must NOT be eaten by the drag-to-scroll capture.
+      if (Math.abs(dx) > 10) {
         hasDragged.current = true;
         el.scrollLeft = dragStartLeft.current - dx;
       }
@@ -106,6 +108,9 @@ function MyListCard({ item, onPress, onRemove }) {
         backgroundColor={colors.surface}
         overflow="hidden"
         position="relative"
+        borderWidth={1}
+        borderColor={colors.border}
+        {...{ className: "lumen-poster-box" }}
       >
         {poster ? (
           <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
@@ -209,6 +214,9 @@ function CWCard({ item, onPress, onRemove }) {
         backgroundColor={colors.surface}
         overflow="hidden"
         position="relative"
+        borderWidth={1}
+        borderColor={colors.border}
+        {...{ className: "lumen-poster-box" }}
       >
         {bg ? (
           <Image source={{ uri: bg }} style={FILL} resizeMode="cover" />
@@ -410,6 +418,10 @@ export default function HistoryScreen({ navigation }) {
                 gap: ss(12),
                 paddingLeft: ss(48),
                 paddingRight: ss(48),
+                // Vertical breathing room so the hover ring/glow on a card isn't
+                // clipped at the top/bottom by this scroller's overflow.
+                paddingTop: ss(10),
+                paddingBottom: ss(10),
                 scrollbarWidth: "none",
                 msOverflowStyle: "none",
                 cursor: "grab",
@@ -464,6 +476,10 @@ export default function HistoryScreen({ navigation }) {
                 gap: ss(12),
                 paddingLeft: ss(48),
                 paddingRight: ss(48),
+                // Vertical breathing room so the hover ring/glow on a card isn't
+                // clipped at the top/bottom by this scroller's overflow.
+                paddingTop: ss(10),
+                paddingBottom: ss(10),
                 scrollbarWidth: "none",
                 msOverflowStyle: "none",
                 cursor: "grab",

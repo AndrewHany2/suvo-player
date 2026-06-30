@@ -63,7 +63,7 @@
   align-items: center;
   gap: 16px;
   /* ~5% title-safe horizontal inset (overscan) — matches grids/lists */
-  padding: 24px var(--a-inset);
+  padding: 14px var(--a-inset);
   border-bottom: 1px solid var(--a-border);
   flex-shrink: 0;
 }
@@ -165,6 +165,44 @@
   background: var(--a-danger);
 }
 
+/* ── Category search bar ─────────────────────────────────────────────────── */
+.tvl-cat-search {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 28px var(--a-inset) 0;
+  padding: 14px 22px;
+  background: var(--a-surface);
+  border: 2px solid var(--a-border);
+  border-radius: var(--a-radius);
+  box-sizing: border-box;
+}
+.tvl-cat-search--on {
+  border-color: var(--a-focus-ring);
+  outline: 2px solid var(--a-focus-ring);
+  outline-offset: 2px;
+  background: var(--a-focus-fill);
+}
+.tvl-cat-search-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--a-muted);
+}
+.tvl-cat-search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--a-text);
+  font-family: inherit;
+  font-size: var(--a-fs-card);
+  font-weight: 600;
+}
+.tvl-cat-search-input::placeholder {
+  color: var(--a-muted);
+  font-weight: 500;
+}
+
 /* ── Category grid ───────────────────────────────────────────────────────── */
 .tvl-cat-grid {
   display: grid;
@@ -173,11 +211,17 @@
   padding: 36px var(--a-inset);
 }
 .tvl-cat-card {
-  display: block;
+  display: flex;
+  align-items: center;
+  /* Uniform height regardless of label length OR element type (div vs button):
+     min-height sets the floor, align-self:start stops grid row-stretch from
+     inflating short cards to match a wrapping sibling. */
+  align-self: start;
+  min-height: 88px;
   box-sizing: border-box;
   width: 100%;
   text-align: left;
-  padding: 32px 24px;
+  padding: 14px 24px;
   background: var(--a-surface);
   border: 2px solid var(--a-border);
   border-radius: var(--a-radius);

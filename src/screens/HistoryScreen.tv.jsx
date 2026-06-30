@@ -17,14 +17,10 @@ const KEY_UP = 38;
 const KEY_RIGHT = 39;
 const KEY_DOWN = 40;
 const KEY_ENTER = 13;
-const KEY_BACK = new Set([27, 461, 10009, 8]);
+const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 
-// List windowing: cap rendered rows so large favorites/history don't mount
-// every item on memory-constrained TVs. We render a sliding window around the
-// focused row and pad with spacers so scroll height + D-pad scrollIntoView stay
-// correct. Row height is the design-px height of a .tvl-hist-item (@1280).
-const HIST_WINDOW = 24; // rows kept above/below focus
-const HIST_ITEM_H = 84;
+// Home renders favorites/history as horizontal poster shelves (Netflix-style),
+// reusing the canonical .tvl-card poster card from the Movies/Series grids.
 
 const getTrailerUrl = (t) => {
   if (!t) return null;
@@ -42,7 +38,6 @@ export default function HistoryScreenTV({ navigation }) {
     activeUserId,
     playVideo,
     watchHistory,
-    removeFromWatchHistory,
     myList,
     removeFromMyList,
     addToMyList,
@@ -53,16 +48,14 @@ export default function HistoryScreenTV({ navigation }) {
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
 
   // ── List state ────────────────────────────────────────────────────────────
-  const [listSection, setListSection] = useState("favorites");
-  const [listFocus, setListFocus] = useState(0);
-  const [itemSlot, setItemSlot] = useState("open"); // 'open' | 'remove'
-  const listSectionRef = useRef("favorites");
-  const listFocusRef = useRef(0);
-  const itemSlotRef = useRef("open");
-  const favItemsRef = useRef([]);
-  const histItemsRef = useRef([]);
-  const focusedFavRef = useRef(null);
-  const focusedHistRef = useRef(null);
+  // Shelf navigation: rowFocus indexes the non-empty shelves, colFocus the
+  // poster within the focused shelf.
+  const [rowFocus, setRowFocus] = useState(0);
+  const [colFocus, setColFocus] = useState(0);
+  const rowFocusRef = useRef(0);
+  const colFocusRef = useRef(0);
+  const shelvesRef = useRef([]); // [{ key, items }]
+  const focusedCardRef = useRef(null);
 
   // ── Movie detail state ────────────────────────────────────────────────────
   const [movieDetail, setMovieDetail] = useState(null);
@@ -83,22 +76,52 @@ export default function HistoryScreenTV({ navigation }) {
     globalThis.dispatchEvent(new CustomEvent("tv-nav-focus"));
   };
 
-  // ── Keep refs fresh for D-pad handler ────────────────────────────────────
+  // ── Build the list of non-empty shelves ──────────────────────────────────
   const favItems = myList || [];
   const histItems = (watchHistory || []).filter((h) => h.type !== "live");
-  useEffect(() => {
-    favItemsRef.current = myList || [];
-  }, [myList]);
-  useEffect(() => {
-    histItemsRef.current = (watchHistory || []).filter((h) => h.type !== "live");
-  }, [watchHistory]);
+  const shelves = [
+    { key: "favorites", label: "Favorites", items: favItems },
+    { key: "history", label: "Watch History", items: histItems },
+  ].filter((s) => s.items.length > 0);
 
-  // ── Scroll focused item into view ─────────────────────────────────────────
+  // Toggle left/right scroll-hint fades on a shelf based on its scroll position.
+  // Runs from the row's onScroll (fires on focus-driven scrollIntoView too) and
+  // an initial ref callback. No React state → no re-render.
+  const updateShelfEdges = (row) => {
+    const wrap = row?.parentElement;
+    if (!wrap) return;
+    const max = row.scrollWidth - row.clientWidth;
+    wrap.classList.toggle("more-left", row.scrollLeft > 4);
+    wrap.classList.toggle("more-right", max > 4 && row.scrollLeft < max - 4);
+  };
+
+  // ── Keep refs fresh for D-pad handler ────────────────────────────────────
   useEffect(() => {
-    if (listSectionRef.current === "favorites")
-      focusedFavRef.current?.scrollIntoView({ block: "nearest" });
-    else focusedHistRef.current?.scrollIntoView({ block: "nearest" });
-  }, [listFocus, listSection]);
+    shelvesRef.current = shelves;
+    // Clamp focus if the shelves shrank (e.g. last item removed).
+    const r = Math.min(rowFocusRef.current, Math.max(0, shelves.length - 1));
+    const row = shelves[r];
+    const c = row ? Math.min(colFocusRef.current, Math.max(0, row.items.length - 1)) : 0;
+    if (r !== rowFocusRef.current) { rowFocusRef.current = r; setRowFocus(r); }
+    if (c !== colFocusRef.current) { colFocusRef.current = c; setColFocus(c); }
+  });
+
+  // ── Scroll focused poster into view ───────────────────────────────────────
+  useEffect(() => {
+    focusedCardRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const row = focusedCardRef.current?.closest(".tvl-shelf-row");
+    if (row) updateShelfEdges(row);
+  }, [rowFocus, colFocus]);
+
+  // Recompute scroll-hint edges for EVERY shelf (Favorites + History) after each
+  // render and on resize — covers shelves that aren't focused and rows measured
+  // before their data populated.
+  useEffect(() => {
+    const all = () => document.querySelectorAll(".tvl-shelf-row").forEach(updateShelfEdges);
+    all();
+    globalThis.addEventListener("resize", all);
+    return () => globalThis.removeEventListener("resize", all);
+  });
 
   useEffect(() => {
     movieBtnRef.current?.scrollIntoView({ block: "nearest" });
@@ -282,83 +305,55 @@ export default function HistoryScreenTV({ navigation }) {
     };
   }, []);
 
-  // ── List navigation ───────────────────────────────────────────────────────
+  // ── Shelf navigation (2D: row = shelf, col = poster) ──────────────────────
+  const setRC = (r, c) => {
+    rowFocusRef.current = r;
+    colFocusRef.current = c;
+    setRowFocus(r);
+    setColFocus(c);
+  };
+
   const handleListKey = (k, e) => {
     e.preventDefault();
-    const sec = listSectionRef.current;
-    const fi = listFocusRef.current;
-    const slot = itemSlotRef.current;
-    const curItems =
-      sec === "favorites" ? favItemsRef.current : histItemsRef.current;
+    const rows = shelvesRef.current;
+    if (!rows.length) {
+      if (k === KEY_UP) focusNav();
+      else if (KEY_BACK.has(k)) navigation.goBack?.();
+      return;
+    }
+    const r = Math.min(rowFocusRef.current, rows.length - 1);
+    const row = rows[r];
+    const c = Math.min(colFocusRef.current, row.items.length - 1);
 
     switch (k) {
+      case KEY_LEFT: {
+        if (c > 0) setRC(r, c - 1);
+        break;
+      }
+      case KEY_RIGHT: {
+        if (c < row.items.length - 1) setRC(r, c + 1);
+        break;
+      }
       case KEY_UP: {
-        if (fi > 0) {
-          listFocusRef.current = fi - 1;
-          setListFocus(fi - 1);
-          itemSlotRef.current = "open";
-          setItemSlot("open");
-        } else if (sec === "history" && favItemsRef.current.length > 0) {
-          listSectionRef.current = "favorites";
-          setListSection("favorites");
-          const newFocus = favItemsRef.current.length - 1;
-          listFocusRef.current = newFocus;
-          setListFocus(newFocus);
-          itemSlotRef.current = "open";
-          setItemSlot("open");
+        if (r > 0) {
+          // Keep column, clamped to the new shelf's length.
+          const prev = rows[r - 1];
+          setRC(r - 1, Math.min(c, prev.items.length - 1));
         } else {
           focusNav();
         }
         break;
       }
       case KEY_DOWN: {
-        if (fi < curItems.length - 1) {
-          listFocusRef.current = fi + 1;
-          setListFocus(fi + 1);
-          itemSlotRef.current = "open";
-          setItemSlot("open");
-        } else if (sec === "favorites" && histItemsRef.current.length > 0) {
-          listSectionRef.current = "history";
-          setListSection("history");
-          listFocusRef.current = 0;
-          setListFocus(0);
-          itemSlotRef.current = "open";
-          setItemSlot("open");
-        }
-        break;
-      }
-      case KEY_LEFT: {
-        if (slot === "remove") {
-          itemSlotRef.current = "open";
-          setItemSlot("open");
-        }
-        break;
-      }
-      case KEY_RIGHT: {
-        if (curItems.length > 0) {
-          itemSlotRef.current = "remove";
-          setItemSlot("remove");
+        if (r < rows.length - 1) {
+          const next = rows[r + 1];
+          setRC(r + 1, Math.min(c, next.items.length - 1));
         }
         break;
       }
       case KEY_ENTER: {
-        const item = curItems[fi];
-        if (!item) break;
-        if (slot === "remove") {
-          if (sec === "favorites") removeFromMyList(item.id);
-          else removeFromWatchHistory(item.id);
-          // Clamp focus after removal
-          const newLen = curItems.length - 1;
-          if (fi >= newLen) {
-            const clamped = Math.max(0, newLen - 1);
-            listFocusRef.current = clamped;
-            setListFocus(clamped);
-          }
-          itemSlotRef.current = "open";
-          setItemSlot("open");
-        } else {
-          openItem(item);
-        }
+        const item = row.items[c];
+        if (item) openItem(item);
         break;
       }
       default:
@@ -553,18 +548,6 @@ export default function HistoryScreenTV({ navigation }) {
   };
 
   // ── Render helpers ────────────────────────────────────────────────────────
-  const fmtDate = (ts) => {
-    if (!ts) return "";
-    const diff = Date.now() - new Date(ts).getTime();
-    const m = Math.floor(diff / 60000);
-    const h = Math.floor(diff / 3600000);
-    const d = Math.floor(diff / 86400000);
-    if (m < 60) return m <= 1 ? "Just now" : `${m}m ago`;
-    if (h < 24) return `${h}h ago`;
-    if (d < 7) return `${d}d ago`;
-    return new Date(ts).toLocaleDateString();
-  };
-
   const fmtTime = (s) => {
     if (!s) return "0:00";
     const hh = Math.floor(s / 3600);
@@ -821,41 +804,8 @@ export default function HistoryScreenTV({ navigation }) {
     );
   }
 
-  // ── Windowed section render (caps mounted rows) ───────────────────────────
-  const renderHistWindow = (items, section, focusRef, isFav) => {
-    const isActive = listSection === section;
-    const focusIdx = isActive ? listFocus : 0;
-    const start = Math.max(0, focusIdx - HIST_WINDOW);
-    const end = Math.min(items.length, focusIdx + HIST_WINDOW + 1);
-    const padTop = start * HIST_ITEM_H;
-    const padBottom = Math.max(0, items.length - end) * HIST_ITEM_H;
-    return (
-      <>
-        {padTop > 0 && <div style={{ height: padTop, flexShrink: 0 }} />}
-        {items.slice(start, end).map((item, j) => {
-          const i = start + j;
-          const focused = isActive && i === listFocus;
-          const isRemoveSlot = focused && itemSlot === "remove";
-          return (
-            <HistItem
-              key={item.id}
-              item={item}
-              isFocused={focused}
-              isRemoveSlot={isRemoveSlot}
-              elRef={focused ? focusRef : null}
-              fmtDate={fmtDate}
-              fmtTime={fmtTime}
-              isFav={isFav}
-            />
-          );
-        })}
-        {padBottom > 0 && <div style={{ height: padBottom, flexShrink: 0 }} />}
-      </>
-    );
-  };
-
-  // ── Render: list (two sections) ───────────────────────────────────────────
-  const isEmpty = favItems.length === 0 && histItems.length === 0;
+  // ── Render: home (horizontal poster shelves) ──────────────────────────────
+  const isEmpty = shelves.length === 0;
 
   if (isEmpty) {
     return (
@@ -879,90 +829,67 @@ export default function HistoryScreenTV({ navigation }) {
         <span className="tvl-topbar-title">My List &amp; History</span>
       </div>
       <div className="tvl-scroll">
-        <div className="tvl-hist-list">
-          {/* ── Favorites section ──────────────────────────────────────── */}
-          {favItems.length > 0 && (
-            <>
-              <div className="tvl-hist-section-hdr">Favorites</div>
-              {renderHistWindow(favItems, "favorites", focusedFavRef, true)}
-            </>
-          )}
-
-          {/* ── Watch History section ──────────────────────────────────── */}
-          {histItems.length > 0 && (
-            <>
-              <div className="tvl-hist-section-hdr">Watch History</div>
-              {renderHistWindow(histItems, "history", focusedHistRef, false)}
-            </>
-          )}
-        </div>
+        {shelves.map((shelf, r) => (
+          <div className="tvl-shelf" key={shelf.key}>
+            <div className="tvl-hist-section-hdr">{shelf.label}</div>
+            <div className="tvl-shelf-rowwrap">
+            <div
+              className="tvl-shelf-row"
+              onScroll={(e) => updateShelfEdges(e.currentTarget)}
+              ref={(el) => el && updateShelfEdges(el)}
+            >
+              {shelf.items.map((item, c) => {
+                const focused = r === rowFocus && c === colFocus;
+                return (
+                  <PosterCard
+                    key={item.id}
+                    item={item}
+                    isFocused={focused}
+                    elRef={focused ? focusedCardRef : null}
+                  />
+                );
+              })}
+            </div>
+            <span className="tvl-shelf-chev tvl-shelf-chev--left" aria-hidden="true">
+              <Icon name="chevron-right" size={26} color="#fff" />
+            </span>
+            <span className="tvl-shelf-chev tvl-shelf-chev--right" aria-hidden="true">
+              <Icon name="chevron-right" size={26} color="#fff" />
+            </span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function HistItem({ item, isFocused, isRemoveSlot, elRef, fmtDate, fmtTime, isFav }) {
+function PosterCard({ item, isFocused, elRef }) {
   const [imgErr, setImgErr] = useState(false);
   const src = item.cover || item.stream_icon || null;
   const progress = item.currentTime || 0;
   const duration = item.duration || 0;
   const pct = duration > 0 ? Math.min((progress / duration) * 100, 100) : 0;
-  const typeIconName =
-    item.type === "movies" || item.type === "movie"
-      ? "film"
-      : item.type === "series"
-        ? "tv"
-        : "tv";
+  const typeIconName = item.type === "series" ? "tv" : "film";
 
   return (
     <div
       ref={elRef}
-      className={isFocused ? "tvl-hist-item tvl-hist-item--on" : "tvl-hist-item"}
+      className={isFocused ? "tvl-shelf-card tvl-card tvl-card--on" : "tvl-shelf-card tvl-card"}
     >
-      <div className="tvl-hist-thumb">
+      <div className="tvl-card-img">
         {src && !imgErr ? (
           <img src={src} alt="" onError={() => setImgErr(true)} loading="lazy" />
         ) : (
-          <div className="tvl-hist-ph">
-            <Icon name={typeIconName} size={20} color={colors.border} />
+          <div className="tvl-card-ph">
+            <Icon name={typeIconName} size={28} color={colors.border} />
           </div>
         )}
         {pct > 0 && pct < 100 && (
           <div className="tvl-hist-bar" style={{ width: `${pct}%` }} />
         )}
       </div>
-      <div className="tvl-hist-info">
-        <div className="tvl-hist-title">{item.name}</div>
-        <div className="tvl-hist-meta">
-          <span className="tvl-hist-type">{item.type}</span>
-          {item.watchedAt && (
-            <span className="tvl-hist-date">{fmtDate(item.watchedAt)}</span>
-          )}
-          {item.addedAt && !item.watchedAt && (
-            <span className="tvl-hist-date">{fmtDate(item.addedAt)}</span>
-          )}
-        </div>
-        {duration > 0 && (
-          <div className="tvl-hist-time">
-            {fmtTime(progress)} / {fmtTime(duration)}
-          </div>
-        )}
-      </div>
-      <div
-        className={
-          isRemoveSlot
-            ? "tvl-hist-action tvl-hist-action--remove"
-            : "tvl-hist-action"
-        }
-        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-      >
-        {isRemoveSlot ? (
-          <>
-            <Icon name="close" size={14} color="currentColor" />
-            Remove
-          </>
-        ) : isFav ? "Open" : pct > 0 && pct < 100 ? "Resume" : "Play"}
-      </div>
+      <div className="tvl-card-title">{item.name}</div>
     </div>
   );
 }

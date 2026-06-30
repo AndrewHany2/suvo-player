@@ -9,13 +9,15 @@
 export const KEY_CODES = {
   37: "left", 38: "up", 39: "right", 40: "down",
   13: "enter",
-  27: "back", 461: "back", 10009: "back", 8: "back",
+  // 91 (Meta) is the Back key on this deployment's remote, alongside the
+  // standard LG webOS 461, Samsung Tizen 10009, Esc (27), Backspace (8).
+  27: "back", 461: "back", 10009: "back", 8: "back", 91: "back",
 };
 
 export const KEY_NAMES = {
   ArrowLeft: "left", ArrowUp: "up", ArrowRight: "right", ArrowDown: "down",
   Enter: "enter",
-  Escape: "back",
+  Escape: "back", Meta: "back",
 };
 
 /** Resolve a keydown event to a logical action, or null. */

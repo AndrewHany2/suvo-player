@@ -102,6 +102,8 @@
   letter-spacing: 0.06em;
 }
 .tvl-field input {
+  width: 100%;
+  box-sizing: border-box;
   padding: 14px 16px;
   background: var(--a-surface);
   border: 2px solid var(--a-border);
@@ -113,6 +115,21 @@
 }
 .tvl-field input:focus { border-color: var(--a-cyan); }
 .tvl-field input::placeholder { color: #444; }
+/* Password reveal toggle — overlaid at the trailing edge of the field. */
+.tvl-pwd-eye {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
 .tvl-field--on { background: rgba(255,255,255,0.03); border-radius: 6px; padding: 6px 8px; margin: -6px -8px; }
 .tvl-field--on input { border-color: var(--a-cyan); }
 

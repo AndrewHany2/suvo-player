@@ -23,7 +23,7 @@ const KEY_UP = 38;
 const KEY_RIGHT = 39;
 const KEY_DOWN = 40;
 const KEY_ENTER = 13;
-const KEY_BACK = new Set([27, 461, 10009, 8]);
+const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 
 export default function LiveTVScreenTV({ navigation }) {
   const { contentService, activeUser, activeUserId } = useContentService();
@@ -35,6 +35,10 @@ export default function LiveTVScreenTV({ navigation }) {
   const [cats, setCats] = useState([]);
   const [catFocus, setCatFocus] = useState(0);
   const [page, setPage] = useState(null);
+  const [query, setQuery] = useState("");
+  const [catZone, setCatZone] = useState("grid");
+  const [gridQuery, setGridQuery] = useState("");
+  const [gridZone, setGridZone] = useState("grid");
 
   const catsRef = useRef([]);
   const catFocusRef = useRef(0);
@@ -42,18 +46,50 @@ export default function LiveTVScreenTV({ navigation }) {
   const allItemsRef = useRef(new Map());
   const catElRef = useRef(null);
   const navActiveRef = useRef(false);
+  const catZoneRef = useRef("grid");
+  const searchInputRef = useRef(null);
+  const gridZoneRef = useRef("grid");
+  const gridQueryRef = useRef("");
+  const gridSearchInputRef = useRef(null);
 
   const focusNav = () => {
     navActiveRef.current = true;
     globalThis.dispatchEvent(new CustomEvent("tv-nav-focus"));
   };
 
+  // Category cards filtered by the search query.
+  const q = query.trim().toLowerCase();
+  const visibleCats = q
+    ? cats.filter((c) => c.name?.toLowerCase().includes(q))
+    : cats;
+
   useEffect(() => {
-    catsRef.current = cats;
-  }, [cats]);
+    catsRef.current = visibleCats;
+  }, [visibleCats]);
+  // Keep category focus in range whenever the filtered list shrinks.
+  useEffect(() => {
+    if (catFocusRef.current > visibleCats.length - 1) { catFocusRef.current = 0; setCatFocus(0); }
+  }, [visibleCats.length]);
   useEffect(() => {
     pageRef.current = page;
   }, [page]);
+
+  // ── Grid-view text search ─────────────────────────────────────────────────
+  const gq = gridQuery.trim().toLowerCase();
+  const getFilteredChannels = (items) => {
+    const query = gridQueryRef.current;
+    if (!items || !query) return items || [];
+    return items.filter((c) => c.name?.toLowerCase().includes(query));
+  };
+  useEffect(() => { gridQueryRef.current = gq; }, [gq]);
+  useEffect(() => { gridZoneRef.current = gridZone; }, [gridZone]);
+  // Reset grid focus to top whenever the filtered set changes.
+  const onGridQueryChange = (val) => {
+    setGridQuery(val);
+    gridQueryRef.current = val.trim().toLowerCase();
+    const pg = pageRef.current;
+    if (pg) movCh(pg, 0);
+  };
 
   useEffect(() => {
     if (activeUserId) loadCats();
@@ -104,6 +140,9 @@ export default function LiveTVScreenTV({ navigation }) {
   const closePage = () => {
     setPage(null);
     pageRef.current = null;
+    setGridZoneBoth("grid");
+    setGridQuery("");
+    gridQueryRef.current = "";
   };
 
   const play = (item) => {
@@ -139,6 +178,7 @@ export default function LiveTVScreenTV({ navigation }) {
   }, []);
 
   // ── Category grid keys ────────────────────────────────────────────────────
+  const setCatZoneBoth = (z) => { catZoneRef.current = z; setCatZone(z); };
   const movCat = (n) => {
     catFocusRef.current = n;
     setCatFocus(n);
@@ -155,7 +195,7 @@ export default function LiveTVScreenTV({ navigation }) {
   const onCatUp = () => {
     const f = catFocusRef.current;
     if (f >= CAT_COLS) movCat(f - CAT_COLS);
-    else focusNav();
+    else setCatZoneBoth("search");
   };
   const onCatDown = () => {
     const f = catFocusRef.current;
@@ -166,8 +206,29 @@ export default function LiveTVScreenTV({ navigation }) {
     if (cat) openCat(cat);
   };
 
+  // Search-bar zone (above the category grid).
+  const inputFocused = () => document.activeElement === searchInputRef.current;
+  const handleSearchKey = (k) => {
+    switch (k) {
+      case KEY_UP: focusNav(); break;
+      case KEY_DOWN: setCatZoneBoth("grid"); break;
+      case KEY_ENTER: searchInputRef.current?.focus(); break;
+    }
+  };
+
   const handleCatKey = (k, e) => {
+    // While the input has focus, let typing/cursor work; only Back/Escape acts.
+    if (inputFocused()) {
+      if (KEY_BACK.has(k)) {
+        e.preventDefault();
+        searchInputRef.current?.blur();
+        setCatZoneBoth("search");
+      }
+      return;
+    }
     e.preventDefault();
+    if (KEY_BACK.has(k)) { navigation.goBack?.(); return; }
+    if (catZoneRef.current === "search") { handleSearchKey(k); return; }
     switch (k) {
       case KEY_LEFT:
         onCatLeft();
@@ -184,8 +245,6 @@ export default function LiveTVScreenTV({ navigation }) {
       case KEY_ENTER:
         onCatEnter();
         break;
-      default:
-        if (KEY_BACK.has(k)) navigation.goBack?.();
     }
   };
 
@@ -202,31 +261,53 @@ export default function LiveTVScreenTV({ navigation }) {
     if (pg.focus > 0) movCh(pg, pg.focus - 1);
   };
   const onChRight = (pg) => {
-    const max = pg.items.length - 1;
+    const max = getFilteredChannels(pg.items).length - 1;
     if (pg.focus >= max) return;
     movCh(pg, pg.focus + 1);
   };
   const onChUp = (pg) => {
     if (pg.focus >= CH_COLS) movCh(pg, pg.focus - CH_COLS);
-    else focusNav();
+    else setGridZoneBoth("search");
   };
   const onChDown = (pg) => {
-    const max = pg.items.length - 1;
+    const max = getFilteredChannels(pg.items).length - 1;
     const next = Math.min(pg.focus + CH_COLS, max);
     movCh(pg, next);
   };
   const onChEnter = (pg) => {
-    const item = pg.items[pg.focus];
+    const item = getFilteredChannels(pg.items)[pg.focus];
     if (item) play(item);
+  };
+
+  // Grid search-bar zone (above the channel grid).
+  const setGridZoneBoth = (z) => { gridZoneRef.current = z; setGridZone(z); };
+  const gridInputFocused = () => document.activeElement === gridSearchInputRef.current;
+  const handleGridSearchKey = (k) => {
+    switch (k) {
+      case KEY_UP: focusNav(); break;
+      case KEY_DOWN: setGridZoneBoth("grid"); break;
+      case KEY_ENTER: gridSearchInputRef.current?.focus(); break;
+    }
   };
 
   const handleChKey = (k, e) => {
     const pg = pageRef.current;
+    // While the grid search input has focus, let typing/cursor work; only Back acts.
+    if (gridInputFocused()) {
+      if (KEY_BACK.has(k)) {
+        e.preventDefault();
+        gridSearchInputRef.current?.blur();
+        setGridZoneBoth("search");
+      }
+      return;
+    }
     e.preventDefault();
     if (KEY_BACK.has(k)) {
+      if (gridZoneRef.current === "search") { setGridZoneBoth("grid"); return; }
       closePage();
       return;
     }
+    if (gridZoneRef.current === "search") { handleGridSearchKey(k); return; }
     if (!pg?.items) return;
     switch (k) {
       case KEY_LEFT:
@@ -276,6 +357,7 @@ export default function LiveTVScreenTV({ navigation }) {
   }
 
   if (page) {
+    const filteredItems = page.items ? getFilteredChannels(page.items) : null;
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar">
@@ -290,16 +372,38 @@ export default function LiveTVScreenTV({ navigation }) {
           >
             {page.name}
           </button>
-          {page.items && (
+          {filteredItems && (
             <span className="tvl-topbar-count">
-              {page.items.length.toLocaleString()}
+              {filteredItems.length.toLocaleString()}
             </span>
           )}
         </div>
-        {page.items ? (
+        <div className={gridZone === "search" ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>
+          <span className="tvl-cat-search-icon"><Icon name="search" size={ss(iconSizes.md)} color="currentColor" /></span>
+          <input
+            ref={gridSearchInputRef}
+            className="tvl-cat-search-input"
+            type="text"
+            dir="auto"
+            autoComplete="off"
+            placeholder="Search channels…"
+            value={gridQuery}
+            onChange={(e) => onGridQueryChange(e.target.value)}
+          />
+        </div>
+        {!filteredItems && (
+          <div className="tvl-center">
+            <div className="tvl-spinner" />
+            <p>Loading…</p>
+          </div>
+        )}
+        {filteredItems?.length === 0 && (
+          <div className="tvl-center"><p className="tvl-empty-msg">No results</p></div>
+        )}
+        {filteredItems && filteredItems.length > 0 && (
           <div className="tvl-ch-grid-window">
             <VirtualGridTV
-              items={page.items}
+              items={filteredItems}
               cols={CH_COLS}
               rowHeight={CH_ROW_H}
               gap={CH_GAP}
@@ -314,11 +418,6 @@ export default function LiveTVScreenTV({ navigation }) {
               )}
             />
           </div>
-        ) : (
-          <div className="tvl-center">
-            <div className="tvl-spinner" />
-            <p>Loading…</p>
-          </div>
         )}
       </div>
     );
@@ -330,13 +429,26 @@ export default function LiveTVScreenTV({ navigation }) {
         <span className="tvl-topbar-title">Live TV</span>
       </div>
       <div className="tvl-scroll">
+        <div className={catZone === "search" ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>
+          <span className="tvl-cat-search-icon"><Icon name="search" size={ss(iconSizes.md)} color="currentColor" /></span>
+          <input
+            ref={searchInputRef}
+            className="tvl-cat-search-input"
+            type="text"
+            dir="auto"
+            autoComplete="off"
+            placeholder="Search categories…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         <div className="tvl-cat-grid">
-          {cats.map((cat, i) => (
+          {visibleCats.map((cat, i) => (
             <div
               key={cat.id}
               ref={i === catFocus ? catElRef : null}
               className={
-                i === catFocus
+                catZone === "grid" && i === catFocus
                   ? "tvl-cat-card tvl-cat-card--on"
                   : "tvl-cat-card"
               }
@@ -346,6 +458,9 @@ export default function LiveTVScreenTV({ navigation }) {
             </div>
           ))}
         </div>
+        {q && visibleCats.length === 0 && (
+          <div className="tvl-center"><p className="tvl-empty-msg">No categories match</p></div>
+        )}
       </div>
     </div>
   );

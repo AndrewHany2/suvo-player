@@ -33,7 +33,7 @@ const KEY_UP = 38;
 const KEY_RIGHT = 39;
 const KEY_DOWN = 40;
 const KEY_ENTER = 13;
-const KEY_BACK = new Set([27, 461, 10009, 8]);
+const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 
 // mode: 'cats' | 'grid' | 'detail'
 
@@ -52,9 +52,13 @@ export default function SeriesScreenTV({ navigation, route }) {
   const [catFocus, setCatFocus] = useState(0);
   const [grid, setGrid] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [query, setQuery] = useState("");
+  const [catZone, setCatZone] = useState("grid");
 
   const catsRef = useRef([]);
   const catFocRef = useRef(0);
+  const catZoneRef = useRef("grid");
+  const searchInputRef = useRef(null);
   const gridRef = useRef(null);
   const detailRef = useRef(null);
   const allItemsRef = useRef(new Map());
@@ -71,10 +75,19 @@ export default function SeriesScreenTV({ navigation, route }) {
   const [filterLetter, setFilterLetter] = useState("all");
   const filterLetterRef = useRef("all");
 
+  // Grid-view text search (composes with the alpha filter).
+  const [gridQuery, setGridQuery] = useState("");
+  const gridQueryRef = useRef("");
+  const gridSearchInputRef = useRef(null);
+
   const getFilteredItems = (items) => {
+    if (!items) return [];
     const letter = filterLetterRef.current;
-    if (!items || letter === "all") return items || [];
-    return items.filter((s) => s.name?.toLowerCase().startsWith(letter));
+    const gridQ = gridQueryRef.current;
+    let out = items;
+    if (letter !== "all") out = out.filter((s) => s.name?.toLowerCase().startsWith(letter));
+    if (gridQ) out = out.filter((s) => s.name?.toLowerCase().includes(gridQ));
+    return out;
   };
 
   const focusNav = () => {
@@ -82,9 +95,19 @@ export default function SeriesScreenTV({ navigation, route }) {
     globalThis.dispatchEvent(new CustomEvent("tv-nav-focus"));
   };
 
+  // Category cards filtered by the search query — "All Series" stays pinned.
+  const q = query.trim().toLowerCase();
+  const visibleCats = q && cats.length
+    ? [cats[0], ...cats.slice(1).filter((c) => c.name?.toLowerCase().includes(q))]
+    : cats;
+
   useEffect(() => {
-    catsRef.current = cats;
-  }, [cats]);
+    catsRef.current = visibleCats;
+  }, [visibleCats]);
+  // Keep category focus in range whenever the filtered list shrinks.
+  useEffect(() => {
+    if (catFocRef.current > visibleCats.length - 1) { catFocRef.current = 0; setCatFocus(0); }
+  }, [visibleCats.length]);
   useEffect(() => {
     gridRef.current = grid;
   }, [grid]);
@@ -174,6 +197,16 @@ export default function SeriesScreenTV({ navigation, route }) {
     setFilterZone("grid");
     filterIdxRef.current = 0;
     setFilterIdx(0);
+    gridQueryRef.current = "";
+    setGridQuery("");
+  };
+
+  // Reset grid focus + scroll to top whenever the text query changes.
+  const onGridQueryChange = (val) => {
+    setGridQuery(val);
+    gridQueryRef.current = val.trim().toLowerCase();
+    const g = gridRef.current;
+    if (g) { const n = { ...g, focus: 0 }; gridRef.current = n; setGrid(n); }
   };
 
   const closeGrid = () => {
@@ -316,6 +349,7 @@ export default function SeriesScreenTV({ navigation, route }) {
   }, []);
 
   // ── Category grid ─────────────────────────────────────────────────────────
+  const setCatZoneBoth = (z) => { catZoneRef.current = z; setCatZone(z); };
   const movCat = (n) => {
     catFocRef.current = n;
     setCatFocus(n);
@@ -332,7 +366,7 @@ export default function SeriesScreenTV({ navigation, route }) {
   const onCatUp = () => {
     const f = catFocRef.current;
     if (f >= CAT_COLS) movCat(f - CAT_COLS);
-    else focusNav();
+    else setCatZoneBoth("search");
   };
   const onCatDown = () => {
     const f = catFocRef.current;
@@ -343,8 +377,29 @@ export default function SeriesScreenTV({ navigation, route }) {
     if (cat) openGrid(cat);
   };
 
+  // Search-bar zone (above the category grid).
+  const inputFocused = () => document.activeElement === searchInputRef.current;
+  const handleSearchKey = (k) => {
+    switch (k) {
+      case KEY_UP: focusNav(); break;
+      case KEY_DOWN: setCatZoneBoth("grid"); break;
+      case KEY_ENTER: searchInputRef.current?.focus(); break;
+    }
+  };
+
   const handleCatKey = (k, e) => {
+    // While the input has focus, let typing/cursor work; only Back/Escape acts.
+    if (inputFocused()) {
+      if (KEY_BACK.has(k)) {
+        e.preventDefault();
+        searchInputRef.current?.blur();
+        setCatZoneBoth("search");
+      }
+      return;
+    }
     e.preventDefault();
+    if (KEY_BACK.has(k)) { navigation.goBack?.(); return; }
+    if (catZoneRef.current === "search") { handleSearchKey(k); return; }
     switch (k) {
       case KEY_LEFT:
         onCatLeft();
@@ -361,8 +416,6 @@ export default function SeriesScreenTV({ navigation, route }) {
       case KEY_ENTER:
         onCatEnter();
         break;
-      default:
-        if (KEY_BACK.has(k)) navigation.goBack?.();
     }
   };
 
@@ -416,13 +469,28 @@ export default function SeriesScreenTV({ navigation, route }) {
     }
   };
   const onFilterUp = () => {
-    filterZoneRef.current = "grid";
-    setFilterZone("grid");
-    focusNav();
+    filterZoneRef.current = "search";
+    setFilterZone("search");
   };
   const onFilterDown = () => {
     filterZoneRef.current = "grid";
     setFilterZone("grid");
+  };
+
+  // Grid search-bar zone (above the alpha-filter letter bar).
+  const gridInputFocused = () => document.activeElement === gridSearchInputRef.current;
+  const handleGridSearchKey = (k) => {
+    switch (k) {
+      case KEY_UP:
+        filterZoneRef.current = "grid"; setFilterZone("grid"); focusNav();
+        break;
+      case KEY_DOWN:
+        filterZoneRef.current = "filter"; setFilterZone("filter");
+        break;
+      case KEY_ENTER:
+        gridSearchInputRef.current?.focus();
+        break;
+    }
   };
   const onFilterEnter = () => {
     const letter = ALPHA[filterIdxRef.current] === "ALL" ? "all" : ALPHA[filterIdxRef.current].toLowerCase();
@@ -440,9 +508,19 @@ export default function SeriesScreenTV({ navigation, route }) {
   };
 
   const handleGridKey = (k, e) => {
+    // While the grid search input has focus, let typing/cursor work; only Back acts.
+    if (gridInputFocused()) {
+      if (KEY_BACK.has(k)) {
+        e.preventDefault();
+        gridSearchInputRef.current?.blur();
+        filterZoneRef.current = "search";
+        setFilterZone("search");
+      }
+      return;
+    }
     e.preventDefault();
     if (KEY_BACK.has(k)) {
-      if (filterZoneRef.current === "filter") {
+      if (filterZoneRef.current === "filter" || filterZoneRef.current === "search") {
         filterZoneRef.current = "grid";
         setFilterZone("grid");
       } else {
@@ -450,6 +528,7 @@ export default function SeriesScreenTV({ navigation, route }) {
       }
       return;
     }
+    if (filterZoneRef.current === "search") { handleGridSearchKey(k); return; }
     if (filterZoneRef.current === "filter") {
       switch (k) {
         case KEY_LEFT: onFilterLeft(); break;
@@ -827,6 +906,19 @@ export default function SeriesScreenTV({ navigation, route }) {
             </span>
           )}
         </div>
+        <div className={filterZone === "search" ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>
+          <span className="tvl-cat-search-icon"><Icon name="search" size={iconSizes.md} color="currentColor" /></span>
+          <input
+            ref={gridSearchInputRef}
+            className="tvl-cat-search-input"
+            type="text"
+            dir="auto"
+            autoComplete="off"
+            placeholder="Search series…"
+            value={gridQuery}
+            onChange={(e) => onGridQueryChange(e.target.value)}
+          />
+        </div>
         <div className="tvl-letter-bar">
           {ALPHA.map((letter, i) => {
             const val = letter === "ALL" ? "all" : letter.toLowerCase();
@@ -856,7 +948,7 @@ export default function SeriesScreenTV({ navigation, route }) {
         )}
         {filteredItems?.length === 0 && (
           <div className="tvl-center">
-            <p className="tvl-empty-msg">No titles starting with "{filterLetter.toUpperCase()}"</p>
+            <p className="tvl-empty-msg">{gridQuery.trim() ? "No results" : `No titles starting with "${filterLetter.toUpperCase()}"`}</p>
           </div>
         )}
         {filteredItems && filteredItems.length > 0 && (
@@ -889,22 +981,38 @@ export default function SeriesScreenTV({ navigation, route }) {
         <span className="tvl-topbar-title">Series</span>
       </div>
       <div className="tvl-scroll">
+        <div className={catZone === "search" ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>
+          <span className="tvl-cat-search-icon"><Icon name="search" size={iconSizes.md} color="currentColor" /></span>
+          <input
+            ref={searchInputRef}
+            className="tvl-cat-search-input"
+            type="text"
+            dir="auto"
+            autoComplete="off"
+            placeholder="Search categories…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         <div className="tvl-cat-grid">
-          {cats.map((cat, i) => (
-            <div
+          {visibleCats.map((cat, i) => (
+            <button
               key={cat.id}
               ref={i === catFocus ? catElRef : null}
               className={
-                i === catFocus
+                catZone === "grid" && i === catFocus
                   ? "tvl-cat-card tvl-cat-card--on"
                   : "tvl-cat-card"
               }
               onClick={() => openGrid(cat)}
             >
               {cat.name}
-            </div>
+            </button>
           ))}
         </div>
+        {q && visibleCats.length <= 1 && (
+          <div className="tvl-center"><p className="tvl-empty-msg">No categories match</p></div>
+        )}
       </div>
     </div>
   );

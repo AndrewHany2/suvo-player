@@ -125,9 +125,13 @@ export const glow = Platform.select({
   default: {},
 });
 
-/** Inline box-shadow string for web focus/hover glow (accent2 cyan at 0.45).
- *  TV strips this — gate callers on isTV(). Mirrors glow's native radius/alpha. */
-export const GLOW_WEB = "0 0 16px " + accent2Alpha(0.45); // 0 0 16px rgba(34,211,238,0.45)
+/** Inline box-shadow string for web focus/hover glow (accent2 cyan). A crisp
+ *  1px inner ring + a broad soft halo so the interaction reads clearly at a
+ *  glance (the bare 16px halo was too faint over dark posters).
+ *  TV strips this — gate callers on isTV(). */
+export const GLOW_WEB =
+  "0 0 0 1px " + accent2Alpha(0.6) + ", 0 0 24px 2px " + accent2Alpha(0.55);
+// → 0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55)
 
 /** Focus ring — cyan (accent2) outline for keyboard/remote focus. `offset` is
  *  the gap between element edge and ring (CSS outline-offset / RN inset). */

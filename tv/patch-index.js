@@ -42,8 +42,18 @@ const result = babel.transformSync(code, {
   compact: true,
 });
 
+// ── Make bundled asset URLs relative (fonts, images) ────────────────────────
+// Expo emits asset URIs as absolute "/assets/…". On a webOS app (and the TV
+// simulator) the page loads from file:///…/index.html, so "/assets/…" resolves
+// to the filesystem root (file:///assets/…) and 404s — leaving fonts/images
+// missing. The patched index.html already uses "./_expo/…"; mirror that here by
+// stripping the leading slash so asset URLs resolve against the index.html dir.
+const assetRefs = (result.code.match(/(["'`])\/assets\//g) || []).length;
+result.code = result.code.replace(/(["'`])\/assets\//g, "$1assets/");
+
 fs.writeFileSync(bundlePath, result.code, "utf8");
 console.log("✓ Transpiled for older webOS Chromium");
+console.log(`✓ Rewrote ${assetRefs} absolute /assets/ ref(s) to relative for file:// loading`);
 
 // ── Inline CSS custom properties (var(--a-*)) to literal values ──────────────
 // webOS/Tizen Chromium honours standalone var() (e.g. `background:var(--x)`) but

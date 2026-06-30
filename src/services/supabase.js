@@ -270,7 +270,7 @@ export async function fetchRemoteHistory(userKey) {
     .order("watched_at", { ascending: false })
     .limit(MAX_HISTORY);
   if (error) {
-    console.error("[Supabase] fetchRemoteHistory:", error.message);
+    console.warn("[Supabase] fetchRemoteHistory:", error.message);
     return [];
   }
   return data.map((row) => row.entry);
@@ -290,7 +290,10 @@ export async function upsertHistoryEntry(userKey, entry) {
       { onConflict: "user_key,entry_id" },
     );
   if (error) {
-    console.error("[Supabase] upsertHistoryEntry:", error.message);
+    // Best-effort remote sync — local history is the source of truth. A flaky
+    // connection / unreachable Supabase is expected, so warn (don't surface the
+    // red error overlay) and let the caller carry on.
+    console.warn("[Supabase] upsertHistoryEntry:", error.message);
     return { ok: false, error };
   }
   return { ok: true };

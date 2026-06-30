@@ -32,6 +32,8 @@ export function useTVInput() {
     let navHasFocus = false;
 
     const onKey = (e) => {
+      // TEMP DIAGNOSTIC
+      console.log("[tvinput]", "key=", e.key, "code=", e.keyCode, "action=", resolveAction(e), "navHasFocus=", navHasFocus);
       if (navHasFocus) return;
       const action = resolveAction(e);
       if (!action) return;

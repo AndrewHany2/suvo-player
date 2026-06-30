@@ -49,7 +49,7 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
   useEffect(() => {
     const el = gridContainerRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const update = () => { numColsRef.current = Math.max(1, Math.floor(el.offsetWidth / (ss(200) + ss(16)))); };
+    const update = () => { numColsRef.current = Math.max(1, Math.floor(el.offsetWidth / (ss(240) + ss(16)))); };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -125,10 +125,10 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
       {!displayed ? (
         <YStack flex={1} justifyContent="center" alignItems="center"><Spinner size="large" color={colors.accent} /></YStack>
       ) : (
-        <ScrollView flex={1} minHeight={0} contentContainerStyle={{ paddingHorizontal: ss(48), paddingVertical: ss(32) }} onScroll={handleScroll} scrollEventThrottle={200}>
-          <div ref={gridContainerRef} style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, ${ss(200)}px)`, gap: ss(16), justifyContent: "center", alignItems: "start" }}>
+        <ScrollView flex={1} minHeight={0} contentContainerStyle={{ paddingHorizontal: ss(96), paddingVertical: ss(32) }} onScroll={handleScroll} scrollEventThrottle={200}>
+          <div ref={gridContainerRef} style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, ${ss(240)}px)`, gap: ss(16), justifyContent: "center", alignItems: "start" }}>
             {displayed.map((item, idx) => (
-              <PosterCard key={item.stream_id != null ? String(item.stream_id) : `i${idx}`} item={item} onPress={onPlay} isFocused={idx === focusedIdx} width={ss(200)} />
+              <PosterCard key={item.stream_id != null ? String(item.stream_id) : `i${idx}`} item={item} onPress={onPlay} isFocused={idx === focusedIdx} width={ss(240)} />
             ))}
           </div>
           {(hasMore || loadingMore) && (

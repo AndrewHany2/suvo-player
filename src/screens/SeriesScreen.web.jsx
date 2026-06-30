@@ -117,7 +117,9 @@ function Shelf({
     const onMouseMove = (e) => {
       if (!isDragging.current) return;
       const dx = e.pageX - dragStartX.current;
-      if (Math.abs(dx) > 4) {
+      // Only a deliberate drag (>10px) cancels the click; a few px of jitter
+      // during a normal click must still register as a select.
+      if (Math.abs(dx) > 10) {
         hasDragged.current = true;
         el.scrollLeft = dragStartLeft.current - dx;
       }
@@ -212,6 +214,10 @@ function Shelf({
               gap: ss(8),
               paddingLeft: ss(48),
               paddingRight: ss(48),
+              // Vertical breathing room so the hover ring/glow isn't clipped
+              // top/bottom by this scroller's overflow.
+              paddingTop: ss(10),
+              paddingBottom: ss(10),
               scrollbarWidth: "none",
               msOverflowStyle: "none",
               cursor: "grab",
@@ -304,7 +310,7 @@ function CategoryPage({
     const update = () => {
       numColsRef.current = Math.max(
         1,
-        Math.floor(el.offsetWidth / (ss(200) + ss(12))),
+        Math.floor(el.offsetWidth / (ss(240) + ss(12))),
       );
     };
     update();
@@ -453,7 +459,7 @@ function CategoryPage({
           flex={1}
           minHeight={0}
           contentContainerStyle={{
-            paddingHorizontal: ss(48),
+            paddingHorizontal: ss(96),
             paddingVertical: ss(32),
           }}
           onScroll={handleScroll}
@@ -463,7 +469,7 @@ function CategoryPage({
             ref={gridContainerRef}
             style={{
               display: "grid",
-              gridTemplateColumns: `repeat(auto-fill, ${ss(200)}px)`,
+              gridTemplateColumns: `repeat(auto-fill, ${ss(240)}px)`,
               gap: ss(12),
               justifyContent: "center",
             }}
@@ -474,7 +480,7 @@ function CategoryPage({
                 item={item}
                 onPress={onPress}
                 isFocused={idx === focusedIdx}
-                width={ss(200)}
+                width={ss(240)}
               />
             ))}
           </div>

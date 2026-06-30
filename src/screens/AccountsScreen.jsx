@@ -5,6 +5,7 @@ import { colors, fonts, fontWeights, radii, accentAlpha } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
+import PasswordInput from "../ui/PasswordInput";
 import StatePanel from "../ui/StatePanel";
 import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
@@ -148,7 +149,7 @@ export default function AccountsScreen({ navigation }) {
           <Input placeholder="your_username" placeholderTextColor={colors.faint} value={formData.username} onChangeText={(v) => setFormData({ ...formData, username: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
 
           <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Password *</Text>
-          <Input placeholder="your_password" placeholderTextColor={colors.faint} value={formData.password} onChangeText={(v) => setFormData({ ...formData, password: v })} secureTextEntry disabled={loading} {...inputStyle} />
+          <PasswordInput placeholder="your_password" placeholderTextColor={colors.faint} value={formData.password} onChangeText={(v) => setFormData({ ...formData, password: v })} disabled={loading} inputStyle={inputStyle} />
 
           <XStack gap={ss(12)} marginTop={ss(28)}>
             <Button variant="secondary" disabled={loading} onPress={resetForm} style={{ flex: 1 }}>

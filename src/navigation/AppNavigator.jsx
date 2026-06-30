@@ -2,10 +2,9 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "@react-navigation/native";
-import { useWindowDimensions } from "react-native";
 import { YStack, XStack, Text } from "../ui/primitives";
 import Icon from "../ui/Icon";
-import { colors } from "../ui/tokens";
+import { colors, accentAlpha } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { isSupabaseConfigured } from "../services/supabase";
 
@@ -24,29 +23,34 @@ const Tab = createBottomTabNavigator();
 function HeaderRight() {
   const { users, activeUserId, profile, authUser, isSyncing } = useApp();
   const navigation = useNavigation();
-  const { width } = useWindowDimensions();
-  const compact = width < 400;
-  const nameMax = compact ? 72 : 140;
   const activeUser = users.find((u) => u.id === activeUserId);
+  const playlistName = activeUser?.nickname || activeUser?.username;
+  const profileName = authUser ? profile?.username : null;
+  const initial = (profileName || "?").trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <XStack alignItems="center" gap={6} marginRight={12} flexShrink={1}>
+    <XStack alignItems="center" gap={8} marginRight={12} flexShrink={1}>
       {isSyncing && (
-        <YStack backgroundColor="rgba(108, 92, 231,0.2)" borderRadius={8} paddingHorizontal={8} paddingVertical={3} borderWidth={1} borderColor="rgba(108, 92, 231,0.4)">
-          <Text color={colors.accent} fontSize={11} fontWeight="600">{compact ? "↻" : "↻ Syncing"}</Text>
+        <Text color={colors.accent} fontSize={14} fontWeight="700">↻</Text>
+      )}
+      {playlistName && (
+        <XStack
+          alignItems="center" gap={6}
+          backgroundColor={accentAlpha(0.1)} borderWidth={1} borderColor={accentAlpha(0.3)}
+          borderRadius={999} paddingHorizontal={10} paddingVertical={5} flexShrink={1}
+          cursor="pointer" onPress={() => navigation.navigate("Accounts")} pressStyle={{ opacity: 0.7 }}
+        >
+          <Icon name="signal" size={12} color={colors.accent2} />
+          <Text color={colors.text} fontSize={12} fontWeight="600" numberOfLines={1} maxWidth={120}>{playlistName}</Text>
+        </XStack>
+      )}
+      {profileName && (
+        <YStack
+          width={28} height={28} borderRadius={999} backgroundColor={colors.accent}
+          alignItems="center" justifyContent="center" flexShrink={0}
+        >
+          <Text color={colors.text} fontSize={13} fontWeight="700">{initial}</Text>
         </YStack>
-      )}
-      {activeUser && (
-        <XStack alignItems="center" gap={5} backgroundColor={colors.border} borderRadius={8} paddingHorizontal={8} paddingVertical={3} flexShrink={1}>
-          <Icon name="signal" size={12} color="#aaa" />
-          <Text color="#aaa" fontSize={11} numberOfLines={1} maxWidth={nameMax}>{activeUser.nickname || activeUser.username}</Text>
-        </XStack>
-      )}
-      {authUser && profile?.username && (
-        <XStack alignItems="center" gap={5} backgroundColor="#1a2a1a" borderRadius={8} paddingHorizontal={8} paddingVertical={3} flexShrink={1}>
-          <Icon name="user" size={12} color={colors.success} />
-          <Text color={colors.success} fontSize={11} numberOfLines={1} maxWidth={nameMax}>{profile.username}</Text>
-        </XStack>
       )}
       <YStack cursor="pointer" onPress={() => navigation.navigate("Accounts")} pressStyle={{ opacity: 0.7 }} flexShrink={0} minWidth={44} minHeight={44} alignItems="center" justifyContent="center" hitSlop={8}>
         <Icon name="settings" size={20} color={colors.text} />
@@ -58,11 +62,14 @@ function HeaderRight() {
 function MainTabs() {
   return (
     <Tab.Navigator screenOptions={{
-      tabBarStyle: { backgroundColor: colors.surface2 },
+      tabBarStyle: { backgroundColor: colors.surface2, borderTopColor: colors.border },
       tabBarActiveTintColor: colors.accent,
-      tabBarInactiveTintColor: "#888",
-      headerStyle: { backgroundColor: colors.surface2 },
+      tabBarInactiveTintColor: colors.muted,
+      headerStyle: { backgroundColor: colors.bg },
+      headerShadowVisible: false,
       headerTintColor: colors.text,
+      headerTitleAlign: "left",
+      headerTitleStyle: { fontWeight: "700", fontSize: 22, letterSpacing: -0.4 },
       headerRight: () => <HeaderRight />,
     }}>
       <Tab.Screen name="LiveTV"  component={LiveTVScreen}  options={{ title: "Live TV", tabBarIcon: ({ color }) => <Icon name="tv" size={20} color={color} /> }} />

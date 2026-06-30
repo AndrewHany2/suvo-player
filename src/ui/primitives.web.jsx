@@ -75,13 +75,16 @@ function ensurePlaceholderRule() {
 export const Input = forwardRef(function Input(props, ref) {
   ensurePlaceholderRule();
   const { styleProps, rest } = splitStyleProps(props);
-  const { style, value, onChangeText, onChange, placeholderTextColor, className, ...other } = rest;
+  const { style, value, onChangeText, onChange, placeholderTextColor, className, secureTextEntry, type, ...other } = rest;
   for (const k of DROP) delete other[k];
   // Bridge RN's onChangeText to the DOM onChange.
   const handleChange = onChangeText ? (e) => onChangeText(e.target.value) : onChange;
+  // Bridge RN's secureTextEntry to the DOM's type="password" so passwords are masked on web.
+  const inputType = secureTextEntry ? "password" : type;
   return (
     <input
       ref={ref}
+      type={inputType}
       value={value}
       onChange={handleChange}
       className={className ? `__ui_input ${className}` : "__ui_input"}

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, Input, ScrollView } from "../ui/primitives";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
+import PasswordInput from "../ui/PasswordInput";
 import {
   colors,
   fonts,
@@ -227,27 +228,25 @@ export default function AuthScreen() {
           )}
 
           <Text {...labelStyle}>Password</Text>
-          <Input
+          <PasswordInput
             placeholder="••••••••"
             placeholderTextColor={colors.faint}
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
             disabled={loading}
-            {...inputStyle}
+            inputStyle={inputStyle}
           />
 
           {mode === "register" && (
             <>
               <Text {...labelStyle}>Confirm Password</Text>
-              <Input
+              <PasswordInput
                 placeholder="••••••••"
                 placeholderTextColor={colors.faint}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
-                secureTextEntry
                 disabled={loading}
-                {...inputStyle}
+                inputStyle={inputStyle}
               />
             </>
           )}

@@ -131,7 +131,11 @@ export function reduce(state, event) {
         credentialsRefreshed: false,
       };
       if (wasRecovering) {
+        // We recovered on our own — hide the badge AND cancel any retry the
+        // host scheduled for the stall, so it can't fire a stale RELOAD and
+        // bounce us into a reload loop.
         effects.push({ type: 'HIDE_RECONNECTING' });
+        effects.push({ type: 'CANCEL_RETRY' });
       }
       return { state: next, effects };
     }
@@ -141,6 +145,12 @@ export function reduce(state, event) {
       // Sustained progress while playing = stable: reset attempts, clear the
       // buffering streak, and step the quality cap back up one rung.
       let next = { ...s, savedTime: t, state: 'playing' };
+      // Time advanced while recovering/buffering = the stream came back on its
+      // own; cancel the pending retry and drop the reconnecting badge.
+      if (s.state === 'recovering' || s.state === 'buffering') {
+        effects.push({ type: 'HIDE_RECONNECTING' });
+        effects.push({ type: 'CANCEL_RETRY' });
+      }
       if (s.state === 'playing') {
         const steppedCap = stepCap(s.qualityCap, 'up', s.manualCap);
         next = {
@@ -211,6 +221,7 @@ export function reduce(state, event) {
 
     case 'RECOVERED':
       effects.push({ type: 'HIDE_RECONNECTING' });
+      effects.push({ type: 'CANCEL_RETRY' });
       return {
         state: {
           ...s,

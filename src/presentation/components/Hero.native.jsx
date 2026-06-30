@@ -107,8 +107,8 @@ function HeroNative({ item, onPlay, onDetails, focused = false }) {
           style={{
             fontFamily: fonts.display,
             fontWeight: fontWeights.bold,
-            fontSize: ss(34),
-            lineHeight: ss(38),
+            fontSize: ss(26),
+            lineHeight: ss(30),
             color: colors.text,
           }}
         >
@@ -134,10 +134,10 @@ function HeroNative({ item, onPlay, onDetails, focused = false }) {
         )}
 
         <View style={{ flexDirection: "row", gap: ss(12), marginTop: ss(6) }}>
-          <Button variant="primary" size="lg" icon="play" onPress={onPlay} isFocused={focused}>
+          <Button variant="primary" size="md" icon="play" onPress={onPlay} isFocused={focused}>
             Play
           </Button>
-          <Button variant="secondary" size="lg" icon="plus" onPress={onDetails}>
+          <Button variant="secondary" size="md" icon="plus" onPress={onDetails}>
             Details
           </Button>
         </View>

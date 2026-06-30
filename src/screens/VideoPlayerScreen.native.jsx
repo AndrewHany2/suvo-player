@@ -3,7 +3,8 @@ import { Modal, StatusBar, Platform, TouchableOpacity, AppState, PanResponder, V
 import { useVideoPlayer, VideoView } from "expo-video";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
-import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
 import { colors, accentAlpha, radii, fonts } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
@@ -25,6 +26,13 @@ import SubtitleSettings from "../playback/components/SubtitleSettings";
 import StatsOverlay from "../playback/components/StatsOverlay";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+
+// The player locks the window to PORTRAIT_UP on mount (see the mount effect
+// below). We still declare both orientations on every menu <Modal> as a safety
+// net: RN's <Modal> defaults supportedOrientations to ['portrait'], and any
+// momentary mismatch with the window orientation makes UIKit raise
+// UIApplicationInvalidInterfaceOrientation (SIGABRT). An overlapping mask is safe.
+const MODAL_ORIENTATIONS = ["portrait", "landscape"];
 
 // Namespaced storage key remembering the last-watched live channel stream id.
 const LAST_CHANNEL_KEY = "player_last_live_channel";
@@ -51,6 +59,16 @@ function loadBrightness() {
   }
 }
 
+// Format seconds as M:SS, or H:MM:SS once past an hour.
+function formatTime(s) {
+  const t = Number.isFinite(s) && s > 0 ? Math.floor(s) : 0;
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = t % 60;
+  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
+  return `${h > 0 ? `${h}:` : ""}${mm}:${String(sec).padStart(2, "0")}`;
+}
+
 export default function VideoPlayerScreen({ navigation }) {
   const {
     currentVideo,
@@ -61,6 +79,7 @@ export default function VideoPlayerScreen({ navigation }) {
     flushProgress,
     channels,
   } = useApp();
+  const insets = useSafeAreaInsets();
   const progressIntervalRef = useRef(null);
   const hasAddedToHistory = useRef(false);
 
@@ -79,6 +98,12 @@ export default function VideoPlayerScreen({ navigation }) {
   const [showSubtitleSettings, setShowSubtitleSettings] = useState(false);
   const [showSleepMenu, setShowSleepMenu] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  // VOD seek bar: live-polled position/duration/buffered, and the in-progress
+  // scrub preview (null when not dragging). Track width is measured on layout.
+  const [progress, setProgress] = useState({ position: 0, duration: 0, buffered: 0 });
+  const [scrubSec, setScrubSec] = useState(null);
+  const seekTrackWidth = useRef(0);
   const [gestureHint, setGestureHint] = useState(null); // { kind, label }
   const gestureHintTimerRef = useRef(null);
   const [nowNext, setNowNext] = useState({ now: null, next: null });
@@ -148,10 +173,19 @@ export default function VideoPlayerScreen({ navigation }) {
   // now-playing controls where expo-video supports it (guarded).
   useEffect(() => {
     activateKeepAwakeAsync().catch(() => {});
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+    // Keep the video in portrait, fitted on screen — don't auto-rotate to
+    // landscape/fullscreen on open. The app's native orientation is "default"
+    // (all orientations), so merely unlocking lets the sensor swing it to
+    // landscape; we must actively lock PORTRAIT_UP to hold it upright.
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     return () => {
       try { deactivateKeepAwake(); } catch {}
-      ScreenOrientation.unlockAsync().catch(() => {});
+      // Restore portrait on exit. We must NOT unlockAsync() here: the app's
+      // default orientation allows all, so unlocking lets the OS immediately
+      // rotate the (portrait-designed) browse UI back to landscape whenever the
+      // device still reports a landscape sensor reading. Lock to portrait and
+      // keep it locked — only the player runs in landscape.
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     };
   }, []);
 
@@ -257,6 +291,53 @@ export default function VideoPlayerScreen({ navigation }) {
     });
   }, [setPref]);
 
+  // Fullscreen toggle — rotate the window to landscape (and back to portrait).
+  // The player otherwise stays portrait-locked on open (see the mount effect).
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((fs) => {
+      const next = !fs;
+      ScreenOrientation.lockAsync(
+        next
+          ? ScreenOrientation.OrientationLock.LANDSCAPE
+          : ScreenOrientation.OrientationLock.PORTRAIT_UP,
+      ).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  // Poll position/duration/buffered for the VOD seek bar. Paused while the user
+  // is actively scrubbing so our preview doesn't fight the live value.
+  useEffect(() => {
+    if (!player || isLive) return undefined;
+    const id = setInterval(() => {
+      if (scrubSec != null) return;
+      const duration = Number.isFinite(player.duration) ? player.duration : 0;
+      const position = Number.isFinite(player.currentTime) ? player.currentTime : 0;
+      const buffered = Number.isFinite(player.bufferedPosition) ? player.bufferedPosition : 0;
+      setProgress({ position, duration, buffered });
+    }, 500);
+    return () => clearInterval(id);
+  }, [player, isLive, scrubSec]);
+
+  // Map a touch x within the seek track to a clamped time, and commit on release.
+  const scrubToX = useCallback((x) => {
+    const w = seekTrackWidth.current;
+    if (!w || !progress.duration) return;
+    const frac = Math.max(0, Math.min(1, x / w));
+    setScrubSec(frac * progress.duration);
+    resetControlsTimer();
+  }, [progress.duration, resetControlsTimer]);
+
+  const commitScrub = useCallback(() => {
+    setScrubSec((sec) => {
+      if (sec != null) {
+        try { if (player && Number.isFinite(player.currentTime)) player.currentTime = sec; } catch {}
+      }
+      return null;
+    });
+    resetControlsTimer();
+  }, [player, resetControlsTimer]);
+
   // Apply remembered audio/subtitle selections once the tracks are discovered.
   useEffect(() => {
     if (!player || !prefsLoaded) return;
@@ -319,9 +400,26 @@ export default function VideoPlayerScreen({ navigation }) {
     if (player && currentVideo && currentVideo.type !== "live") updateWatchProgress(currentVideo.streamId, currentVideo.type, player.currentTime, Number.isFinite(player.duration) ? player.duration : 0);
     flushProgress();
     clearInterval(progressIntervalRef.current);
+    // Stop the player explicitly: staysActiveInBackground keeps the audio
+    // session alive, so without this the stream keeps playing after the screen
+    // pops. Pause now; the unmount effect releases the instance.
+    try { playerRef.current?.pause(); } catch {}
     closeVideo();
     navigation.goBack();
   }, [player, currentVideo, updateWatchProgress, flushProgress, closeVideo, navigation]);
+
+  // Stop + release the player when the screen leaves, regardless of how it was
+  // dismissed (close button, hardware back, or navigation gesture). Without
+  // this, staysActiveInBackground leaves audio playing in the background.
+  useEffect(() => {
+    return () => {
+      const p = playerRef.current;
+      if (!p) return;
+      try { p.pause(); } catch {}
+      try { if (typeof p.replace === "function") p.replace(null); } catch {}
+      try { if (typeof p.release === "function") p.release(); } catch {}
+    };
+  }, []);
 
   // ---- Group 3: sleep timer (pause + close on elapse) ----
   const sleep = useSleepTimer(useCallback(() => {
@@ -531,7 +629,7 @@ export default function VideoPlayerScreen({ navigation }) {
       {/* Video + gesture surface. nativeControls disabled so PanResponder owns
           touches; gesture indicators + custom controls replace them. */}
       <View
-        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        style={{ position: "absolute", top: insets.top, left: 0, right: 0, bottom: insets.bottom }}
         onLayout={(ev) => { gestureState.current.layoutW = ev.nativeEvent.layout.width; }}
         {...panResponder.panHandlers}
       >
@@ -567,19 +665,11 @@ export default function VideoPlayerScreen({ navigation }) {
         onStartOver={handleStartOver}
       />
 
-      {/* Loading overlay */}
-      {isLoading && !isFatal && !needsResumeChoice && (
+      {/* Loading overlay — also shown while recovering (over the frozen frame) */}
+      {(isLoading || isRecovering) && !isFatal && !needsResumeChoice && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} backgroundColor="rgba(0,0,0,0.5)" pointerEvents="none">
           <StatePanel mode="loading" title="Loading stream..." />
         </YStack>
-      )}
-
-      {/* Reconnecting badge */}
-      {isRecovering && !isFatal && (
-        <XStack position="absolute" bottom={16} right={16} backgroundColor={accentAlpha(0.92)} paddingHorizontal={14} paddingVertical={8} borderRadius={radii.sm} alignItems="center" gap={8} pointerEvents="none" zIndex={30}>
-          <Spinner size="small" color={colors.text} />
-          <Text color={colors.text} fontSize={13} fontWeight="600">Reconnecting…</Text>
-        </XStack>
       )}
 
       {/* Sleep-timer countdown badge */}
@@ -612,7 +702,7 @@ export default function VideoPlayerScreen({ navigation }) {
 
       {/* Top controls bar */}
       {showControls && (
-        <YStack position="absolute" top={0} left={0} right={0} paddingTop={topPadding} pointerEvents="box-none">
+        <YStack position="absolute" top={0} left={0} right={0} paddingTop={insets.top + topPadding} pointerEvents="box-none">
           <XStack alignItems="center" paddingHorizontal={12} paddingVertical={8} backgroundColor="rgba(0,0,0,0.7)" flexWrap="wrap" gap={8}>
             <YStack width={34} height={34} backgroundColor={accentAlpha(0.9)} borderRadius={17} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }}>
               <Icon name="close" size={16} color={colors.text} />
@@ -646,6 +736,9 @@ export default function VideoPlayerScreen({ navigation }) {
             {/* Aspect / contentFit cycle */}
             <Button variant="secondary" size="sm" onPress={cycleContentFit}>{contentFit}</Button>
 
+            {/* Fullscreen (landscape) toggle */}
+            <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" onPress={toggleFullscreen}>{isFullscreen ? "Exit" : "Full"}</Button>
+
             {/* Stats toggle */}
             <Button variant={showStats ? "primary" : "secondary"} size="sm" onPress={() => setShowStats((s) => !s)}>Stats</Button>
 
@@ -678,8 +771,38 @@ export default function VideoPlayerScreen({ navigation }) {
         </YStack>
       )}
 
+      {/* Bottom seek bar (VOD only) — position/duration + drag to scrub */}
+      {showControls && !isLive && progress.duration > 0 && (() => {
+        const shown = scrubSec != null ? scrubSec : progress.position;
+        const playedPct = Math.max(0, Math.min(100, (shown / progress.duration) * 100));
+        const bufferedPct = Math.max(0, Math.min(100, (progress.buffered / progress.duration) * 100));
+        return (
+          <YStack position="absolute" bottom={0} left={0} right={0} paddingHorizontal={16} paddingTop={10} paddingBottom={insets.bottom + 12} backgroundColor="rgba(0,0,0,0.7)" zIndex={20}>
+            <View
+              style={{ height: 26, justifyContent: "center" }}
+              onLayout={(e) => { seekTrackWidth.current = e.nativeEvent.layout.width; }}
+              onStartShouldSetResponder={() => true}
+              onMoveShouldSetResponder={() => true}
+              onResponderGrant={(e) => scrubToX(e.nativeEvent.locationX)}
+              onResponderMove={(e) => scrubToX(e.nativeEvent.locationX)}
+              onResponderRelease={commitScrub}
+              onResponderTerminate={commitScrub}
+            >
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.25)" }} />
+              <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${bufferedPct}%`, backgroundColor: "rgba(255,255,255,0.4)" }} />
+              <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${playedPct}%`, backgroundColor: colors.accent }} />
+              <View style={{ position: "absolute", left: `${playedPct}%`, width: 14, height: 14, borderRadius: 7, marginLeft: -7, backgroundColor: colors.accent }} />
+            </View>
+            <XStack justifyContent="space-between" marginTop={4}>
+              <Text color={colors.text} fontSize={12} fontWeight="600">{formatTime(shown)}</Text>
+              <Text color={colors.muted} fontSize={12}>{formatTime(progress.duration)}</Text>
+            </XStack>
+          </YStack>
+        );
+      })()}
+
       {/* Speed Menu */}
-      <Modal visible={showSpeedMenu} transparent animationType="fade" onRequestClose={() => setShowSpeedMenu(false)}>
+      <Modal visible={showSpeedMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSpeedMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSpeedMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Playback Speed</Text>
@@ -695,7 +818,7 @@ export default function VideoPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Audio Menu */}
-      <Modal visible={showAudioMenu} transparent animationType="fade" onRequestClose={() => setShowAudioMenu(false)}>
+      <Modal visible={showAudioMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAudioMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowAudioMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Audio Track</Text>
@@ -711,7 +834,7 @@ export default function VideoPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Subtitle Menu */}
-      <Modal visible={showSubtitleMenu} transparent animationType="fade" onRequestClose={() => setShowSubtitleMenu(false)}>
+      <Modal visible={showSubtitleMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSubtitleMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSubtitleMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Subtitles</Text>
@@ -730,7 +853,7 @@ export default function VideoPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Subtitle & Audio tuning panel */}
-      <Modal visible={showSubtitleSettings} transparent animationType="fade" onRequestClose={() => setShowSubtitleSettings(false)}>
+      <Modal visible={showSubtitleSettings} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSubtitleSettings(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSubtitleSettings(false)}>
           <TouchableOpacity activeOpacity={1}>
             <SubtitleSettings
@@ -744,7 +867,7 @@ export default function VideoPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Sleep-timer menu */}
-      <Modal visible={showSleepMenu} transparent animationType="fade" onRequestClose={() => setShowSleepMenu(false)}>
+      <Modal visible={showSleepMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSleepMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSleepMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={400} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Sleep Timer</Text>
