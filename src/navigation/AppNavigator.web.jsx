@@ -8,28 +8,24 @@ import { ss } from "../utils/scaleSize";
 
 import AuthScreen from "../screens/AuthScreen";
 import ProfilesScreen from "../screens/ProfilesScreen";
-import LiveTVScreenWeb from "../screens/LiveTVScreen.web";
-import LiveTVScreenTV from "../screens/LiveTVScreen.tv";
-import MoviesScreenWeb from "../screens/MoviesScreen.web";
-import MoviesScreenTV from "../screens/MoviesScreen.tv";
-import SeriesScreenWeb from "../screens/SeriesScreen.web";
-import SeriesScreenTV from "../screens/SeriesScreen.tv";
-import HistoryScreenWeb from "../screens/HistoryScreen.web";
-import HistoryScreenTV from "../screens/HistoryScreen.tv";
-import AccountsScreenWeb from "../screens/AccountsScreen";
-import AccountsScreenTV from "../screens/AccountsScreen.tv";
+// Per-platform screen variants are resolved at BUILD time. Both web/electron
+// and webOS-TV build with `expo export --platform web`, so Metro can't pick the
+// .tv variant by platform extension. The TV build sets EXPO_PUBLIC_TV=1
+// (package.json build:tv) and the metro.config.js resolver swaps these .web
+// specifiers to their .tv siblings — so each bundle ships ONLY its own screen
+// tree (the other variant is never resolved, hence never bundled, even under
+// web.output:single). Authoring stays on the .web path; runtime
+// globalThis.__TV__ (set by patch-index) still gates non-import TV behavior.
+import LiveTVScreen from "../screens/LiveTVScreen.web";
+import MoviesScreen from "../screens/MoviesScreen.web";
+import SeriesScreen from "../screens/SeriesScreen.web";
+import HistoryScreen from "../screens/HistoryScreen.web";
+import AccountsScreen from "../screens/AccountsScreen";
 import VideoPlayerScreen from "../screens/VideoPlayerScreen";
 import SettingsScreen from "../screens/SettingsScreen.web";
 import { usePlatform } from "../platform/PlatformProvider";
 import { go as historyGo, back as historyBack } from "./tabHistory";
 
-// Use TV-optimized screens on TV platforms (resolved at module load from build flag)
-const _isTV = !!globalThis.__TV__;
-const LiveTVScreen = _isTV ? LiveTVScreenTV : LiveTVScreenWeb;
-const MoviesScreen = _isTV ? MoviesScreenTV : MoviesScreenWeb;
-const SeriesScreen = _isTV ? SeriesScreenTV : SeriesScreenWeb;
-const HistoryScreen = _isTV ? HistoryScreenTV : HistoryScreenWeb;
-const AccountsScreen = _isTV ? AccountsScreenTV : AccountsScreenWeb;
 
 // ── Global CSS injected once ──────────────────────────────────────────────────
 // token-mirror block: the hex literals inside the CSS template string below
