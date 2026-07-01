@@ -42,9 +42,10 @@ export function adminClient() {
   );
 }
 
-// Throws DEVICE_MISMATCH unless the user's bound device equals `deviceId`.
-// No binding row (unbound) also throws — data access requires a prior
-// claim-device call. Access decision compares the PRIMARY anchor only.
+// Throws DEVICE_MISMATCH unless this exact (user_id, device_id) has a binding
+// row — i.e. the caller's device is one of the account's claimed devices. No
+// matching row (unbound / evicted / over-limit) throws — data access requires a
+// prior successful claim-device. Access decision compares the PRIMARY anchor only.
 export async function assertBoundDevice(
   admin: ReturnType<typeof adminClient>,
   userId: string,
@@ -55,11 +56,13 @@ export async function assertBoundDevice(
     .from("device_bindings")
     .select("device_id")
     .eq("user_id", userId)
+    .eq("device_id", deviceId)
     .maybeSingle();
   if (error) throw new Error("SERVER_ERROR");
-  if (!data || data.device_id !== deviceId) throw new Error("DEVICE_MISMATCH");
+  if (!data) throw new Error("DEVICE_MISMATCH");
   await admin
     .from("device_bindings")
     .update({ last_seen_at: new Date().toISOString() })
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("device_id", deviceId);
 }

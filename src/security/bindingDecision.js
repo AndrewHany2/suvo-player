@@ -1,17 +1,18 @@
-// Pure device-binding decision. The atomic INSERT lives in the claim-device
-// Edge Function; this is the decision made from its result, kept pure so it can
-// be unit-tested in isolation and mirrored server-side.
+// Pure device-claim decision — mirror of the claim_device SQL function
+// (the SQL, guarded by a per-user advisory lock, is authoritative). Kept pure
+// so the intended semantics stay unit-tested in isolation.
 //
-//   insertedRow   the row returned by INSERT ... ON CONFLICT DO NOTHING RETURNING *
-//                 (truthy only when THIS login just claimed the device), else null
-//   existingRow   the row re-selected on conflict ({ device_id }), else null
-//   callerDeviceId the primary device anchor the caller presented
-function evaluateBinding({ insertedRow, existingRow, callerDeviceId }) {
-  if (insertedRow) return { status: "bound" };
-  if (!callerDeviceId) return { status: "denied" };
-  if (existingRow && existingRow.device_id === callerDeviceId)
-    return { status: "ok" };
-  return { status: "denied" };
+//   deviceId           the primary device anchor the caller presented
+//   deviceAlreadyBound this (user_id, device_id) already has a binding row
+//   currentCount       how many devices this account currently holds
+//   limit              effective device limit (per-account override ?? global default)
+//
+// Access uses the PRIMARY anchor only; the secondary composite never gates.
+function evaluateClaim({ deviceId, deviceAlreadyBound, currentCount, limit }) {
+  if (!deviceId) return "denied";
+  if (deviceAlreadyBound) return "ok"; // known device, refresh last_seen
+  if (currentCount < limit) return "bound"; // free slot → claim
+  return "denied"; // at limit, admin-only unbind
 }
 
-module.exports = { evaluateBinding };
+module.exports = { evaluateClaim };

@@ -46,6 +46,14 @@ function createWindow() {
   mainWindow.maximize();
 
   if (isDev) {
+    // Hide Expo's Fast Refresh badge (the flashing lightning-bolt in the
+    // bottom-left). It's dev-server-only overlay UI; hiding it keeps hot
+    // reload working. Re-inject on every load since navigations reset CSS.
+    mainWindow.webContents.on("dom-ready", () => {
+      mainWindow.webContents.insertCSS(
+        ".__expo_fast_refresh { display: none !important; }",
+      );
+    });
     mainWindow.loadURL("http://localhost:3001");
   } else {
     mainWindow.loadURL("app://localhost/index.html");
