@@ -101,7 +101,7 @@ Postgres
 - **Attestation cadence:** attest on `claim-device` + on cold start / token refresh (not every request). Per-request gate = JWT + binding-row check. (Per-request App Attest assertions are the gold standard but deferred as heavier; revisit if needed.)
 - **Admin unbind:** delete the `device_bindings` row (Supabase dashboard SQL or a service_role-only `admin-unbind` function). Next login rebinds.
 
-### D. Obfuscation
+### D. Obfuscation  ✅ IMPLEMENTED — see `docs/superpowers/plans/2026-07-02-obfuscation-pipeline.md` + `docs/OBFUSCATION.md`
 - **Web exports (webOS/Tizen/Electron):** post-export `javascript-obfuscator` pass at **light–medium** preset (control-flow flattening off/low — heavy presets break/crawl on weak TV engines). Wire into `build:tv`, `build:web`, `build:electron`.
 - **Native (iOS/Android):** rely on **Hermes bytecode** (already non-readable). No extra JS obfuscation.
 - **Electron:** package with `asar` + enable integrity fuses.

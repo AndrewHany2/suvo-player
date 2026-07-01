@@ -2,6 +2,7 @@
   "appId": "com.iptv.player",
   "productName": "IPTV Player",
   "asar": true,
+  "afterPack": "electron/afterPack.js",
   "extraMetadata": {
     "main": "electron/main.js"
   },
