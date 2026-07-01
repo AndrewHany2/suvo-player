@@ -9,6 +9,8 @@ import { ss } from "../utils/scaleSize";
 import { isMacCommand } from "../platform/adapters/input/keys";
 
 import AuthScreen from "../screens/AuthScreen";
+import ConfigErrorScreen from "../screens/ConfigErrorScreen";
+import DeviceLockedScreen from "../screens/DeviceLockedScreen";
 import ProfilesScreen from "../screens/ProfilesScreen";
 // Per-platform screen variants are resolved at BUILD time. Both web/electron
 // and webOS-TV build with `expo export --platform web`, so Metro can't pick the
@@ -340,6 +342,7 @@ export default function AppNavigator() {
   const {
     authUser,
     authLoading,
+    deviceStatus,
     activeProfileId,
     activeProfile,
     currentVideo,
@@ -600,12 +603,16 @@ export default function AppNavigator() {
   // patch-index #root splash so there's no visual jump). Auth-agnostic spinner
   // only — never an optimistic main-nav skeleton that could flash the wrong
   // screen. The 8s authLoading ceiling lives in AppContext.
-  if (authLoading) return (
+  const splash = (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0A0E1A" }}>
       <div style={{ width: 48, height: 48, border: "4px solid #28324E", borderTopColor: "#6C5CE7", borderRadius: "50%", animation: "lumen-spin 0.8s linear infinite" }} />
     </div>
   );
-  if (isSupabaseConfigured() && !authUser) return <AuthScreen />;
+  if (!isSupabaseConfigured()) return <ConfigErrorScreen />;
+  if (authLoading) return splash;
+  if (!authUser) return <AuthScreen />;
+  if (deviceStatus === "pending") return splash;
+  if (deviceStatus === "denied") return <DeviceLockedScreen />;
   if (!activeProfileId) return <ProfilesScreen />;
 
   const ContentComponent = CONTENT_MAP[activeTab] || LiveTVScreen;

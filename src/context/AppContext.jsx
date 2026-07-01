@@ -4,7 +4,7 @@ import iptvApi from '../services/iptvApi';
 import {
   fetchRemoteHistory, upsertHistoryEntry, deleteHistoryEntry, mergeHistories, MAX_HISTORY,
   fetchFavorites, upsertFavorite, deleteFavorite,
-  isSupabaseConfigured, getSession,
+  isSupabaseConfigured, getSession, claimDevice,
   signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut,
   onAuthStateChange, fetchProfile, upsertProfile,
   fetchAppProfiles, insertAppProfile, updateAppProfile, deleteAppProfile,
@@ -12,6 +12,8 @@ import {
   updateIptvAccount as supabaseUpdateIptvAccount,
   deleteIptvAccount as supabaseDeleteIptvAccount,
 } from '../services/supabase';
+import { getDeviceSignature } from '../security/deviceSignature';
+import { setDeviceId } from '../services/deviceHeader';
 
 const AppContext = createContext();
 
@@ -26,6 +28,9 @@ export const AppProvider = ({ children }) => {
   const [authUser, setAuthUser]     = useState(null);
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured());
   const [profile, setProfile]       = useState(null);
+  // 'pending' until the device is bound/verified server-side; 'ok' unlocks data
+  // loads; 'denied' means this account is bound to another device.
+  const [deviceStatus, setDeviceStatus] = useState('pending');
 
   // ─── App profiles ──────────────────────────────────────────────────────────
   const [appProfiles, setAppProfiles]       = useState([]);
@@ -440,8 +445,28 @@ export const AppProvider = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Claim (bind or verify) this device once we have an authed user, before any
+  // data loads. deviceStatus gates every data-loading effect below. On any
+  // failure we fail closed ('denied') rather than bypass the lock.
   useEffect(() => {
-    if (!authUser) return;
+    let cancelled = false;
+    if (!authUser) { setDeviceStatus('pending'); return; }
+    (async () => {
+      try {
+        const sig = await getDeviceSignature();
+        setDeviceId(sig.primary);
+        const status = await claimDevice({ deviceId: sig.primary, platform: sig.platform, secondary: sig.secondary });
+        if (!cancelled) setDeviceStatus(status === 'denied' ? 'denied' : 'ok');
+      } catch {
+        if (!cancelled) setDeviceStatus('denied');
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id]);
+
+  useEffect(() => {
+    if (!authUser || deviceStatus !== 'ok') return;
     const meta = authUser.user_metadata;
     if (meta?.username) {
       // Set the profile optimistically from the JWT metadata we already hold so
@@ -454,7 +479,7 @@ export const AppProvider = ({ children }) => {
     }
     fetchAppProfiles(authUser.id).then(setAppProfiles).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser?.id]);
+  }, [authUser?.id, deviceStatus]);
 
   useEffect(() => {
     if (!activeProfileId) return;
@@ -525,10 +550,10 @@ export const AppProvider = ({ children }) => {
   // activeProfileId) so the fetch target always matches the write target.
   // Hydrates local first, merges remote, and re-upserts local-newer entries.
   useEffect(() => {
-    if (!userKey) { setWatchHistory([]); setMyList([]); return; }
+    if (!userKey || deviceStatus !== 'ok') { setWatchHistory([]); setMyList([]); return; }
     loadLibrary(userKey);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userKey]);
+  }, [userKey, deviceStatus]);
 
   // Flush any pending progress writes when the provider unmounts so we never
   // lose the last few seconds of watch position on app teardown.
@@ -541,7 +566,7 @@ export const AppProvider = ({ children }) => {
 
   // ─── Context value ─────────────────────────────────────────────────────────
   const value = useMemo(() => ({
-    authUser, authLoading, profile, signIn, signUp, signOut,
+    authUser, authLoading, profile, deviceStatus, signIn, signUp, signOut,
     appProfiles, activeProfileId, activeProfile, switchProfile, addProfile, updateProfile, removeProfile,
     contentType, setContentType,
     channels, setChannels, filteredChannels, currentChannelIndex, setCurrentChannelIndex,
@@ -558,7 +583,7 @@ export const AppProvider = ({ children }) => {
     searchQuery, setSearchQuery, isLoading, setIsLoading, error, setError,
     saveChannels, loadSavedUsers, loadSavedChannels,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [authUser, authLoading, profile, appProfiles, activeProfileId, activeProfile,
+  }), [authUser, authLoading, profile, deviceStatus, appProfiles, activeProfileId, activeProfile,
     contentType, channels, filteredChannels, currentChannelIndex,
     users, activeUserId, watchHistory, isSyncing, myList, currentVideo,
     searchQuery, isLoading, error,

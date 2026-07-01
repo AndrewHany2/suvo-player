@@ -10,6 +10,8 @@ import { useApp } from "../context/AppContext";
 import { isSupabaseConfigured } from "../services/supabase";
 
 import AuthScreen from "../screens/AuthScreen";
+import ConfigErrorScreen from "../screens/ConfigErrorScreen";
+import DeviceLockedScreen from "../screens/DeviceLockedScreen";
 import ProfilesScreen from "../screens/ProfilesScreen";
 import LiveTVScreen from "../screens/LiveTVScreen";
 import MoviesScreen from "../screens/MoviesScreen";
@@ -82,15 +84,19 @@ function MainTabs() {
 }
 
 export default function AppNavigator() {
-  const { authUser, authLoading, activeProfileId } = useApp();
-  // Neutral boot splash while the session resolves — auth-agnostic spinner only,
-  // never an optimistic skeleton. The 8s authLoading ceiling lives in AppContext.
-  if (authLoading) return (
+  const { authUser, authLoading, activeProfileId, deviceStatus } = useApp();
+  // Neutral boot splash while the session/device resolves — auth-agnostic spinner
+  // only, never an optimistic skeleton. The 8s authLoading ceiling lives in AppContext.
+  const splash = (
     <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor={colors.bg}>
       <ActivityIndicator size="large" color={colors.accent} />
     </YStack>
   );
-  if (isSupabaseConfigured() && !authUser) return <AuthScreen />;
+  if (!isSupabaseConfigured()) return <ConfigErrorScreen />;
+  if (authLoading) return splash;
+  if (!authUser) return <AuthScreen />;
+  if (deviceStatus === "pending") return splash;
+  if (deviceStatus === "denied") return <DeviceLockedScreen />;
   if (!activeProfileId) return <ProfilesScreen />;
 
   return (

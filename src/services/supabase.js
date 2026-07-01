@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mapInvokeResult } from "./invokeData.logic.js";
+import { getDeviceId } from "./deviceHeader.js";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -18,10 +20,8 @@ const authConfig =
     : {};
 
 // Lazily create the Supabase client on FIRST use rather than at module import,
-// so createClient() runs off the synchronous cold-start path (Tier 6 "cheap
-// intermediate" — works even under web.output:single). The null result is
-// memoized too, so an unconfigured app never re-checks. isSupabaseConfigured()
-// stays a pure env check and never instantiates the client.
+// so createClient() runs off the synchronous cold-start path. The null result
+// is memoized too, so an unconfigured app never re-checks.
 let _client;
 let _clientInit = false;
 function client() {
@@ -37,6 +37,31 @@ function client() {
 
 export const isSupabaseConfigured = () => !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 
+// ─── Device-gated data access ──────────────────────────────────────────────
+// All table access flows through the `data` Edge Function, which verifies the
+// JWT and the bound device before touching Postgres with the service role.
+async function invokeData(action, payload = {}) {
+  if (!client()) throw new Error("Supabase not configured");
+  const res = await client().functions.invoke("data", {
+    body: { action, payload },
+    headers: { "x-device-id": getDeviceId() },
+  });
+  return mapInvokeResult(res);
+}
+
+// Bind-or-verify this device for the authed user. Returns 'bound' | 'ok' | 'denied'.
+export async function claimDevice({ deviceId, platform, secondary }) {
+  if (!client()) throw new Error("Supabase not configured");
+  const res = await client().functions.invoke("claim-device", {
+    body: { deviceId, platform, secondary },
+    headers: { "x-device-id": deviceId },
+  });
+  if (res.error) throw new Error(res.error.message || "CLAIM_FAILED");
+  return res.data?.status ?? "denied";
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
 export async function getSession() {
   if (!client()) return null;
   const { data } = await client().auth.getSession();
@@ -44,13 +69,6 @@ export async function getSession() {
 }
 
 export async function signUp(username, password, email) {
-  const { data: existing } = await client()
-    .from("profiles")
-    .select("username")
-    .eq("username", username.toLowerCase())
-    .maybeSingle();
-  if (existing) throw new Error("Username is already taken.");
-
   const { data, error } = await client().auth.signUp({
     email: email.toLowerCase(),
     password,
@@ -63,29 +81,7 @@ export async function signUp(username, password, email) {
       );
     throw new Error(error.message);
   }
-  if (data.session && data.user) {
-    await upsertProfile(
-      data.user.id,
-      username.toLowerCase(),
-      email.toLowerCase(),
-    );
-  }
   return data.user;
-}
-
-export async function upsertProfile(userId, username, email) {
-  if (!client()) return;
-  try {
-    const { error } = await client()
-      .from("profiles")
-      .upsert({ user_id: userId, username, email }, { onConflict: "user_id" });
-    if (error) console.error("[Supabase] upsertProfile:", error.message);
-  } catch (err) {
-    console.error(
-      "[Supabase] upsertProfile: Network request failed",
-      err.message,
-    );
-  }
 }
 
 export async function signIn(usernameOrEmail, password) {
@@ -93,6 +89,8 @@ export async function signIn(usernameOrEmail, password) {
   if (usernameOrEmail.includes("@")) {
     email = usernameOrEmail.toLowerCase();
   } else {
+    // Username → email lookup. NOTE: still a direct table read; reinstate as a
+    // dedicated Edge Function before running the deferred grant-revoke SQL.
     const { data: profileRow, error: lookupError } = await client()
       .from("profiles")
       .select("email")
@@ -123,11 +121,6 @@ export async function signIn(usernameOrEmail, password) {
       throw new Error("Invalid email or password.");
     throw new Error(error.message);
   }
-  if (data.user) {
-    const meta = data.user.user_metadata;
-    if (meta?.username)
-      await upsertProfile(data.user.id, meta.username, data.user.email);
-  }
   return data.user;
 }
 
@@ -144,129 +137,51 @@ export function onAuthStateChange(callback) {
   return () => data.subscription.unsubscribe();
 }
 
-export async function fetchProfile(userId) {
-  if (!client()) return null;
-  const { data, error } = await client()
-    .from("profiles")
-    .select("username, email")
-    .eq("user_id", userId)
-    .single();
-  if (error) return null;
-  return data;
+// ─── Profiles ──────────────────────────────────────────────────────────────
+
+export async function fetchProfile(_userId) {
+  return invokeData("profiles.fetch");
+}
+
+export async function upsertProfile(_userId, username, email) {
+  return invokeData("profiles.upsert", { username, email });
 }
 
 // ─── App Profiles ────────────────────────────────────────────────────────────
 
-export async function fetchAppProfiles(userId) {
-  if (!client()) return [];
-  const { data, error } = await client()
-    .from("app_profiles")
-    .select("id, name, avatar, created_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true });
-  if (error) {
-    console.error("[Supabase] fetchAppProfiles:", error.message);
-    return [];
-  }
-  return data;
+export async function fetchAppProfiles(_userId) {
+  return invokeData("appProfiles.list");
 }
 
-export async function insertAppProfile(userId, { name, avatar = "👤" }) {
-  if (!client()) return null;
-  const { data, error } = await client()
-    .from("app_profiles")
-    .insert({ user_id: userId, name: name.trim(), avatar })
-    .select()
-    .single();
-  if (error) {
-    console.error("[Supabase] insertAppProfile:", error.message);
-    return null;
-  }
-  return data;
+export async function insertAppProfile(_userId, { name, avatar = "👤" }) {
+  return invokeData("appProfiles.insert", { name, avatar });
 }
 
 export async function updateAppProfile(profileId, { name, avatar }) {
-  if (!client()) return;
-  const { error } = await client()
-    .from("app_profiles")
-    .update({ name: name.trim(), avatar })
-    .eq("id", profileId);
-  if (error) console.error("[Supabase] updateAppProfile:", error.message);
+  return invokeData("appProfiles.update", { id: profileId, name, avatar });
 }
 
 export async function deleteAppProfile(profileId) {
-  if (!client()) return;
-  const { error } = await client()
-    .from("app_profiles")
-    .delete()
-    .eq("id", profileId);
-  if (error) console.error("[Supabase] deleteAppProfile:", error.message);
+  return invokeData("appProfiles.delete", { id: profileId });
 }
 
 // ─── IPTV Accounts ───────────────────────────────────────────────────────────
 
 export async function fetchIptvAccounts(profileId) {
-  if (!client()) return [];
-  const { data, error } = await client()
-    .from("iptv_accounts")
-    .select("*")
-    .eq("profile_id", profileId)
-    .order("created_at", { ascending: true });
-  if (error) {
-    console.error("[Supabase] fetchIptvAccounts:", error.message);
-    return [];
-  }
-  return data.map((row) => ({
-    id: row.id,
-    nickname: row.nickname || "",
-    host: row.host,
-    username: row.username,
-    password: row.password,
-  }));
+  return invokeData("iptv.list", { profileId });
 }
 
-export async function insertIptvAccount(userId, profileId, account) {
-  if (!client()) return null;
-  const { data, error } = await client()
-    .from("iptv_accounts")
-    .insert({
-      user_id: userId,
-      profile_id: profileId,
-      nickname: account.nickname || null,
-      host: account.host,
-      username: account.username,
-      password: account.password,
-    })
-    .select()
-    .single();
-  if (error) {
-    console.error("[Supabase] insertIptvAccount:", error.message);
-    return null;
-  }
-  return data.id;
+export async function insertIptvAccount(_userId, profileId, account) {
+  const r = await invokeData("iptv.insert", { profileId, ...account });
+  return r?.id ?? null;
 }
 
 export async function updateIptvAccount(accountId, account) {
-  if (!client()) return;
-  const { error } = await client()
-    .from("iptv_accounts")
-    .update({
-      nickname: account.nickname || null,
-      host: account.host,
-      username: account.username,
-      password: account.password,
-    })
-    .eq("id", accountId);
-  if (error) console.error("[Supabase] updateIptvAccount:", error.message);
+  return invokeData("iptv.update", { id: accountId, ...account });
 }
 
 export async function deleteIptvAccount(accountId) {
-  if (!client()) return;
-  const { error } = await client()
-    .from("iptv_accounts")
-    .delete()
-    .eq("id", accountId);
-  if (error) console.error("[Supabase] deleteIptvAccount:", error.message);
+  return invokeData("iptv.delete", { id: accountId });
 }
 
 // ─── Watch History ────────────────────────────────────────────────────────────
@@ -275,100 +190,55 @@ export async function deleteIptvAccount(accountId) {
 export const MAX_HISTORY = 20;
 
 export async function fetchRemoteHistory(userKey) {
-  if (!client()) return [];
-  const { data, error } = await client()
-    .from("watch_history")
-    .select("entry")
-    .eq("user_key", userKey)
-    .order("watched_at", { ascending: false })
-    .limit(MAX_HISTORY);
-  if (error) {
-    console.warn("[Supabase] fetchRemoteHistory:", error.message);
-    return [];
-  }
-  return data.map((row) => row.entry);
+  return invokeData("history.fetch", { userKey });
 }
 
 export async function upsertHistoryEntry(userKey, entry) {
-  if (!client()) return { ok: false, error: new Error("Supabase not configured") };
-  const { error } = await client()
-    .from("watch_history")
-    .upsert(
-      {
-        user_key: userKey,
-        entry_id: entry.id,
-        entry,
-        watched_at: entry.watchedAt,
-      },
-      { onConflict: "user_key,entry_id" },
-    );
-  if (error) {
-    // Best-effort remote sync — local history is the source of truth. A flaky
-    // connection / unreachable Supabase is expected, so warn (don't surface the
-    // red error overlay) and let the caller carry on.
+  try {
+    await invokeData("history.upsert", { userKey, entry });
+    return { ok: true };
+  } catch (error) {
+    // Best-effort remote sync — local history is the source of truth. Warn
+    // (don't surface the red error overlay) and let the caller carry on.
     console.warn("[Supabase] upsertHistoryEntry:", error.message);
     return { ok: false, error };
   }
-  return { ok: true };
 }
 
 export async function deleteHistoryEntry(userKey, entryId) {
-  if (!client()) return { ok: false, error: new Error("Supabase not configured") };
-  const { error } = await client()
-    .from("watch_history")
-    .delete()
-    .eq("user_key", userKey)
-    .eq("entry_id", entryId);
-  if (error) {
+  try {
+    await invokeData("history.delete", { userKey, entryId });
+    return { ok: true };
+  } catch (error) {
     console.error("[Supabase] deleteHistoryEntry:", error.message);
     return { ok: false, error };
   }
-  return { ok: true };
 }
 
 // ─── Favorites ────────────────────────────────────────────────────────────────
 
 export async function fetchFavorites(userKey) {
-  if (!client()) return [];
-  const { data, error } = await client()
-    .from("favorites")
-    .select("entry")
-    .eq("user_key", userKey)
-    .order("added_at", { ascending: false });
-  if (error) {
-    console.error("[Supabase] fetchFavorites:", error.message);
-    return [];
-  }
-  return data.map((row) => row.entry);
+  return invokeData("favorites.fetch", { userKey });
 }
 
 export async function upsertFavorite(userKey, entry) {
-  if (!client()) return { ok: false, error: new Error("Supabase not configured") };
-  const { error } = await client()
-    .from("favorites")
-    .upsert(
-      { user_key: userKey, entry_id: entry.id, entry, added_at: entry.addedAt },
-      { onConflict: "user_key,entry_id" },
-    );
-  if (error) {
+  try {
+    await invokeData("favorites.upsert", { userKey, entry });
+    return { ok: true };
+  } catch (error) {
     console.error("[Supabase] upsertFavorite:", error.message);
     return { ok: false, error };
   }
-  return { ok: true };
 }
 
 export async function deleteFavorite(userKey, entryId) {
-  if (!client()) return { ok: false, error: new Error("Supabase not configured") };
-  const { error } = await client()
-    .from("favorites")
-    .delete()
-    .eq("user_key", userKey)
-    .eq("entry_id", entryId);
-  if (error) {
+  try {
+    await invokeData("favorites.delete", { userKey, entryId });
+    return { ok: true };
+  } catch (error) {
     console.error("[Supabase] deleteFavorite:", error.message);
     return { ok: false, error };
   }
-  return { ok: true };
 }
 
 export function mergeHistories(local, remote) {
