@@ -102,6 +102,17 @@ All in `src/context/AppContext.jsx`. This is the real time-to-usable-screen bott
 
 ## TIER 6 — output:single → output:static (LARGEST, RISKIEST — do last, gate on validation)
 
+> **BLOCKED / NOT VIABLE (verified 2026-07-01).** Flipping `web.output: "static"` and
+> building fails immediately: `Static rendering is enabled … Unable to resolve module
+> expo-router/node/render.js`. In Expo, `output: "static"` is **static-site generation and
+> hard-requires expo-router**; it is NOT a code-splitting toggle. This app uses a custom
+> `AppNavigator` (expo-router is not a dependency), so true web code-splitting would require
+> replacing the entire navigator with expo-router file-based routing — a major architectural
+> rewrite well outside load-time work, and high-risk for the webOS `file://` target.
+> **Consequence:** the only Tier 6 win achievable under `output:single` is the lazy Supabase
+> client init (DONE, commit d5f60c6). Lazy hls.js / per-screen splitting give no download
+> savings while `output:single` inlines every module. Recommend keeping `output:single`.
+
 13. Switching to `output:"static"` enables true code-splitting (real network-chunk savings for
     lazy hls.js/Supabase/per-screen). Prerequisites BEFORE claiming any win:
     - Extend tv/patch-index.js to transpile + asset-rewrite + CSS-var-inline EVERY emitted chunk
