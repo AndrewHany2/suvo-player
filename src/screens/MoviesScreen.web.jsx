@@ -7,16 +7,13 @@ import { ss, useScale } from "../utils/scaleSize";
 import { colors } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
-import { getPlatformConfig, detectPlatform } from "../platform/configs/detectPlatform";
 import ContentShelf from "../presentation/components/ContentShelf.web";
 import PosterCard from "../presentation/components/PosterCard.web";
+import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import Hero from "../presentation/components/Hero.web";
 import { selectHeroItem } from "../presentation/heroItem";
 import MovieDetail from "../components/MovieDetail.web";
-
-const _cfg = getPlatformConfig(detectPlatform());
-const GRID_PAGE = _cfg.performance.gridPageSize;
 
 // Caps the browse content width on ultrawide monitors (centered via margin auto).
 const MAX_W = 1700;
@@ -24,13 +21,13 @@ const MAX_W = 1700;
 /* ─── Category Page (drill-in grid + web D-pad) ─── */
 function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, loadingMore }) {
   const { searchQuery: search, setSearchQuery: setSearch } = useApp();
-  const [displayCount, setDisplayCount] = useState(GRID_PAGE);
   const [focusedIdx, setFocusedIdx] = useState(0);
   const focusedIdxRef = useRef(0);
   const navHasFocusRef = useRef(false);
+  // Column count is owned by VirtualGrid (derived from container width) and
+  // mirrored here so the D-pad handler's up/down row math stays correct.
   const numColsRef = useRef(6);
-  const gridContainerRef = useRef(null);
-  const displayedRef = useRef(null);
+  const filteredRef = useRef(null);
   const onPlayRef = useRef(onPlay);
   const onBackRef = useRef(onBack);
   useEffect(() => { onPlayRef.current = onPlay; }, [onPlay]);
@@ -39,22 +36,9 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
   const filtered = items
     ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items)
     : null;
-  const displayed = filtered ? filtered.slice(0, displayCount) : null;
-  displayedRef.current = displayed;
-  const hasLocalMore = filtered && displayCount < filtered.length;
-  const hasMore = hasLocalMore || hasRemote;
+  filteredRef.current = filtered;
 
-  useEffect(() => { setDisplayCount(GRID_PAGE); setFocusedIdx(0); focusedIdxRef.current = 0; }, [search]);
-
-  useEffect(() => {
-    const el = gridContainerRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const update = () => { numColsRef.current = Math.max(1, Math.floor(el.offsetWidth / (ss(240) + ss(16)))); };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  useEffect(() => { setFocusedIdx(0); focusedIdxRef.current = 0; }, [search]);
 
   useEffect(() => {
     const onNavFocus = () => { navHasFocusRef.current = true; };
@@ -70,7 +54,9 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
   useEffect(() => {
     const handler = (e) => {
       if (navHasFocusRef.current) return;
-      const list = displayedRef.current;
+      // Focus roams the FULL filtered list — VirtualGrid keeps the focused row
+      // mounted and scrolled into view even when it's outside the window.
+      const list = filteredRef.current;
       if (!list?.length) return;
       const idx = focusedIdxRef.current;
       const numCols = numColsRef.current;
@@ -94,16 +80,11 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
     return () => globalThis.removeEventListener("keydown", handler);
   }, []);
 
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    document.querySelector('[data-tv-focused="true"]')?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [focusedIdx]);
-
-  const handleScroll = ({ nativeEvent: { layoutMeasurement, contentOffset, contentSize } }) => {
-    if (contentSize.height - contentOffset.y - layoutMeasurement.height >= 800) return;
-    if (hasLocalMore) setDisplayCount((c) => Math.min(c + GRID_PAGE, filtered.length));
-    else if (hasRemote && !loadingMore && onLoadMore) onLoadMore();
-  };
+  const CARD_W = ss(240);
+  const GAP = ss(16);
+  // Poster is width×1.5; the title block below adds marginTop(8) + height(34).
+  const EST_ROW_H = Math.round(CARD_W * 1.5) + 42;
+  const onEndReached = hasRemote && !loadingMore && onLoadMore ? onLoadMore : undefined;
 
   return (
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg}>
@@ -122,19 +103,28 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
           paddingHorizontal={ss(14)} paddingVertical={ss(10)} fontSize={ss(14)} borderWidth={1} borderColor={colors.border}
         />
       </XStack>
-      {!displayed ? (
-        <YStack flex={1} justifyContent="center" alignItems="center"><Spinner size="large" color={colors.accent} /></YStack>
+      {filtered ? (
+        <YStack flex={1} minHeight={0}>
+          <VirtualGrid
+            items={filtered}
+            itemWidth={CARD_W}
+            gap={GAP}
+            estRowHeight={EST_ROW_H}
+            focusIndex={focusedIdx}
+            paddingH={ss(96)}
+            paddingV={ss(32)}
+            onColsChange={(c) => { numColsRef.current = c; }}
+            onEndReached={onEndReached}
+            footer={loadingMore ? (
+              <YStack alignItems="center" paddingVertical={ss(24)}><Spinner size="small" color={colors.accent} /></YStack>
+            ) : null}
+            renderItem={(item, idx) => (
+              <PosterCard key={item.stream_id != null ? String(item.stream_id) : `i${idx}`} item={item} onPress={onPlay} isFocused={idx === focusedIdx} width={CARD_W} />
+            )}
+          />
+        </YStack>
       ) : (
-        <ScrollView flex={1} minHeight={0} contentContainerStyle={{ paddingHorizontal: ss(96), paddingVertical: ss(32) }} onScroll={handleScroll} scrollEventThrottle={200}>
-          <div ref={gridContainerRef} style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, ${ss(240)}px)`, gap: ss(16), justifyContent: "center", alignItems: "start" }}>
-            {displayed.map((item, idx) => (
-              <PosterCard key={item.stream_id != null ? String(item.stream_id) : `i${idx}`} item={item} onPress={onPlay} isFocused={idx === focusedIdx} width={ss(240)} />
-            ))}
-          </div>
-          {(hasMore || loadingMore) && (
-            <YStack alignItems="center" paddingVertical={ss(24)}><Spinner size="small" color={colors.accent} /></YStack>
-          )}
-        </ScrollView>
+        <YStack flex={1} justifyContent="center" alignItems="center"><Spinner size="large" color={colors.accent} /></YStack>
       )}
     </YStack>
   );

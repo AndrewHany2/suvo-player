@@ -46,6 +46,9 @@ export function useMovies({ navigation } = {}) {
   const topRatedRef = useRef([]);
   const prefetchRef = useRef({ topRated: null });
   const topRatedCursorRef = useRef(null);
+  // Synchronous re-entrancy lock — set before the first await so a burst of
+  // onEndReached calls in the same tick can't each pass the (async) state guard.
+  const topRatedInFlightRef = useRef(false);
   // LRU-capped catId -> items (TV drill-in cache) so it can't grow unbounded.
   const itemsCacheRef = useRef(new MemoryManager(ITEMS_CACHE_MAX));
   // Monotonic id for the active category drill-in; a response whose id no longer
@@ -253,8 +256,9 @@ export function useMovies({ navigation } = {}) {
 
   const handleTopRatedMore = useCallback(async () => {
     const cursor = topRatedCursorRef.current;
-    if (!cursor || topRatedLoadingMore) return;
+    if (!cursor || topRatedInFlightRef.current) return;
     if (cursor.page >= cursor.totalPages && !cursor.prefetch) { setTopRatedHasMore(false); return; }
+    topRatedInFlightRef.current = true;
     setTopRatedLoadingMore(true);
     try {
       let result;
@@ -270,8 +274,8 @@ export function useMovies({ navigation } = {}) {
       setTopRatedHasMore(result.hasMore);
       if (result.matched.length) setCategoryPage((prev) => prev ? { ...prev, items: [...(prev.items || []), ...result.matched] } : prev);
       if (result.hasMore) kickoffPrefetch(cursor);
-    } finally { setTopRatedLoadingMore(false); }
-  }, [topRatedLoadingMore, kickoffPrefetch]);
+    } finally { setTopRatedLoadingMore(false); topRatedInFlightRef.current = false; }
+  }, [kickoffPrefetch]);
 
   const isTopRatedCategory = categoryPage?.catId === "top_rated";
 

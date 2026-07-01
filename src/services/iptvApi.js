@@ -1,3 +1,20 @@
+// Storage (AsyncStorage) is resolved LAZILY rather than imported at module top
+// so that merely loading this module doesn't require react-native — that keeps
+// `node --test` able to import it (and defers AsyncStorage off the boot path).
+// Falls back to a no-op backend if resolution fails (e.g. under the test runner).
+let _storageBackend;
+let _storagePromise;
+const NOOP_STORAGE = { getItem: async () => null, setItem: async () => {} };
+function getStorage() {
+  if (_storageBackend) return Promise.resolve(_storageBackend);
+  _storagePromise ??= import('../utils/storage')
+    .then((m) => (_storageBackend = m.default))
+    .catch(() => (_storageBackend = NOOP_STORAGE));
+  return _storagePromise;
+}
+// Test seam: inject a storage mock so persistence/hydration can be exercised.
+export function __setStorageBackend(s) { _storageBackend = s; }
+
 const TTL = {
   categories: 10 * 60 * 1000,
   streams:     5 * 60 * 1000,
@@ -9,6 +26,17 @@ const TTL = {
 const MAX_CACHE_ENTRIES = 200;
 // Max concurrent requests when fanning out per-category in the robust fetchers.
 const FANOUT_CONCURRENCY = 5;
+// Abort a provider request that hasn't responded in this long so a hung server
+// fails fast (and stale-while-revalidate can serve the previous value) instead
+// of stalling a screen indefinitely.
+const FETCH_TIMEOUT = 15 * 1000;
+// Only these (small, slow-changing) keys are persisted to disk. Full stream
+// lists are intentionally NOT persisted — they can be multiple MB and would
+// blow the ~5 MB localStorage quota on web/webOS.
+const PERSIST_KEYS = new Set(['live_categories', 'vod_categories', 'series_categories']);
+// Debounce disk writes so a burst of category sets re-stringifies once.
+const PERSIST_DEBOUNCE = 2 * 1000;
+const persistStorageKey = (ns) => `iptvcache_${ns}`;
 
 // Run `tasks` (array of () => Promise) with at most `limit` in flight at once.
 // Preserves result order. Used to bound the per-category fan-out so we don't
@@ -43,8 +71,16 @@ export function dedupeById(list, idField) {
   return out;
 }
 
-class IPTVApi {
+export class IPTVApi {
   _cache = new Map();
+  // Per-key in-flight fetch promises so a miss (or a stale-revalidate) fires at
+  // most one network request per key even under a burst of concurrent reads.
+  _inflight = new Map();
+  // Credential-scoped disk-cache namespace, the hydrate promise for it, and the
+  // debounced persist timer.
+  _ns = null;
+  _hydratePromise = null;
+  _persistTimer = null;
   baseUrl = null;
   username = null;
   password = null;
@@ -54,18 +90,70 @@ class IPTVApi {
     cleanHost = cleanHost.replace(/\/$/, '');
     const newBase = `http://${cleanHost}`;
     if (newBase !== this.baseUrl || username !== this.username) {
+      // Credentials changed → the old account's cache is invalid. Drop it and
+      // begin hydrating this account's persisted category cache from disk.
       this._cache.clear();
+      this._inflight.clear();
+      clearTimeout(this._persistTimer);
+      this._ns = this._hash(`${newBase}|${username}`);
+      this._hydratePromise = this._hydrate();
     }
     this.baseUrl = newBase;
     this.username = username;
     this.password = password;
   }
 
-  _cacheGet(key) {
-    const entry = this._cache.get(key);
-    if (!entry) return null;
-    if (Date.now() > entry.expiresAt) { this._cache.delete(key); return null; }
-    return entry.data;
+  // djb2 — small, fast, deterministic, filename-safe. Not for security.
+  _hash(str) {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+
+  // Load this account's persisted category entries into the in-memory cache.
+  // Entries are loaded even if TTL-expired: stale-while-revalidate will refresh
+  // them on first read while the stale value renders instantly. Never throws.
+  async _hydrate() {
+    const ns = this._ns;
+    if (!ns) return;
+    try {
+      const storage = await getStorage();
+      const raw = await storage.getItem(persistStorageKey(ns));
+      if (!raw) return;
+      const blob = JSON.parse(raw);
+      for (const [key, entry] of Object.entries(blob)) {
+        // A concurrent setCredentials may have switched accounts mid-await —
+        // don't pollute the new account's cache with the old one's data.
+        if (this._ns !== ns) return;
+        if (entry && entry.data !== undefined && !this._cache.has(key)) {
+          this._cache.set(key, { data: entry.data, expiresAt: entry.expiresAt ?? 0 });
+        }
+      }
+    } catch { /* missing / corrupt / storage error — ignore */ }
+  }
+
+  _ensureHydrated() {
+    return this._hydratePromise || Promise.resolve();
+  }
+
+  // Debounced write of the persist-whitelisted subset of the cache to disk.
+  _schedulePersist() {
+    clearTimeout(this._persistTimer);
+    this._persistTimer = setTimeout(() => this._persist(), PERSIST_DEBOUNCE);
+  }
+
+  async _persist() {
+    const ns = this._ns;
+    if (!ns) return;
+    const blob = {};
+    for (const key of PERSIST_KEYS) {
+      const entry = this._cache.get(key);
+      if (entry) blob[key] = { data: entry.data, expiresAt: entry.expiresAt };
+    }
+    try {
+      const storage = await getStorage();
+      await storage.setItem(persistStorageKey(ns), JSON.stringify(blob));
+    } catch { /* quota exceeded / storage error — skip, never crash */ }
   }
 
   _cacheSet(key, data, ttl) {
@@ -76,6 +164,39 @@ class IPTVApi {
       if (oldest !== undefined) this._cache.delete(oldest);
     }
     this._cache.set(key, { data, expiresAt: Date.now() + ttl });
+    if (PERSIST_KEYS.has(key)) this._schedulePersist();
+  }
+
+  // Foreground fetch for a cache miss: dedupe concurrent misses on the same key
+  // and cache the result. Returns the (awaitable) data.
+  _refresh(key, ttl, fetcher) {
+    const inflight = this._inflight.get(key);
+    if (inflight) return inflight;
+    const p = (async () => {
+      try {
+        const data = await fetcher();
+        this._cacheSet(key, data, ttl);
+        return data;
+      } finally {
+        this._inflight.delete(key);
+      }
+    })();
+    this._inflight.set(key, p);
+    return p;
+  }
+
+  // Background refresh for a stale hit: fire-and-forget, deduped, keep the stale
+  // value on failure.
+  _revalidate(key, ttl, fetcher) {
+    if (this._inflight.has(key)) return;
+    const p = (async () => {
+      try {
+        const data = await fetcher();
+        this._cacheSet(key, data, ttl);
+      } catch { /* keep stale value */ }
+      finally { this._inflight.delete(key); }
+    })();
+    this._inflight.set(key, p);
   }
 
   buildUrl(action, params = {}) {
@@ -90,21 +211,44 @@ class IPTVApi {
   }
 
   async fetch(url, { signal } = {}) {
-    const response = await globalThis.fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json, text/plain, */*' },
-      signal,
-    });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return response.json();
+    // Abort on our own timeout OR when the caller's signal aborts (whichever
+    // first). A hung provider then rejects fast instead of stalling forever.
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, FETCH_TIMEOUT);
+    const onAbort = () => controller.abort();
+    if (signal) {
+      if (signal.aborted) controller.abort();
+      else signal.addEventListener('abort', onAbort, { once: true });
+    }
+    try {
+      const response = await globalThis.fetch(url, {
+        method: 'GET',
+        headers: { Accept: 'application/json, text/plain, */*' },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return await response.json();
+    } catch (e) {
+      if (timedOut) throw new Error(`Request timed out after ${FETCH_TIMEOUT}ms`);
+      throw e;
+    } finally {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', onAbort);
+    }
   }
 
   async _cached(key, ttl, fetcher) {
-    const hit = this._cacheGet(key);
-    if (hit) return hit;
-    const data = await fetcher();
-    this._cacheSet(key, data, ttl);
-    return data;
+    // Ensure this account's persisted entries are loaded before the first read
+    // (cheap no-op after the first await).
+    await this._ensureHydrated();
+    const entry = this._cache.get(key);
+    if (entry) {
+      if (Date.now() <= entry.expiresAt) return entry.data;        // fresh
+      this._revalidate(key, ttl, fetcher);                          // stale-while-revalidate
+      return entry.data;
+    }
+    return this._refresh(key, ttl, fetcher);                        // miss
   }
 
   getLiveCategories() {

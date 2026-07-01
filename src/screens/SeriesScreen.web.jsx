@@ -12,6 +12,7 @@ import iptvApi from "../services/iptvApi";
 import tmdbApi from "../services/tmdbApi";
 import SeriesDetail from "../components/SeriesDetail.web";
 import TVPosterCard from "../components/TVPosterCard";
+import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import Hero from "../presentation/components/Hero.web";
 import { selectHeroItem } from "../presentation/heroItem";
@@ -22,7 +23,6 @@ const SHELF_PAGE =
   typeof window !== "undefined"
     ? Math.ceil(window.innerWidth / ss(200)) + 2
     : 10;
-const GRID_PAGE = 40;
 
 async function prefetchTopRatedSeries() {
   try {
@@ -270,13 +270,13 @@ function CategoryPage({
   loadingMore,
 }) {
   const { searchQuery: search, setSearchQuery: setSearch } = useApp();
-  const [displayCount, setDisplayCount] = useState(GRID_PAGE);
   const [focusedIdx, setFocusedIdx] = useState(0);
   const focusedIdxRef = useRef(0);
   const navHasFocusRef = useRef(false);
+  // Column count is owned by VirtualGrid (derived from container width) and
+  // mirrored here so the D-pad handler's up/down row math stays correct.
   const numColsRef = useRef(6);
-  const gridContainerRef = useRef(null);
-  const displayedRef = useRef(null);
+  const filteredRef = useRef(null);
   const onPressRef = useRef(onPress);
   const onBackRef = useRef(onBack);
   useEffect(() => {
@@ -293,31 +293,12 @@ function CategoryPage({
         )
       : items
     : null;
-  const displayed = filtered ? filtered.slice(0, displayCount) : null;
-  displayedRef.current = displayed;
-  const hasLocalMore = filtered && displayCount < filtered.length;
-  const hasMore = hasLocalMore || hasRemote;
+  filteredRef.current = filtered;
 
   useEffect(() => {
-    setDisplayCount(GRID_PAGE);
     setFocusedIdx(0);
     focusedIdxRef.current = 0;
   }, [search]);
-
-  useEffect(() => {
-    const el = gridContainerRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const update = () => {
-      numColsRef.current = Math.max(
-        1,
-        Math.floor(el.offsetWidth / (ss(240) + ss(12))),
-      );
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   useEffect(() => {
     const onNavFocus = () => {
@@ -337,7 +318,9 @@ function CategoryPage({
   useEffect(() => {
     const handler = (e) => {
       if (navHasFocusRef.current) return;
-      const list = displayedRef.current;
+      // Focus roams the FULL filtered list — VirtualGrid keeps the focused row
+      // mounted and scrolled into view even when it's outside the window.
+      const list = filteredRef.current;
       if (!list?.length) return;
       const idx = focusedIdxRef.current;
       const numCols = numColsRef.current;
@@ -376,22 +359,11 @@ function CategoryPage({
     return () => globalThis.removeEventListener("keydown", handler);
   }, []);
 
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    document
-      .querySelector('[data-tv-focused="true"]')
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [focusedIdx]);
-
-  const handleScroll = ({
-    nativeEvent: { layoutMeasurement, contentOffset, contentSize },
-  }) => {
-    if (contentSize.height - contentOffset.y - layoutMeasurement.height >= 800)
-      return;
-    if (hasLocalMore)
-      setDisplayCount((c) => Math.min(c + GRID_PAGE, filtered.length));
-    else if (hasRemote && !loadingMore && onLoadMore) onLoadMore();
-  };
+  const CARD_W = ss(240);
+  const GAP = ss(12);
+  // Poster is width×1.5; the title block below adds marginTop(8) + height(34).
+  const EST_ROW_H = Math.round(CARD_W * 1.5) + 42;
+  const onEndReached = hasRemote && !loadingMore && onLoadMore ? onLoadMore : undefined;
 
   return (
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg}>
@@ -450,46 +422,38 @@ function CategoryPage({
           borderColor={colors.border}
         />
       </XStack>
-      {!displayed ? (
-        <YStack flex={1} justifyContent="center" alignItems="center">
-          <Spinner size="large" color={colors.accent} />
-        </YStack>
-      ) : (
-        <ScrollView
-          flex={1}
-          minHeight={0}
-          contentContainerStyle={{
-            paddingHorizontal: ss(96),
-            paddingVertical: ss(32),
-          }}
-          onScroll={handleScroll}
-          scrollEventThrottle={200}
-        >
-          <div
-            ref={gridContainerRef}
-            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(auto-fill, ${ss(240)}px)`,
-              gap: ss(12),
-              justifyContent: "center",
-            }}
-          >
-            {displayed.map((item, idx) => (
+      {filtered ? (
+        <YStack flex={1} minHeight={0}>
+          <VirtualGrid
+            items={filtered}
+            itemWidth={CARD_W}
+            gap={GAP}
+            estRowHeight={EST_ROW_H}
+            focusIndex={focusedIdx}
+            paddingH={ss(96)}
+            paddingV={ss(32)}
+            onColsChange={(c) => { numColsRef.current = c; }}
+            onEndReached={onEndReached}
+            footer={loadingMore ? (
+              <YStack alignItems="center" paddingVertical={ss(24)}>
+                <Spinner size="small" color={colors.accent} />
+              </YStack>
+            ) : null}
+            renderItem={(item, idx) => (
               <TVPosterCard
                 key={String(item.series_id)}
                 item={item}
                 onPress={onPress}
                 isFocused={idx === focusedIdx}
-                width={ss(240)}
+                width={CARD_W}
               />
-            ))}
-          </div>
-          {(hasMore || loadingMore) && (
-            <YStack alignItems="center" paddingVertical={ss(24)}>
-              <Spinner size="small" color={colors.accent} />
-            </YStack>
-          )}
-        </ScrollView>
+            )}
+          />
+        </YStack>
+      ) : (
+        <YStack flex={1} justifyContent="center" alignItems="center">
+          <Spinner size="large" color={colors.accent} />
+        </YStack>
       )}
     </YStack>
   );
@@ -511,6 +475,9 @@ export default function SeriesScreen({ navigation }) {
   const topRatedRef = useRef([]);
   const prefetchRef = useRef({ topRated: null });
   const topRatedCursorRef = useRef(null);
+  // Synchronous re-entrancy lock — set before the first await so a burst of
+  // onEndReached calls in the same tick can't each pass the (async) state guard.
+  const topRatedInFlightRef = useRef(false);
   const [topRatedLoadingMore, setTopRatedLoadingMore] = useState(false);
   const [topRatedHasMore, setTopRatedHasMore] = useState(false);
 
@@ -748,11 +715,12 @@ export default function SeriesScreen({ navigation }) {
 
   const handleTopRatedMore = useCallback(async () => {
     const cursor = topRatedCursorRef.current;
-    if (!cursor || topRatedLoadingMore) return;
+    if (!cursor || topRatedInFlightRef.current) return;
     if (cursor.page >= cursor.totalPages && !cursor.prefetch) {
       setTopRatedHasMore(false);
       return;
     }
+    topRatedInFlightRef.current = true;
     setTopRatedLoadingMore(true);
     try {
       let result;
@@ -781,8 +749,9 @@ export default function SeriesScreen({ navigation }) {
       if (result.hasMore) kickoffPrefetch(cursor);
     } finally {
       setTopRatedLoadingMore(false);
+      topRatedInFlightRef.current = false;
     }
-  }, [topRatedLoadingMore]);
+  }, []);
 
   const discoverItems = [
     { id: "all", label: "All Series" },
