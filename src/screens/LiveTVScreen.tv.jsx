@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { useContentService } from "../domain/hooks/useContentService";
-import { VirtualGridTV } from "../presentation/components/VirtualGrid.tv";
+import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
@@ -14,11 +14,9 @@ import "./LiveTVScreen.tv.css";
 const CAT_COLS = 4;
 const CH_COLS = 6;
 const CH_PAGE = 40;
-// Virtual-grid row metrics (design px @ 1280 viewport): 6-col 16:9 logo + name.
-// Fewer/larger channel tiles for 10-foot viewing; row height tracks the taller
-// 16:9 logo (~102px at 6 cols) plus the enlarged channel name.
+// Grid gap (design px @ 1280 viewport): fewer/larger 6-col 16:9 channel tiles
+// for 10-foot viewing.
 const CH_GAP = 12;
-const CH_ROW_H = 150;
 
 const KEY_LEFT = 37;
 const KEY_UP = 38;
@@ -94,7 +92,7 @@ export default function LiveTVScreenTV({ navigation }) {
     setGridQuery(val);
     gridQueryRef.current = val.trim().toLowerCase();
     const pg = pageRef.current;
-    if (pg) movCh(pg, 0);
+    if (pg) { const n = { ...pg, focus: 0, display: CH_PAGE }; pageRef.current = n; setPage(n); }
   };
 
   useEffect(() => {
@@ -256,13 +254,14 @@ export default function LiveTVScreenTV({ navigation }) {
   };
 
   // ── Channel grid keys ─────────────────────────────────────────────────────
-  // The grid is virtualized (VirtualGridTV), so focus may roam the whole list —
-  // bounds use the full length, not a display cap.
+  // The grid grows on scroll (PagedGridTV), so focus may roam the whole
+  // filtered list — bounds use the full length, not a display cap.
   const movCh = (pg, focus) => {
     const n = { ...pg, focus };
     pageRef.current = n;
     setPage(n);
   };
+  const growChDisplay = (next) => { const pg = pageRef.current; if (pg) { const n = { ...pg, display: next }; pageRef.current = n; setPage(n); } };
 
   const onChLeft = (pg) => {
     if (pg.focus > 0) movCh(pg, pg.focus - 1);
@@ -348,7 +347,7 @@ export default function LiveTVScreenTV({ navigation }) {
   useEffect(() => {
     catElRef.current?.scrollIntoView({ block: "nearest" });
   }, [catFocus]);
-  // Channel-grid focus scrolling is handled inside VirtualGridTV (focusIndex).
+  // Channel-grid focus scrolling is handled inside PagedGridTV (focusIndex).
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -419,12 +418,14 @@ export default function LiveTVScreenTV({ navigation }) {
         )}
         {filteredItems && filteredItems.length > 0 && (
           <div className="tvl-ch-grid-window">
-            <VirtualGridTV
+            <PagedGridTV
               items={filteredItems}
               cols={CH_COLS}
-              rowHeight={CH_ROW_H}
               gap={CH_GAP}
               focusIndex={page.focus}
+              pageSize={CH_PAGE}
+              display={page.display}
+              onGrow={growChDisplay}
               className="tvl-ch-vgrid"
               renderItem={(item, i) => (
                 <ChannelCard
