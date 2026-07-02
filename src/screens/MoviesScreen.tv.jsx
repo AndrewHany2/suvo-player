@@ -5,7 +5,9 @@ import { useTVInput } from "../hooks/useTVInput";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { yieldFocusToNav } from "../platform/adapters/input/keys";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
-import ShelfCard from "../presentation/components/ShelfCard.tv";
+import PosterCard from "../presentation/components/PosterCard.web";
+import Hero from "../presentation/components/Hero.web";
+import { ss } from "../utils/scaleSize";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
@@ -33,6 +35,13 @@ export default function MoviesScreenTV({ navigation, route }) {
   // the two handlers don't both act on one keypress.
   const tvUseShelvesRef = useRef(tvUseShelves);
   useEffect(() => { tvUseShelvesRef.current = tvUseShelves; }, [tvUseShelves]);
+
+  // Discover "All Movies" pill opens the category-grid landing over the shelves
+  // (cheap: reuses already-loaded categories, no getAllMovies fetch). Transient —
+  // does NOT touch the persisted tvUseShelves toggle.
+  const [browseAll, setBrowseAll] = useState(false);
+  const browseAllRef = useRef(false);
+  useEffect(() => { browseAllRef.current = browseAll; }, [browseAll]);
 
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
@@ -167,6 +176,17 @@ export default function MoviesScreenTV({ navigation, route }) {
     });
   };
 
+  // Play a catalog item straight from the hero (no detail fetch needed to start).
+  const playFeatured = (item) => {
+    playMovie({
+      streamId: item.stream_id ?? item.streamId,
+      name: item.name,
+      cover: item.stream_icon || item.cover || null,
+      containerExtension: item.container_extension || "mp4",
+      startTime: 0,
+    });
+  };
+
   // ── Category keys ─────────────────────────────────────────────────────────
   const setCatZoneBoth = (z) => { catZoneRef.current = z; setCatZone(z); };
   const movCatFocus = (n) => { catFocusRef.current = n; setCatFocus(n); };
@@ -252,7 +272,7 @@ export default function MoviesScreenTV({ navigation, route }) {
           // other directions instead of closing.
           if (detailRef.current) handleDetailDir("left");
           else if (pageRef.current) onMovOrFilter("left");
-          else if (!tvUseShelvesRef.current) onCatLeft();
+          else if (!tvUseShelvesRef.current || browseAllRef.current) onCatLeft();
         },
         right: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("right"); },
         up: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("up"); },
@@ -266,7 +286,8 @@ export default function MoviesScreenTV({ navigation, route }) {
           else if (pageRef.current) {
             if (filterZoneRef.current === "filter" || filterZoneRef.current === "search") { filterZoneRef.current = "grid"; setFilterZone("grid"); }
             else closePage();
-          } else navigation.goBack?.();
+          } else if (browseAllRef.current) setBrowseAll(false);
+          else navigation.goBack?.();
         },
       },
       { yieldToNav: true },
@@ -292,7 +313,7 @@ export default function MoviesScreenTV({ navigation, route }) {
     if (detailRef.current) return handleDetailDir(dir);
     if (pageRef.current) return onMovOrFilter(dir);
     // Shelves own the browse view — VirtualShelves.tv handles its own D-pad.
-    if (tvUseShelvesRef.current) return;
+    if (tvUseShelvesRef.current && !browseAllRef.current) return;
     // category grid — search zone above the grid
     if (catZoneRef.current === "search") {
       if (dir === "up") return onSearchUp();
@@ -546,7 +567,7 @@ export default function MoviesScreenTV({ navigation, route }) {
   }
 
   // ── Shelf browse view (Electron-parity, flag on) ───────────────────────────
-  if (tvUseShelves) {
+  if (tvUseShelves && !browseAll) {
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar"><span className="tvl-topbar-title">Movies</span></div>
@@ -559,7 +580,21 @@ export default function MoviesScreenTV({ navigation, route }) {
               onLoadMore={handleLoadMore}
               onSelect={(item) => openDetail(item)}
               onSeeAll={(id, name) => openCat({ id, name })}
-              renderCard={(item, isFocused) => <ShelfCard item={item} isFocused={isFocused} />}
+              renderCard={(item, isFocused) => (
+                <PosterCard item={item} isFocused={isFocused} width={ss(200)} onPress={openDetail} />
+              )}
+              renderHero={(item, { focusedButton }) => (
+                <Hero
+                  item={item}
+                  focusedButton={focusedButton}
+                  onPlay={() => item && playFeatured(item)}
+                  onDetails={() => item && openDetail(item)}
+                />
+              )}
+              discoverItems={[{ id: "all", label: "All Movies" }]}
+              onPill={() => setBrowseAll(true)}
+              onHeroPlay={(item) => item && playFeatured(item)}
+              onHeroDetails={(item) => item && openDetail(item)}
             />
           )}
       </div>
