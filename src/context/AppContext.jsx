@@ -49,8 +49,8 @@ export const AppProvider = ({ children }) => {
   const [series, setSeries]                     = useState([]);
   const [currentSeriesCategory, setCurrentSeriesCategory] = useState(null);
   // TV layout preference: shelves (Electron-parity) vs. the current grid.
-  // Persisted so on-device A/B needs no rebuild. Default false = grid.
-  const [tvUseShelves, setTvUseShelvesState] = useState(false);
+  // Persisted so on-device A/B needs no rebuild. Default true = shelves (Electron-parity).
+  const [tvUseShelves, setTvUseShelvesState] = useState(true);
   useEffect(() => {
     storage.getItem('iptv_tv_shelves').then((v) => {
       if (v === '1') setTvUseShelvesState(true);
