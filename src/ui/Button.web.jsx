@@ -22,7 +22,7 @@ import { colors, focusRing, motion, easing, GLOW_WEB, radii, fonts, fontWeights 
 import { ss } from "../utils/scaleSize";
 import Icon from "./Icon";
 
-const isTV = () => typeof globalThis !== "undefined" && globalThis.__TV__ === true;
+import { isTV } from "../utils/isTV";
 
 // Size ramp (authored at 1920×1080 reference; ss() scales it). paddingV/H +
 // fontSize + matching icon box per size.

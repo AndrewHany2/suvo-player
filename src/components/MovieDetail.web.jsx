@@ -15,14 +15,7 @@ const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 // Caps the detail content width on ultrawide monitors (centered via margin auto).
 const MAX_W = 1700;
 
-const getTrailerUrl = (t) => {
-  if (!t) return null;
-  const m = t.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
-  if (m) return `https://www.youtube-nocookie.com/embed/${m[1]}`;
-  if (/^[A-Za-z0-9_-]{11}$/.test(t.trim()))
-    return `https://www.youtube-nocookie.com/embed/${t.trim()}`;
-  return null;
-};
+import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 export default function MovieDetail({ item, onBack, onPlay }) {
   const { isTV } = usePlatform();

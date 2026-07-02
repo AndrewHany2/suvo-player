@@ -17,8 +17,7 @@ import {
 import { ss, useScale } from "../utils/scaleSize";
 import { useApp } from "../context/AppContext";
 
-const isTV = () =>
-  typeof globalThis !== "undefined" && globalThis.__TV__ === true;
+import { isTV } from "../utils/isTV";
 
 export default function AuthScreen() {
   useScale(); // re-render + recompute ss() when the scale corrects (webOS cold start)

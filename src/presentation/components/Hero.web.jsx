@@ -21,7 +21,7 @@ import { ss } from "../../utils/scaleSize";
 import Icon from "../../ui/Icon";
 import Button from "../../ui/Button";
 
-const isTV = () => typeof globalThis !== "undefined" && globalThis.__TV__ === true;
+import { isTV } from "../../utils/isTV";
 
 function resolveBackdrop(item) {
   if (!item) return null;

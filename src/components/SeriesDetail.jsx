@@ -15,13 +15,7 @@ const GradientOverlay = memo(() => (
   </View>
 ));
 
-const getTrailerUrl = (t) => {
-  if (!t) return null;
-  const m = t.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
-  if (m) return `https://www.youtube.com/watch?v=${m[1]}`;
-  if (/^[A-Za-z0-9_-]{11}$/.test(t.trim())) return `https://www.youtube.com/watch?v=${t.trim()}`;
-  return null;
-};
+import { getTrailerWatchUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 const getEpisodeNumber = (ep) => {
   let num = ep.episode_num;

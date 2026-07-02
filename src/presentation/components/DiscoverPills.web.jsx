@@ -3,7 +3,7 @@ import Icon from "../../ui/Icon";
 import { ss } from "../../utils/scaleSize";
 import { colors, accentAlpha, GLOW_WEB, motion, easing, radii, fonts, fontWeights } from "../../ui/tokens";
 
-const isTV = () => typeof globalThis !== "undefined" && globalThis.__TV__ === true;
+import { isTV } from "../../utils/isTV";
 
 /**
  * Discover category pills — web/TV. Shared by Movies & Series so the two

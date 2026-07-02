@@ -3,7 +3,7 @@ import { colors, focusRing, GLOW_WEB, motion, easing, overlay, radii, fonts, fon
 import { ss } from "../../utils/scaleSize";
 import Icon from "../../ui/Icon";
 
-const isTV = () => typeof globalThis !== "undefined" && globalThis.__TV__ === true;
+import { isTV } from "../../utils/isTV";
 
 /**
  * Poster card — web/TV (raw DOM, no Tamagui). Shared across Movies/Series/LiveTV.

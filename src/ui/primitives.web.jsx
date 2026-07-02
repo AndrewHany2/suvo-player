@@ -13,7 +13,7 @@ import { forwardRef } from "react";
 import { splitStyleProps, toWebStyle } from "./styleProps";
 import { colors, accentAlpha } from "./tokens";
 
-const isTV = () => typeof globalThis !== "undefined" && globalThis.__TV__ === true;
+import { isTV } from "../utils/isTV";
 
 // Web-only-or-native-only props that should never reach the DOM element.
 const DROP = ["pressStyle", "hoverStyle", "animation", "space", "onPress", "cursor"];

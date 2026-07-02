@@ -7,7 +7,7 @@ import { useSettings } from "../hooks/useSettings";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
 import { ss } from "../utils/scaleSize";
 
-const isTV = () => typeof globalThis !== "undefined" && globalThis.__TV__ === true;
+import { isTV } from "../utils/isTV";
 
 const ASPECT_OPTIONS = [
   { value: "default", label: "Default" },
