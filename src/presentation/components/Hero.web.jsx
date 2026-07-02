@@ -39,8 +39,12 @@ function metaParts(item) {
   return parts;
 }
 
-function HeroWeb({ item, onPlay, onDetails, focused = false }) {
+function HeroWeb({ item, onPlay, onDetails, focused = false, focusedButton = null }) {
   const tv = isTV();
+  // `focused` (legacy, web) drives the Play ring. `focusedButton` (TV) lets the
+  // remote focus either button. focusedButton wins when provided.
+  const playFocused = focusedButton ? focusedButton === "play" : focused;
+  const detailsFocused = focusedButton === "details";
   const [loaded, setLoaded] = useState(false);
 
   const backdrop = resolveBackdrop(item);
@@ -173,10 +177,10 @@ function HeroWeb({ item, onPlay, onDetails, focused = false }) {
         )}
 
         <div style={{ display: "flex", flexDirection: "row", gap: ss(12), marginTop: ss(8) }}>
-          <Button variant="primary" size="lg" icon="play" onPress={onPlay} isFocused={focused}>
+          <Button variant="primary" size="lg" icon="play" onPress={onPlay} isFocused={playFocused}>
             Play
           </Button>
-          <Button variant="secondary" size="lg" icon="plus" onPress={onDetails}>
+          <Button variant="secondary" size="lg" icon="plus" onPress={onDetails} isFocused={detailsFocused}>
             Details
           </Button>
         </div>
