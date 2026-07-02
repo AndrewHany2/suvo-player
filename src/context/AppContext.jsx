@@ -12,6 +12,7 @@ import {
   updateIptvAccount as supabaseUpdateIptvAccount,
   deleteIptvAccount as supabaseDeleteIptvAccount,
 } from '../services/supabase';
+import { resolveProgressFields } from './historyEntry';
 import { getDeviceSignature } from '../security/deviceSignature';
 import { setDeviceId } from '../services/deviceHeader';
 
@@ -221,10 +222,12 @@ export const AppProvider = ({ children }) => {
     const existingIdx = prev.findIndex((h) => !shouldKeep(h, item));
     let entry, newHistory;
     if (existingIdx === -1) {
-      entry = { ...item, watchedAt: now, id: `${item.type}_${item.streamId || item.id}_${Date.now()}`, currentTime: item.currentTime || 0, duration: item.duration || 0 };
+      entry = { ...item, watchedAt: now, id: `${item.type}_${item.streamId || item.id}_${Date.now()}`, ...resolveProgressFields(undefined, item) };
       newHistory = [entry, ...prev].slice(0, MAX_HISTORY);
     } else {
-      entry = { ...prev[existingIdx], ...item, id: prev[existingIdx].id, watchedAt: now, currentTime: item.currentTime || 0, duration: item.duration || 0 };
+      // Re-opening a watched title must NOT reset its saved position: opens carry
+      // currentTime = startTime||0, so preserve the previous entry's progress.
+      entry = { ...prev[existingIdx], ...item, id: prev[existingIdx].id, watchedAt: now, ...resolveProgressFields(prev[existingIdx], item) };
       newHistory = [entry, ...prev.filter((_, i) => i !== existingIdx)].slice(0, MAX_HISTORY);
     }
     setWatchHistory(newHistory);
