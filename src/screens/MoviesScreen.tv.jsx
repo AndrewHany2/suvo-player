@@ -4,7 +4,7 @@ import { useMovies } from "../domain/hooks/useMovies";
 import { useTVInput } from "../hooks/useTVInput";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { yieldFocusToNav } from "../platform/adapters/input/keys";
-import { VirtualGridTV } from "../presentation/components/VirtualGrid.tv";
+import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
@@ -137,7 +137,7 @@ export default function MoviesScreenTV({ navigation, route }) {
     setGridQuery(val);
     gridQueryRef.current = val.trim().toLowerCase();
     const pg = pageRef.current;
-    if (pg) { const n = { ...pg, focus: 0 }; pageRef.current = n; setPage(n); }
+    if (pg) { const n = { ...pg, focus: 0, display: MOV_PAGE }; pageRef.current = n; setPage(n); }
   };
   const closePage = () => { setPage(null); pageRef.current = null; resetFilter(); };
 
@@ -184,9 +184,10 @@ export default function MoviesScreenTV({ navigation, route }) {
   const onSearchEnter = () => searchInputRef.current?.focus();
 
   // ── Movie grid keys ───────────────────────────────────────────────────────
-  // The grid is virtualized (VirtualGridTV), so focus may roam the whole
+  // The grid grows on scroll (PagedGridTV), so focus may roam the whole
   // filtered list — bounds use the full length, not a display cap.
   const movMovFocus = (pg, focus) => { const n = { ...pg, focus }; pageRef.current = n; setPage(n); };
+  const growMovDisplay = (next) => { const pg = pageRef.current; if (pg) { const n = { ...pg, display: next }; pageRef.current = n; setPage(n); } };
   const onMovLeft = (pg) => { if (pg.focus > 0) movMovFocus(pg, pg.focus - 1); };
   const onMovRight = (pg) => {
     const filtered = getFilteredItems(pg.items);
@@ -372,7 +373,7 @@ export default function MoviesScreenTV({ navigation, route }) {
   };
 
   useEffect(() => { catElRef.current?.scrollIntoView({ block: "nearest" }); }, [catFocus]);
-  // Movie-grid focus scrolling is handled inside VirtualGridTV (focusIndex).
+  // Movie-grid focus scrolling is handled inside PagedGridTV (focusIndex).
   useEffect(() => { btnElRef.current?.scrollIntoView({ block: "nearest" }); }, [detail?.btnIdx]);
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -527,12 +528,14 @@ export default function MoviesScreenTV({ navigation, route }) {
         {filteredItems?.length === 0 && <div className="tvl-center"><p className="tvl-empty-msg">{gridQuery.trim() ? "No results" : `No titles starting with "${filterLetter.toUpperCase()}"`}</p></div>}
         {filteredItems && filteredItems.length > 0 && (
           <div className="tvl-mov-grid-window">
-            <VirtualGridTV
+            <PagedGridTV
               items={filteredItems}
               cols={MOV_COLS}
-              rowHeight={MOV_ROW_H}
               gap={MOV_GAP}
               focusIndex={page.focus}
+              pageSize={MOV_PAGE}
+              display={page.display}
+              onGrow={growMovDisplay}
               className="tvl-mov-vgrid"
               renderItem={(item, i) => (
                 <MovieCard key={String(item.stream_id)} item={item} isFocused={filterZone === "grid" && !navActive && i === page.focus} />
