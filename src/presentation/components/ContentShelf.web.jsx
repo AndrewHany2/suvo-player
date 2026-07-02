@@ -83,7 +83,8 @@ export default function ContentShelf({
     if (scrollWidth - scrollLeft - clientWidth < 500) onLoadMore?.();
   };
 
-  const rw = railWindow(firstVisible, items ? items.length : 0, H_VISIBLE, H_BUF, true);
+  // Center the window on the viewport middle (not its first index) per plan.
+  const rw = railWindow(firstVisible + Math.floor(H_VISIBLE / 2), items ? items.length : 0, H_VISIBLE, H_BUF, true);
   const leftPad = rw.start * (CARD_W + CARD_GAP);
   const rightPad = Math.max(0, (items ? items.length : 0) - rw.end) * (CARD_W + CARD_GAP);
 
