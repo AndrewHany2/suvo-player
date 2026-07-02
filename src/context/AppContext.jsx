@@ -49,6 +49,18 @@ export const AppProvider = ({ children }) => {
   const [seriesCategories, setSeriesCategories] = useState([]);
   const [series, setSeries]                     = useState([]);
   const [currentSeriesCategory, setCurrentSeriesCategory] = useState(null);
+  // TV layout preference: shelves (Electron-parity) vs. the current grid.
+  // Persisted so on-device A/B needs no rebuild. Default false = grid.
+  const [tvUseShelves, setTvUseShelvesState] = useState(false);
+  useEffect(() => {
+    storage.getItem('iptv_tv_shelves').then((v) => {
+      if (v === '1') setTvUseShelvesState(true);
+    });
+  }, []);
+  const setTvUseShelves = useCallback((next) => {
+    setTvUseShelvesState(next);
+    storage.setItem('iptv_tv_shelves', next ? '1' : '0');
+  }, []);
   const [currentSeries, setCurrentSeries]       = useState(null);
   const [seriesSeasons, setSeriesSeasons]       = useState({});
 
@@ -582,8 +594,10 @@ export const AppProvider = ({ children }) => {
     currentVideo, playVideo, closeVideo,
     searchQuery, setSearchQuery, isLoading, setIsLoading, error, setError,
     saveChannels, loadSavedUsers, loadSavedChannels,
+    tvUseShelves, setTvUseShelves,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [authUser, authLoading, profile, deviceStatus, appProfiles, activeProfileId, activeProfile,
+    tvUseShelves,
     contentType, channels, filteredChannels, currentChannelIndex,
     users, activeUserId, watchHistory, isSyncing, myList, currentVideo,
     searchQuery, isLoading, error,
