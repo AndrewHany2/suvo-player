@@ -3,7 +3,7 @@ import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 import { useContentService } from "../domain/hooks/useContentService";
-import { VirtualGridTV } from "../presentation/components/VirtualGrid.tv";
+import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
@@ -18,11 +18,9 @@ import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 const CAT_COLS = 4;
 const SER_COLS = 5;
 const SER_PAGE = 24;
-// Virtual-grid row metrics (design px @ 1280 viewport): 5-col poster + title.
-// Fewer/larger posters for 10-foot lean-back viewing; row height tracks the
-// taller 2:3 poster (~329px at 5 cols) plus the enlarged 2-line title.
+// Grid gap (design px @ 1280 viewport): fewer/larger 5-col posters for
+// 10-foot lean-back viewing.
 const SER_GAP = 14;
-const SER_ROW_H = 386;
 const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 
 const KEY_LEFT = 37;
@@ -251,7 +249,7 @@ export default function SeriesScreenTV({ navigation, route }) {
     setGridQuery(val);
     gridQueryRef.current = val.trim().toLowerCase();
     const g = gridRef.current;
-    if (g) { const n = { ...g, focus: 0 }; gridRef.current = n; setGrid(n); }
+    if (g) { const n = { ...g, focus: 0, display: SER_PAGE }; gridRef.current = n; setGrid(n); }
   };
 
   const closeGrid = () => {
@@ -468,13 +466,15 @@ export default function SeriesScreenTV({ navigation, route }) {
   };
 
   // ── Series grid ───────────────────────────────────────────────────────────
-  // The grid is virtualized (VirtualGridTV), so focus may roam the whole
+  // The grid grows on scroll (PagedGridTV), so focus may roam the whole
   // filtered list — bounds use the full length, not a display cap.
   const movGrid = (g, focus) => {
     const n = { ...g, focus };
     gridRef.current = n;
     setGrid(n);
   };
+
+  const growGridDisplay = (next) => { const g = gridRef.current; if (g) { const n = { ...g, display: next }; gridRef.current = n; setGrid(n); } };
 
   const onGridLeft = (g) => {
     if (g.focus > 0) movGrid(g, g.focus - 1);
@@ -756,7 +756,7 @@ export default function SeriesScreenTV({ navigation, route }) {
   useEffect(() => {
     catElRef.current?.scrollIntoView({ block: "nearest" });
   }, [catFocus]);
-  // Series-grid focus scrolling is handled inside VirtualGridTV (focusIndex).
+  // Series-grid focus scrolling is handled inside PagedGridTV (focusIndex).
   useEffect(() => {
     epElRef.current?.scrollIntoView({ block: "nearest" });
   }, [detail?.epIdx]);
@@ -1031,12 +1031,14 @@ export default function SeriesScreenTV({ navigation, route }) {
         )}
         {filteredItems && filteredItems.length > 0 && (
           <div className="tvl-ser-grid-window">
-            <VirtualGridTV
+            <PagedGridTV
               items={filteredItems}
               cols={SER_COLS}
-              rowHeight={SER_ROW_H}
               gap={SER_GAP}
               focusIndex={grid.focus}
+              pageSize={SER_PAGE}
+              display={grid.display}
+              onGrow={growGridDisplay}
               className="tvl-ser-vgrid"
               renderItem={(item, i) => (
                 <PosterCard
