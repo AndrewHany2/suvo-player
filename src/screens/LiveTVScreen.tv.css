@@ -8,7 +8,7 @@
   padding: 24px var(--a-inset);
 }
 
-/* Virtualized channel grid (VirtualGridTV): the window IS the scroller, so it
+/* Channel grid (PagedGridTV): the scroller takes the remaining height, so it
    takes the remaining height and carries the title-safe horizontal inset. */
 .tvl-ch-grid-window {
   flex: 1;

@@ -20,22 +20,20 @@ const HERO_DEBOUNCE_MS = 150;
 const loadedLen = (s) => (Array.isArray(s?.items) ? s.items.length : 0);
 
 /**
- * 2-D virtualized, D-pad-driven shelf list for TV Movies/Series.
+ * D-pad-driven shelf list for TV Movies/Series.
  *
- * Bounds mounted posters on BOTH axes so worst-case decoded-image count stays
- * bounded regardless of catalog size or scroll depth (the requirement for the
- * webOS 3-4 / Tizen 2016-18 floor).
+ * VERTICAL axis is windowed: only the shelf rows near the scroll position are
+ * mounted (derived from the SCROLL position, never straight from the focused
+ * index — anchoring to focus slides the window ahead of the scroll and unmounts
+ * still-visible rows). This bounds how many rails mount at once and drives
+ * per-rail lazy-load (onShelfVisible) as rows enter the window.
  *
- * The mount window is derived from the SCROLL position (which rows/posters are
- * actually on screen), never straight from the focused index — anchoring to
- * focus makes the window slide ahead of the scroll, unmounting still-visible
- * posters and dropping blank spacer padding in their place.
- *
- * Horizontal scroll uses the focused card's REAL DOM position (offsetLeft) for
- * scroll-into-view and reads the window anchor back from the rail's real
- * scrollLeft. This is robust to the exact poster/viewport geometry (gaps, insets,
- * responsive scaling), so the first poster never blanks and the LAST poster lands
- * flush at the end of the rail instead of leaving dead space.
+ * HORIZONTAL axis is NOT windowed: each rail renders all of its loaded items
+ * directly. Rails stay bounded because the API pages them (handleShelfVisible +
+ * handleLoadMore, ~8–16 items), so mounting them all is cheap and there is no
+ * window to blank a still-visible poster. Horizontal scroll-into-view uses the
+ * focused card's REAL DOM position (offsetLeft); chevron hints read the rail's
+ * real scroll geometry (railEdges).
  */
 export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect, onSeeAll, renderCard, showHero = true, onUpAtTop, onBack }) {
   // Hero billboard is optional (Home reuses this shelf without one). When off,

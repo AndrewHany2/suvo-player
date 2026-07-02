@@ -6,7 +6,7 @@ import { nextDisplay } from "./gridPage.js";
  * no virtualization windowing. The SCREEN owns `display` (its filtered arrays
  * are recomputed each render, so the cap can't live here); this component grows
  * it via onGrow as D-pad focus nears the rendered end and scrolls the focused
- * cell into view. `renderItem` gets the ABSOLUTE index, matching VirtualGridTV.
+ * cell into view. `renderItem` gets the ABSOLUTE index (same contract the old grid used).
  */
 export function PagedGridTV({
   items,
