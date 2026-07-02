@@ -15,12 +15,23 @@ import { posterUrl, prefetchImage } from "../../utils/imagePrefetch";
 
 const SHELF_OVERSCAN = 8; // shelves kept mounted above/below the visible page
 const H_OVERSCAN = 6; // posters kept mounted ahead of the scroll on each side (focused rail)
-const ROW_HEIGHT = 470; // px per shelf row (title + poster + padding)
-const CARD_W = 260; // px poster width — larger, Netflix-style (fewer per row)
-const CARD_GAP = 24; // px gap between posters
+// Design px (authored at the 1920 reference); ss() scales them for the pinned
+// 1280 TV viewport that the browser upscales ×1.5 — matching web proportions.
+const POSTER_W = 200; // design px — identical to PosterCard.web's default width
+const CARD_GAP_D = 8; // design px gap — matches ContentShelf.web
+const PAD_D = 48; // design px rail horizontal inset
+const TITLE_H_D = 34; // design px poster title block (PosterCard.web: 2-line clamp)
+// Row = header + poster (width×1.5) + title + breathing room, all in design px.
+const ROW_HEIGHT_D = 40 + Math.round(POSTER_W * 1.5) + TITLE_H_D + 28;
+const HERO_H = 620; // Hero.web billboard height falls out of tokens.heroHeights.tv; this
+                    // constant is used only as the fallback when the rails-top can't be measured.
+
+// Scaled (px) values used at render time.
+const CARD_W = ss(POSTER_W);
+const CARD_GAP = ss(CARD_GAP_D);
 const STRIDE = CARD_W + CARD_GAP;
-const PAD = 48; // rail horizontal inset (design px)
-const HERO_H = 620; // Hero.tv billboard height (design px), lives inside the scroll box
+const PAD = PAD_D; // kept as design px; call sites wrap it in ss(PAD)
+const ROW_HEIGHT = ss(ROW_HEIGHT_D);
 const HERO_DEBOUNCE_MS = 150;
 
 const loadedLen = (s) => (Array.isArray(s?.items) ? s.items.length : 0);
@@ -336,15 +347,29 @@ export function VirtualShelvesTV({
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: ss(4),
-                  padding: `${ss(10)}px ${ss(48)}px`,
+                  gap: ss(6),
+                  padding: `${ss(28)}px ${ss(PAD)}px ${ss(10)}px`,
                   color: colors.text,
                   fontFamily: fonts.display,
                   fontWeight: fontWeights.bold,
                   fontSize: ss(22),
                 }}
               >
-                {shelf.name}
+                <span>{shelf.name}</span>
+                <Icon name="chevron-right" size={ss(22)} color={colors.accent2} />
+                {items.length > 0 && (
+                  <span
+                    style={{
+                      marginLeft: ss(6),
+                      color: colors.faint,
+                      fontFamily: fonts.body,
+                      fontWeight: fontWeights.medium,
+                      fontSize: ss(13),
+                    }}
+                  >
+                    {items.length}
+                  </span>
+                )}
               </div>
               <div className={wrapCls}>
                 <div
@@ -358,8 +383,8 @@ export function VirtualShelvesTV({
                     overflowX: "auto",
                     overflowY: "hidden",
                     gap: CARD_GAP,
-                    paddingLeft: ss(48),
-                    paddingRight: ss(48),
+                    paddingLeft: ss(PAD),
+                    paddingRight: ss(PAD),
                     scrollbarWidth: "none",
                   }}
                 >
