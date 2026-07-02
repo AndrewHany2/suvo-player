@@ -7,6 +7,12 @@ import {
   railEdges,
 } from "./shelfWindow.js";
 import HeroTV from "./Hero.tv.jsx";
+import DiscoverPills from "./DiscoverPills.web";
+import {
+  enterTopFromShelves,
+  zoneMove,
+  zoneActivate,
+} from "./heroZone.js";
 import Icon from "../../ui/Icon";
 import { useTVInput } from "../../hooks/useTVInput";
 import { colors, fonts, fontWeights } from "../../ui/tokens";
@@ -64,6 +70,11 @@ export function VirtualShelvesTV({
   showHero = true,
   onUpAtTop,
   onBack,
+  renderHero,
+  discoverItems,
+  onPill,
+  onHeroPlay,
+  onHeroDetails,
 }) {
   // Hero billboard is optional (Home reuses this shelf without one). When off,
   // its height drops out of the anchor-rows measurement and the scroll offset.
@@ -74,6 +85,12 @@ export function VirtualShelvesTV({
   const colMemory = useRef({}); // shelfId -> remembered column
   const railScrollLeft = useRef({}); // shelfId -> last scrollLeft, kept in sync from onRailScroll
   const [focus, setFocus] = useState({ shelf: 0, col: 0, shelfAnchor: 0 });
+  // Focus zones ABOVE the shelves (Hero buttons, Discover pills). zone:"shelves"
+  // means focus is in the rails (handled by `focus`/`move`). Prop-gated: Home
+  // passes neither renderHero-interactivity nor discoverItems, so both zones are
+  // disabled and Up-at-top yields to the navbar exactly as before.
+  const [topFocus, setTopFocus] = useState({ zone: "shelves", heroBtn: 0, pillCol: 0 });
+  const railsRef = useRef(null); // wraps the shelf rows; offsetTop = hero+pills height
   const [heroItem, setHeroItem] = useState(null);
   // shelfId -> { left, right }: which scroll-hint edges to show, derived from the
   // rail's REAL scroll geometry so the "more →" fade clears exactly at the end
@@ -87,6 +104,14 @@ export function VirtualShelvesTV({
   const dimsRef = useRef(dims);
 
   const shelfCount = shelves.length;
+
+  const heroInteractive = !!renderHero && (!!onHeroPlay || !!onHeroDetails);
+  const pills = Array.isArray(discoverItems) ? discoverItems : [];
+  const zoneCfg = {
+    hasHero: showHero && heroInteractive,
+    hasPills: pills.length > 0,
+    pillCount: pills.length,
+  };
 
   // Keep focus in range when the shelves prop mutates — Home's Favorites/History
   // rails shrink as items are removed, and a stale focus would point past the end.
@@ -111,7 +136,8 @@ export function VirtualShelvesTV({
       // up front instead of leaving the last poster as a blank spacer.
       const cols = Math.max(1, Math.ceil((cw - 2 * ss(PAD)) / STRIDE));
       const windowRows = Math.max(1, Math.ceil(ch / ROW_HEIGHT));
-      const anchorRows = Math.max(1, Math.floor((ch - ss(heroH)) / ROW_HEIGHT));
+      const railsTop = railsRef.current?.offsetTop ?? ss(heroH);
+      const anchorRows = Math.max(1, Math.floor((ch - railsTop) / ROW_HEIGHT));
       const next = { cols, windowRows, anchorRows };
       dimsRef.current = next;
       setDims(next);
@@ -199,9 +225,12 @@ export function VirtualShelvesTV({
     const el = containerRef.current;
     // Vertical: bring the focused row's top to the viewport (accounting for the
     // Hero, which lives inside the scroll box above the rows).
+    // Rails start below the hero + pills; measure their real top so the scroll
+    // offset is correct regardless of whether pills are shown.
+    const railsTop = railsRef.current?.offsetTop ?? ss(heroH);
     if (el)
       el.scrollTop =
-        focus.shelfAnchor <= 0 ? 0 : ss(heroH) + focus.shelfAnchor * ROW_HEIGHT;
+        focus.shelfAnchor <= 0 ? 0 : railsTop + focus.shelfAnchor * ROW_HEIGHT;
 
     const focusedId = shelves[focus.shelf]?.id;
     const rail = railRefs.current[focusedId];
@@ -287,15 +316,53 @@ export function VirtualShelvesTV({
   );
 
   const { register } = useTVInput();
+
+  // Apply a hero/pills-zone move; handle the escape actions (navbar / shelves).
+  const applyZoneMove = useCallback(
+    (dir) => {
+      const res = zoneMove(topFocus, dir, zoneCfg);
+      if (res.action === "toNavbar") {
+        setTopFocus({ zone: "shelves", heroBtn: topFocus.heroBtn, pillCol: topFocus.pillCol });
+        onUpAtTop?.();
+        return;
+      }
+      if (res.action === "toShelves") {
+        setTopFocus({ ...res.state, zone: "shelves" });
+        return;
+      }
+      setTopFocus(res.state);
+    },
+    [topFocus, zoneCfg, onUpAtTop],
+  );
+
   useEffect(
     () =>
       register(
         {
-          left: () => move(0, -1),
-          right: () => move(0, 1),
-          up: () => move(-1, 0),
-          down: () => move(1, 0),
+          left: () =>
+            topFocus.zone !== "shelves" ? applyZoneMove("left") : move(0, -1),
+          right: () =>
+            topFocus.zone !== "shelves" ? applyZoneMove("right") : move(0, 1),
+          up: () => {
+            if (topFocus.zone !== "shelves") return applyZoneMove("up");
+            // At the top shelf, climb into the top zones if any exist.
+            if (focus.shelf === 0) {
+              const z = enterTopFromShelves(zoneCfg);
+              if (z) return setTopFocus((t) => ({ ...t, zone: z }));
+              if (onUpAtTop) return onUpAtTop();
+            }
+            move(-1, 0);
+          },
+          down: () =>
+            topFocus.zone !== "shelves" ? applyZoneMove("down") : move(1, 0),
           enter: () => {
+            if (topFocus.zone !== "shelves") {
+              const what = zoneActivate(topFocus);
+              if (what === "play") onHeroPlay?.(heroItem);
+              else if (what === "details") onHeroDetails?.(heroItem);
+              else if (what === "pill") onPill?.(pills[topFocus.pillCol]);
+              return;
+            }
             const s = shelves[focus.shelf];
             const item =
               s && Array.isArray(s.items)
@@ -307,7 +374,23 @@ export function VirtualShelvesTV({
         },
         { yieldToNav: true },
       ),
-    [register, move, shelves, focus, onSelect, onBack],
+    [
+      register,
+      move,
+      shelves,
+      focus,
+      onSelect,
+      onBack,
+      topFocus,
+      applyZoneMove,
+      zoneCfg,
+      onUpAtTop,
+      onHeroPlay,
+      onHeroDetails,
+      onPill,
+      pills,
+      heroItem,
+    ],
   );
 
   return (
@@ -316,8 +399,27 @@ export function VirtualShelvesTV({
       className="tvl-shelves-screen"
       style={{ overflowY: "auto", height: "100%", contain: "strict" }}
     >
-      {showHero && <HeroTV item={heroItem} height={HERO_H} />}
-      <div>
+      {showHero &&
+        (renderHero
+          ? renderHero(heroItem, {
+              focusedButton:
+                topFocus.zone === "hero"
+                  ? topFocus.heroBtn === 0
+                    ? "play"
+                    : "details"
+                  : null,
+            })
+          : <HeroTV item={heroItem} height={HERO_H} />)}
+      {zoneCfg.hasPills && (
+        <div style={{ padding: `${ss(8)}px ${ss(PAD)}px ${ss(20)}px` }}>
+          <DiscoverPills
+            items={pills}
+            focusedCol={topFocus.zone === "pills" ? topFocus.pillCol : -1}
+            onSelect={(pill) => onPill?.(pill)}
+          />
+        </div>
+      )}
+      <div ref={railsRef}>
         {shelves.map((shelf, shelfIdx) => {
           const isFocusedShelf = shelfIdx === focus.shelf;
           const items = Array.isArray(shelf.items) ? shelf.items : [];
