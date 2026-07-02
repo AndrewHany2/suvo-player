@@ -102,8 +102,7 @@ export function createExpoVideoDriver(player, opts = {}) {
 
   // Records the most recently requested quality cap. expo-video exposes no
   // public per-level selection API, so this is currently informational only
-  // (see setQualityCap below). Kept so getQualityLevels / diagnostics can read
-  // back what the machine asked for.
+  // (see setQualityCap below).
   let requestedCap = 'auto';
 
   // ── lifecycle / transport ─────────────────────────────────────────────────
@@ -155,15 +154,6 @@ export function createExpoVideoDriver(player, opts = {}) {
     }
   }
 
-  /** @param {number} seconds */
-  function seek(seconds) {
-    try {
-      if (player) player.currentTime = seconds;
-    } catch {
-      /* noop */
-    }
-  }
-
   // ── getters ────────────────────────────────────────────────────────────────
   function currentTime() {
     const t = player?.currentTime;
@@ -205,88 +195,6 @@ export function createExpoVideoDriver(player, opts = {}) {
     requestedCap = cap;
   }
 
-  /**
-   * @returns {QualityLevel[]}
-   * LIMITATION: not introspectable on expo-video; always returns []. See
-   * setQualityCap for details.
-   */
-  function getQualityLevels() {
-    return [];
-  }
-
-  // ── audio tracks ─────────────────────────────────────────────────────────────
-  /** @returns {MediaTrack[]} */
-  function getAudioTracks() {
-    try {
-      return player?.availableAudioTracks ?? [];
-    } catch {
-      return [];
-    }
-  }
-
-  /** @returns {string|number|null} */
-  function getAudioTrack() {
-    try {
-      const t = player?.audioTrack;
-      return t ? t.id ?? t : null;
-    } catch {
-      return null;
-    }
-  }
-
-  /** @param {string|number} id */
-  function setAudioTrack(id) {
-    try {
-      if (!player) return;
-      // The screen passes the full track object through; accept either an id or
-      // the track object itself and resolve to a track from the engine list.
-      const track =
-        id && typeof id === 'object'
-          ? id
-          : (player.availableAudioTracks ?? []).find((t) => (t.id ?? t) === id) ?? null;
-      player.audioTrack = track;
-    } catch {
-      /* noop */
-    }
-  }
-
-  // ── subtitle / text tracks ─────────────────────────────────────────────────
-  /** @returns {MediaTrack[]} */
-  function getSubtitleTracks() {
-    try {
-      return player?.availableSubtitleTracks ?? [];
-    } catch {
-      return [];
-    }
-  }
-
-  /** @returns {string|number|null} */
-  function getSubtitleTrack() {
-    try {
-      const t = player?.subtitleTrack;
-      return t ? t.id ?? t : null;
-    } catch {
-      return null;
-    }
-  }
-
-  /** @param {string|number|null} id */
-  function setSubtitleTrack(id) {
-    try {
-      if (!player) return;
-      if (id === null || id === undefined) {
-        player.subtitleTrack = null;
-        return;
-      }
-      const track =
-        typeof id === 'object'
-          ? id
-          : (player.availableSubtitleTracks ?? []).find((t) => (t.id ?? t) === id) ?? null;
-      player.subtitleTrack = track;
-    } catch {
-      /* noop */
-    }
-  }
 
   // ── event subscriptions ──────────────────────────────────────────────────────
   /**
@@ -406,39 +314,20 @@ export function createExpoVideoDriver(player, opts = {}) {
     };
   }
 
-  /**
-   * @param {(level: QualityLevel) => void} _cb
-   * @returns {Unsubscribe}
-   * LIMITATION: expo-video emits no quality-switch event (no level introspection).
-   * No-op subscription so hosts can wire it uniformly.
-   */
-  function onQualitySwitch(_cb) {
-    return () => {};
-  }
-
   /** @type {PlayerDriver} */
   return {
     load,
     play,
     pause,
-    seek,
     currentTime,
     duration,
     buffered,
     isLive,
     setQualityCap,
-    getQualityLevels,
-    getAudioTracks,
-    getAudioTrack,
-    setAudioTrack,
-    getSubtitleTracks,
-    getSubtitleTrack,
-    setSubtitleTrack,
     onStatus,
     onProgress,
     onStall,
     onError,
-    onQualitySwitch,
   };
 }
 

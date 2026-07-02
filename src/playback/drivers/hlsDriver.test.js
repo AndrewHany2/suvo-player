@@ -92,16 +92,6 @@ test('setQualityCap: data-saver pins to the lowest-bitrate level', () => {
   assert.equal(inst.currentLevel, 1);
 });
 
-test('getQualityLevels maps hls levels with id/height/bitrate', () => {
-  const inst = fakeHls([{ height: 720, bitrate: 2e6 }]);
-  const d = createHlsDriver(fakeVideo(), { getHls: () => inst });
-  const levels = d.getQualityLevels();
-  assert.equal(levels.length, 1);
-  assert.equal(levels[0].id, 0);
-  assert.equal(levels[0].height, 720);
-  assert.equal(levels[0].label, '720p');
-});
-
 test('onError normalizes a 404 network error to httpStatus 404 (-> GONE class)', () => {
   let bound;
   const inst = fakeHls();
@@ -172,24 +162,3 @@ test('load(VOD) seeks the element to startTime', () => {
   assert.equal(video.currentTime, 42);
 });
 
-test('audio/subtitle track set forwards to the hls instance', () => {
-  const inst = fakeHls();
-  inst.audioTracks = [{ id: 0, name: 'EN' }, { id: 1, name: 'FR' }];
-  inst.subtitleTracks = [{ id: 0, name: 'EN' }];
-  const d = createHlsDriver(fakeVideo(), { getHls: () => inst });
-  d.setAudioTrack(1);
-  assert.equal(inst.audioTrack, 1);
-  d.setSubtitleTrack(0);
-  assert.equal(inst.subtitleTrack, 0);
-  d.setSubtitleTrack(null);
-  assert.equal(inst.subtitleTrack, -1, 'null disables subtitles');
-});
-
-test('getAudioTracks / getSubtitleTracks expose engine tracks', () => {
-  const inst = fakeHls();
-  inst.audioTracks = [{ id: 0, name: 'EN', lang: 'en' }];
-  inst.subtitleTracks = [{ id: 0, name: 'EN', lang: 'en' }];
-  const d = createHlsDriver(fakeVideo(), { getHls: () => inst });
-  assert.equal(d.getAudioTracks()[0].label, 'EN');
-  assert.equal(d.getSubtitleTracks()[0].kind, 'subtitles');
-});

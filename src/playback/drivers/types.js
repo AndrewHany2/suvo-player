@@ -81,7 +81,6 @@
  * @property {(source: PlayerSource, opts?: LoadOptions) => (void|Promise<void>)} load
  * @property {() => (void|Promise<void>)} play
  * @property {() => (void|Promise<void>)} pause
- * @property {(seconds: number) => (void|Promise<void>)} seek
  * @property {() => (void|Promise<void>)} [destroy]
  *
  * // --- getters ---
@@ -92,24 +91,12 @@
  *
  * // --- quality ---
  * @property {(cap: string) => void} setQualityCap       - Apply a QUALITY_CAPS value ('auto'|'1080'|...).
- * @property {() => QualityLevel[]} getQualityLevels
- *
- * // --- audio tracks ---
- * @property {() => MediaTrack[]} getAudioTracks
- * @property {() => (string|number|null)} getAudioTrack  - Active audio track id.
- * @property {(id: string|number) => void} setAudioTrack
- *
- * // --- subtitle / text tracks ---
- * @property {() => MediaTrack[]} getSubtitleTracks
- * @property {() => (string|number|null)} getSubtitleTrack - Active subtitle track id (null = off).
- * @property {(id: string|number|null) => void} setSubtitleTrack
  *
  * // --- event subscriptions (each returns an Unsubscribe) ---
  * @property {(cb: (status: PlayerStatus) => void) => Unsubscribe} onStatus
  * @property {(cb: (currentTime: number) => void) => Unsubscribe} onProgress
  * @property {(cb: () => void) => Unsubscribe} onStall
  * @property {(cb: (err: NormalizedError) => void) => Unsubscribe} onError
- * @property {(cb: (level: QualityLevel) => void) => Unsubscribe} onQualitySwitch
  */
 
 /**

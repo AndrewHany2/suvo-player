@@ -8,10 +8,9 @@
  * place in the web player that knows about hls.js's API surface.
  *
  * Unlike expo-video, hls.js exposes real per-level quality control, so
- * setQualityCap() actually pins/limits the rendered level, and getQualityLevels()
- * reports the manifest's ladder. The driver also supports the native-HLS
- * fallback path (Safari / `video.src=`) where no hls.js instance exists — in
- * that mode quality/track selection degrade gracefully to no-ops.
+ * setQualityCap() actually pins/limits the rendered level. The driver also
+ * supports the native-HLS fallback path (Safari / `video.src=`) where no hls.js
+ * instance exists — in that mode quality selection degrades gracefully to a no-op.
  *
  * @typedef {import('./types.js').PlayerDriver} PlayerDriver
  * @typedef {import('./types.js').NormalizedError} NormalizedError
@@ -88,8 +87,8 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     return opts.hls ?? null;
   };
 
-  // Most recently requested cap; kept so getQualityLevels diagnostics and the
-  // recovery ladder stay coherent, and so we can re-apply it after a reload.
+  // Most recently requested cap; kept so the recovery ladder stays coherent and
+  // so we can re-apply it after a reload.
   let requestedCap = 'auto';
 
   // ── error plumbing ────────────────────────────────────────────────────────
@@ -240,16 +239,6 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     }
   }
 
-  /** @param {number} seconds */
-  function seek(seconds) {
-    const videoEl = el();
-    try {
-      if (videoEl) videoEl.currentTime = seconds;
-    } catch {
-      /* noop */
-    }
-  }
-
   /**
    * Seek to the live edge: hls.js exposes `liveSyncPosition`; fall back to the
    * seekable end / duration.
@@ -370,84 +359,6 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
       applyCapToLevels(requestedCap);
     } catch {
       /* levels may not be parsed yet; re-applied on MANIFEST_PARSED */
-    }
-  }
-
-  /** @returns {QualityLevel[]} */
-  function getQualityLevels() {
-    const inst = hls();
-    if (!inst || !Array.isArray(inst.levels)) return [];
-    return inst.levels.map((l, i) => ({
-      id: i,
-      height: l.height,
-      bitrate: l.bitrate,
-      label: l.height ? `${l.height}p` : `${Math.round((l.bitrate || 0) / 1000)}k`,
-    }));
-  }
-
-  // ── audio tracks ─────────────────────────────────────────────────────────────
-  /** @returns {MediaTrack[]} */
-  function getAudioTracks() {
-    const inst = hls();
-    try {
-      return (inst?.audioTracks ?? []).map((t, i) => ({
-        id: typeof t.id === 'number' ? t.id : i,
-        label: t.name,
-        language: t.lang,
-      }));
-    } catch {
-      return [];
-    }
-  }
-
-  /** @returns {string|number|null} */
-  function getAudioTrack() {
-    const inst = hls();
-    const t = inst?.audioTrack;
-    return typeof t === 'number' && t >= 0 ? t : null;
-  }
-
-  /** @param {string|number} id */
-  function setAudioTrack(id) {
-    const inst = hls();
-    try {
-      if (inst && typeof id === 'number') inst.audioTrack = id;
-    } catch {
-      /* noop */
-    }
-  }
-
-  // ── subtitle / text tracks ─────────────────────────────────────────────────
-  /** @returns {MediaTrack[]} */
-  function getSubtitleTracks() {
-    const inst = hls();
-    try {
-      return (inst?.subtitleTracks ?? []).map((t, i) => ({
-        id: typeof t.id === 'number' ? t.id : i,
-        label: t.name,
-        language: t.lang,
-        kind: 'subtitles',
-      }));
-    } catch {
-      return [];
-    }
-  }
-
-  /** @returns {string|number|null} */
-  function getSubtitleTrack() {
-    const inst = hls();
-    const t = inst?.subtitleTrack;
-    return typeof t === 'number' && t >= 0 ? t : null;
-  }
-
-  /** @param {string|number|null} id */
-  function setSubtitleTrack(id) {
-    const inst = hls();
-    try {
-      if (!inst) return;
-      inst.subtitleTrack = id === null || id === undefined ? -1 : Number(id);
-    } catch {
-      /* noop */
     }
   }
 
@@ -632,55 +543,20 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     };
   }
 
-  /**
-   * @param {(level: QualityLevel) => void} cb
-   * @returns {Unsubscribe}
-   */
-  function onQualitySwitch(cb) {
-    const inst = hls();
-    if (!inst) return () => {};
-    const onSwitch = (_e, data) => {
-      const idx = data?.level;
-      const lvl = inst.levels?.[idx];
-      if (lvl) cb({ id: idx, height: lvl.height, bitrate: lvl.bitrate });
-    };
-    try {
-      inst.on(Hls.Events.LEVEL_SWITCHED, onSwitch);
-    } catch {
-      return () => {};
-    }
-    return () => {
-      try {
-        inst.off(Hls.Events.LEVEL_SWITCHED, onSwitch);
-      } catch {
-        /* noop */
-      }
-    };
-  }
-
   /** @type {PlayerDriver} */
   return {
     load,
     play,
     pause,
-    seek,
     currentTime,
     duration,
     buffered,
     isLive,
     setQualityCap,
-    getQualityLevels,
-    getAudioTracks,
-    getAudioTrack,
-    setAudioTrack,
-    getSubtitleTracks,
-    getSubtitleTrack,
-    setSubtitleTrack,
     onStatus,
     onProgress,
     onStall,
     onError,
-    onQualitySwitch,
   };
 }
 
