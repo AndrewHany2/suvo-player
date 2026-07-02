@@ -12,9 +12,8 @@
  * short debounce so rapid setPref bursts coalesce into one storage write per
  * scope. Works on web + native because storage.js is AsyncStorage everywhere.
  *
- * The supported keys are documented in PREF_KEYS, but `setPref`/`prefs` are
- * intentionally generic (any string key) so other feature groups can persist
- * their own settings without changing this module.
+ * `setPref`/`prefs` are intentionally generic (any string key) so other feature
+ * groups can persist their own settings without changing this module.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import storage from "../utils/storage";
@@ -24,22 +23,6 @@ export const GLOBAL_PREFS_KEY = "player_prefs_global";
 
 /** Build the per-stream storage key. `streamKey` is `<type>_<streamId>`. */
 export const streamPrefsKey = (streamKey) => `player_prefs_stream_${streamKey}`;
-
-/**
- * Known preference keys. Provided for discoverability/typing; the store accepts
- * any key, so groups can add their own without editing this list.
- * @type {readonly string[]}
- */
-export const PREF_KEYS = Object.freeze([
-  "qualityCap", // 'auto'|'1080'|'720'|'480'|'data-saver'
-  "audioTrack",
-  "subtitleTrack",
-  "aspectRatio",
-  "playbackSpeed",
-  "subtitleStyle", // object
-  "subtitleOffsetMs",
-  "audioOffsetMs",
-]);
 
 const WRITE_DEBOUNCE_MS = 250;
 

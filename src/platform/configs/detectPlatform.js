@@ -14,16 +14,3 @@ export function detectPlatform() {
   if (/Electron/i.test(ua)) return "desktop";
   return "web";
 }
-
-export function getPlatformConfig(platform) {
-  switch (platform) {
-    case "tv":
-      return require("./tv.config").tvConfig;
-    case "mobile":
-      return require("./mobile.config").mobileConfig;
-    case "desktop":
-      return require("./desktop.config").desktopConfig;
-    default:
-      return require("./web.config").webConfig;
-  }
-}

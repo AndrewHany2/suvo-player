@@ -38,10 +38,8 @@ export const AppProvider = ({ children }) => {
   const [activeProfileId, setActiveProfileId] = useState(null);
 
   // ─── Content ───────────────────────────────────────────────────────────────
-  const [contentType, setContentType] = useState('live');
   const [channels, setChannels]       = useState([]);
   const [filteredChannels, setFilteredChannels] = useState([]);
-  const [currentChannelIndex, setCurrentChannelIndex] = useState(-1);
   const [users, setUsers]             = useState([]);
   const [activeUserId, setActiveUserId] = useState(null);
   const [movieCategories, setMovieCategories]   = useState([]);
@@ -63,7 +61,6 @@ export const AppProvider = ({ children }) => {
     storage.setItem('iptv_tv_shelves', next ? '1' : '0');
   }, []);
   const [currentSeries, setCurrentSeries]       = useState(null);
-  const [seriesSeasons, setSeriesSeasons]       = useState({});
 
   // ─── Watch history ─────────────────────────────────────────────────────────
   const [watchHistory, setWatchHistory] = useState([]);
@@ -429,15 +426,6 @@ export const AppProvider = ({ children }) => {
     catch (e) { console.error('saveChannels:', e); }
   };
 
-  const loadSavedUsers = async (profileId) => {
-    const key = profileId ? `iptv_users_${profileId}` : 'iptv_users';
-    try {
-      const saved = await storage.getItem(key);
-      if (saved) { const p = JSON.parse(saved); setUsers(p.users || []); setActiveUserId(p.activeUserId || null); }
-      else { setUsers([]); setActiveUserId(null); }
-    } catch (e) { console.error('loadSavedUsers:', e); }
-  };
-
   // ─── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -587,25 +575,24 @@ export const AppProvider = ({ children }) => {
   const value = useMemo(() => ({
     authUser, authLoading, profile, deviceStatus, signIn, signUp, signOut,
     appProfiles, activeProfileId, activeProfile, switchProfile, addProfile, updateProfile, removeProfile,
-    contentType, setContentType,
-    channels, setChannels, filteredChannels, currentChannelIndex, setCurrentChannelIndex,
+    channels, setChannels, filteredChannels,
     users, setUsers, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser,
     movieCategories, setMovieCategories, movies, setMovies,
     currentMovieCategory, setCurrentMovieCategory,
     seriesCategories, setSeriesCategories, series, setSeries,
     currentSeriesCategory, setCurrentSeriesCategory,
-    currentSeries, setCurrentSeries, seriesSeasons, setSeriesSeasons,
+    currentSeries, setCurrentSeries,
     watchHistory, addToWatchHistory, updateWatchProgress, removeFromWatchHistory,
     flushProgress, refetchLibrary, isSyncing,
     myList, addToMyList, removeFromMyList, isInMyList,
     currentVideo, playVideo, closeVideo,
     searchQuery, setSearchQuery, isLoading, setIsLoading, error, setError,
-    saveChannels, loadSavedUsers, loadSavedChannels,
+    saveChannels, loadSavedChannels,
     tvUseShelves, setTvUseShelves,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [authUser, authLoading, profile, deviceStatus, appProfiles, activeProfileId, activeProfile,
     tvUseShelves,
-    contentType, channels, filteredChannels, currentChannelIndex,
+    channels, filteredChannels,
     users, activeUserId, watchHistory, isSyncing, myList, currentVideo,
     searchQuery, isLoading, error,
     signIn, signUp, signOut, switchProfile, addProfile, updateProfile, removeProfile,

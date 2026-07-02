@@ -1,7 +1,7 @@
 import iptvApi from "../../services/iptvApi";
 import { normalizeCategory } from "../models/Category";
-import { normalizeMovie, normalizeMovieInfo } from "../models/Movie";
-import { normalizeSeries, normalizeSeriesInfo } from "../models/Series";
+import { normalizeMovie } from "../models/Movie";
+import { normalizeSeries } from "../models/Series";
 import { normalizeChannel } from "../models/Channel";
 
 class ContentService {
@@ -15,14 +15,7 @@ class ContentService {
   configure(credentials) {
     if (credentials) {
       iptvApi.setCredentials(credentials.host, credentials.username, credentials.password);
-      this._configured = true;
-    } else {
-      this._configured = false;
     }
-  }
-
-  get isConfigured() {
-    return this._configured === true;
   }
 
   // Reuse normalized arrays by raw-array identity. iptvApi returns cache-stable
@@ -54,10 +47,6 @@ class ContentService {
     return this._normalizeCached(raw, normalizeChannel);
   }
 
-  async getAllLiveChannels() {
-    return this.getLiveChannels(null);
-  }
-
   getShortEpg(streamId, limit = 2) {
     return iptvApi.getShortEpg(streamId, limit);
   }
@@ -77,11 +66,6 @@ class ContentService {
   async getAllMovies() {
     const raw = await iptvApi.getAllVODStreamsRobust();
     return this._normalizeCached(raw, normalizeMovie);
-  }
-
-  async getMovieInfo(movieId) {
-    const raw = await iptvApi.getVODInfo(movieId);
-    return normalizeMovieInfo(raw);
   }
 
   /** Raw VOD info ({ info: {...}, movie_data: {...} }) for views that render the
@@ -109,11 +93,6 @@ class ContentService {
   async getAllSeries() {
     const raw = await iptvApi.getAllSeriesRobust();
     return this._normalizeCached(raw, normalizeSeries);
-  }
-
-  async getSeriesInfo(seriesId) {
-    const raw = await iptvApi.getSeriesInfo(seriesId);
-    return normalizeSeriesInfo(raw);
   }
 
   buildEpisodeUrl(episodeId, containerExtension = "mkv") {

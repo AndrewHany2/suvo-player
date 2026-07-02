@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useApp } from "../../context/AppContext";
 import { useContentService } from "./useContentService";
-import { getPlatformConfig, detectPlatform } from "../../platform/configs/detectPlatform";
+import { detectPlatform } from "../../platform/configs/detectPlatform";
 import tmdbApi from "../../services/tmdbApi";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 
@@ -21,8 +21,8 @@ const ITEMS_CACHE_MAX = 8;
  * View concerns (layout, D-pad focus state) stay in the screen files; they read
  * everything they need from here.
  */
-const cfg = getPlatformConfig(detectPlatform());
-const SHELF_PAGE = cfg.performance.shelfPageSize;
+// TV shelves are shorter (tighter WebOS memory budget); everything else pages 12.
+const SHELF_PAGE = detectPlatform() === "tv" ? 8 : 12;
 
 const byRatingDesc = (list) =>
   [...(list || [])]

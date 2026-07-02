@@ -1,6 +1,5 @@
-export { PlatformProvider, usePlatform, usePlatformConfig } from "./PlatformProvider";
-export { detectPlatform, getPlatformConfig } from "./configs/detectPlatform";
+export { PlatformProvider, usePlatform } from "./PlatformProvider";
+export { detectPlatform } from "./configs/detectPlatform";
+// Load-bearing: importing TVOptimizations runs its module-level auto-apply IIFE
+// that injects the TV CSS. Do not drop this re-export.
 export { TVOptimizations } from "./optimization/TVOptimizations";
-export { MemoryManager } from "./optimization/MemoryManager";
-export { FocusManager } from "./adapters/input/FocusManager";
-export { RemoteInput } from "./adapters/input/RemoteInput";
