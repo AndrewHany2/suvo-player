@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 import { useContentService } from "../domain/hooks/useContentService";
@@ -42,8 +43,10 @@ export default function SeriesScreenTV({ navigation, route }) {
   const {
     playVideo, watchHistory,
     isInMyList, addToMyList, removeFromMyList,
-    currentVideo,
+    currentVideo, tvUseShelves,
   } = useApp();
+  const tvUseShelvesRef = useRef(tvUseShelves);
+  useEffect(() => { tvUseShelvesRef.current = tvUseShelves; }, [tvUseShelves]);
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
 
@@ -193,6 +196,48 @@ export default function SeriesScreenTV({ navigation, route }) {
       gridRef.current = updated;
     }
   };
+
+  // ── Shelf adapter (flag on) ────────────────────────────────────────────────
+  // Series has no shared shelf hook, so build shelf state from the real
+  // categories (excluding the synthetic "all", whose rail would fetch the whole
+  // catalog). Items load lazily per rail as it scrolls into VirtualShelves'
+  // vertical window, reusing allItemsRef so drill-in ("see all") is cache-warm.
+  const SER_SHELF_PAGE = 12;
+  const [shelves, setShelves] = useState([]);
+  const shelfLoadedRef = useRef(new Set());
+  useEffect(() => {
+    if (!tvUseShelves) return;
+    const real = cats.filter((c) => c.id !== "all");
+    setShelves(real.map((c) => ({
+      id: c.id, name: c.name, items: null, totalCount: null, hasMore: false, loadingMore: false,
+    })));
+    shelfLoadedRef.current = new Set();
+  }, [tvUseShelves, cats]);
+
+  const handleShelfVisible = useCallback(async (catId) => {
+    if (shelfLoadedRef.current.has(catId)) return;
+    shelfLoadedRef.current.add(catId);
+    try {
+      let all = allItemsRef.current.get(catId);
+      if (!all) { all = await contentService.getSeriesByCategory(catId); allItemsRef.current.set(catId, all); }
+      const firstPage = (all || []).slice(0, SER_SHELF_PAGE);
+      setShelves((prev) => prev.map((s) =>
+        s.id === catId ? { ...s, items: firstPage, totalCount: all.length, hasMore: all.length > SER_SHELF_PAGE } : s));
+    } catch {
+      setShelves((prev) => prev.map((s) =>
+        s.id === catId ? { ...s, items: [], totalCount: 0, hasMore: false } : s));
+    }
+  }, [contentService]);
+
+  const handleLoadMore = useCallback((catId) => {
+    const all = allItemsRef.current.get(catId);
+    if (!all) return;
+    setShelves((prev) => prev.map((s) => {
+      if (s.id !== catId) return s;
+      const nextItems = all.slice(0, (s.items?.length || 0) + SER_SHELF_PAGE);
+      return { ...s, items: nextItems, hasMore: nextItems.length < all.length };
+    }));
+  }, []);
 
   const resetFilter = () => {
     filterLetterRef.current = "all";
@@ -404,6 +449,8 @@ export default function SeriesScreenTV({ navigation, route }) {
     }
     e.preventDefault();
     if (KEY_BACK.has(k)) { navigation.goBack?.(); return; }
+    // Shelves own the browse view — VirtualShelves.tv handles its own D-pad.
+    if (tvUseShelvesRef.current) return;
     if (catZoneRef.current === "search") { handleSearchKey(k); return; }
     switch (k) {
       case KEY_LEFT:
@@ -1005,6 +1052,29 @@ export default function SeriesScreenTV({ navigation, route }) {
             />
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ── Shelf browse view (Electron-parity, flag on) ───────────────────────────
+  if (tvUseShelves) {
+    return (
+      <div className="tvl-screen">
+        <div className="tvl-topbar">
+          <span className="tvl-topbar-title">Series</span>
+        </div>
+        {shelves.length === 0
+          ? <div className="tvl-center"><div className="tvl-spinner" /><p>Loading series…</p></div>
+          : (
+            <VirtualShelvesTV
+              shelves={shelves}
+              onShelfVisible={handleShelfVisible}
+              onLoadMore={handleLoadMore}
+              onSelect={(item) => openDetail(item)}
+              onSeeAll={(id, name) => openGrid({ id, name })}
+              renderCard={(item, isFocused) => <PosterCard item={item} isFocused={isFocused} />}
+            />
+          )}
       </div>
     );
   }

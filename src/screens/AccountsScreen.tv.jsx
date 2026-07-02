@@ -20,7 +20,7 @@ const FORM_INPUTS = 4; // first 4 fieldFocus indices are text inputs
 const FORM_TOTAL  = 6; // + cancel(4) + save(5)
 
 export default function AccountsScreenTV({ navigation }) {
-  const { users, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser, setChannels } = useApp();
+  const { users, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser, setChannels, tvUseShelves, setTvUseShelves } = useApp();
 
   const [view,         setView]         = useState("list");
   const [focus,        setFocus]        = useState(0);
@@ -50,7 +50,9 @@ export default function AccountsScreenTV({ navigation }) {
   const passwordRef = useRef(null);
   const inputRefs   = [nicknameRef, hostRef, usernameRef, passwordRef];
 
-  const rows = ["add", ...users.map((u) => u.id)];
+  // "add" row, one row per account, then a trailing settings row (TV layout toggle).
+  const rows = ["add", ...users.map((u) => u.id), "settings_shelves"];
+  const isAccountRow = (r) => r !== "add" && r !== "settings_shelves";
   useEffect(() => { rowsRef.current = rows; });
   useEffect(() => { viewRef.current = view; }, [view]);
   useEffect(() => { fieldFocRef.current = fieldFocus; }, [fieldFocus]);
@@ -113,26 +115,32 @@ export default function AccountsScreenTV({ navigation }) {
         break;
       }
       case KEY_LEFT: {
-        // Move across a row's actions (connect → Edit → Delete). The "add" row
-        // has no columns, so it stays put.
-        if (list[focusRef.current] !== "add") { e.preventDefault(); setColF(Math.max(0, colRef.current - 1)); }
+        // Move across a row's actions (connect → Edit → Delete). The "add" and
+        // settings rows have no columns, so they stay put.
+        if (isAccountRow(list[focusRef.current])) { e.preventDefault(); setColF(Math.max(0, colRef.current - 1)); }
         break;
       }
       case KEY_RIGHT: {
-        if (list[focusRef.current] !== "add") { e.preventDefault(); setColF(Math.min(2, colRef.current + 1)); }
+        if (isAccountRow(list[focusRef.current])) { e.preventDefault(); setColF(Math.min(2, colRef.current + 1)); }
         break;
       }
       case KEY_ENTER: {
         e.preventDefault();
-        const row = list[focusRef.current];
-        if (row === "add") { openAddForm(); break; }
-        if (colRef.current === 1) { const u = users.find((x) => x.id === row); if (u) openEditForm(u); }
-        else if (colRef.current === 2) { setDelId(row); setView("confirm"); }
-        else connectUser(row);
+        activateListRow(list[focusRef.current]);
         break;
       }
       default: if (KEY_BACK.has(k)) { e.preventDefault(); navigation.goBack?.(); }
     }
+  };
+
+  // Enter action for the focused list row (kept out of the switch to keep
+  // handleListKey's complexity in check).
+  const activateListRow = (row) => {
+    if (row === "add") { openAddForm(); return; }
+    if (row === "settings_shelves") { setTvUseShelves(!tvUseShelves); return; }
+    if (colRef.current === 1) { const u = users.find((x) => x.id === row); if (u) openEditForm(u); }
+    else if (colRef.current === 2) { setDelId(row); setView("confirm"); }
+    else connectUser(row);
   };
 
   // ── Form keys ──────────────────────────────────────────────────────────────
@@ -387,6 +395,29 @@ export default function AccountsScreenTV({ navigation }) {
               </div>
             );
           })}
+
+          {(() => {
+            const settingsIdx = users.length + 1;
+            const isFocused = focus === settingsIdx;
+            return (
+              <button
+                ref={isFocused ? elRef : null}
+                className={isFocused ? "tvl-acc-item tvl-acc-item--on" : "tvl-acc-item"}
+                onClick={() => setTvUseShelves(!tvUseShelves)}
+              >
+                <div className="tvl-acc-info">
+                  <div className="tvl-acc-name">TV Layout</div>
+                  <div className="tvl-acc-host">How Movies &amp; Series browse</div>
+                </div>
+                <div className="tvl-acc-actions">
+                  <span className="tvl-acc-badge">
+                    <Icon name="tv" size={iconSizes.sm} color={colors.accent2} />
+                    <span>{tvUseShelves ? "Shelves" : "Grid"}</span>
+                  </span>
+                </div>
+              </button>
+            );
+          })()}
         </div>
       </div>
     </div>

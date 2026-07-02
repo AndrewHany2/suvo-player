@@ -2,7 +2,9 @@
 
 **Date:** 2026-07-02
 **Status:** Approved (brainstorm) — pending spec review → writing-plans
-**Scope:** Movies + Series TV screens. Live TV explicitly excluded.
+**Scope:** Movies + Series TV shelf port (primary) + two small independent
+cross-platform optimizations (Electron horizontal virtualization; mobile
+`ScrollView`→`FlatList`). Live TV explicitly excluded.
 
 ## Problem
 
@@ -122,6 +124,24 @@ A user-facing preference, not a hardcoded constant, so on-device A/B needs no re
   `true` → `<VirtualShelves>`, `false` → `<VirtualGridTV>` (today's behavior). Both paths
   remain compiled and shippable.
 
+## Cross-platform optimizations (independent of the TV component)
+
+Electron and mobile already have the shelf UX; the TV work brings TV to parity. These two
+tweaks share no code with `VirtualShelves.tv` and can land/ship independently. They are
+optimizations only — no visual or behavioral change intended.
+
+1. **Electron — horizontal virtualization in `ContentShelf.web.jsx`.** Today the rail
+   renders every loaded item (`items.map`). On a low-end laptop a deeply-scrolled rail can
+   mount hundreds of posters. Add a horizontal window (mount only visible ± buffer cards,
+   left/right spacer widths preserve `scrollLeft`), reusing the same windowing helper as the
+   TV component where practical. Desktop has headroom, so this is a safety optimization, not
+   a correctness fix. Mouse/drag/prev-next behavior unchanged.
+
+2. **Mobile — `ScrollView` → horizontal `FlatList` in `ContentShelf.native.jsx`.**
+   `removeClippedSubviews` only detaches off-screen children; it still measures all of them.
+   A horizontal `FlatList` (`initialNumToRender`, `windowSize`, `maxToRenderPerBatch`) gives
+   true windowing. Keep `onVisible` / `onLoadMore` (`onEndReached`) semantics identical.
+
 ## Testing & verification
 
 - **Unit (pure functions, no DOM):**
@@ -141,5 +161,8 @@ A user-facing preference, not a hardcoded constant, so on-device A/B needs no re
 - **Modified:** `src/screens/MoviesScreen.tv.jsx`, `src/screens/SeriesScreen.tv.jsx`
   (branch on `tvUseShelves`), `src/screens/AccountsScreen.tv.jsx` (toggle row),
   `src/context/AppContext.jsx` (persisted `tvUseShelves` pref).
+- **Modified (cross-platform tweaks):** `src/presentation/components/ContentShelf.web.jsx`
+  (horizontal virtualization), `src/presentation/components/ContentShelf.native.jsx`
+  (`ScrollView`→`FlatList`).
 - **Unchanged:** `useMovies` / `useSeries` / `ContentService`, `VirtualGridTV`,
   `TVPosterCard`.

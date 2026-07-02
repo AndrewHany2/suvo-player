@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ss } from "../../utils/scaleSize";
+import { railWindow } from "./shelfWindow.js";
 import { Spinner } from "../../ui/primitives";
 import { colors, fonts, fontWeights, radii } from "../../ui/tokens";
 import Icon from "../../ui/Icon";
@@ -23,6 +24,12 @@ export default function ContentShelf({
   const dragStartX = useRef(0);
   const dragStartLeft = useRef(0);
   const hasDragged = useRef(false);
+
+  // Horizontal virtualization: mount only a window of cards around the scroll
+  // position so a deeply-scrolled rail can't mount hundreds of posters. Desktop
+  // has headroom, so this is a safety optimization; behavior is unchanged.
+  const CARD_W = ss(200), CARD_GAP = ss(8), H_VISIBLE = 10, H_BUF = 4;
+  const [firstVisible, setFirstVisible] = useState(0);
 
   useEffect(() => {
     if (items !== null || manual) return;
@@ -70,10 +77,16 @@ export default function ContentShelf({
 
   const scrollBy = (delta) => { const el = railRef.current; if (el) el.scrollLeft = Math.max(0, el.scrollLeft + delta); };
   const handleScroll = (e) => {
-    if (!hasMore || loadingMore) return;
     const { scrollLeft, scrollWidth, clientWidth } = e.target;
+    setFirstVisible(Math.floor(scrollLeft / (CARD_W + CARD_GAP)));
+    if (!hasMore || loadingMore) return;
     if (scrollWidth - scrollLeft - clientWidth < 500) onLoadMore?.();
   };
+
+  // Center the window on the viewport middle (not its first index) per plan.
+  const rw = railWindow(firstVisible + Math.floor(H_VISIBLE / 2), items ? items.length : 0, H_VISIBLE, H_BUF, true);
+  const leftPad = rw.start * (CARD_W + CARD_GAP);
+  const rightPad = Math.max(0, (items ? items.length : 0) - rw.end) * (CARD_W + CARD_GAP);
 
   return (
     <div style={{ paddingTop: ss(28), paddingBottom: ss(8) }}>
@@ -108,9 +121,11 @@ export default function ContentShelf({
             onDragStart={(e) => e.preventDefault()}
             style={{ display: "flex", overflowX: "auto", gap: ss(8), paddingLeft: ss(48), paddingRight: ss(48), paddingTop: ss(10), paddingBottom: ss(10), scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab", userSelect: "none" }}
           >
-            {items.map((item) => (renderItem
+            <div style={{ flex: `0 0 ${leftPad}px` }} />
+            {items.slice(rw.start, rw.end).map((item) => (renderItem
               ? renderItem(item)
               : <PosterCard key={String(item.stream_id ?? item.id)} item={item} onPress={onPress} width={ss(200)} />))}
+            <div style={{ flex: `0 0 ${rightPad}px` }} />
             {loadingMore && (
               <div style={{ width: ss(200), aspectRatio: "2/3", borderRadius: radii.sm, backgroundColor: colors.surface, border: `1px solid ${colors.border}`, display: "flex", justifyContent: "center", alignItems: "center" }}>
                 <Spinner size="small" color={colors.accent} />
