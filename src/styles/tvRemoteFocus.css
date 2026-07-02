@@ -9,8 +9,8 @@
 
 .tv-focus,
 .tv-focused {
-  outline: 2px solid #22D3EE !important;
-  outline-offset: 2px;
+  outline: 4px solid #22D3EE !important;
+  outline-offset: 3px;
   z-index: 10 !important;
 }
 
@@ -27,7 +27,7 @@ button.tv-focused,
 .tv-history-item.tv-focused,
 .tv-accounts-item.tv-focused,
 .tv-episode.tv-focused {
-  background: rgba(34, 211, 238, 0.12) !important;
+  background: rgba(34, 211, 238, 0.20) !important;
   border-color: #22D3EE !important;
 }
 
@@ -57,5 +57,5 @@ select.tv-focused {
 /* webOS / Tizen: slightly thicker ring for 10-foot legibility */
 body[data-platform="webos"] .tv-focus,
 body[data-platform="tizen"] .tv-focus {
-  outline-width: 3px !important;
+  outline-width: 5px !important;
 }

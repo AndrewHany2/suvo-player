@@ -2,7 +2,7 @@
 
 .tvl-ch-grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
   /* ~5% title-safe horizontal inset (overscan) */
   padding: 24px var(--a-inset);
@@ -50,16 +50,16 @@
   left: 4px;
   background: var(--a-indigo);
   color: #fff;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 3px;
+  padding: 3px 6px;
+  border-radius: 4px;
   letter-spacing: 0.05em;
 }
 
 .tvl-ch-name {
   padding: 6px 6px 4px;
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--a-text);
   line-height: 1.3;

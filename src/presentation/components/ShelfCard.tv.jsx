@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Icon from "../../ui/Icon";
 import { colors, iconSizes } from "../../ui/tokens";
+import { posterUrl } from "../../utils/imagePrefetch";
 
 /**
  * Shared TV poster card for horizontal shelves — History/"Home", Movies, Series.
@@ -18,33 +19,54 @@ import { colors, iconSizes } from "../../ui/tokens";
  */
 export default function ShelfCard({ item, isFocused, elRef, className = "" }) {
   const [err, setErr] = useState(false);
-  // cover-first matches Home/Series (resume thumb / series art); Movies catalog
-  // items carry stream_icon and fall through to it.
-  const src = item.cover || item.stream_icon || item.movie_image || null;
+  const [loaded, setLoaded] = useState(false);
+  const src = posterUrl(item);
   const rating = item.tmdb_rating ?? item.rating;
   const rLabel =
     rating != null && rating !== ""
-      ? (typeof rating === "number" ? Math.round(rating) : rating)
+      ? typeof rating === "number"
+        ? Math.round(rating)
+        : rating
       : null;
   const duration = item.duration || 0;
-  const pct = duration > 0 ? Math.min((item.currentTime / duration) * 100, 100) : 0;
-  const isSeries = item.type === "series" || item.series_id != null || item.seriesId != null;
+  const pct =
+    duration > 0 ? Math.min((item.currentTime / duration) * 100, 100) : 0;
+  const isSeries =
+    item.type === "series" || item.series_id != null || item.seriesId != null;
 
   return (
     <div
       ref={elRef}
-      className={["tvl-card", isFocused && "tvl-card--on", className].filter(Boolean).join(" ")}
+      className={["tvl-card", isFocused && "tvl-card--on", className]
+        .filter(Boolean)
+        .join(" ")}
     >
       <div className="tvl-card-img">
         {src && !err ? (
-          <img src={src} alt="" onError={() => setErr(true)} loading="lazy" decoding="async" />
+          <img
+            src={src}
+            alt=""
+            className={loaded ? "loaded" : undefined}
+            onLoad={() => setLoaded(true)}
+            onError={() => setErr(true)}
+            // Prefetched posters may already be decoded before React binds
+            // onLoad — mark them loaded on mount so they don't stay faded out.
+            ref={(n) => { if (n?.complete && n.naturalWidth > 0) setLoaded(true); }}
+            decoding="async"
+          />
         ) : (
           <div className="tvl-card-ph">
-            <Icon name={isSeries ? "tv" : "film"} size={iconSizes.lg} color={colors.border} />
+            <Icon
+              name={isSeries ? "tv" : "film"}
+              size={iconSizes.lg}
+              color={colors.border}
+            />
           </div>
         )}
         {rLabel && <span className="tvl-card-rating">{rLabel}</span>}
-        {pct > 0 && pct < 100 && <div className="tvl-hist-bar" style={{ width: `${pct}%` }} />}
+        {pct > 0 && pct < 100 && (
+          <div className="tvl-hist-bar" style={{ width: `${pct}%` }} />
+        )}
       </div>
       <div className="tvl-card-title">{item.name}</div>
     </div>

@@ -19,12 +19,17 @@
   --a-radius-sm: 10px;
   --a-inset: 64px;
   --a-focus-ring: #22D3EE;
-  --a-focus-fill: rgba(34, 211, 238, 0.12);
-  --a-fs-screen: 28px;
-  --a-fs-hero: 36px;
-  --a-fs-card: 20px;
-  --a-fs-body: 16px;
-  --a-fs-meta: 13px;
+  /* Stronger tint than web (0.12): TV strips the cyan GLOW_WEB halo old webOS
+     janks on, so the fill carries the focus affordance at 10 feet instead. */
+  --a-focus-fill: rgba(34, 211, 238, 0.20);
+  /* Type ramp shares the Aurora web/Electron language (Inter/Space Grotesk,
+     same weights + hierarchy) but is authored one step larger for 10-foot
+     lean-back viewing — Electron's arm's-length sizes read as tiny from a couch. */
+  --a-fs-screen: 32px;
+  --a-fs-hero: 44px;
+  --a-fs-card: 22px;
+  --a-fs-body: 18px;
+  --a-fs-meta: 15px;
 }
 
 /* ── Shell ───────────────────────────────────────────────────────────────── */
@@ -113,7 +118,7 @@
   cursor: pointer;
 }
 .tvl-topbar-count {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 500;
   color: var(--a-muted);
 }
@@ -254,13 +259,21 @@
   aspect-ratio: 2 / 3;
   background: var(--a-surface);
   overflow: hidden;
-  border-radius: 12px;
+  /* radii.card (10) — matches PosterCard.web's poster box */
+  border-radius: 10px;
 }
 .tvl-card-img img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  /* Fade the poster in over the --a-surface skeleton once decoded, so the
+     load reads as an intentional reveal instead of a blank-then-pop flash. */
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.tvl-card-img img.loaded {
+  opacity: 1;
 }
 
 .tvl-card-ph {
@@ -274,18 +287,19 @@
 }
 .tvl-card-rating {
   position: absolute;
-  top: 5px;
-  left: 5px;
-  background: rgba(0, 0, 0, 0.8);
+  top: 6px;
+  left: 6px;
+  /* overlay token (rgba(10,14,26,0.72)) + radius 4 — matches PosterCard.web badge */
+  background: rgba(10, 14, 26, 0.72);
   color: var(--a-rating);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 3px;
+  padding: 3px 7px;
+  border-radius: 4px;
 }
 .tvl-card-title {
   padding: 6px 4px 2px;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--a-text);
   line-height: 1.4;
@@ -391,7 +405,7 @@
   flex-wrap: wrap;
 }
 .tvl-det-tag {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--a-muted);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 5px;
@@ -402,7 +416,7 @@
   color: var(--a-indigo);
 }
 .tvl-det-rating {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--a-rating);
   font-weight: 700;
 }
@@ -498,8 +512,68 @@
 .tvl-acc-btn--on,
 .tvl-acc-add--on {
   border-color: var(--a-focus-ring);
-  outline: 2px solid var(--a-focus-ring);
-  outline-offset: 2px;
+  /* 4px ring + 3px offset: bolder than web's 2px because TV drops the cyan
+     GLOW_WEB halo, so the ring alone must read from the couch. Width tracks the
+     viewport scale in tvResponsiveScaling.css. */
+  outline: 4px solid var(--a-focus-ring);
+  outline-offset: 3px;
   background: var(--a-focus-fill);
   color: var(--a-text);
+}
+
+/* Rail scrolls horizontally (D-pad drives scrollLeft; touch/trackpad swipe too);
+   the scrollbar itself stays hidden. */
+.tv-shelf-rail::-webkit-scrollbar { display: none; }
+
+/* ── Shelf scroll-hint fades + chevrons (VirtualShelvesTV rails) ───────────────
+   .more-left / .more-right are set from the shelf's scroll window; the fades pin
+   to the rail edges and the chevrons are the "more this way" cue over them. */
+.tvl-shelf-rowwrap {
+  position: relative;
+}
+.tvl-shelf-rowwrap::before,
+.tvl-shelf-rowwrap::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 12px;
+  width: 120px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;
+}
+.tvl-shelf-rowwrap::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--a-bg) 35%, transparent);
+}
+.tvl-shelf-rowwrap::after {
+  right: 0;
+  background: linear-gradient(270deg, var(--a-bg) 35%, transparent);
+}
+.tvl-shelf-rowwrap.more-left::before,
+.tvl-shelf-rowwrap.more-right::after {
+  opacity: 1;
+}
+.tvl-shelf-chev {
+  position: absolute;
+  top: 0;
+  bottom: 12px;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 3;
+}
+.tvl-shelf-chev--left {
+  left: 0;
+  transform: scaleX(-1); /* mirror chevron-right so it points left */
+}
+.tvl-shelf-chev--right {
+  right: 0;
+}
+.tvl-shelf-rowwrap.more-left .tvl-shelf-chev--left,
+.tvl-shelf-rowwrap.more-right .tvl-shelf-chev--right {
+  opacity: 1;
 }

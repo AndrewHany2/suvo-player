@@ -49,6 +49,23 @@ export function focusedRailWindow(first, focusCol, count, visible, overscan = 3)
   return { start: Math.max(0, lo - overscan), end: Math.min(count, hi + overscan) };
 }
 
+/**
+ * Which scroll-hint edges a horizontal rail should show, from its REAL scroll
+ * geometry (measured px), NOT a floored visible-column estimate. The column
+ * estimate `floor((width - insets) / stride)` undercounts the fractional card
+ * that partially fits, so a `first + cols < count` heuristic stays true even
+ * when the rail is scrolled flush to its end — leaving the last poster forever
+ * under the right-edge fade. Measured geometry clears the hint exactly at the
+ * end. `epsilon` absorbs sub-pixel/rounding slack in scrollLeft.
+ */
+export function railEdges({ scrollLeft, clientWidth, scrollWidth }, epsilon = 2) {
+  const maxScroll = Math.max(0, scrollWidth - clientWidth);
+  return {
+    left: scrollLeft > epsilon,
+    right: scrollLeft < maxScroll - epsilon,
+  };
+}
+
 /** Clamp a (possibly remembered) column into the loaded range. */
 export function clampCol(col, loadedCount) {
   if (loadedCount <= 0) return 0;

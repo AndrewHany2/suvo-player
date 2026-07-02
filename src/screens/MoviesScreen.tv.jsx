@@ -15,11 +15,13 @@ import "../styles/tvRemoteFocus.css";
 import "./MoviesScreen.tv.css";
 
 const CAT_COLS = 4;
-const MOV_COLS = 6;
+const MOV_COLS = 5;
 const MOV_PAGE = 24;
-// Virtual-grid row metrics (design px @ 1280 viewport): 6-col poster + title.
+// Virtual-grid row metrics (design px @ 1280 viewport): 5-col poster + title.
+// Fewer/larger posters for 10-foot lean-back viewing; row height tracks the
+// taller 2:3 poster (~329px at 5 cols) plus the enlarged 2-line title.
 const MOV_GAP = 14;
-const MOV_ROW_H = 330;
+const MOV_ROW_H = 386;
 const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";

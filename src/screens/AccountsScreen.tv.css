@@ -39,19 +39,19 @@
 
 .tvl-acc-info { flex: 1; min-width: 0; }
 .tvl-acc-name {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: #fff;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tvl-acc-host { font-size: 12px; color: var(--a-muted); margin-top: 3px; }
+.tvl-acc-host { font-size: 14px; color: var(--a-muted); margin-top: 3px; }
 .tvl-acc-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--a-cyan);
   margin-top: 3px;
@@ -64,7 +64,7 @@
   border: 1px solid var(--a-border);
   border-radius: 5px;
   color: var(--a-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
@@ -80,7 +80,7 @@
   border: 1px solid rgba(229, 72, 77, 0.4);
   border-radius: 6px;
   color: var(--a-danger);
-  font-size: 13px;
+  font-size: 15px;
   margin-bottom: 8px;
 }
 
@@ -95,7 +95,7 @@
 
 .tvl-field { display: flex; flex-direction: column; gap: 6px; }
 .tvl-field label {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--a-muted);
   text-transform: uppercase;
@@ -109,7 +109,7 @@
   border: 2px solid var(--a-border);
   border-radius: 6px;
   color: #fff;
-  font-size: 15px;
+  font-size: 17px;
   font-family: inherit;
   outline: none;
 }
@@ -133,7 +133,7 @@
 .tvl-field--on { background: rgba(255,255,255,0.03); border-radius: 6px; padding: 6px 8px; margin: -6px -8px; }
 .tvl-field--on input { border-color: var(--a-cyan); }
 
-.tvl-btn--on { outline: 3px solid var(--a-cyan); outline-offset: 2px; }
+.tvl-btn--on { outline: 4px solid var(--a-cyan); outline-offset: 3px; }
 
 .tvl-form-actions { display: flex; gap: 12px; padding-top: 4px; }
 

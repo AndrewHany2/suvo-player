@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { scrollAnchor, windowFromAnchor, focusedRailWindow, clampCol, nearRailEnd } from "./shelfWindow.js";
+import { scrollAnchor, windowFromAnchor, focusedRailWindow, clampCol, nearRailEnd, railEdges } from "./shelfWindow.js";
 
 describe("scrollAnchor", () => {
   test("stays put while focus is inside the visible page", () => {
@@ -80,6 +80,38 @@ describe("focusedRailWindow", () => {
   });
   test("clamps to [0, count]", () => {
     assert.deepEqual(focusedRailWindow(0, 0, 4, 6, 3), { start: 0, end: 4 });
+  });
+});
+
+describe("railEdges", () => {
+  test("no hints when content fits (no overflow)", () => {
+    assert.deepEqual(railEdges({ scrollLeft: 0, clientWidth: 1280, scrollWidth: 1000 }), {
+      left: false,
+      right: false,
+    });
+  });
+  test("right hint at the start when there is overflow", () => {
+    assert.deepEqual(railEdges({ scrollLeft: 0, clientWidth: 1280, scrollWidth: 2560 }), {
+      left: false,
+      right: true,
+    });
+  });
+  test("both hints while scrolled in the middle", () => {
+    assert.deepEqual(railEdges({ scrollLeft: 500, clientWidth: 1280, scrollWidth: 2560 }), {
+      left: true,
+      right: true,
+    });
+  });
+  test("right hint CLEARS when scrolled flush to the end (the last-poster bug)", () => {
+    // maxScroll = 2560 - 1280 = 1280. The floored-cols heuristic wrongly kept
+    // "more right" true here; measured geometry must clear it.
+    assert.deepEqual(railEdges({ scrollLeft: 1280, clientWidth: 1280, scrollWidth: 2560 }), {
+      left: true,
+      right: false,
+    });
+  });
+  test("tolerates sub-pixel rounding slack at the end", () => {
+    assert.equal(railEdges({ scrollLeft: 1279, clientWidth: 1280, scrollWidth: 2560 }).right, false);
   });
 });
 

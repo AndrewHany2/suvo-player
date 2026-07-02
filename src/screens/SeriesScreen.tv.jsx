@@ -16,11 +16,13 @@ import "./SeriesScreen.tv.css";
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 const CAT_COLS = 4;
-const SER_COLS = 6;
+const SER_COLS = 5;
 const SER_PAGE = 24;
-// Virtual-grid row metrics (design px @ 1280 viewport): 6-col poster + title.
+// Virtual-grid row metrics (design px @ 1280 viewport): 5-col poster + title.
+// Fewer/larger posters for 10-foot lean-back viewing; row height tracks the
+// taller 2:3 poster (~329px at 5 cols) plus the enlarged 2-line title.
 const SER_GAP = 14;
-const SER_ROW_H = 330;
+const SER_ROW_H = 386;
 const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 
 const KEY_LEFT = 37;

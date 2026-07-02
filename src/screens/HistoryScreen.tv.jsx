@@ -4,6 +4,7 @@ import iptvApi from "../services/iptvApi";
 import { useContentService } from "../domain/hooks/useContentService";
 import Icon from "../ui/Icon";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
+import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import StatePanel from "../ui/StatePanel";
 import { colors } from "../ui/tokens";
 import "../styles/tvl.css";
@@ -41,16 +42,6 @@ export default function HistoryScreenTV({ navigation }) {
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
 
-  // ── List state ────────────────────────────────────────────────────────────
-  // Shelf navigation: rowFocus indexes the non-empty shelves, colFocus the
-  // poster within the focused shelf.
-  const [rowFocus, setRowFocus] = useState(0);
-  const [colFocus, setColFocus] = useState(0);
-  const rowFocusRef = useRef(0);
-  const colFocusRef = useRef(0);
-  const shelvesRef = useRef([]); // [{ key, items }]
-  const focusedCardRef = useRef(null);
-
   // ── Movie detail state ────────────────────────────────────────────────────
   const [movieDetail, setMovieDetail] = useState(null);
   const movieDetailRef = useRef(null);
@@ -73,66 +64,16 @@ export default function HistoryScreenTV({ navigation }) {
   // ── Build the list of non-empty shelves ──────────────────────────────────
   const favItems = myList || [];
   const histItems = (watchHistory || []).filter((h) => h.type !== "live");
+  // Home reuses the shared virtualized shelf (VirtualShelvesTV) with the hero and
+  // see-all disabled; it owns rail rendering, windowing and D-pad within the list.
   const shelves = [
-    { key: "favorites", label: "Favorites", items: favItems },
-    { key: "history", label: "Watch History", items: histItems },
+    { id: "favorites", name: "Favorites", items: favItems },
+    { id: "history", name: "Watch History", items: histItems },
   ].filter((s) => s.items.length > 0);
-
-  // Toggle left/right scroll-hint fades on a shelf based on its scroll position.
-  // Runs from the row's onScroll (fires on focus-driven scrollIntoView too) and
-  // an initial ref callback. No React state → no re-render.
-  const updateShelfEdges = (row) => {
-    const wrap = row?.parentElement;
-    if (!wrap) return;
-    const max = row.scrollWidth - row.clientWidth;
-    wrap.classList.toggle("more-left", row.scrollLeft > 4);
-    wrap.classList.toggle("more-right", max > 4 && row.scrollLeft < max - 4);
-  };
-
-  // ── Keep refs fresh for D-pad handler ────────────────────────────────────
-  useEffect(() => {
-    shelvesRef.current = shelves;
-    // Clamp focus if the shelves shrank (e.g. last item removed).
-    const r = Math.min(rowFocusRef.current, Math.max(0, shelves.length - 1));
-    const row = shelves[r];
-    const c = row ? Math.min(colFocusRef.current, Math.max(0, row.items.length - 1)) : 0;
-    if (r !== rowFocusRef.current) { rowFocusRef.current = r; setRowFocus(r); }
-    if (c !== colFocusRef.current) { colFocusRef.current = c; setColFocus(c); }
-  });
-
-  // ── Scroll focused poster into view ───────────────────────────────────────
-  // Horizontal scroll mirrors the Movies/Series carousel (VirtualShelvesTV):
-  // drive the rail's real scrollLeft from the focused card's geometry so the
-  // first card sits flush left and the last lands flush right (the browser
-  // clamps scrollLeft to max) with a consistent pad lead — instead of the
-  // jump-to-nearest behavior of scrollIntoView({inline}). Vertical stays on
-  // scrollIntoView({block}) to bring the focused shelf row into view.
-  useEffect(() => {
-    const card = focusedCardRef.current;
-    if (!card) return;
-    card.scrollIntoView({ block: "nearest" });
-    const rail = card.closest(".tvl-shelf-row");
-    if (!rail) return;
-    const pad = 48; // breathing-room inset, matches Movies/Series rail pad
-    const cardRect = card.getBoundingClientRect();
-    const railRect = rail.getBoundingClientRect();
-    const left = rail.scrollLeft + (cardRect.left - railRect.left);
-    const right = left + cardRect.width;
-    if (left - pad < rail.scrollLeft) rail.scrollLeft = Math.max(0, left - pad);
-    else if (right + pad > rail.scrollLeft + rail.clientWidth)
-      rail.scrollLeft = right + pad - rail.clientWidth;
-    updateShelfEdges(rail);
-  }, [rowFocus, colFocus]);
-
-  // Recompute scroll-hint edges for EVERY shelf (Favorites + History) after each
-  // render and on resize — covers shelves that aren't focused and rows measured
-  // before their data populated.
-  useEffect(() => {
-    const all = () => document.querySelectorAll(".tvl-shelf-row").forEach(updateShelfEdges);
-    all();
-    globalThis.addEventListener("resize", all);
-    return () => globalThis.removeEventListener("resize", all);
-  });
+  // When there are no shelves, VirtualShelvesTV isn't mounted, so the raw key
+  // handler still owns up→navbar / Back in the empty state.
+  const shelfCountRef = useRef(0);
+  useEffect(() => { shelfCountRef.current = shelves.length; });
 
   useEffect(() => {
     movieBtnRef.current?.scrollIntoView({ block: "nearest" });
@@ -303,7 +244,12 @@ export default function HistoryScreenTV({ navigation }) {
       const k = e.keyCode || e.which;
       if (movieDetailRef.current) handleMovieDetailKey(k, e);
       else if (seriesDetailRef.current) handleSeriesDetailKey(k, e);
-      else handleListKey(k, e);
+      else if (shelfCountRef.current === 0) {
+        // Empty Home: no shelf component mounted, so handle nav/back here.
+        if (k === KEY_UP) { e.preventDefault(); focusNav(); }
+        else if (KEY_BACK.has(k)) { e.preventDefault(); navigation.goBack?.(); }
+      }
+      // Otherwise VirtualShelvesTV owns the list keys (arrows/enter/back).
     };
     const onNavBlur = () => {
       navActiveRef.current = false;
@@ -315,62 +261,6 @@ export default function HistoryScreenTV({ navigation }) {
       globalThis.removeEventListener("tv-nav-blur", onNavBlur);
     };
   }, []);
-
-  // ── Shelf navigation (2D: row = shelf, col = poster) ──────────────────────
-  const setRC = (r, c) => {
-    rowFocusRef.current = r;
-    colFocusRef.current = c;
-    setRowFocus(r);
-    setColFocus(c);
-  };
-
-  const handleListKey = (k, e) => {
-    e.preventDefault();
-    const rows = shelvesRef.current;
-    if (!rows.length) {
-      if (k === KEY_UP) focusNav();
-      else if (KEY_BACK.has(k)) navigation.goBack?.();
-      return;
-    }
-    const r = Math.min(rowFocusRef.current, rows.length - 1);
-    const row = rows[r];
-    const c = Math.min(colFocusRef.current, row.items.length - 1);
-
-    switch (k) {
-      case KEY_LEFT: {
-        if (c > 0) setRC(r, c - 1);
-        break;
-      }
-      case KEY_RIGHT: {
-        if (c < row.items.length - 1) setRC(r, c + 1);
-        break;
-      }
-      case KEY_UP: {
-        if (r > 0) {
-          // Keep column, clamped to the new shelf's length.
-          const prev = rows[r - 1];
-          setRC(r - 1, Math.min(c, prev.items.length - 1));
-        } else {
-          focusNav();
-        }
-        break;
-      }
-      case KEY_DOWN: {
-        if (r < rows.length - 1) {
-          const next = rows[r + 1];
-          setRC(r + 1, Math.min(c, next.items.length - 1));
-        }
-        break;
-      }
-      case KEY_ENTER: {
-        const item = row.items[c];
-        if (item) openItem(item);
-        break;
-      }
-      default:
-        if (KEY_BACK.has(k)) navigation.goBack?.();
-    }
-  };
 
   // ── Movie detail navigation ───────────────────────────────────────────────
   const handleMovieDetailKey = (k, e) => {
@@ -856,39 +746,14 @@ export default function HistoryScreenTV({ navigation }) {
       <div className="tvl-topbar">
         <span className="tvl-topbar-title">My List &amp; History</span>
       </div>
-      <div className="tvl-scroll">
-        {shelves.map((shelf, r) => (
-          <div className="tvl-shelf" key={shelf.key}>
-            <div className="tvl-hist-section-hdr">{shelf.label}</div>
-            <div className="tvl-shelf-rowwrap">
-            <div
-              className="tvl-shelf-row"
-              onScroll={(e) => updateShelfEdges(e.currentTarget)}
-              ref={(el) => el && updateShelfEdges(el)}
-            >
-              {shelf.items.map((item, c) => {
-                const focused = r === rowFocus && c === colFocus;
-                return (
-                  <ShelfCard
-                    key={item.id}
-                    item={item}
-                    isFocused={focused}
-                    elRef={focused ? focusedCardRef : null}
-                    className="tvl-shelf-card"
-                  />
-                );
-              })}
-            </div>
-            <span className="tvl-shelf-chev tvl-shelf-chev--left" aria-hidden="true">
-              <Icon name="chevron-right" size={26} color="#fff" />
-            </span>
-            <span className="tvl-shelf-chev tvl-shelf-chev--right" aria-hidden="true">
-              <Icon name="chevron-right" size={26} color="#fff" />
-            </span>
-            </div>
-          </div>
-        ))}
-      </div>
+      <VirtualShelvesTV
+        shelves={shelves}
+        showHero={false}
+        onSelect={openItem}
+        onUpAtTop={focusNav}
+        onBack={() => navigation.goBack?.()}
+        renderCard={(item, isFocused) => <ShelfCard item={item} isFocused={isFocused} />}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 .tvl-ser-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 14px;
   /* ~5% title-safe horizontal inset (overscan) */
   padding: 24px var(--a-inset);

@@ -12,11 +12,13 @@ import "../styles/tvRemoteFocus.css";
 import "./LiveTVScreen.tv.css";
 
 const CAT_COLS = 4;
-const CH_COLS = 8;
+const CH_COLS = 6;
 const CH_PAGE = 40;
-// Virtual-grid row metrics (design px @ 1280 viewport): 8-col 16:9 logo + name.
+// Virtual-grid row metrics (design px @ 1280 viewport): 6-col 16:9 logo + name.
+// Fewer/larger channel tiles for 10-foot viewing; row height tracks the taller
+// 16:9 logo (~102px at 6 cols) plus the enlarged channel name.
 const CH_GAP = 12;
-const CH_ROW_H = 120;
+const CH_ROW_H = 150;
 
 const KEY_LEFT = 37;
 const KEY_UP = 38;

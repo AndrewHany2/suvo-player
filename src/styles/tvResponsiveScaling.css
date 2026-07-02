@@ -51,8 +51,23 @@ body[data-tv="true"] {
 }
 
 /* Focus ring width tracks the scale so the 10-foot ring stays legible as the
-   panel scales up. Color/offset live in tvRemoteFocus.css. */
+   panel scales up. Base width (4px) + color/offset live in tvl.css; this only
+   multiplies the width by the live viewport scale. Covers every focusable
+   .tvl-*--on element, not just posters. */
+.tvl-cat-card--on,
 .tvl-card--on,
-.tvl-ch-card--on {
-  outline-width: calc(2px * var(--tv-scale-clamped));
+.tvl-ch-card--on,
+.tvl-det-hero-btn--on,
+.tvl-mov-btn--on,
+.tvl-letter-btn--focused,
+.tvl-season-btn--on,
+.tvl-episode--on,
+.tvl-det-act-btn--on,
+.tvl-hist-item--on,
+.tvl-acc-item--on,
+.tvl-acc-btn--on,
+.tvl-acc-add--on,
+.tvl-topbar-back--focused,
+.tvl-cat-search--on {
+  outline-width: calc(4px * var(--tv-scale-clamped));
 }

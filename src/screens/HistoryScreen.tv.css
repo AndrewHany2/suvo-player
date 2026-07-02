@@ -53,7 +53,7 @@
 
 .tvl-hist-info { flex: 1; min-width: 0; }
 .tvl-hist-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: #fff;
   overflow: hidden;
@@ -66,14 +66,14 @@
   margin-top: 4px;
 }
 .tvl-hist-type {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--a-indigo);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.tvl-hist-date { font-size: 11px; color: var(--a-muted); }
-.tvl-hist-time { font-size: 11px; color: var(--a-muted); margin-top: 2px; }
+.tvl-hist-date { font-size: 13px; color: var(--a-muted); }
+.tvl-hist-time { font-size: 13px; color: var(--a-muted); margin-top: 2px; }
 
 .tvl-hist-action {
   padding: 8px 16px;
@@ -81,7 +81,7 @@
   border: 1px solid var(--a-border);
   border-radius: 5px;
   color: var(--a-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
@@ -148,62 +148,8 @@
 /* Reuse .tvl-card markup but give it a fixed shelf width (grid uses 100%). */
 .tvl-shelf-card {
   flex-shrink: 0;
-  width: 150px;
+  width: 180px;
 }
 
-/* Scroll-hint fades: wrap the scroller so the gradients pin to its edges (not
-   the scrolling content) and only show when there are more items that way.
-   The .more-left / .more-right classes are toggled in JS from the row scroll. */
-.tvl-shelf-rowwrap {
-  position: relative;
-}
-.tvl-shelf-rowwrap::before,
-.tvl-shelf-rowwrap::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 12px;
-  width: 80px;
-  pointer-events: none;
-  opacity: 0;
-  z-index: 2;
-}
-.tvl-shelf-rowwrap::before {
-  left: 0;
-  width: 120px;
-  background: linear-gradient(90deg, var(--a-bg) 35%, transparent);
-}
-.tvl-shelf-rowwrap::after {
-  right: 0;
-  width: 120px;
-  background: linear-gradient(270deg, var(--a-bg) 35%, transparent);
-}
-.tvl-shelf-rowwrap.more-left::before,
-.tvl-shelf-rowwrap.more-right::after {
-  opacity: 1;
-}
-
-/* Chevron arrows — the obvious "more this way" cue, shown over the edge fade. */
-.tvl-shelf-chev {
-  position: absolute;
-  top: 0;
-  bottom: 12px;
-  width: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  opacity: 0;
-  z-index: 3;
-}
-.tvl-shelf-chev--left {
-  left: 0;
-  transform: scaleX(-1); /* mirror chevron-right so it points left */
-}
-.tvl-shelf-chev--right {
-  right: 0;
-}
-.tvl-shelf-rowwrap.more-left .tvl-shelf-chev--left,
-.tvl-shelf-rowwrap.more-right .tvl-shelf-chev--right {
-  opacity: 1;
-}
+/* Shelf scroll-hint fades + chevrons now live in the shared tvl.css, since the
+   Home shelf renders through VirtualShelvesTV (same as Movies/Series). */
