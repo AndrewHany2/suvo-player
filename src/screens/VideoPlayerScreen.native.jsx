@@ -14,6 +14,7 @@ import iptvApi from "../services/iptvApi";
 import storage from "../utils/storage";
 import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
+import { useDeviceIntegrity } from "../security/useDeviceIntegrity";
 
 // Phase 2 shared modules.
 import { usePlayerPreferences } from "../playback/usePlayerPreferences";
@@ -616,7 +617,30 @@ export default function VideoPlayerScreen({ navigation }) {
     },
   }), [flashHint, resetControlsTimer, speed]);
 
+  const deviceCompromised = useDeviceIntegrity();
+
   if (!currentVideo || !player) return null;
+
+  // Jailbreak/root soft-block: refuse playback + warn (native only; false on
+  // web/TV/Electron). Fail-open — see integrityPolicy. Browsing stays allowed;
+  // only streaming is gated. Server attestation is the authoritative check.
+  if (deviceCompromised) {
+    return (
+      <YStack flex={1} backgroundColor="#000" alignItems="center" justifyContent="center" padding={24} gap={16}>
+        <Icon name="warning" size={40} color={colors.danger} />
+        <Text color={colors.danger} fontSize={20} fontWeight="700" textAlign="center">
+          Playback blocked
+        </Text>
+        <Text color={colors.muted} fontSize={14} textAlign="center">
+          This device appears to be jailbroken or rooted. Streaming is disabled
+          for security. Contact support if you believe this is a mistake.
+        </Text>
+        <Button variant="primary" size="lg" onPress={closeVideo}>
+          Go back
+        </Button>
+      </YStack>
+    );
+  }
 
   const nextEpisode = getNextEpisode();
   const topPadding = Platform.OS === "ios" ? 12 : 8;

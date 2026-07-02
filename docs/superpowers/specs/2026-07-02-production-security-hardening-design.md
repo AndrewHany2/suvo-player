@@ -106,7 +106,7 @@ Postgres
 - **Native (iOS/Android):** rely on **Hermes bytecode** (already non-readable). No extra JS obfuscation.
 - **Electron:** package with `asar` + enable integrity fuses.
 
-### E. Jailbreak / root detection (native only)
+### E. Jailbreak / root detection (native only)  ✅ IMPLEMENTED — `src/security/integrityPolicy.js` + `deviceIntegrity[.web].js` + `useDeviceIntegrity.js`; soft-block gate in `VideoPlayerScreen.native.jsx`
 - Add `jail-monkey` (works with the existing prebuild/dev-client setup). On rooted/jailbroken device: **soft-block** — warn + refuse playback — not a hard crash (false positives). N/A on TV/Electron. Server-side Play Integrity / App Attest is the authoritative integrity signal.
 
 ### F. Locked-device UX
