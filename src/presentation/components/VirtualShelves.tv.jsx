@@ -1,16 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { shelfWindow, railWindow, clampCol, nearRailEnd } from "./shelfWindow.js";
+import { scrollAnchor, windowFromAnchor, focusedRailWindow, clampCol, nearRailEnd } from "./shelfWindow.js";
 import HeroTV from "./Hero.tv.jsx";
 import { useTVInput } from "../../hooks/useTVInput";
 import { colors, fonts, fontWeights } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
 
-const SHELF_BUFFER = 1;      // rails above/below focus kept mounted
-const VISIBLE_COLS = 6;      // posters visible per rail
-const H_BUFFER = 2;          // posters left/right of focus kept mounted
+const SHELF_OVERSCAN = 1;    // shelves kept mounted above/below the visible page
+const H_OVERSCAN = 3;        // posters kept mounted ahead of the scroll on each side (focused rail)
+const IDLE_OVERSCAN = 3;     // keep the same lead in idle rails so no shelf blanks at its edge
 const ROW_HEIGHT = 320;      // px per shelf row (title + poster + padding)
 const CARD_W = 200;          // px poster width (matches tvConfig.ui.cardWidth)
 const CARD_GAP = 8;
+const STRIDE = CARD_W + CARD_GAP;
+const PAD = 48;              // rail horizontal inset (design px)
+const HERO_H = 300;          // Hero.tv billboard height (design px), lives inside the scroll box
 const HERO_DEBOUNCE_MS = 150;
 
 const loadedLen = (s) => (Array.isArray(s?.items) ? s.items.length : 0);
@@ -19,29 +22,70 @@ const loadedLen = (s) => (Array.isArray(s?.items) ? s.items.length : 0);
  * 2-D virtualized, D-pad-driven shelf list for TV Movies/Series.
  *
  * Bounds mounted posters on BOTH axes so worst-case decoded-image count stays
- * near ~45 regardless of catalog size or scroll depth (the requirement for the
- * webOS 3-4 / Tizen 2016-18 floor): only shelves in the vertical window mount,
- * and within each mounted rail only a horizontal window of posters mounts.
- * Off-window shelves become fixed-height spacer padding; off-window posters
- * become left/right spacer flex boxes so scroll geometry stays correct.
+ * bounded regardless of catalog size or scroll depth (the requirement for the
+ * webOS 3-4 / Tizen 2016-18 floor).
+ *
+ * The mount window is derived from the SCROLL position (which rows/posters are
+ * actually on screen), never straight from the focused index — anchoring to
+ * focus makes the window slide ahead of the scroll, unmounting still-visible
+ * posters and dropping blank spacer padding in their place.
+ *
+ * Horizontal scroll uses the focused card's REAL DOM position (offsetLeft) for
+ * scroll-into-view and reads the window anchor back from the rail's real
+ * scrollLeft. This is robust to the exact poster/viewport geometry (gaps, insets,
+ * responsive scaling), so the first poster never blanks and the LAST poster lands
+ * flush at the end of the rail instead of leaving dead space.
  */
 export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect, onSeeAll, renderCard }) {
   const containerRef = useRef(null);
-  const railRefs = useRef({}); // shelfId -> rail DOM node
-  const colMemory = useRef({}); // shelfId -> remembered column
-  const [focus, setFocus] = useState({ shelf: 0, col: 0 });
+  const railRefs = useRef({});        // shelfId -> rail DOM node
+  const focusedCardRef = useRef(null); // DOM node of the currently focused card
+  const colMemory = useRef({});       // shelfId -> remembered column
+  const [focus, setFocus] = useState({ shelf: 0, col: 0, shelfAnchor: 0 });
   const [heroItem, setHeroItem] = useState(null);
+  // shelfId -> index of the first poster currently visible in that rail, read
+  // back from the rail's real scrollLeft. Drives the horizontal mount window.
+  const [railFirst, setRailFirst] = useState({});
+  const railFirstRef = useRef(railFirst);
+  railFirstRef.current = railFirst;
+
+  // Viewport-derived counts. `cols`/`windowRows` size the mount window; `anchorRows`
+  // (rows visible below the hero) drives when the vertical scroll advances so the
+  // focused row is always brought into view.
+  const [dims, setDims] = useState({ cols: 8, windowRows: 3, anchorRows: 2 });
+  const dimsRef = useRef(dims);
 
   const shelfCount = shelves.length;
-  const win = shelfWindow(focus.shelf, shelfCount, SHELF_BUFFER);
+
+  useEffect(() => {
+    const measure = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const cw = el.clientWidth || 0;
+      const ch = el.clientHeight || 0;
+      const cols = Math.max(1, Math.floor((cw - 2 * ss(PAD)) / STRIDE));
+      const windowRows = Math.max(1, Math.ceil(ch / ROW_HEIGHT));
+      const anchorRows = Math.max(1, Math.floor((ch - ss(HERO_H)) / ROW_HEIGHT));
+      const next = { cols, windowRows, anchorRows };
+      dimsRef.current = next;
+      setDims(next);
+    };
+    measure();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (ro && containerRef.current) ro.observe(containerRef.current);
+    globalThis.addEventListener?.("resize", measure);
+    return () => { ro?.disconnect(); globalThis.removeEventListener?.("resize", measure); };
+  }, []);
+
+  const vWin = windowFromAnchor(focus.shelfAnchor, shelfCount, dims.windowRows, SHELF_OVERSCAN);
 
   // ── Lazy-load shelves entering the vertical window (replaces IntersectionObserver) ──
   useEffect(() => {
-    for (let i = win.start; i < win.end; i++) {
+    for (let i = vWin.start; i < vWin.end; i++) {
       const s = shelves[i];
       if (s && s.items === null) onShelfVisible?.(s.id);
     }
-  }, [win.start, win.end, shelves, onShelfVisible]);
+  }, [vWin.start, vWin.end, shelves, onShelfVisible]);
 
   // ── Debounced hero swap on focus change ──
   useEffect(() => {
@@ -51,23 +95,39 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
     return () => clearTimeout(t);
   }, [focus.shelf, focus.col, shelves]);
 
-  // ── Scroll focused row into view (vertical) + focused card into view (horizontal) ──
+  // ── Apply scroll (vertical container + focused rail) from the current focus ──
   useEffect(() => {
     const el = containerRef.current;
-    if (el) {
-      const rowTop = focus.shelf * ROW_HEIGHT;
-      const rowBottom = rowTop + ROW_HEIGHT;
-      if (rowTop < el.scrollTop) el.scrollTop = rowTop;
-      else if (rowBottom > el.scrollTop + el.clientHeight) el.scrollTop = rowBottom - el.clientHeight;
+    // Vertical: bring the focused row's top to the viewport (accounting for the
+    // Hero, which lives inside the scroll box above the rows).
+    if (el) el.scrollTop = focus.shelfAnchor <= 0 ? 0 : ss(HERO_H) + focus.shelfAnchor * ROW_HEIGHT;
+
+    const focusedId = shelves[focus.shelf]?.id;
+    const rail = railRefs.current[focusedId];
+    const card = focusedCardRef.current;
+    if (rail && card) {
+      // Horizontal scroll-into-view using the card's REAL geometry. At the end of
+      // the rail `right + pad - clientWidth` is clamped by the browser to the max
+      // scroll, so the last poster lands flush with no trailing dead space.
+      const pad = ss(PAD);
+      const left = card.offsetLeft;
+      const right = left + card.offsetWidth;
+      if (left - pad < rail.scrollLeft) rail.scrollLeft = Math.max(0, left - pad);
+      else if (right + pad > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = right + pad - rail.clientWidth;
     }
-    const rail = railRefs.current[shelves[focus.shelf]?.id];
-    if (rail) {
-      const cardLeft = focus.col * (CARD_W + CARD_GAP);
-      const cardRight = cardLeft + CARD_W;
-      if (cardLeft < rail.scrollLeft) rail.scrollLeft = cardLeft;
-      else if (cardRight > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = cardRight - rail.clientWidth;
+    // Idle rails may have just remounted (scrollLeft reset to 0) — restore them to
+    // their remembered first-visible poster so their window and scroll agree.
+    for (const [id, node] of Object.entries(railRefs.current)) {
+      if (!node || id === focusedId) continue;
+      node.scrollLeft = (railFirstRef.current[id] ?? 0) * STRIDE;
     }
-  }, [focus, shelves]);
+  }, [focus, shelves, dims]);
+
+  // Read the window anchor back from a rail's real scrollLeft as it scrolls.
+  const onRailScroll = useCallback((id) => (e) => {
+    const first = Math.max(0, Math.round(e.currentTarget.scrollLeft / STRIDE));
+    setRailFirst((m) => (m[id] === first ? m : { ...m, [id]: first }));
+  }, []);
 
   // ── D-pad ──
   const move = useCallback((dShelf, dCol) => {
@@ -76,16 +136,17 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
       if (dCol !== 0) {
         const len = loadedLen(cur);
         const nextCol = clampCol(prev.col + dCol, len);
-        colMemory.current[cur?.id] = nextCol;
+        if (cur) colMemory.current[cur.id] = nextCol;
         if (dCol > 0 && cur?.hasMore && nearRailEnd(nextCol, len)) onLoadMore?.(cur.id);
-        return { shelf: prev.shelf, col: nextCol };
+        return { ...prev, col: nextCol };
       }
-      // vertical move: remember current col, restore destination's remembered col
+      // vertical move: remember current rail's col, restore destination's
       if (cur) colMemory.current[cur.id] = prev.col;
       const nextShelf = Math.max(0, Math.min(shelfCount - 1, prev.shelf + dShelf));
       const dest = shelves[nextShelf];
-      const remembered = colMemory.current[dest?.id] ?? 0;
-      return { shelf: nextShelf, col: clampCol(remembered, loadedLen(dest)) };
+      const col = clampCol(colMemory.current[dest?.id] ?? 0, loadedLen(dest));
+      const shelfAnchor = scrollAnchor(prev.shelfAnchor, nextShelf, dimsRef.current.anchorRows, shelfCount);
+      return { shelf: nextShelf, col, shelfAnchor };
     });
   }, [shelves, shelfCount, onLoadMore]);
 
@@ -102,21 +163,24 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
     },
   }, { yieldToNav: true }), [register, move, shelves, focus, onSelect]);
 
-  const paddingTop = win.start * ROW_HEIGHT;
-  const paddingBottom = Math.max(0, (shelfCount - win.end)) * ROW_HEIGHT;
+  const paddingTop = vWin.start * ROW_HEIGHT;
+  const paddingBottom = Math.max(0, (shelfCount - vWin.end)) * ROW_HEIGHT;
 
   return (
     <div ref={containerRef} className="tvl-shelves-screen"
       style={{ overflowY: "auto", height: "100%", contain: "strict" }}>
       <HeroTV item={heroItem} />
       <div style={{ paddingTop, paddingBottom }}>
-        {shelves.slice(win.start, win.end).map((shelf, i) => {
-          const shelfIdx = win.start + i;
+        {shelves.slice(vWin.start, vWin.end).map((shelf, i) => {
+          const shelfIdx = vWin.start + i;
           const isFocusedShelf = shelfIdx === focus.shelf;
           const items = Array.isArray(shelf.items) ? shelf.items : [];
-          const rw = railWindow(focus.col, items.length, VISIBLE_COLS, H_BUFFER, isFocusedShelf);
-          const leftPad = rw.start * (CARD_W + CARD_GAP);
-          const rightPad = Math.max(0, (items.length - rw.end)) * (CARD_W + CARD_GAP);
+          const first = railFirst[shelf.id] ?? 0;
+          const rw = isFocusedShelf
+            ? focusedRailWindow(first, focus.col, items.length, dims.cols, H_OVERSCAN)
+            : windowFromAnchor(first, items.length, dims.cols, IDLE_OVERSCAN);
+          const leftPad = rw.start * STRIDE;
+          const rightPad = Math.max(0, (items.length - rw.end)) * STRIDE;
           return (
             <div key={shelf.id} style={{ height: ROW_HEIGHT, contain: "layout style paint" }}>
               <div className="tvl-shelf-title-btn"
@@ -127,14 +191,21 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
                 {shelf.name}
               </div>
               <div ref={(n) => { railRefs.current[shelf.id] = n; }} className="tv-shelf-rail"
+                onScroll={onRailScroll(shelf.id)}
                 style={{ display: "flex", overflowX: "hidden", gap: CARD_GAP,
                   paddingLeft: ss(48), paddingRight: ss(48) }}>
                 <div style={{ flex: `0 0 ${leftPad}px` }} />
                 {items.slice(rw.start, rw.end).map((item, j) => {
                   const col = rw.start + j;
                   const isFocused = isFocusedShelf && col === focus.col;
+                  // Key by absolute column, NOT by stream_id/id: IPTV catalogs can
+                  // carry duplicate stream_ids, and a duplicate key makes React drop
+                  // one card (e.g. the last poster of the shelf). Column index is
+                  // unique within a rail and stable (items only ever append).
                   return (
-                    <div key={String(item.stream_id ?? item.id ?? col)} style={{ flex: `0 0 ${CARD_W}px` }}>
+                    <div key={col}
+                      ref={isFocused ? focusedCardRef : null}
+                      style={{ flex: `0 0 ${CARD_W}px` }}>
                       {renderCard(item, isFocused)}
                     </div>
                   );

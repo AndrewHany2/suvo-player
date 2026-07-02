@@ -4,6 +4,7 @@ import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 import { useContentService } from "../domain/hooks/useContentService";
 import { VirtualGridTV } from "../presentation/components/VirtualGrid.tv";
+import ShelfCard from "../presentation/components/ShelfCard.tv";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
@@ -12,14 +13,7 @@ import "../styles/tvResponsiveScaling.css";
 import "../styles/tvRemoteFocus.css";
 import "./SeriesScreen.tv.css";
 
-const getTrailerUrl = (t) => {
-  if (!t) return null;
-  const m = t.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
-  if (m) return `https://www.youtube-nocookie.com/embed/${m[1]}`;
-  if (/^[A-Za-z0-9_-]{11}$/.test(t.trim()))
-    return `https://www.youtube-nocookie.com/embed/${t.trim()}`;
-  return null;
-};
+import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 const CAT_COLS = 4;
 const SER_COLS = 6;
@@ -1072,7 +1066,7 @@ export default function SeriesScreenTV({ navigation, route }) {
               onLoadMore={handleLoadMore}
               onSelect={(item) => openDetail(item)}
               onSeeAll={(id, name) => openGrid({ id, name })}
-              renderCard={(item, isFocused) => <PosterCard item={item} isFocused={isFocused} />}
+              renderCard={(item, isFocused) => <ShelfCard item={item} isFocused={isFocused} />}
             />
           )}
       </div>

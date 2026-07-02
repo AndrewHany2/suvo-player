@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { ss } from "../../utils/scaleSize";
-import { railWindow } from "./shelfWindow.js";
+import { windowFromAnchor } from "./shelfWindow.js";
 import { Spinner } from "../../ui/primitives";
 import { colors, fonts, fontWeights, radii } from "../../ui/tokens";
 import Icon from "../../ui/Icon";
 import PosterCard from "./PosterCard.web";
 
-const isTV = () => typeof globalThis !== "undefined" && globalThis.__TV__ === true;
+import { isTV } from "../../utils/isTV";
 
 /**
  * Horizontal content rail — web/desktop (raw DOM, no Tamagui). Lazy-loads on
@@ -28,7 +28,7 @@ export default function ContentShelf({
   // Horizontal virtualization: mount only a window of cards around the scroll
   // position so a deeply-scrolled rail can't mount hundreds of posters. Desktop
   // has headroom, so this is a safety optimization; behavior is unchanged.
-  const CARD_W = ss(200), CARD_GAP = ss(8), H_VISIBLE = 10, H_BUF = 4;
+  const CARD_W = ss(200), CARD_GAP = ss(8), H_VISIBLE = 10, H_OVERSCAN = 3;
   const [firstVisible, setFirstVisible] = useState(0);
 
   useEffect(() => {
@@ -83,8 +83,11 @@ export default function ContentShelf({
     if (scrollWidth - scrollLeft - clientWidth < 500) onLoadMore?.();
   };
 
-  // Center the window on the viewport middle (not its first index) per plan.
-  const rw = railWindow(firstVisible + Math.floor(H_VISIBLE / 2), items ? items.length : 0, H_VISIBLE, H_BUF, true);
+  // Mount the visible page anchored to the scroll position, plus 3 posters of
+  // overscan on each side (rendered ahead of the scroll). Anchoring to
+  // firstVisible — not a focused index — guarantees the leftmost on-screen card
+  // is always mounted, so scrolling never leaves a blank gap at the edge.
+  const rw = windowFromAnchor(firstVisible, items ? items.length : 0, H_VISIBLE, H_OVERSCAN);
   const leftPad = rw.start * (CARD_W + CARD_GAP);
   const rightPad = Math.max(0, (items ? items.length : 0) - rw.end) * (CARD_W + CARD_GAP);
 

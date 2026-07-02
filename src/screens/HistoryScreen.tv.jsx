@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 import { useContentService } from "../domain/hooks/useContentService";
 import Icon from "../ui/Icon";
+import ShelfCard from "../presentation/components/ShelfCard.tv";
 import StatePanel from "../ui/StatePanel";
 import { colors } from "../ui/tokens";
 import "../styles/tvl.css";
@@ -22,14 +23,7 @@ const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 // Home renders favorites/history as horizontal poster shelves (Netflix-style),
 // reusing the canonical .tvl-card poster card from the Movies/Series grids.
 
-const getTrailerUrl = (t) => {
-  if (!t) return null;
-  const m = t.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
-  if (m) return `https://www.youtube-nocookie.com/embed/${m[1]}`;
-  if (/^[A-Za-z0-9_-]{11}$/.test(t.trim()))
-    return `https://www.youtube-nocookie.com/embed/${t.trim()}`;
-  return null;
-};
+import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 export default function HistoryScreenTV({ navigation }) {
   // Credentials are kept in sync automatically by useContentService
@@ -107,10 +101,27 @@ export default function HistoryScreenTV({ navigation }) {
   });
 
   // ── Scroll focused poster into view ───────────────────────────────────────
+  // Horizontal scroll mirrors the Movies/Series carousel (VirtualShelvesTV):
+  // drive the rail's real scrollLeft from the focused card's geometry so the
+  // first card sits flush left and the last lands flush right (the browser
+  // clamps scrollLeft to max) with a consistent pad lead — instead of the
+  // jump-to-nearest behavior of scrollIntoView({inline}). Vertical stays on
+  // scrollIntoView({block}) to bring the focused shelf row into view.
   useEffect(() => {
-    focusedCardRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    const row = focusedCardRef.current?.closest(".tvl-shelf-row");
-    if (row) updateShelfEdges(row);
+    const card = focusedCardRef.current;
+    if (!card) return;
+    card.scrollIntoView({ block: "nearest" });
+    const rail = card.closest(".tvl-shelf-row");
+    if (!rail) return;
+    const pad = 48; // breathing-room inset, matches Movies/Series rail pad
+    const cardRect = card.getBoundingClientRect();
+    const railRect = rail.getBoundingClientRect();
+    const left = rail.scrollLeft + (cardRect.left - railRect.left);
+    const right = left + cardRect.width;
+    if (left - pad < rail.scrollLeft) rail.scrollLeft = Math.max(0, left - pad);
+    else if (right + pad > rail.scrollLeft + rail.clientWidth)
+      rail.scrollLeft = right + pad - rail.clientWidth;
+    updateShelfEdges(rail);
   }, [rowFocus, colFocus]);
 
   // Recompute scroll-hint edges for EVERY shelf (Favorites + History) after each
@@ -858,11 +869,12 @@ export default function HistoryScreenTV({ navigation }) {
               {shelf.items.map((item, c) => {
                 const focused = r === rowFocus && c === colFocus;
                 return (
-                  <PosterCard
+                  <ShelfCard
                     key={item.id}
                     item={item}
                     isFocused={focused}
                     elRef={focused ? focusedCardRef : null}
+                    className="tvl-shelf-card"
                   />
                 );
               })}
@@ -877,36 +889,6 @@ export default function HistoryScreenTV({ navigation }) {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function PosterCard({ item, isFocused, elRef }) {
-  const [imgErr, setImgErr] = useState(false);
-  const src = item.cover || item.stream_icon || null;
-  const progress = item.currentTime || 0;
-  const duration = item.duration || 0;
-  const pct = duration > 0 ? Math.min((progress / duration) * 100, 100) : 0;
-  const typeIconName = item.type === "series" ? "tv" : "film";
-
-  return (
-    <div
-      ref={elRef}
-      className={isFocused ? "tvl-shelf-card tvl-card tvl-card--on" : "tvl-shelf-card tvl-card"}
-    >
-      <div className="tvl-card-img">
-        {src && !imgErr ? (
-          <img src={src} alt="" onError={() => setImgErr(true)} loading="lazy" />
-        ) : (
-          <div className="tvl-card-ph">
-            <Icon name={typeIconName} size={28} color={colors.border} />
-          </div>
-        )}
-        {pct > 0 && pct < 100 && (
-          <div className="tvl-hist-bar" style={{ width: `${pct}%` }} />
-        )}
-      </div>
-      <div className="tvl-card-title">{item.name}</div>
     </div>
   );
 }

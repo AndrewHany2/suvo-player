@@ -5,6 +5,7 @@ import { useTVInput } from "../hooks/useTVInput";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { yieldFocusToNav } from "../platform/adapters/input/keys";
 import { VirtualGridTV } from "../presentation/components/VirtualGrid.tv";
+import ShelfCard from "../presentation/components/ShelfCard.tv";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
@@ -21,13 +22,7 @@ const MOV_GAP = 14;
 const MOV_ROW_H = 330;
 const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 
-const getTrailerUrl = (t) => {
-  if (!t) return null;
-  const m = t.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
-  if (m) return `https://www.youtube-nocookie.com/embed/${m[1]}`;
-  if (/^[A-Za-z0-9_-]{11}$/.test(t.trim())) return `https://www.youtube-nocookie.com/embed/${t.trim()}`;
-  return null;
-};
+import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 export default function MoviesScreenTV({ navigation, route }) {
   const { loading, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie, shelves, handleShelfVisible, handleLoadMore } = useMovies({ navigation });
@@ -561,7 +556,7 @@ export default function MoviesScreenTV({ navigation, route }) {
               onLoadMore={handleLoadMore}
               onSelect={(item) => openDetail(item)}
               onSeeAll={(id, name) => openCat({ id, name })}
-              renderCard={(item, isFocused) => <MovieCard item={item} isFocused={isFocused} />}
+              renderCard={(item, isFocused) => <ShelfCard item={item} isFocused={isFocused} />}
             />
           )}
       </div>

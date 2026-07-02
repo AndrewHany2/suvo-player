@@ -1,21 +1,52 @@
-// Pure windowing + focus math for VirtualShelves.tv (and ContentShelf.web
-// horizontal virtualization). No DOM, no React — unit-tested in isolation.
+// Pure windowing + focus math for the horizontal rails (ContentShelf.web) and
+// the 2-D virtualized TV shelf list (VirtualShelves.tv). No DOM, no React —
+// unit-tested in isolation.
+//
+// The core rule: the mount window is derived from the SCROLL position (which
+// slots are actually on screen), never straight from the focused index. Anchor
+// the window to `focus` directly and it slides ahead of the scroll, unmounting
+// still-visible posters and leaving blank spacer gaps.
 
-/** Half-open [start,end) range of shelf indices to mount. */
-export function shelfWindow(focusShelf, shelfCount, buffer = 1) {
-  const start = Math.max(0, focusShelf - buffer);
-  const end = Math.min(shelfCount, focusShelf + buffer + 1);
+/**
+ * Advance a 1-D "first visible slot" anchor using the scroll-into-view-at-edges
+ * rule: the anchor only moves when `focus` would fall outside the visible page
+ * [anchor, anchor + visible). Clamped so the final page never scrolls past the
+ * end of the list.
+ */
+export function scrollAnchor(prevAnchor, focus, visible, count) {
+  const maxAnchor = Math.max(0, count - visible);
+  let a = Math.min(Math.max(0, Math.trunc(prevAnchor)), maxAnchor);
+  if (focus < a) a = focus;
+  else if (focus > a + visible - 1) a = focus - visible + 1;
+  return Math.max(0, Math.min(a, maxAnchor));
+}
+
+/**
+ * Half-open [start, end) range of slots to mount: the visible page
+ * [anchor, anchor + visible) plus `overscan` slots kept mounted on each side,
+ * rendered ahead of the scroll so travel in either direction reveals a ready
+ * poster instead of a blank. Guarantees the whole visible page stays mounted.
+ */
+export function windowFromAnchor(anchor, count, visible, overscan = 3) {
+  const a = Math.max(0, Math.trunc(anchor));
+  const start = Math.max(0, a - overscan);
+  const end = Math.min(count, a + visible + overscan);
   return { start, end };
 }
 
-/** Half-open [start,end) range of poster indices to mount in one rail. */
-export function railWindow(focusCol, loadedCount, visibleCols, hBuffer = 2, isFocused = false) {
-  if (!isFocused) {
-    return { start: 0, end: Math.min(loadedCount, visibleCols) };
-  }
-  const start = Math.max(0, focusCol - hBuffer);
-  const end = Math.min(loadedCount, focusCol + visibleCols + hBuffer);
-  return { start, end };
+/**
+ * Mount window for the FOCUSED rail. Unlike an idle rail, the focused rail must
+ * keep the focused card mounted even before the imperative scroll-into-view has
+ * run (you can't scroll to a card that isn't in the DOM). So the window is the
+ * union of the visible page [first, first + visible) — where `first` is read
+ * back from the rail's REAL scrollLeft — and the focused column, each padded by
+ * `overscan`. This never blanks a visible or focused card regardless of how
+ * accurate the visible-count estimate is.
+ */
+export function focusedRailWindow(first, focusCol, count, visible, overscan = 3) {
+  const lo = Math.min(first, focusCol);
+  const hi = Math.max(first + visible, focusCol + 1);
+  return { start: Math.max(0, lo - overscan), end: Math.min(count, hi + overscan) };
 }
 
 /** Clamp a (possibly remembered) column into the loaded range. */

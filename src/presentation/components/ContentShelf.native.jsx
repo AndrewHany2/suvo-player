@@ -53,9 +53,13 @@ export default function ContentShelf({
             ? renderItem(item)
             : <PosterCard item={item} onPress={onPress} />)}
           showsHorizontalScrollIndicator={false}
-          removeClippedSubviews
-          initialNumToRender={6}
-          windowSize={5}
+          // Keep a buffer of posters mounted ahead of the scroll on both sides so
+          // travel never reveals a blank cell. removeClippedSubviews is left off:
+          // it aggressively unmounts near-edge cells and can flash blanks during a
+          // fast horizontal fling.
+          removeClippedSubviews={false}
+          initialNumToRender={9}
+          windowSize={7}
           maxToRenderPerBatch={6}
           contentContainerStyle={{ paddingHorizontal: ss(16), gap: ss(10) }}
           onEndReachedThreshold={0.5}
