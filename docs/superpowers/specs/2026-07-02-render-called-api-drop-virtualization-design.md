@@ -61,26 +61,33 @@ PagedGrid.tv.jsx`), used by **Movies, Series, and Live TV** grids.
 
 - Renders `items.slice(0, display)` in a plain CSS grid
   (`grid-template-columns: repeat(cols, 1fr)`, `gap`).
-- `display` starts at `pageSize` and an effect grows it by one page when
-  `focusIndex >= display - cols` (focus nearing the rendered end),
-  clamped to `items.length`.
 - Focused-cell `scrollIntoView({ block: "nearest" })` on `focusIndex` change,
   via a ref on the focused cell — replaces the manual row/scrollTop math (every
   rendered cell is real DOM).
+- Growth: on `focusIndex` change, PagedGridTV calls the pure helper
+  `nextDisplay(focusIndex, display, cols, pageSize, total)`; if it returns a
+  larger value it fires `onGrow(next)`. The helper grows by one page when
+  `focusIndex >= display - cols`, clamped to `total`.
 
-**Props:** `{ items, cols, gap, focusIndex, pageSize, renderItem, className }`.
+**Ownership (corrected):** the screen owns `display`, NOT the component. Each
+screen recomputes its `filteredItems` fresh every render (`getFilteredItems` /
+`getFilteredChannels` return a new array), so a component that reset on `items`
+identity would reset every render and never accumulate. The screens already hold
+`display` in page/grid state and already reset it at every focus-reset point
+(category open, `onFilterEnter`, query change). Grow-on-scroll reuses that field:
+`PagedGridTV` is presentational and reports growth via `onGrow`.
+
+**Props:** `{ items, cols, gap, focusIndex, pageSize, display, onGrow, renderItem, className }`.
 Dropped vs `VirtualGridTV`: `rowHeight`, `onEndReached`, and all virtualization
 internals (`BUFFER_ROWS`, `range`, `recalc`, padding rows).
 
-**Call-site wiring:** the three screens already store `display` in page/grid
-state and reset it in their filter handlers (`onFilterEnter` sets
-`display: Math.min(PAGE, filtered.length)`). Grow-on-scroll revives that field:
-pass `display` as `pageSize`/initial and let `PagedGridTV` own the growth, OR
-keep `display` in screen state and have the grid report growth back. **Chosen:**
-`PagedGridTV` owns `display` internally, seeded by `pageSize`, and resets when
-`items` identity changes (new category/filter). Screen `display` state is
-removed to avoid two owners. Focus bounds continue to use full `filtered.length`
-(focus may roam the whole list; only rendering is capped).
+**Pure helper:** `nextDisplay` lives in `src/presentation/components/gridPage.js`
+and is unit-tested with `node --test` (mirrors `shelfWindow.js`). The component
+itself is verified manually on `sim:lg`.
+
+**Reset points per screen:** wherever the screen already sets `focus: 0` for the
+grid, it also resets `display` back to `pageSize`. Focus bounds continue to use
+full `filtered.length` (focus may roam the whole list; only rendering is capped).
 
 `VirtualGrid.tv.jsx` is deleted after the three swaps.
 
@@ -114,9 +121,9 @@ No new error paths. Empty/loading/failed states already handled by each screen
 ## Testing
 
 - Unit: `shelfWindow.test.js` updated (drop `focusedRailWindow`).
-- Unit: `PagedGrid.tv` — focusIndex near the end grows the rendered slice by a
-  page; changing `items` resets `display` to `pageSize`; slice never exceeds
-  `items.length`.
+- Unit: `gridPage.test.js` — `nextDisplay` grows by one page when focusIndex is
+  within `cols` of `display`, stays put otherwise, clamps at `total`, and never
+  shrinks.
 - Manual: `npm run sim:lg` — Movies/Series shelves scroll with no blank posters;
   drilled-in grids scroll and load more; Live TV channel grid scrolls; Home
   (History) shelf + hero unaffected.
