@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Samsung Tizen TV widget manifest. Mirrors the webOS appinfo.json in
+     ../lg. The package id (IptvPlayer, 10 alphanumeric chars) is bound to the
+     signing author certificate; keep it stable so TV in-place updates work.
+     Signed self-serve for Developer-Mode sideload (public distributor). -->
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://andrew1h1.com/iptvplayer"
+        version="1.0.0"
+        viewmodes="maximized">
+  <tizen:application id="IptvPlayer.Lumen"
+                     package="IptvPlayer"
+                     required_version="6.0"/>
+  <content src="index.html"/>
+  <icon src="icon.png"/>
+  <name>Lumen IPTV Player</name>
+  <author>Andrew Hany</author>
+  <tizen:profile name="tv"/>
+  <feature name="http://tizen.org/feature/screen.size.all"/>
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:setting screen-orientation="landscape"
+                 context-menu="enable"
+                 background-support="disable"
+                 encryption="disable"
+                 install-location="auto"
+                 hwkey-event="enable"/>
+</widget>
