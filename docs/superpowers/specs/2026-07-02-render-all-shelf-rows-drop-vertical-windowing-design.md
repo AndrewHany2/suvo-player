@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-02
 **Status:** Approved (pending spec review)
-**Branch:** main
+**Branch:** feat/tv-render-all-shelf-rows
 
 ## Problem
 

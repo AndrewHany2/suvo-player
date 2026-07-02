@@ -22,11 +22,13 @@ const loadedLen = (s) => (Array.isArray(s?.items) ? s.items.length : 0);
 /**
  * D-pad-driven shelf list for TV Movies/Series.
  *
- * VERTICAL axis is windowed: only the shelf rows near the scroll position are
- * mounted (derived from the SCROLL position, never straight from the focused
- * index — anchoring to focus slides the window ahead of the scroll and unmounts
- * still-visible rows). This bounds how many rails mount at once and drives
- * per-rail lazy-load (onShelfVisible) as rows enter the window.
+ * VERTICAL axis is NOT windowed: every shelf row renders, each at a fixed
+ * ROW_HEIGHT, so a row is never unmounted out from under the scroll. A
+ * scroll-derived range (`fetchWin` via windowFromAnchor, anchored to the SCROLL
+ * position rather than the focused index) survives only as a FETCH/prefetch
+ * gate: it drives per-rail lazy-load (onShelfVisible) and poster prefetch for the
+ * rows near the viewport, so 100+ categories don't all fetch at once. It no
+ * longer controls what mounts.
  *
  * HORIZONTAL axis is NOT windowed: each rail renders all of its loaded items
  * directly. Rails stay bounded because the API pages them (handleShelfVisible +
@@ -43,7 +45,7 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
   const railRefs = useRef({});        // shelfId -> rail DOM node
   const focusedCardRef = useRef(null); // DOM node of the currently focused card
   const colMemory = useRef({});       // shelfId -> remembered column
-  const railScrollLeft = useRef({}); // shelfId -> last scrollLeft, restored when an idle rail remounts
+  const railScrollLeft = useRef({}); // shelfId -> last scrollLeft, kept in sync from onRailScroll
   const [focus, setFocus] = useState({ shelf: 0, col: 0, shelfAnchor: 0 });
   const [heroItem, setHeroItem] = useState(null);
   // shelfId -> { left, right }: which scroll-hint edges to show, derived from the
@@ -51,7 +53,7 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
   // (the floored dims.cols estimate kept it on, hiding the last poster).
   const [railEdge, setRailEdge] = useState({});
 
-  // Viewport-derived counts. `cols`/`windowRows` size the mount window; `anchorRows`
+  // Viewport-derived counts. `cols`/`windowRows` size the fetch/prefetch range; `anchorRows`
   // (rows visible below the hero) drives when the vertical scroll advances so the
   // focused row is always brought into view.
   const [dims, setDims] = useState({ cols: 8, windowRows: 3, anchorRows: 2 });
@@ -98,7 +100,7 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
   // rows. Renamed from vWin: it is no longer a render window.
   const fetchWin = windowFromAnchor(focus.shelfAnchor, shelfCount, dims.windowRows, SHELF_OVERSCAN);
 
-  // ── Lazy-load shelves entering the vertical window (replaces IntersectionObserver) ──
+  // ── Lazy-load shelves entering the fetch range (replaces IntersectionObserver) ──
   useEffect(() => {
     for (let i = fetchWin.start; i < fetchWin.end; i++) {
       const s = shelves[i];
@@ -106,11 +108,11 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
     }
   }, [fetchWin.start, fetchWin.end, shelves, onShelfVisible]);
 
-  // ── Warm poster caches ahead of the mount window ──
+  // ── Warm poster caches ahead of the fetch range ──
   // TV browsers only fetch an <img> when its card mounts, so revealed posters
   // flash blank while they download. Prefetch the posters just ahead of the
-  // cursor in the focused rail and the leading posters of rows entering the
-  // vertical window, so cards mount already-decoded and paint instantly.
+  // cursor in the focused rail and the leading posters of rows near the
+  // viewport, so cards mount already-decoded and paint instantly.
   useEffect(() => {
     const ahead = dims.cols + H_OVERSCAN;
     const s = shelves[focus.shelf];
@@ -154,8 +156,9 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
       if (left - pad < rail.scrollLeft) rail.scrollLeft = Math.max(0, left - pad);
       else if (right + pad > rail.scrollLeft + rail.clientWidth) rail.scrollLeft = right + pad - rail.clientWidth;
     }
-    // Idle rails may have just remounted (scrollLeft reset to 0) — restore them to
-    // their remembered first-visible poster so their window and scroll agree.
+    // Idle (non-focused) rails: reassert their remembered scrollLeft. Rows no
+    // longer unmount, so this is normally a redundant idempotent write; kept as a
+    // cheap safety net in case a rail's node scroll was reset externally.
     for (const [id, node] of Object.entries(railRefs.current)) {
       if (!node || id === focusedId) continue;
       node.scrollLeft = railScrollLeft.current[id] ?? 0;
