@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { scrollAnchor, windowFromAnchor, focusedRailWindow, clampCol, nearRailEnd, railEdges } from "./shelfWindow.js";
+import { scrollAnchor, windowFromAnchor, clampCol, nearRailEnd, railEdges } from "./shelfWindow.js";
 
 describe("scrollAnchor", () => {
   test("stays put while focus is inside the visible page", () => {
@@ -53,33 +53,6 @@ describe("windowFromAnchor", () => {
   test("mounted count stays bounded regardless of list size", () => {
     const w = windowFromAnchor(9994, 100000, 6, 3);
     assert.ok(w.end - w.start <= 6 + 2 * 3);
-  });
-});
-
-describe("focusedRailWindow", () => {
-  test("covers the visible page and the focused card, with overscan", () => {
-    // focus inside the visible page
-    assert.deepEqual(focusedRailWindow(10, 12, 100, 6, 3), { start: 7, end: 19 });
-  });
-  test("keeps the focused card mounted when it is ahead of the scroll", () => {
-    // scroll still at start (first=0) but focus jumped right to col 20
-    const w = focusedRailWindow(0, 20, 100, 6, 3);
-    assert.ok(w.start <= 20 && w.end > 20, "focused col 20 is mounted");
-    assert.equal(w.start, 0); // still covers the visible page at the start
-  });
-  test("keeps the focused card mounted when it is behind the scroll", () => {
-    const w = focusedRailWindow(30, 5, 100, 6, 3);
-    assert.ok(w.start <= 5 && w.end > 5, "focused col 5 is mounted");
-    assert.ok(w.end >= 30 + 6, "still covers the visible page");
-  });
-  test("shows the last poster at the end of the rail (no gap past it)", () => {
-    // rail of 40, scrolled to the end, focus on the last card
-    const w = focusedRailWindow(34, 39, 40, 6, 3);
-    assert.equal(w.end, 40); // last index 39 is inside [start,end)
-    assert.ok(w.start <= 34);
-  });
-  test("clamps to [0, count]", () => {
-    assert.deepEqual(focusedRailWindow(0, 0, 4, 6, 3), { start: 0, end: 4 });
   });
 });
 

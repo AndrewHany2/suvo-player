@@ -35,21 +35,6 @@ export function windowFromAnchor(anchor, count, visible, overscan = 3) {
 }
 
 /**
- * Mount window for the FOCUSED rail. Unlike an idle rail, the focused rail must
- * keep the focused card mounted even before the imperative scroll-into-view has
- * run (you can't scroll to a card that isn't in the DOM). So the window is the
- * union of the visible page [first, first + visible) — where `first` is read
- * back from the rail's REAL scrollLeft — and the focused column, each padded by
- * `overscan`. This never blanks a visible or focused card regardless of how
- * accurate the visible-count estimate is.
- */
-export function focusedRailWindow(first, focusCol, count, visible, overscan = 3) {
-  const lo = Math.min(first, focusCol);
-  const hi = Math.max(first + visible, focusCol + 1);
-  return { start: Math.max(0, lo - overscan), end: Math.min(count, hi + overscan) };
-}
-
-/**
  * Which scroll-hint edges a horizontal rail should show, from its REAL scroll
  * geometry (measured px), NOT a floored visible-column estimate. The column
  * estimate `floor((width - insets) / stride)` undercounts the fractional card
