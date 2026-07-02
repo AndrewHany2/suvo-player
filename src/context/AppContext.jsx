@@ -463,6 +463,10 @@ export const AppProvider = ({ children }) => {
   // Claim (bind or verify) this device once we have an authed user, before any
   // data loads. deviceStatus gates every data-loading effect below. On any
   // failure we fail closed ('denied') rather than bypass the lock.
+  //
+  // In development (__DEV__) we never lock: a denied/failed claim resolves to
+  // 'ok' so the device-binding gate can't lock a developer out of their own
+  // build. Production keeps the fail-closed behaviour.
   useEffect(() => {
     let cancelled = false;
     if (!authUser) { setDeviceStatus('pending'); return; }
@@ -471,9 +475,9 @@ export const AppProvider = ({ children }) => {
         const sig = await getDeviceSignature();
         setDeviceId(sig.primary);
         const status = await claimDevice({ deviceId: sig.primary, platform: sig.platform, secondary: sig.secondary });
-        if (!cancelled) setDeviceStatus(status === 'denied' ? 'denied' : 'ok');
+        if (!cancelled) setDeviceStatus(status === 'denied' && !__DEV__ ? 'denied' : 'ok');
       } catch {
-        if (!cancelled) setDeviceStatus('denied');
+        if (!cancelled) setDeviceStatus(__DEV__ ? 'ok' : 'denied');
       }
     })();
     return () => { cancelled = true; };
