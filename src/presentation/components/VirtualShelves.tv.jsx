@@ -92,15 +92,19 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
     return () => { ro?.disconnect(); globalThis.removeEventListener?.("resize", measure); };
   }, []);
 
-  const vWin = windowFromAnchor(focus.shelfAnchor, shelfCount, dims.windowRows, SHELF_OVERSCAN);
+  // Visible-row range around the current focus. On TV the vertical scroll is
+  // derived from focus (see the Apply-scroll effect), so this tracks where the
+  // user is. It now gates ONLY fetching + prefetch — the render below mounts all
+  // rows. Renamed from vWin: it is no longer a render window.
+  const fetchWin = windowFromAnchor(focus.shelfAnchor, shelfCount, dims.windowRows, SHELF_OVERSCAN);
 
   // ── Lazy-load shelves entering the vertical window (replaces IntersectionObserver) ──
   useEffect(() => {
-    for (let i = vWin.start; i < vWin.end; i++) {
+    for (let i = fetchWin.start; i < fetchWin.end; i++) {
       const s = shelves[i];
       if (s && s.items === null) onShelfVisible?.(s.id);
     }
-  }, [vWin.start, vWin.end, shelves, onShelfVisible]);
+  }, [fetchWin.start, fetchWin.end, shelves, onShelfVisible]);
 
   // ── Warm poster caches ahead of the mount window ──
   // TV browsers only fetch an <img> when its card mounts, so revealed posters
@@ -114,13 +118,13 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
       for (let c = focus.col; c < Math.min(s.items.length, focus.col + ahead); c++)
         prefetchImage(posterUrl(s.items[c]));
     }
-    for (let r = vWin.start; r < vWin.end; r++) {
+    for (let r = fetchWin.start; r < fetchWin.end; r++) {
       const row = shelves[r];
       if (!Array.isArray(row?.items)) continue;
       for (let c = 0; c < Math.min(row.items.length, dims.cols + H_OVERSCAN); c++)
         prefetchImage(posterUrl(row.items[c]));
     }
-  }, [focus.shelf, focus.col, vWin.start, vWin.end, shelves, dims.cols]);
+  }, [focus.shelf, focus.col, fetchWin.start, fetchWin.end, shelves, dims.cols]);
 
   // ── Debounced hero swap on focus change ──
   useEffect(() => {
@@ -205,16 +209,12 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
     ...(onBack ? { back: () => onBack() } : {}),
   }, { yieldToNav: true }), [register, move, shelves, focus, onSelect, onBack]);
 
-  const paddingTop = vWin.start * ROW_HEIGHT;
-  const paddingBottom = Math.max(0, (shelfCount - vWin.end)) * ROW_HEIGHT;
-
   return (
     <div ref={containerRef} className="tvl-shelves-screen"
       style={{ overflowY: "auto", height: "100%", contain: "strict" }}>
       {showHero && <HeroTV item={heroItem} />}
-      <div style={{ paddingTop, paddingBottom }}>
-        {shelves.slice(vWin.start, vWin.end).map((shelf, i) => {
-          const shelfIdx = vWin.start + i;
+      <div>
+        {shelves.map((shelf, shelfIdx) => {
           const isFocusedShelf = shelfIdx === focus.shelf;
           const items = Array.isArray(shelf.items) ? shelf.items : [];
           // Scroll-hint chevrons: driven by the rail's REAL scroll geometry once
