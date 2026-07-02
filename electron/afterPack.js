@@ -8,10 +8,12 @@ const { flipFuses, FuseVersion, FuseV1Options } = require("@electron/fuses");
 module.exports = async function afterPack(context) {
   const { appOutDir, packager, electronPlatformName } = context;
   const exeName = packager.appInfo.productFilename;
+  // Linux sanitizes the executable name (see linux.executableName in
+  // builder.json); .app/.exe on mac/win keep the product name.
   const appPath = {
     darwin: `${exeName}.app`,
     win32: `${exeName}.exe`,
-    linux: exeName,
+    linux: packager.executableName,
   }[electronPlatformName];
   const electronBinary = path.join(appOutDir, appPath);
 

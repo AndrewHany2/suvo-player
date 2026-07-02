@@ -18,6 +18,13 @@ tv/packaging/lg/_expo/
 tv/packaging/lg/favicon.ico
 tv/packaging/lg/index.html
 tv/packaging/lg/metadata.json
+tv/packaging/samsung/out/
+tv/packaging/samsung/_expo/
+tv/packaging/samsung/assets/
+tv/packaging/samsung/favicon.ico
+tv/packaging/samsung/index.html
+tv/packaging/samsung/metadata.json
+tv/packaging/samsung/*.wgt
 
 # Expo
 .expo/
@@ -79,3 +86,5 @@ web-build/
 .AppleDouble
 .LSOverride
 /actionlint
+tv/packaging/samsung/author-signature.xml
+tv/packaging/samsung/signature1.xml
