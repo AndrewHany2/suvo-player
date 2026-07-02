@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { scrollAnchor, windowFromAnchor, focusedRailWindow, clampCol, nearRailEnd, railEdges } from "./shelfWindow.js";
+import { scrollAnchor, windowFromAnchor, clampCol, nearRailEnd, railEdges } from "./shelfWindow.js";
 import HeroTV from "./Hero.tv.jsx";
 import Icon from "../../ui/Icon";
 import { useTVInput } from "../../hooks/useTVInput";
@@ -9,7 +9,6 @@ import { posterUrl, prefetchImage } from "../../utils/imagePrefetch";
 
 const SHELF_OVERSCAN = 1;    // shelves kept mounted above/below the visible page
 const H_OVERSCAN = 3;        // posters kept mounted ahead of the scroll on each side (focused rail)
-const IDLE_OVERSCAN = 3;     // keep the same lead in idle rails so no shelf blanks at its edge
 const ROW_HEIGHT = 320;      // px per shelf row (title + poster + padding)
 const CARD_W = 200;          // px poster width (matches tvConfig.ui.cardWidth)
 const CARD_GAP = 8;
@@ -46,13 +45,9 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
   const railRefs = useRef({});        // shelfId -> rail DOM node
   const focusedCardRef = useRef(null); // DOM node of the currently focused card
   const colMemory = useRef({});       // shelfId -> remembered column
+  const railScrollLeft = useRef({}); // shelfId -> last scrollLeft, restored when an idle rail remounts
   const [focus, setFocus] = useState({ shelf: 0, col: 0, shelfAnchor: 0 });
   const [heroItem, setHeroItem] = useState(null);
-  // shelfId -> index of the first poster currently visible in that rail, read
-  // back from the rail's real scrollLeft. Drives the horizontal mount window.
-  const [railFirst, setRailFirst] = useState({});
-  const railFirstRef = useRef(railFirst);
-  railFirstRef.current = railFirst;
   // shelfId -> { left, right }: which scroll-hint edges to show, derived from the
   // rail's REAL scroll geometry so the "more →" fade clears exactly at the end
   // (the floored dims.cols estimate kept it on, hiding the last poster).
@@ -161,17 +156,16 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
     // their remembered first-visible poster so their window and scroll agree.
     for (const [id, node] of Object.entries(railRefs.current)) {
       if (!node || id === focusedId) continue;
-      node.scrollLeft = (railFirstRef.current[id] ?? 0) * STRIDE;
+      node.scrollLeft = railScrollLeft.current[id] ?? 0;
     }
   }, [focus, shelves, dims]);
 
-  // Read the window anchor AND the scroll-hint edges back from a rail's real
-  // scroll geometry as it scrolls (programmatic scroll-into-view fires this too).
+  // Track chevron hint edges + raw scrollLeft from a rail's real geometry. No
+  // window anchoring — rails mount all their loaded items now.
   const onRailScroll = useCallback((id) => (e) => {
     const t = e.currentTarget;
-    const first = Math.max(0, Math.round(t.scrollLeft / STRIDE));
+    railScrollLeft.current[id] = t.scrollLeft;
     const edges = railEdges({ scrollLeft: t.scrollLeft, clientWidth: t.clientWidth, scrollWidth: t.scrollWidth });
-    setRailFirst((m) => (m[id] === first ? m : { ...m, [id]: first }));
     setRailEdge((m) => (m[id] && m[id].left === edges.left && m[id].right === edges.right ? m : { ...m, [id]: edges }));
   }, []);
 
@@ -225,19 +219,11 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
           const shelfIdx = vWin.start + i;
           const isFocusedShelf = shelfIdx === focus.shelf;
           const items = Array.isArray(shelf.items) ? shelf.items : [];
-          const first = railFirst[shelf.id] ?? 0;
-          const rw = isFocusedShelf
-            ? focusedRailWindow(first, focus.col, items.length, dims.cols, H_OVERSCAN)
-            : windowFromAnchor(first, items.length, dims.cols, IDLE_OVERSCAN);
-          const leftPad = rw.start * STRIDE;
-          const rightPad = Math.max(0, (items.length - rw.end)) * STRIDE;
           // Scroll-hint chevrons: driven by the rail's REAL scroll geometry once
-          // it has scrolled (railEdge), so the right fade clears exactly at the
-          // end instead of lingering over the last poster. Before the first
-          // scroll event, fall back to a coarse estimate (at start; overflow if
-          // there are more items than visibly fit).
+          // it has scrolled (railEdge). Before the first scroll event, fall back
+          // to a coarse estimate (at start; overflow if more items than fit).
           const edge = railEdge[shelf.id];
-          const moreLeft = edge ? edge.left : first > 0;
+          const moreLeft = edge ? edge.left : false;
           const moreRight = edge ? edge.right : items.length > dims.cols;
           const wrapCls = ["tvl-shelf-rowwrap", moreLeft && "more-left", moreRight && "more-right"]
             .filter(Boolean).join(" ");
@@ -255,14 +241,12 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
                 onScroll={onRailScroll(shelf.id)}
                 style={{ display: "flex", overflowX: "auto", overflowY: "hidden", gap: CARD_GAP,
                   paddingLeft: ss(48), paddingRight: ss(48), scrollbarWidth: "none" }}>
-                <div style={{ flex: `0 0 ${leftPad}px` }} />
-                {items.slice(rw.start, rw.end).map((item, j) => {
-                  const col = rw.start + j;
+                {items.map((item, col) => {
                   const isFocused = isFocusedShelf && col === focus.col;
                   // Key by absolute column, NOT by stream_id/id: IPTV catalogs can
                   // carry duplicate stream_ids, and a duplicate key makes React drop
-                  // one card (e.g. the last poster of the shelf). Column index is
-                  // unique within a rail and stable (items only ever append).
+                  // one card. Column index is unique within a rail and stable
+                  // (items only ever append).
                   return (
                     <div key={col}
                       ref={isFocused ? focusedCardRef : null}
@@ -271,7 +255,6 @@ export function VirtualShelvesTV({ shelves, onShelfVisible, onLoadMore, onSelect
                     </div>
                   );
                 })}
-                <div style={{ flex: `0 0 ${rightPad}px` }} />
               </div>
               <span className="tvl-shelf-chev tvl-shelf-chev--left" aria-hidden="true">
                 <Icon name="chevron-right" size={26} color="#fff" />
