@@ -153,6 +153,9 @@ export function useMovies({ navigation } = {}) {
         topRatedRef.current = all;
       } else {
         all = await contentService.getMoviesByCategory(catId);
+        // Cache the full array so handleLoadMore paginates synchronously (no
+        // refetch gap on scroll-right); also warms the drill-in cache.
+        itemsCacheRef.current.set(catId, all);
       }
       const firstPage = (all || []).slice(0, SHELF_PAGE);
       setShelves((prev) => prev.map((s) =>
@@ -168,7 +171,7 @@ export function useMovies({ navigation } = {}) {
     try {
       const all = catId === "all" ? allShuffledRef.current
         : catId === "top_rated" ? topRatedRef.current
-        : await contentService.getMoviesByCategory(catId);
+        : (itemsCacheRef.current.get(catId) || await contentService.getMoviesByCategory(catId));
       setShelves((prev) => prev.map((s) => {
         if (s.id !== catId) return s;
         const nextItems = (all || []).slice(0, (s.items?.length || 0) + SHELF_PAGE);

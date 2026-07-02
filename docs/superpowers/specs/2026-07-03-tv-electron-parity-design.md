@@ -128,9 +128,21 @@ driven by `zone === "hero"` + which button is selected; `DiscoverPills`
   behavior, so Home's Up-at-top → navbar still works.
 
 New `VirtualShelvesTV` props (all optional, additive):
-`discoverItems`, `onPill`, `heroItem` (or reuse existing derived `heroItem`),
-`onHeroPlay`, `onHeroDetails`, `renderHero` (optional override to inject
-`Hero.web` from the screen so `VirtualShelvesTV` needn't import it directly).
+
+- `discoverItems` — pills data; absent ⇒ no pills zone (Home case).
+- `onPill(pill)` — pill Enter handler.
+- `onHeroPlay()`, `onHeroDetails()` — hero button handlers; absent ⇒ hero is
+  non-interactive and the `hero` zone is skipped (Home case).
+- `renderHero(item, { focused, button })` — optional render override. **This is
+  the single mechanism for the Hero swap.** Home passes nothing → `VirtualShelvesTV`
+  falls back to its current `HeroTV` default, so Home is byte-for-byte unchanged.
+  Movies/Series pass `renderHero` returning `<HeroWeb item={item} focused={focused}
+  onPlay onDetails />`, so `VirtualShelvesTV` never imports `Hero.web` itself.
+
+The hero **item** is the one `VirtualShelvesTV` already derives internally (the
+debounced last-focused shelf item, defaulting to `shelves[0].items[0]`); it is
+not passed as a prop. When focus moves into the `hero`/`pills` zones the derived
+item is held (not cleared), so the billboard stays stable.
 
 ### 5. Screen wiring
 

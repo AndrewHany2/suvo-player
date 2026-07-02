@@ -154,7 +154,7 @@ export const AppProvider = ({ children }) => {
 
   const switchProfile = useCallback(async (profileId) => {
     setActiveProfileId(profileId); setUsers([]); setActiveUserId(null);
-    setChannels([]); setWatchHistory([]); setContentType('live');
+    setChannels([]); setWatchHistory([]);
     await storage.setItem('iptv_active_profile', profileId);
   }, []);
 
