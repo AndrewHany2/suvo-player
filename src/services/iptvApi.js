@@ -263,13 +263,14 @@ export class IPTVApi {
   }
 
   getLiveStreamsByCategory(categoryId, { signal } = {}) {
-    return this._cached(`live_streams_${categoryId}`, TTL.streams, () =>
-      this.fetch(this.buildUrl('get_live_streams', { category_id: categoryId }), { signal })
+    return this._cached(`live_streams_${categoryId}`, TTL.streams, async () =>
+      dedupeById(await this.fetch(this.buildUrl('get_live_streams', { category_id: categoryId }), { signal }), 'stream_id')
     );
   }
 
   getLiveStreams() {
-    return this._cached('live_streams', TTL.streams, () => this.fetch(this.buildUrl('get_live_streams')));
+    return this._cached('live_streams', TTL.streams, async () =>
+      dedupeById(await this.fetch(this.buildUrl('get_live_streams')), 'stream_id'));
   }
 
   getVODCategories() {
@@ -277,8 +278,8 @@ export class IPTVApi {
   }
 
   getVODStreams(categoryId, { signal } = {}) {
-    return this._cached(`vod_streams_${categoryId}`, TTL.streams, () =>
-      this.fetch(this.buildUrl('get_vod_streams', { category_id: categoryId }), { signal })
+    return this._cached(`vod_streams_${categoryId}`, TTL.streams, async () =>
+      dedupeById(await this.fetch(this.buildUrl('get_vod_streams', { category_id: categoryId }), { signal }), 'stream_id')
     );
   }
 
@@ -324,8 +325,8 @@ export class IPTVApi {
   }
 
   getSeries(categoryId, { signal } = {}) {
-    return this._cached(`series_${categoryId}`, TTL.streams, () =>
-      this.fetch(this.buildUrl('get_series', { category_id: categoryId }), { signal })
+    return this._cached(`series_${categoryId}`, TTL.streams, async () =>
+      dedupeById(await this.fetch(this.buildUrl('get_series', { category_id: categoryId }), { signal }), 'series_id')
     );
   }
 
