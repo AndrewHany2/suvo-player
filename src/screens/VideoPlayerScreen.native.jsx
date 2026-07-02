@@ -60,15 +60,7 @@ function loadBrightness() {
   }
 }
 
-// Format seconds as M:SS, or H:MM:SS once past an hour.
-function formatTime(s) {
-  const t = Number.isFinite(s) && s > 0 ? Math.floor(s) : 0;
-  const h = Math.floor(t / 3600);
-  const m = Math.floor((t % 3600) / 60);
-  const sec = t % 60;
-  const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
-  return `${h > 0 ? `${h}:` : ""}${mm}:${String(sec).padStart(2, "0")}`;
-}
+import { formatDuration as formatTime } from "../utils/formatDuration";
 
 export default function VideoPlayerScreen({ navigation }) {
   const {

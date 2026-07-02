@@ -356,15 +356,7 @@ const TV = {
   },
 };
 
-function fmtTime(s) {
-  if (!s || !Number.isFinite(s)) return "0:00";
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = Math.floor(s % 60);
-  return h > 0
-    ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
-    : `${m}:${String(sec).padStart(2, "0")}`;
-}
+import { formatDuration as fmtTime } from "../utils/formatDuration";
 
 export default function VideoPlayerScreen() {
   const { isTV } = usePlatform();
