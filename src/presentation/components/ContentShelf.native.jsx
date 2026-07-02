@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import { View, Text, ScrollView, ActivityIndicator, Pressable } from "react-native";
+import { View, Text, FlatList, ActivityIndicator, Pressable } from "react-native";
 import { colors, fonts, fontWeights } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
 import Icon from "../../ui/Icon";
@@ -45,27 +45,27 @@ export default function ContentShelf({
           <ActivityIndicator size="small" color={colors.accent} />
         </View>
       ) : (
-        <ScrollView
+        <FlatList
           horizontal
+          data={items}
+          keyExtractor={(item, i) => String(item.stream_id ?? item.id ?? i)}
+          renderItem={({ item }) => (renderItem
+            ? renderItem(item)
+            : <PosterCard item={item} onPress={onPress} />)}
           showsHorizontalScrollIndicator={false}
           removeClippedSubviews
+          initialNumToRender={6}
+          windowSize={5}
+          maxToRenderPerBatch={6}
           contentContainerStyle={{ paddingHorizontal: ss(16), gap: ss(10) }}
-          scrollEventThrottle={200}
-          onScroll={(e) => {
-            if (!hasMore || loadingMore) return;
-            const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-            if (contentSize.width - contentOffset.x - layoutMeasurement.width < 400) onLoadMore?.();
-          }}
-        >
-          {items.map((item) => (renderItem
-            ? renderItem(item)
-            : <PosterCard key={String(item.stream_id ?? item.id)} item={item} onPress={onPress} />))}
-          {loadingMore && (
+          onEndReachedThreshold={0.5}
+          onEndReached={() => { if (hasMore && !loadingMore) onLoadMore?.(); }}
+          ListFooterComponent={loadingMore ? (
             <View style={{ width: ss(60), justifyContent: "center", alignItems: "center" }}>
               <ActivityIndicator size="small" color={colors.accent} />
             </View>
-          )}
-        </ScrollView>
+          ) : null}
+        />
       )}
     </View>
   );
