@@ -19,6 +19,7 @@
     "sim:lg:inspect": "npm run build:tv && cp -r tv/dist/* tv/packaging/lg/ && node tv/enable-inspector.js && (pkill -f webOS_TV_26_Simulator_1.5.0 || true) && sleep 3 && ares-launch -s 26 tv/packaging/lg",
     "deploy:lg": "npm run build:tv && cp -r tv/dist/* tv/packaging/lg/ && ares-package tv/packaging/lg -o tv/packaging/lg/out && ares-install tv/packaging/lg/out/*.ipk -d lg && ares-launch com.andrew1h1.iptvplayer -d lg",
     "debug:lg": "npm run build:tv && cp -r tv/dist/* tv/packaging/lg/ && ares-package tv/packaging/lg -o tv/packaging/lg/out --no-minify && ares-install tv/packaging/lg/out/*.ipk -d lg && ares-inspect -d lg -a com.andrew1h1.iptvplayer --open",
+    "sim:tizen": "npm run build:tv && cp -r tv/dist/* tv/packaging/samsung/ && tizen package -t wgt -o tv/packaging/samsung -- tv/packaging/samsung && (em-cli launch --name \"${TIZEN_EMU:-T-10.0-x86_64}\" || true) && sleep 8 && tizen install -n IptvPlayer.wgt -t \"${TIZEN_EMU:-T-10.0-x86_64}\" -- tv/packaging/samsung && tizen run -p IptvPlayer.Lumen -t \"${TIZEN_EMU:-T-10.0-x86_64}\"",
     "test": "node --test $(find src scripts -name '*.test.js' | tr '\\n' ' ')",
     "android": "expo run:android",
     "ios": "expo run:ios"
