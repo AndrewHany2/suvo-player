@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useTVInput } from "../hooks/useTVInput";
+import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { yieldFocusToNav } from "../platform/adapters/input/keys";
 import { VirtualGridTV } from "../presentation/components/VirtualGrid.tv";
 import StatePanel from "../ui/StatePanel";
@@ -29,9 +30,14 @@ const getTrailerUrl = (t) => {
 };
 
 export default function MoviesScreenTV({ navigation, route }) {
-  const { loading, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie } = useMovies({ navigation });
-  const { isInMyList, addToMyList, removeFromMyList, watchHistory, currentVideo } = useApp();
+  const { loading, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie, shelves, handleShelfVisible, handleLoadMore } = useMovies({ navigation });
+  const { isInMyList, addToMyList, removeFromMyList, watchHistory, currentVideo, tvUseShelves } = useApp();
   const { register } = useTVInput();
+  // When shelves own the browse view, VirtualShelves.tv registers its own D-pad
+  // handler; this ref lets the screen's category-grid key routing stand down so
+  // the two handlers don't both act on one keypress.
+  const tvUseShelvesRef = useRef(tvUseShelves);
+  useEffect(() => { tvUseShelvesRef.current = tvUseShelves; }, [tvUseShelves]);
 
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
@@ -250,7 +256,7 @@ export default function MoviesScreenTV({ navigation, route }) {
           // other directions instead of closing.
           if (detailRef.current) handleDetailDir("left");
           else if (pageRef.current) onMovOrFilter("left");
-          else onCatLeft();
+          else if (!tvUseShelvesRef.current) onCatLeft();
         },
         right: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("right"); },
         up: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("up"); },
@@ -289,6 +295,8 @@ export default function MoviesScreenTV({ navigation, route }) {
   const routeDir = (dir) => {
     if (detailRef.current) return handleDetailDir(dir);
     if (pageRef.current) return onMovOrFilter(dir);
+    // Shelves own the browse view — VirtualShelves.tv handles its own D-pad.
+    if (tvUseShelvesRef.current) return;
     // category grid — search zone above the grid
     if (catZoneRef.current === "search") {
       if (dir === "up") return onSearchUp();
@@ -535,6 +543,27 @@ export default function MoviesScreenTV({ navigation, route }) {
             />
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ── Shelf browse view (Electron-parity, flag on) ───────────────────────────
+  if (tvUseShelves) {
+    return (
+      <div className="tvl-screen">
+        <div className="tvl-topbar"><span className="tvl-topbar-title">Movies</span></div>
+        {shelves.length === 0
+          ? <div className="tvl-center"><div className="tvl-spinner" /><p>Loading movies…</p></div>
+          : (
+            <VirtualShelvesTV
+              shelves={shelves}
+              onShelfVisible={handleShelfVisible}
+              onLoadMore={handleLoadMore}
+              onSelect={(item) => openDetail(item)}
+              onSeeAll={(id, name) => openCat({ id, name })}
+              renderCard={(item, isFocused) => <MovieCard item={item} isFocused={isFocused} />}
+            />
+          )}
       </div>
     );
   }
