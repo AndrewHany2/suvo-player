@@ -11,6 +11,7 @@ import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { posterGrid, GRID_TARGET_W } from "../utils/posterLayout";
+import { getShelfConfig } from "../presentation/virtualization/shelfConfig.js";
 
 const GRID_PAGE = 40;
 const GRID_OUTER = 16; // equal left/right screen margin
@@ -86,6 +87,8 @@ export default function MoviesScreen({ navigation }) {
     categoryPage, isTopRatedCategory, topRatedHasMore, topRatedLoadingMore, handleTopRatedMore,
     selectedMovie, selectMovie, clearSelectedMovie, playVideoObject,
   } = useMovies({ navigation });
+
+  const vcfg = getShelfConfig("native");
 
   const { focusedRow, focusedCol } = useTVNavigation({
     active: !categoryPage && !selectedMovie,
@@ -165,7 +168,7 @@ export default function MoviesScreen({ navigation }) {
         ListEmptyComponent={<StatePanel mode="empty" icon="film" title="No movies found" />}
         windowSize={5}
         maxToRenderPerBatch={3}
-        initialNumToRender={3}
+        initialNumToRender={2 + vcfg.vOverscan}
         removeClippedSubviews
       />
       {categoryPage && (

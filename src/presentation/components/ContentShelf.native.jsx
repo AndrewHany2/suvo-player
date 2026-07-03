@@ -3,6 +3,7 @@ import { View, Text, FlatList, ActivityIndicator, Pressable, useWindowDimensions
 import { colors, fonts, fontWeights } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
 import { posterShelfWidth, SHELF_TARGET_W } from "../../utils/posterLayout";
+import { getShelfConfig } from "../virtualization/shelfConfig.js";
 import Icon from "../../ui/Icon";
 import PosterCard from "./PosterCard.native";
 
@@ -24,6 +25,13 @@ export default function ContentShelf({
   // Poster width derived from the screen (Electron's density model): a phone
   // shows ~2 posters + a peek, a tablet more — posters scale up with the device.
   const cardW = posterShelfWidth(winW - ss(16) * 2, { target: SHELF_TARGET_W, gap: ss(10) });
+  // Lookahead knob centralized in the shared shelf config (Task 2). visibleCols
+  // is derived from the SAME measured geometry the cards use (row width / stride),
+  // so initialNumToRender mounts the visible posters plus the config overscan.
+  const cfg = getShelfConfig("native");
+  const stride = cardW + ss(10); // card width + the gap used in contentContainerStyle
+  const visibleCols = Math.max(1, Math.floor((winW - ss(16) * 2) / stride));
+  const initialNumToRender = visibleCols + cfg.hOverscan;
   const handleLayout = useCallback(() => {
     if (!hasLoaded.current && items === null && !manual) {
       hasLoaded.current = true;
@@ -63,7 +71,7 @@ export default function ContentShelf({
           // it aggressively unmounts near-edge cells and can flash blanks during a
           // fast horizontal fling.
           removeClippedSubviews={false}
-          initialNumToRender={9}
+          initialNumToRender={initialNumToRender}
           windowSize={7}
           maxToRenderPerBatch={6}
           contentContainerStyle={{ paddingHorizontal: ss(16), gap: ss(10) }}
