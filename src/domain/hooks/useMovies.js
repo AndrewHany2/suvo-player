@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useApp } from "../../context/AppContext";
 import { useContentService } from "./useContentService";
-import { detectPlatform } from "../../platform/configs/detectPlatform";
 import tmdbApi from "../../services/tmdbApi";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 
@@ -21,9 +20,6 @@ const ITEMS_CACHE_MAX = 8;
  * View concerns (layout, D-pad focus state) stay in the screen files; they read
  * everything they need from here.
  */
-// TV shelves are shorter (tighter WebOS memory budget); everything else pages 12.
-const SHELF_PAGE = detectPlatform() === "tv" ? 8 : 12;
-
 const byRatingDesc = (list) =>
   [...(list || [])]
     .filter((s) => Number.parseFloat(s.rating) > 0)
@@ -153,34 +149,22 @@ export function useMovies({ navigation } = {}) {
         topRatedRef.current = all;
       } else {
         all = await contentService.getMoviesByCategory(catId);
-        // Cache the full array so handleLoadMore paginates synchronously (no
-        // refetch gap on scroll-right); also warms the drill-in cache.
+        // Cache the full array (warms the drill-in cache); the render window
+        // now reveals items progressively, so no client-side slice is needed.
         itemsCacheRef.current.set(catId, all);
       }
-      const firstPage = (all || []).slice(0, SHELF_PAGE);
+      const items = all || [];
       setShelves((prev) => prev.map((s) =>
-        s.id === catId ? { ...s, items: firstPage, totalCount: all.length, hasMore: all.length > SHELF_PAGE } : s));
+        s.id === catId ? { ...s, items, totalCount: items.length, hasMore: false } : s));
     } catch {
       setShelves((prev) => prev.map((s) =>
         s.id === catId ? { ...s, items: [], totalCount: 0, hasMore: false } : s));
     }
   }, [contentService]);
 
-  const handleLoadMore = useCallback(async (catId) => {
-    setShelves((prev) => prev.map((s) => s.id === catId ? { ...s, loadingMore: true } : s));
-    try {
-      const all = catId === "all" ? allShuffledRef.current
-        : catId === "top_rated" ? topRatedRef.current
-        : (itemsCacheRef.current.get(catId) || await contentService.getMoviesByCategory(catId));
-      setShelves((prev) => prev.map((s) => {
-        if (s.id !== catId) return s;
-        const nextItems = (all || []).slice(0, (s.items?.length || 0) + SHELF_PAGE);
-        return { ...s, items: nextItems, hasMore: nextItems.length < (all?.length || 0), loadingMore: false };
-      }));
-    } catch {
-      setShelves((prev) => prev.map((s) => s.id === catId ? { ...s, loadingMore: false } : s));
-    }
-  }, [contentService]);
+  // Xtream has no paging and the render window reveals the full fetched array,
+  // so per-shelf "load more" is a no-op. Kept to preserve the screen prop contract.
+  const handleLoadMore = useCallback(async () => {}, []);
 
   // ── Drill into a category / discover pill ───────────────────────────────────
   const openCategory = useCallback(async (catId, name) => {
