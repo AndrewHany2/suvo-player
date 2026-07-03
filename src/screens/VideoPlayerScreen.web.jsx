@@ -152,22 +152,6 @@ const S = {
     objectFit: "contain",
     display: "block",
   },
-  btn: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    border: "1px solid rgba(255,255,255,0.2)",
-    color: colors.text,
-    borderRadius: radii.sm,
-    padding: "6px 10px",
-    fontSize: 12,
-    fontFamily: fonts.body,
-    fontWeight: 600,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    transition: `box-shadow ${motion.base}ms ${easing}, outline-color ${motion.fast}ms ${easing}`,
-  },
   closeBtn: {
     backgroundColor: accentAlpha(0.9),
     border: "none",
@@ -196,19 +180,6 @@ const S = {
     cursor: "pointer",
   },
   dropdown: { position: "relative" },
-  menu: {
-    position: "absolute",
-    top: "110%",
-    right: 0,
-    backgroundColor: colors.surface2,
-    border: `1px solid ${colors.border}`,
-    borderRadius: radii.sm,
-    padding: 4,
-    minWidth: 130,
-    zIndex: 100,
-    maxHeight: 220,
-    overflowY: "auto",
-  },
   menuItem: (active) => ({
     display: "block",
     width: "100%",
@@ -1457,7 +1428,7 @@ export default function VideoPlayerScreen() {
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [currentVideo, handleClose, showTvControls, isLive, handleChannelUp, handleChannelDown, applySpeed, handleTogglePip]);
+  }, [currentVideo, handleClose, showTvControls, isLive, handleChannelUp, handleChannelDown, applySpeed, handleTogglePip, tvControlsVisible]);
 
   // Remember the last live channel on open + fetch EPG now/next.
   useEffect(() => {
