@@ -14,6 +14,7 @@ import {
   clampOffset,
 } from "../playback/subtitleStyle";
 import { nextChannel, prevChannel, fetchNowNext } from "../playback/liveExtras";
+import { INITIAL_TV_NAV, tvNavReduce } from "../playback/tvSettingsNav";
 import {
   isPipSupported,
   enterPip,
@@ -396,6 +397,50 @@ const TV = {
     color: "rgba(255,255,255,0.6)",
     fontSize: 16,
   },
+  settingsRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 6,
+  },
+  settingsIcon: (focused) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    height: 56,
+    minWidth: 56,
+    padding: "0 16px",
+    borderRadius: radii.sm,
+    background: focused ? accentAlpha(0.25) : "rgba(255,255,255,0.12)",
+    border: focused ? `3px solid ${colors.accent2}` : "3px solid transparent",
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: 700,
+  }),
+  settingsMenu: {
+    position: "absolute",
+    bottom: "100%",
+    left: 0,
+    marginBottom: 12,
+    minWidth: 260,
+    maxHeight: 380,
+    overflowY: "auto",
+    background: "rgba(20,20,24,0.98)",
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.sm,
+    padding: 6,
+  },
+  settingsMenuItem: (highlighted, active) => ({
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "12px 16px",
+    borderRadius: radii.sm,
+    fontSize: 20,
+    fontWeight: active ? 700 : 500,
+    color: active ? colors.accent2 : colors.text,
+    background: highlighted ? accentAlpha(0.3) : "transparent",
+  }),
 };
 
 import { formatDuration as fmtTime } from "../utils/formatDuration";
@@ -433,6 +478,9 @@ export default function VideoPlayerScreen() {
 
   // TV-specific state
   const [tvControlsVisible, setTvControlsVisible] = useState(true);
+  const [tvNav, setTvNav] = useState(INITIAL_TV_NAV);
+  const tvNavRef = useRef(INITIAL_TV_NAV);
+  const tvSettingsItemsRef = useRef([]);
   const [tvPaused, setTvPaused] = useState(false);
   const [tvCurrentTime, setTvCurrentTime] = useState(0);
   const [tvDuration, setTvDuration] = useState(0);
@@ -712,6 +760,7 @@ export default function VideoPlayerScreen() {
     setStats({});
     setNowNext({ now: null, next: null });
     setOpenMenu(null);
+    setTvNav(INITIAL_TV_NAV);
 
     if (currentVideo.type !== "live") {
       addToWatchHistory({
@@ -1237,6 +1286,64 @@ export default function VideoPlayerScreen() {
 
       if (isTV) showTvControls();
 
+      // ── TV settings-row routing ──────────────────────────────────────────
+      // While in the settings surface (row focused or a menu open), D-pad keys
+      // drive the reducer instead of transport. Entry: Up when controls are
+      // visible and not yet in the row.
+      if (isTV) {
+        const nav = tvNavRef.current;
+        const items = tvSettingsItemsRef.current;
+        const inSettings = nav.focus >= 0 || nav.inMenu;
+
+        // Normalise this key to a nav verb (null if not a nav key).
+        const norm =
+          e.key === "ArrowLeft" || k === 37 ? "left"
+          : e.key === "ArrowRight" || k === 39 ? "right"
+          : e.key === "ArrowUp" || k === 38 ? "up"
+          : e.key === "ArrowDown" || k === 40 ? "down"
+          : e.key === "Enter" || k === 13 ? "ok"
+          : TV_KEYS.BACK.has(k) ? "back"
+          : null;
+
+        if (!inSettings && norm === "up" && tvControlsVisible) {
+          // Enter the row. (Overrides live channel-up; see plan decisions.)
+          e.preventDefault();
+          setTvControlsVisible(true);
+          clearTimeout(controlsTimerRef.current);
+          setTvNav((n) => ({ ...n, focus: 0 }));
+          return;
+        }
+
+        if (inSettings && norm) {
+          e.preventDefault();
+          // Keep controls pinned while navigating settings.
+          setTvControlsVisible(true);
+          clearTimeout(controlsTimerRef.current);
+
+          const focusItem = items[nav.focus];
+          // OK on an action icon (no menu) toggles it directly.
+          if (norm === "ok" && !nav.inMenu && focusItem && !focusItem.items) {
+            focusItem.action?.();
+            return;
+          }
+          const ctx = {
+            iconCount: items.length,
+            menuLen: focusItem && focusItem.items ? focusItem.items.length : 0,
+            initialMenuIndex: focusItem ? focusItem.selected || 0 : 0,
+          };
+          const { state: ns, effect } = tvNavReduce(nav, norm, ctx);
+          setTvNav(ns);
+          if (effect && effect.type === "apply" && focusItem && focusItem.items) {
+            focusItem.items[effect.index]?.run?.();
+          }
+          // Leaving the row (focus back to -1): resume the normal hide timer.
+          if (ns.focus < 0 && !ns.inMenu) {
+            controlsTimerRef.current = setTimeout(() => setTvControlsVisible(false), 4000);
+          }
+          return;
+        }
+      }
+
       // Block D-pad UP/DOWN from moving browser focus to overlay buttons on TV.
       // For LIVE on TV, repurpose Up/Down as channel zap (ch+/ch-).
       if (isTV && (k === 38 || k === 40)) {
@@ -1640,6 +1747,63 @@ export default function VideoPlayerScreen() {
         ? "Stream unavailable. The server rejected the connection."
         : "The stream could not be played.";
 
+  // TV settings descriptor: the ordered, currently-available icons and, for
+  // menu icons, their items + current selection. Rebuilt each render (cheap).
+  // `action` icons (stats) have no items — OK toggles them directly.
+  const tvSortedLevels = [...qualityLevels]
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => (b.l.height || 0) - (a.l.height || 0));
+  const tvSettingsItems = [
+    {
+      key: "speed",
+      icon: "speed",
+      label: `${playbackRate}x`,
+      items: SPEEDS.map((r) => ({ label: `${r}x${r === 1 ? " (Normal)" : ""}`, active: playbackRate === r, run: () => applySpeed(r) })),
+      selected: Math.max(0, SPEEDS.indexOf(playbackRate)),
+    },
+    audioTracks.length > 1 && {
+      key: "audio",
+      icon: "audio",
+      items: audioTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, active: selectedAudio === i, run: () => applyAudio(i) })),
+      selected: Math.max(0, selectedAudio),
+    },
+    subtitleTracks.length > 0 && {
+      key: "subtitle",
+      icon: "cc",
+      items: [
+        { label: "Off", active: selectedSubtitle === -1, run: () => applySubtitle(-1) },
+        ...subtitleTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, active: selectedSubtitle === i, run: () => applySubtitle(i) })),
+      ],
+      selected: selectedSubtitle === -1 ? 0 : selectedSubtitle + 1,
+    },
+    {
+      key: "aspect",
+      icon: "aspect",
+      items: ASPECT_RATIOS.map(({ value, label }) => ({ label, active: aspectRatio === value, run: () => applyAspect(value) })),
+      selected: Math.max(0, ASPECT_RATIOS.findIndex(({ value }) => value === aspectRatio)),
+    },
+    qualityLevels.length > 1 && {
+      key: "quality",
+      icon: "settings",
+      items: [
+        { label: "Auto", active: selectedLevel === -1, run: () => handleSelectLevel(-1) },
+        ...tvSortedLevels.map(({ l, i }) => ({ label: getLevelLabel(l, qualityLevels), active: selectedLevel === i, run: () => handleSelectLevel(i) })),
+      ],
+      selected: selectedLevel === -1 ? 0 : (tvSortedLevels.findIndex(({ i }) => i === selectedLevel) + 1),
+    },
+    {
+      key: "stats",
+      icon: "info",
+      action: () => setShowStats((v) => !v),
+    },
+  ].filter(Boolean);
+
+  // Mirror nav state + the descriptor into refs so the global keydown listener
+  // (registered once, in capture phase) always reads the latest without needing
+  // to re-subscribe each render.
+  tvNavRef.current = tvNav;
+  tvSettingsItemsRef.current = tvSettingsItems;
+
   // ── TV render ───────────────────────────────────────────────────────────────
   if (isTV) {
     return (
@@ -1710,6 +1874,32 @@ export default function VideoPlayerScreen() {
 
           {/* Bottom bar — progress + time */}
           <div style={TV.bottomBar}>
+            {/* Settings icon row + upward menu */}
+            <div style={TV.settingsRow}>
+              {tvSettingsItems.map((item, idx) => {
+                const focused = !tvNav.inMenu && tvNav.focus === idx;
+                const menuOpen = tvNav.inMenu && tvNav.focus === idx;
+                return (
+                  <div key={item.key} style={{ position: "relative" }}>
+                    <div style={TV.settingsIcon(focused || menuOpen)}>
+                      <Icon name={item.icon} size={26} color="currentColor" />
+                      {item.label ? <span>{item.label}</span> : null}
+                    </div>
+                    {menuOpen && item.items && (
+                      <div style={TV.settingsMenu}>
+                        {item.items.map((mi, mIdx) => (
+                          <div key={mi.label} style={TV.settingsMenuItem(tvNav.menuIndex === mIdx, mi.active)}>
+                            <span>{mi.label}</span>
+                            {mi.active ? <Icon name="check" size={20} color={colors.accent2} /> : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
             {currentVideo.type !== "live" ? (
               <>
                 <div
