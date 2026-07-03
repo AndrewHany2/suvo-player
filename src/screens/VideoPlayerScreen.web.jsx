@@ -194,14 +194,76 @@ const S = {
     fontWeight: active ? 700 : 400,
     backgroundColor: active ? accentAlpha(0.12) : "transparent",
   }),
+  // Bottom control cluster overlaid on the video (a real-player control bar).
+  // Holds the settings icon row on top and our own seek/time bar beneath it.
+  controlsOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    padding: "40px 16px 12px",
+    background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)",
+  },
+  // Settings icon row (top of the cluster), right-aligned.
   bottomBar: {
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 6,
     flexWrap: "wrap",
-    padding: "8px 12px",
-    backgroundColor: "rgba(0,0,0,0.85)",
+  },
+  // Seek/time row (bottom of the cluster): play, track, times, volume.
+  ctrlBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  },
+  playBtn: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 40,
+    height: 40,
+    flexShrink: 0,
+    borderRadius: "50%",
+    border: "none",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    color: colors.text,
+    cursor: "pointer",
+  },
+  seekTrack: {
+    position: "relative",
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    background: "rgba(255,255,255,0.25)",
+    cursor: "pointer",
+  },
+  seekFill: (pct) => ({
+    position: "absolute",
+    left: 0,
+    top: 0,
+    height: "100%",
+    width: `${pct}%`,
+    borderRadius: 3,
+    background: colors.accent2,
+  }),
+  timeText: {
+    color: colors.text,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  },
+  volSlider: {
+    width: 84,
+    accentColor: colors.accent2,
+    cursor: "pointer",
     flexShrink: 0,
   },
   iconBtn: (active) => ({
@@ -509,6 +571,11 @@ export default function VideoPlayerScreen() {
 
   // PiP / cast capability + active flags.
   const [pipActive, setPipActive] = useState(false);
+  // Web custom-controls state: our own volume/mute mirror + fullscreen flag.
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const [isFsWeb, setIsFsWeb] = useState(false);
+  const rootRef = useRef(null);
   const pipSupported = isPipSupported(videoRef.current);
   const castSupported = isWebCastAvailable(videoRef.current);
 
@@ -748,6 +815,17 @@ export default function VideoPlayerScreen() {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
+      // Stop the media element itself. hls.destroy() detaches MSE, but on the
+      // native-src path (direct VOD / Safari HLS) nothing pauses the element, and
+      // a detached <video> isn't paused synchronously — so audio can keep playing
+      // in the background. Pause, drop the source, and force a reload to release
+      // it. Also exit Picture-in-Picture so a floating window can't outlive close.
+      if (isPipActive(video)) exitPip().catch(() => {});
+      try {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      } catch { /* element already gone */ }
     };
   }, [currentVideo?.url]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1215,6 +1293,63 @@ export default function VideoPlayerScreen() {
     // If only the Cast SDK is present (no Remote Playback), there's nothing we
     // can prompt without the framework UI; the button still surfaces presence.
   }, []);
+
+  // ── Web custom controls (native <video controls> is disabled on web) ─────────
+  const togglePlayWeb = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) v.play(); else v.pause();
+  }, []);
+
+  const seekWebToClientX = useCallback((clientX, el) => {
+    const v = videoRef.current;
+    if (!v || !el || !(tvDuration > 0)) return;
+    const rect = el.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    try { v.currentTime = ratio * tvDuration; } catch { /* not seekable yet */ }
+  }, [tvDuration]);
+
+  const applyVolumeWeb = useCallback((vol) => {
+    const v = videoRef.current;
+    const nv = Math.max(0, Math.min(1, vol));
+    if (v) { v.volume = nv; v.muted = nv === 0; }
+    setVolume(nv);
+    setMuted(nv === 0);
+  }, []);
+
+  const toggleMuteWeb = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = !v.muted;
+    setMuted(v.muted);
+  }, []);
+
+  const toggleFullscreenWeb = useCallback(() => {
+    if (typeof document === "undefined") return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else {
+      rootRef.current?.requestFullscreen?.();
+    }
+  }, []);
+
+  // Mirror browser fullscreen state (covers Esc / native exit) into the icon.
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const onFs = () => setIsFsWeb(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+
+  // Keep the volume slider/mute icon in sync with the element (covers the
+  // keyboard ↑/↓ volume shortcuts, which set video.volume directly).
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return undefined;
+    const onVol = () => { setVolume(v.volume); setMuted(v.muted); };
+    v.addEventListener("volumechange", onVol);
+    return () => v.removeEventListener("volumechange", onVol);
+  }, [currentVideo?.url]);
 
   // ── Live: channel list + zap ────────────────────────────────────────────────
   // Live channels in stable order, restricted to entries that carry a stream_id
@@ -1933,7 +2068,7 @@ export default function VideoPlayerScreen() {
       : getLevelLabel(qualityLevels[selectedLevel], qualityLevels);
 
   return (
-    <div style={S.overlay}>
+    <div style={S.overlay} ref={rootRef}>
       <div style={S.header}>
         <button style={S.closeBtn} onClick={handleClose} title="Close (Esc)" aria-label="Close">
           <Icon name="close" size={16} color={colors.text} />
@@ -1988,11 +2123,11 @@ export default function VideoPlayerScreen() {
       <div style={S.videoWrapper}>
         <video
           ref={videoRef}
-          controls={!isBusy}
           autoPlay
           playsInline
           crossOrigin="anonymous"
-          style={getVideoStyle}
+          onClick={togglePlayWeb}
+          style={{ ...getVideoStyle, cursor: "pointer" }}
         >
           <track kind="captions" />
         </video>
@@ -2022,10 +2157,12 @@ export default function VideoPlayerScreen() {
           </div>
         )}
         {busyOverlay}
-      </div>
 
-      {/* Bottom settings bar — icon controls, menus open upward. */}
-      <div style={S.bottomBar}>
+        {/* Custom control cluster overlaid on the video: settings icon row on
+            top of our own seek/time bar (native <video controls> is disabled). */}
+        {!isFatal && (
+        <div style={S.controlsOverlay}>
+        <div style={S.bottomBar}>
         <div style={S.dropdown} ref={speedRef}>
           <button style={S.iconBtn(openMenu === "speed")} onClick={() => setOpenMenu((m) => (m === "speed" ? null : "speed"))} title="Playback speed" aria-label="Playback speed">
             <Icon name="speed" size={18} color="currentColor" /> {playbackRate}x
@@ -2176,6 +2313,38 @@ export default function VideoPlayerScreen() {
             </div>
           )}
         </div>
+
+        <button style={S.iconBtn(isFsWeb)} onClick={toggleFullscreenWeb} title="Fullscreen (f)" aria-label="Fullscreen">
+          <Icon name={isFsWeb ? "fullscreen-exit" : "fullscreen"} size={18} color="currentColor" />
+        </button>
+        </div>
+
+        {tvDuration > 0 && (
+          <div style={S.ctrlBar}>
+            <button style={S.playBtn} onClick={togglePlayWeb} title="Play / Pause (Space)" aria-label={tvPaused ? "Play" : "Pause"}>
+              <Icon name={tvPaused ? "play" : "pause"} size={20} color="currentColor" />
+            </button>
+            <div style={S.seekTrack} onClick={(e) => seekWebToClientX(e.clientX, e.currentTarget)}>
+              <div style={S.seekFill(pct)} />
+            </div>
+            <span style={S.timeText}>{fmtTime(tvCurrentTime)} / {fmtTime(tvDuration)}</span>
+            <button style={S.playBtn} onClick={toggleMuteWeb} title="Mute" aria-label="Mute">
+              <Icon name={muted || volume === 0 ? "mute" : "audio"} size={18} color="currentColor" />
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={muted ? 0 : volume}
+              onChange={(e) => applyVolumeWeb(Number(e.target.value))}
+              style={S.volSlider}
+              aria-label="Volume"
+            />
+          </div>
+        )}
+        </div>
+        )}
       </div>
 
       <div style={S.footer}>

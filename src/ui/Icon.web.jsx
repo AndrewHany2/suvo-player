@@ -143,6 +143,24 @@ const PATHS = {
       <circle cx="12" cy="18" r="2" fill="currentColor" stroke="none" />
     </>
   ),
+  // Pause: two vertical bars.
+  pause: (
+    <>
+      <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
+      <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // Fullscreen (enter): diagonal expand arrows to the four corners.
+  fullscreen: <path d="M15 3h6v6M21 3l-7 7M9 21H3v-6M3 21l7-7" />,
+  // Fullscreen exit: arrows drawn inward.
+  "fullscreen-exit": <path d="M20 8h-6V2M14 8l7-7M4 16h6v6M10 16l-7 7" />,
+  // Muted speaker: cone + an "x".
+  mute: (
+    <>
+      <path d="M4 9v6h4l5 4V5L8 9H4z" />
+      <path d="M22 9l-6 6M16 9l6 6" />
+    </>
+  ),
   // Checkmark.
   check: <path d="M5 13l4 4L19 7" />,
   // Close / X.
