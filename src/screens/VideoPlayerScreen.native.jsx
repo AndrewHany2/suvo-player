@@ -712,13 +712,6 @@ export default function VideoPlayerScreen({ navigation }) {
         </YStack>
       )}
 
-      {/* Sleep-timer countdown badge */}
-      {sleep.active && (
-        <XStack position="absolute" bottom={16} left={16} backgroundColor="rgba(0,0,0,0.7)" paddingHorizontal={12} paddingVertical={7} borderRadius={radii.sm} alignItems="center" gap={6} pointerEvents="none" zIndex={30}>
-          <Text color={colors.text} fontSize={13} fontWeight="600">{formatRemaining(sleep.secondsLeft)}</Text>
-        </XStack>
-      )}
-
       {/* Fatal error screen */}
       {isFatal && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} backgroundColor="rgba(0,0,0,0.85)" zIndex={40}>
@@ -750,43 +743,12 @@ export default function VideoPlayerScreen({ navigation }) {
 
             <Text color={colors.text} fontFamily={fonts.display} fontSize={14} fontWeight="600" flex={1} minWidth={60} numberOfLines={1}>{currentVideo.name}</Text>
 
-            {/* Live channel zap */}
             {isLive && channels.length > 1 && (
               <>
                 <Button variant="secondary" size="sm" icon="back" onPress={() => zapChannel("prev")}>Ch</Button>
                 <Button variant="secondary" size="sm" icon="chevron-right" onPress={() => zapChannel("next")}>Ch</Button>
               </>
             )}
-
-            {!isLive && (
-              <Button variant="secondary" size="sm" icon="play" onPress={() => { setShowSpeedMenu(true); setShowAudioMenu(false); setShowSubtitleMenu(false); }}>{`${speed}x`}</Button>
-            )}
-
-            {audioTracks.length > 1 && (
-              <Button variant="secondary" size="sm" onPress={() => { setShowAudioMenu(true); setShowSpeedMenu(false); setShowSubtitleMenu(false); }}>Audio</Button>
-            )}
-
-            {subtitleTracks.length > 0 && (
-              <Button variant="secondary" size="sm" onPress={() => { setShowSubtitleMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); }}>CC</Button>
-            )}
-
-            {/* Subtitle & audio tuning panel */}
-            <Button variant="secondary" size="sm" icon="settings" onPress={() => setShowSubtitleSettings(true)}>Tune</Button>
-
-            {/* Aspect / contentFit cycle */}
-            <Button variant="secondary" size="sm" onPress={cycleContentFit}>{contentFit}</Button>
-
-            {/* Fullscreen (landscape) toggle */}
-            <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" onPress={toggleFullscreen}>{isFullscreen ? "Exit" : "Full"}</Button>
-
-            {/* Stats toggle */}
-            <Button variant={showStats ? "primary" : "secondary"} size="sm" onPress={() => setShowStats((s) => !s)}>Stats</Button>
-
-            {/* Sleep timer */}
-            <Button variant={sleep.active ? "primary" : "secondary"} size="sm" onPress={() => setShowSleepMenu(true)}>Sleep</Button>
-
-            {/* PiP */}
-            <Button variant="secondary" size="sm" onPress={handlePip}>PiP</Button>
 
             {nextEpisode && (
               <Button variant="primary" size="sm" icon="play" onPress={handleNextEpisode}>Next</Button>
@@ -811,35 +773,59 @@ export default function VideoPlayerScreen({ navigation }) {
         </YStack>
       )}
 
-      {/* Bottom seek bar (VOD only) — position/duration + drag to scrub */}
-      {showControls && !isLive && progress.duration > 0 && (() => {
-        const shown = scrubSec != null ? scrubSec : progress.position;
-        const playedPct = Math.max(0, Math.min(100, (shown / progress.duration) * 100));
-        const bufferedPct = Math.max(0, Math.min(100, (progress.buffered / progress.duration) * 100));
-        return (
-          <YStack position="absolute" bottom={0} left={0} right={0} paddingHorizontal={16} paddingTop={10} paddingBottom={insets.bottom + 12} backgroundColor="rgba(0,0,0,0.7)" zIndex={20}>
-            <View
-              style={{ height: 26, justifyContent: "center" }}
-              onLayout={(e) => { seekTrackWidth.current = e.nativeEvent.layout.width; }}
-              onStartShouldSetResponder={() => true}
-              onMoveShouldSetResponder={() => true}
-              onResponderGrant={(e) => scrubToX(e.nativeEvent.locationX)}
-              onResponderMove={(e) => scrubToX(e.nativeEvent.locationX)}
-              onResponderRelease={commitScrub}
-              onResponderTerminate={commitScrub}
-            >
-              <View style={{ height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.25)" }} />
-              <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${bufferedPct}%`, backgroundColor: "rgba(255,255,255,0.4)" }} />
-              <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${playedPct}%`, backgroundColor: colors.accent }} />
-              <View style={{ position: "absolute", left: `${playedPct}%`, width: 14, height: 14, borderRadius: 7, marginLeft: -7, backgroundColor: colors.accent }} />
-            </View>
-            <XStack justifyContent="space-between" marginTop={4}>
-              <Text color={colors.text} fontSize={12} fontWeight="600">{formatTime(shown)}</Text>
-              <Text color={colors.muted} fontSize={12}>{formatTime(progress.duration)}</Text>
-            </XStack>
-          </YStack>
-        );
-      })()}
+      {/* Bottom control container — settings icon row + (VOD) seek bar */}
+      {showControls && (
+        <YStack position="absolute" bottom={0} left={0} right={0} paddingBottom={insets.bottom + 12} backgroundColor="rgba(0,0,0,0.7)" zIndex={20}>
+          {/* Settings icon row (horizontally scrollable so it never overflows). */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+            {!isLive && (
+              <Button variant="secondary" size="sm" icon="speed" onPress={() => { setShowSpeedMenu(true); setShowAudioMenu(false); setShowSubtitleMenu(false); }}>{`${speed}x`}</Button>
+            )}
+            {audioTracks.length > 1 && (
+              <Button variant="secondary" size="sm" icon="audio" onPress={() => { setShowAudioMenu(true); setShowSpeedMenu(false); setShowSubtitleMenu(false); }} />
+            )}
+            {subtitleTracks.length > 0 && (
+              <Button variant="secondary" size="sm" icon="cc" onPress={() => { setShowSubtitleMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); }} />
+            )}
+            <Button variant="secondary" size="sm" icon="tune" onPress={() => setShowSubtitleSettings(true)} />
+            <Button variant="secondary" size="sm" icon="aspect" onPress={cycleContentFit} />
+            <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" icon="fullscreen" onPress={toggleFullscreen} />
+            <Button variant={showStats ? "primary" : "secondary"} size="sm" icon="info" onPress={() => setShowStats((s) => !s)} />
+            <Button variant={sleep.active ? "primary" : "secondary"} size="sm" icon="timer" onPress={() => setShowSleepMenu(true)}>{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
+            <Button variant="secondary" size="sm" icon="pip" onPress={handlePip} />
+          </ScrollView>
+
+          {/* Seek bar (VOD only) */}
+          {!isLive && progress.duration > 0 && (() => {
+            const shown = scrubSec != null ? scrubSec : progress.position;
+            const playedPct = Math.max(0, Math.min(100, (shown / progress.duration) * 100));
+            const bufferedPct = Math.max(0, Math.min(100, (progress.buffered / progress.duration) * 100));
+            return (
+              <YStack paddingHorizontal={16} paddingTop={4}>
+                <View
+                  style={{ height: 26, justifyContent: "center" }}
+                  onLayout={(e) => { seekTrackWidth.current = e.nativeEvent.layout.width; }}
+                  onStartShouldSetResponder={() => true}
+                  onMoveShouldSetResponder={() => true}
+                  onResponderGrant={(e) => scrubToX(e.nativeEvent.locationX)}
+                  onResponderMove={(e) => scrubToX(e.nativeEvent.locationX)}
+                  onResponderRelease={commitScrub}
+                  onResponderTerminate={commitScrub}
+                >
+                  <View style={{ height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.25)" }} />
+                  <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${bufferedPct}%`, backgroundColor: "rgba(255,255,255,0.4)" }} />
+                  <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${playedPct}%`, backgroundColor: colors.accent }} />
+                  <View style={{ position: "absolute", left: `${playedPct}%`, width: 14, height: 14, borderRadius: 7, marginLeft: -7, backgroundColor: colors.accent }} />
+                </View>
+                <XStack justifyContent="space-between" marginTop={4}>
+                  <Text color={colors.text} fontSize={12} fontWeight="600">{formatTime(shown)}</Text>
+                  <Text color={colors.muted} fontSize={12}>{formatTime(progress.duration)}</Text>
+                </XStack>
+              </YStack>
+            );
+          })()}
+        </YStack>
+      )}
 
       {/* Speed Menu */}
       <Modal visible={showSpeedMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSpeedMenu(false)}>
