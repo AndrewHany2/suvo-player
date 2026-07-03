@@ -28,7 +28,7 @@ export default function ContentShelf({
   // Horizontal virtualization: mount only a window of cards around the scroll
   // position so a deeply-scrolled rail can't mount hundreds of posters. Desktop
   // has headroom, so this is a safety optimization; behavior is unchanged.
-  const CARD_W = ss(200), CARD_GAP = ss(8), H_VISIBLE = 10, H_OVERSCAN = 3;
+  const CARD_W = ss(290), CARD_GAP = ss(8), H_VISIBLE = 10, H_OVERSCAN = 3;
   const [firstVisible, setFirstVisible] = useState(0);
 
   useEffect(() => {
@@ -127,10 +127,10 @@ export default function ContentShelf({
             <div style={{ flex: `0 0 ${leftPad}px` }} />
             {items.slice(rw.start, rw.end).map((item) => (renderItem
               ? renderItem(item)
-              : <PosterCard key={String(item.stream_id ?? item.id)} item={item} onPress={onPress} width={ss(200)} />))}
+              : <PosterCard key={String(item.stream_id ?? item.id)} item={item} onPress={onPress} width={CARD_W} />))}
             <div style={{ flex: `0 0 ${rightPad}px` }} />
             {loadingMore && (
-              <div style={{ width: ss(200), aspectRatio: "2/3", borderRadius: radii.sm, backgroundColor: colors.surface, border: `1px solid ${colors.border}`, display: "flex", justifyContent: "center", alignItems: "center" }}>
+              <div style={{ width: CARD_W, aspectRatio: "2/3", borderRadius: radii.sm, backgroundColor: colors.surface, border: `1px solid ${colors.border}`, display: "flex", justifyContent: "center", alignItems: "center" }}>
                 <Spinner size="small" color={colors.accent} />
               </div>
             )}

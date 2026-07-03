@@ -6,8 +6,6 @@ import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { yieldFocusToNav } from "../platform/adapters/input/keys";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import PosterCard from "../presentation/components/PosterCard.web";
-import Hero from "../presentation/components/Hero.web";
-import { ss } from "../utils/scaleSize";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
@@ -173,17 +171,6 @@ export default function MoviesScreenTV({ navigation, route }) {
       cover: item.stream_icon || item.cover || null,
       containerExtension: item.container_extension || "mp4",
       startTime,
-    });
-  };
-
-  // Play a catalog item straight from the hero (no detail fetch needed to start).
-  const playFeatured = (item) => {
-    playMovie({
-      streamId: item.stream_id ?? item.streamId,
-      name: item.name,
-      cover: item.stream_icon || item.cover || null,
-      containerExtension: item.container_extension || "mp4",
-      startTime: 0,
     });
   };
 
@@ -580,21 +567,12 @@ export default function MoviesScreenTV({ navigation, route }) {
               onLoadMore={handleLoadMore}
               onSelect={(item) => openDetail(item)}
               onSeeAll={(id, name) => openCat({ id, name })}
-              renderCard={(item, isFocused) => (
-                <PosterCard item={item} isFocused={isFocused} width={ss(200)} onPress={openDetail} />
+              renderCard={(item, isFocused, cardW) => (
+                <PosterCard item={item} isFocused={isFocused} width={cardW} onPress={openDetail} />
               )}
-              renderHero={(item, { focusedButton }) => (
-                <Hero
-                  item={item}
-                  focusedButton={focusedButton}
-                  onPlay={() => item && playFeatured(item)}
-                  onDetails={() => item && openDetail(item)}
-                />
-              )}
+              showHero={false}
               discoverItems={[{ id: "all", label: "All Movies" }]}
               onPill={() => setBrowseAll(true)}
-              onHeroPlay={(item) => item && playFeatured(item)}
-              onHeroDetails={(item) => item && openDetail(item)}
             />
           )}
       </div>

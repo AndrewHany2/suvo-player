@@ -1,7 +1,8 @@
 import { useCallback, useRef } from "react";
-import { View, Text, FlatList, ActivityIndicator, Pressable } from "react-native";
+import { View, Text, FlatList, ActivityIndicator, Pressable, useWindowDimensions } from "react-native";
 import { colors, fonts, fontWeights } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
+import { posterShelfWidth, SHELF_TARGET_W } from "../../utils/posterLayout";
 import Icon from "../../ui/Icon";
 import PosterCard from "./PosterCard.native";
 
@@ -19,6 +20,10 @@ export default function ContentShelf({
   onVisible, onPress, onTitlePress, onLoadMore, renderItem,
 }) {
   const hasLoaded = useRef(false);
+  const { width: winW } = useWindowDimensions();
+  // Poster width derived from the screen (Electron's density model): a phone
+  // shows ~2 posters + a peek, a tablet more — posters scale up with the device.
+  const cardW = posterShelfWidth(winW - ss(16) * 2, { target: SHELF_TARGET_W, gap: ss(10) });
   const handleLayout = useCallback(() => {
     if (!hasLoaded.current && items === null && !manual) {
       hasLoaded.current = true;
@@ -51,7 +56,7 @@ export default function ContentShelf({
           keyExtractor={(item, i) => String(item.stream_id ?? item.id ?? i)}
           renderItem={({ item }) => (renderItem
             ? renderItem(item)
-            : <PosterCard item={item} onPress={onPress} />)}
+            : <PosterCard item={item} onPress={onPress} width={cardW} />)}
           showsHorizontalScrollIndicator={false}
           // Keep a buffer of posters mounted ahead of the scroll on both sides so
           // travel never reveals a blank cell. removeClippedSubviews is left off:

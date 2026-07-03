@@ -14,8 +14,6 @@ import SeriesDetail from "../components/SeriesDetail.web";
 import TVPosterCard from "../components/TVPosterCard";
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
-import Hero from "../presentation/components/Hero.web";
-import { selectHeroItem } from "../presentation/heroItem";
 
 // Caps the browse content width on ultrawide monitors (centered via margin auto).
 const MAX_W = 1700;
@@ -229,11 +227,12 @@ function Shelf({
                 key={String(item.series_id)}
                 item={item}
                 onPress={onPress}
+                width={ss(340)}
               />
             ))}
             {loadingMore && (
               <YStack
-                width={ss(200)}
+                width={ss(340)}
                 aspectRatio={2 / 3}
                 borderRadius={ss(8)}
                 backgroundColor={colors.surface}
@@ -798,24 +797,11 @@ export default function SeriesScreen({ navigation }) {
   }
 
   const isTopRated = currentCategory?.catId === "top_rated";
-  // Hero featured item — picked over the first populated shelf's real titles
-  // (not the Discover pills). Only shown on the browse view (no overlay).
-  const heroShelf = shelves.find((s) => s.items?.length);
-  const heroItem = heroShelf ? selectHeroItem(heroShelf.items) : null;
 
   return (
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
       <ScrollView flex={1} minHeight={0} contentContainerStyle={{ paddingBottom: ss(80) }}>
         <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
-        {heroItem && (
-          <YStack paddingHorizontal={ss(48)} paddingTop={ss(24)}>
-            <Hero
-              item={heroItem}
-              onPlay={() => handleSeriesPress(heroItem)}
-              onDetails={() => handleSeriesPress(heroItem)}
-            />
-          </YStack>
-        )}
         <YStack
           paddingHorizontal={ss(48)}
           paddingTop={ss(24)}

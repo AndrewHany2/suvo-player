@@ -15,8 +15,6 @@ import "./SeriesScreen.tv.css";
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
-import Hero from "../presentation/components/Hero.web";
-import { ss } from "../utils/scaleSize";
 
 const CAT_COLS = 4;
 const SER_COLS = 5;
@@ -1082,21 +1080,12 @@ export default function SeriesScreenTV({ navigation, route }) {
               onLoadMore={handleLoadMore}
               onSelect={(item) => openDetail(item)}
               onSeeAll={(id, name) => openGrid({ id, name })}
-              renderCard={(item, isFocused) => (
-                <PosterCardWeb item={item} isFocused={isFocused} width={ss(200)} onPress={openDetail} />
+              renderCard={(item, isFocused, cardW) => (
+                <PosterCardWeb item={item} isFocused={isFocused} width={cardW} onPress={openDetail} />
               )}
-              renderHero={(item, { focusedButton }) => (
-                <Hero
-                  item={item}
-                  focusedButton={focusedButton}
-                  onPlay={() => item && openDetail(item)}
-                  onDetails={() => item && openDetail(item)}
-                />
-              )}
+              showHero={false}
               discoverItems={[{ id: "all_series", label: "All Series" }]}
               onPill={() => setBrowseAll(true)}
-              onHeroPlay={(item) => item && openDetail(item)}
-              onHeroDetails={(item) => item && openDetail(item)}
             />
           )}
       </div>

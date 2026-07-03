@@ -11,8 +11,6 @@ import ContentShelf from "../presentation/components/ContentShelf.web";
 import PosterCard from "../presentation/components/PosterCard.web";
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
-import Hero from "../presentation/components/Hero.web";
-import { selectHeroItem } from "../presentation/heroItem";
 import MovieDetail from "../components/MovieDetail.web";
 
 // Caps the browse content width on ultrawide monitors (centered via margin auto).
@@ -175,19 +173,10 @@ export default function MoviesScreen({ navigation }) {
     );
   }
 
-  const heroItem = !categoryPage && !selectedMovie
-    ? selectHeroItem(shelves.find((s) => s.items?.length)?.items)
-    : null;
-
   return (
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
       <ScrollView flex={1} minHeight={0} contentContainerStyle={{ paddingBottom: ss(80) }}>
         <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
-        {heroItem && (
-          <YStack paddingHorizontal={ss(48)} paddingTop={ss(24)}>
-            <Hero item={heroItem} onPlay={() => selectMovie(heroItem)} onDetails={() => selectMovie(heroItem)} />
-          </YStack>
-        )}
         <YStack paddingHorizontal={ss(48)} paddingTop={ss(24)} paddingBottom={ss(4)}>
           <Text color={colors.text} fontSize={ss(22)} fontWeight="700" letterSpacing={-0.3} marginBottom={ss(12)}>Discover</Text>
           <DiscoverPills

@@ -5,16 +5,14 @@ import { useMovies } from "../domain/hooks/useMovies";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import PosterCard from "../presentation/components/PosterCard.native";
-import Hero from "../presentation/components/Hero.native";
-import { selectHeroItem } from "../presentation/heroItem";
 import MovieDetail from "../components/MovieDetail";
 import { colors, accentAlpha } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
+import { posterGrid, GRID_TARGET_W } from "../utils/posterLayout";
 
 const GRID_PAGE = 40;
-const GRID_COLS = 3;
 const GRID_OUTER = 16; // equal left/right screen margin
 const GRID_GAP = 12; // gap between posters (columns and rows)
 
@@ -23,8 +21,9 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
   const [displayCount, setDisplayCount] = useState(GRID_PAGE);
   const [search, setSearch] = useState("");
   const { width: winW } = useWindowDimensions();
-  // Responsive card width so GRID_COLS fit with equal outer margins + gaps.
-  const cardW = Math.floor((winW - GRID_OUTER * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
+  // Column count is DERIVED from the screen width (Electron's density model):
+  // ~3 across on a phone, more on a tablet, posters sized to fill the row.
+  const { cols, cardW } = posterGrid(winW - GRID_OUTER * 2, { target: GRID_TARGET_W, gap: GRID_GAP });
 
   const filtered = items
     ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items)
@@ -56,10 +55,11 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
         <YStack flex={1} justifyContent="center" alignItems="center"><Spinner size="large" color={colors.accent} /></YStack>
       ) : (
         <FlatList
+          key={`grid-${cols}`}
           style={{ flex: 1 }}
           data={displayed}
           keyExtractor={(item) => String(item.stream_id)}
-          numColumns={GRID_COLS}
+          numColumns={cols}
           contentContainerStyle={{ paddingHorizontal: GRID_OUTER, paddingVertical: 12 }}
           columnWrapperStyle={{ gap: GRID_GAP, marginBottom: GRID_GAP }}
           renderItem={({ item }) => <PosterCard item={item} onPress={onPlay} width={cardW} />}
@@ -121,17 +121,8 @@ export default function MoviesScreen({ navigation }) {
     );
   }
 
-  const heroItem = !categoryPage && !selectedMovie
-    ? selectHeroItem(shelves.find((s) => s.items?.length)?.items)
-    : null;
-
   const listHeader = (
     <YStack>
-      {heroItem && (
-        <YStack paddingHorizontal={16} paddingTop={16}>
-          <Hero item={heroItem} onPlay={() => selectMovie(heroItem)} onDetails={() => selectMovie(heroItem)} />
-        </YStack>
-      )}
       <YStack paddingHorizontal={16} paddingTop={20} paddingBottom={4}>
         <Text color={colors.text} fontSize={20} fontWeight="700" letterSpacing={-0.3} marginBottom={12}>Discover</Text>
         <XStack gap={10} flexWrap="wrap">

@@ -3,16 +3,11 @@ import {
   scrollAnchor,
   windowFromAnchor,
   clampCol,
-  nearRailEnd,
   railEdges,
 } from "./shelfWindow.js";
 import HeroTV from "./Hero.tv.jsx";
 import DiscoverPills from "./DiscoverPills.web";
-import {
-  enterTopFromShelves,
-  zoneMove,
-  zoneActivate,
-} from "./heroZone.js";
+import { enterTopFromShelves, zoneMove, zoneActivate } from "./heroZone.js";
 import Icon from "../../ui/Icon";
 import { useTVInput } from "../../hooks/useTVInput";
 import { colors, fonts, fontWeights } from "../../ui/tokens";
@@ -23,14 +18,15 @@ const SHELF_OVERSCAN = 8; // shelves kept mounted above/below the visible page
 const H_OVERSCAN = 6; // posters kept mounted ahead of the scroll on each side (focused rail)
 // Design px (authored at the 1920 reference); ss() scales them for the pinned
 // 1280 TV viewport that the browser upscales ×1.5 — matching web proportions.
-const POSTER_W = 200; // design px — identical to PosterCard.web's default width
+const POSTER_W = 340; // design px — sized so ~5 posters show per rail in one view
+const MAX_PER_SHELF = 8; // hard cap per category rail — no pagination / load-more on TV
 const CARD_GAP_D = 8; // design px gap — matches ContentShelf.web
 const PAD_D = 48; // design px rail horizontal inset
 const TITLE_H_D = 34; // design px poster title block (PosterCard.web: 2-line clamp)
 // Row = header + poster (width×1.5) + title + breathing room, all in design px.
 const ROW_HEIGHT_D = 40 + Math.round(POSTER_W * 1.5) + TITLE_H_D + 28;
-const HERO_H = 620; // Hero.web billboard height falls out of tokens.heroHeights.tv; this
-                    // constant is used only as the fallback when the rails-top can't be measured.
+const HERO_H = 900; // Hero.web billboard height falls out of tokens.heroHeights.tv; this
+// constant is used only as the fallback when the rails-top can't be measured.
 
 const PAD = PAD_D; // kept as design px; call sites wrap it in ss(PAD)
 const HERO_DEBOUNCE_MS = 150;
@@ -70,6 +66,7 @@ export function VirtualShelvesTV({
   onPill,
   onHeroPlay,
   onHeroDetails,
+  featuredItem,
 }) {
   // Hero billboard is optional (Home reuses this shelf without one). When off,
   // its height drops out of the anchor-rows measurement and the scroll offset.
@@ -95,7 +92,11 @@ export function VirtualShelvesTV({
   // means focus is in the rails (handled by `focus`/`move`). Prop-gated: Home
   // passes neither renderHero-interactivity nor discoverItems, so both zones are
   // disabled and Up-at-top yields to the navbar exactly as before.
-  const [topFocus, setTopFocus] = useState({ zone: "shelves", heroBtn: 0, pillCol: 0 });
+  const [topFocus, setTopFocus] = useState({
+    zone: "shelves",
+    heroBtn: 0,
+    pillCol: 0,
+  });
   const railsRef = useRef(null); // wraps the shelf rows; offsetTop = hero+pills height
   const [heroItem, setHeroItem] = useState(null);
   // shelfId -> { left, right }: which scroll-hint edges to show, derived from the
@@ -182,6 +183,29 @@ export function VirtualShelvesTV({
     }
   }, [fetchWin.start, fetchWin.end, shelves, onShelfVisible]);
 
+  // ── Raw vertical scroll (wheel/trackpad) also loads categories in view ──
+  // The remote path advances `focus` (which drives fetchWin above); a raw scroll
+  // bypasses focus, so without this a user scrolling down past the focused row
+  // would reveal rows that never fetch their items. Derive the visible row range
+  // from scrollTop and lazy-load anything in it (onShelfVisible is idempotent —
+  // the screen guards against re-fetching an already-loaded shelf).
+  const onContainerScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const railsTop = railsRef.current?.offsetTop ?? ss(heroH);
+    const rowH = ss(ROW_HEIGHT_D) || 1;
+    const topRow = Math.floor(Math.max(0, el.scrollTop - railsTop) / rowH);
+    const start = Math.max(0, topRow - SHELF_OVERSCAN);
+    const end = Math.min(
+      shelves.length,
+      topRow + dimsRef.current.windowRows + SHELF_OVERSCAN,
+    );
+    for (let i = start; i < end; i++) {
+      const s = shelves[i];
+      if (s && s.items === null) onShelfVisible?.(s.id);
+    }
+  }, [shelves, heroH, onShelfVisible]);
+
   // ── Warm poster caches ahead of the fetch range ──
   // TV browsers only fetch an <img> when its card mounts, so revealed posters
   // flash blank while they download. Prefetch the posters just ahead of the
@@ -217,8 +241,16 @@ export function VirtualShelvesTV({
     dims.cols,
   ]);
 
-  // ── Debounced hero swap on focus change ──
+  // ── Hero item ──
+  // When the screen supplies a `featuredItem` (the TV "featured billboard": a
+  // fixed random title), the hero pins to it and does NOT follow focus. Only
+  // when no featuredItem is provided does the legacy behaviour apply — the hero
+  // debounce-swaps to whatever poster is currently focused.
   useEffect(() => {
+    if (featuredItem !== undefined) {
+      setHeroItem(featuredItem || null);
+      return;
+    }
     const s = shelves[focus.shelf];
     const item =
       s && Array.isArray(s.items)
@@ -226,7 +258,7 @@ export function VirtualShelvesTV({
         : null;
     const t = setTimeout(() => setHeroItem(item || null), HERO_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [focus.shelf, focus.col, shelves]);
+  }, [featuredItem, focus.shelf, focus.col, shelves]);
 
   // ── Apply scroll (vertical container + focused rail) from the current focus ──
   useEffect(() => {
@@ -297,8 +329,8 @@ export function VirtualShelvesTV({
           const len = loadedLen(cur);
           const nextCol = clampCol(prev.col + dCol, len);
           if (cur) colMemory.current[cur.id] = nextCol;
-          if (dCol > 0 && cur?.hasMore && nearRailEnd(nextCol, len))
-            onLoadMore?.(cur.id);
+          // Load-more intentionally disabled: each rail is hard-capped at
+          // MAX_PER_SHELF (see items.slice below), so there is nothing to page in.
           return { ...prev, col: nextCol };
         }
         // Up on the top shelf yields to the caller (e.g. focus the navbar) when a
@@ -334,7 +366,11 @@ export function VirtualShelvesTV({
     (dir) => {
       const res = zoneMove(topFocus, dir, zoneCfg);
       if (res.action === "toNavbar") {
-        setTopFocus({ zone: "shelves", heroBtn: topFocus.heroBtn, pillCol: topFocus.pillCol });
+        setTopFocus({
+          zone: "shelves",
+          heroBtn: topFocus.heroBtn,
+          pillCol: topFocus.pillCol,
+        });
         onUpAtTop?.();
         return;
       }
@@ -409,21 +445,24 @@ export function VirtualShelvesTV({
     <div
       ref={containerRef}
       className="tvl-shelves-screen"
+      onScroll={onContainerScroll}
       style={{ overflowY: "auto", height: "100%", contain: "strict" }}
     >
       {showHero &&
-        (renderHero
-          ? renderHero(heroItem, {
-              focusedButton:
-                topFocus.zone === "hero"
-                  ? topFocus.heroBtn === 0
-                    ? "play"
-                    : "details"
-                  : null,
-            })
-          : <HeroTV item={heroItem} height={HERO_H} />)}
+        (renderHero ? (
+          renderHero(heroItem, {
+            focusedButton:
+              topFocus.zone === "hero"
+                ? topFocus.heroBtn === 0
+                  ? "play"
+                  : "details"
+                : null,
+          })
+        ) : (
+          <HeroTV item={heroItem} height={HERO_H} />
+        ))}
       {zoneCfg.hasPills && (
-        <div style={{ padding: `${ss(8)}px ${ss(PAD)}px ${ss(20)}px` }}>
+        <div style={{ padding: `${ss(36)}px ${ss(PAD)}px ${ss(20)}px` }}>
           <DiscoverPills
             items={pills}
             focusedCol={topFocus.zone === "pills" ? topFocus.pillCol : -1}
@@ -434,7 +473,10 @@ export function VirtualShelvesTV({
       <div ref={railsRef}>
         {shelves.map((shelf, shelfIdx) => {
           const isFocusedShelf = shelfIdx === focus.shelf;
-          const items = Array.isArray(shelf.items) ? shelf.items : [];
+          const items = (Array.isArray(shelf.items) ? shelf.items : []).slice(
+            0,
+            MAX_PER_SHELF,
+          );
           // Scroll-hint chevrons: driven by the rail's REAL scroll geometry once
           // it has scrolled (railEdge). Before the first scroll event, fall back
           // to a coarse estimate (at start; overflow if more items than fit).
@@ -470,7 +512,11 @@ export function VirtualShelvesTV({
                 }}
               >
                 <span>{shelf.name}</span>
-                <Icon name="chevron-right" size={ss(22)} color={colors.accent2} />
+                <Icon
+                  name="chevron-right"
+                  size={ss(22)}
+                  color={colors.accent2}
+                />
                 {items.length > 0 && (
                   <span
                     style={{
@@ -514,7 +560,7 @@ export function VirtualShelvesTV({
                         ref={isFocused ? focusedCardRef : null}
                         style={{ flex: `0 0 ${CARD_W}px` }}
                       >
-                        {renderCard(item, isFocused)}
+                        {renderCard(item, isFocused, CARD_W)}
                       </div>
                     );
                   })}

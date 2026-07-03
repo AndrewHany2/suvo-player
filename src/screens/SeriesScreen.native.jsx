@@ -9,13 +9,11 @@ import { useTVNavigation } from "../hooks/useTVNavigation";
 import iptvApi from "../services/iptvApi";
 import tmdbApi from "../services/tmdbApi";
 import SeriesDetail from "../components/SeriesDetail";
-import Hero from "../presentation/components/Hero.native";
-import { selectHeroItem } from "../presentation/heroItem";
+import { posterGrid, posterShelfWidth, GRID_TARGET_W, SHELF_TARGET_W } from "../utils/posterLayout";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 const SHELF_PAGE = 12;
 const GRID_PAGE = 40;
-const GRID_COLS = 3;
 const GRID_OUTER = 16; // equal left/right screen margin
 const GRID_GAP = 12; // gap between posters (columns and rows)
 
@@ -69,6 +67,10 @@ const PosterCard = memo(function PosterCard({ item, onPress, width = 130 }) {
 /* ─── Shelf ─── */
 function Shelf({ shelf, onVisible, onPress, onTitlePress, onLoadMore }) {
   const hasLoaded = useRef(false);
+  const { width: winW } = useWindowDimensions();
+  // Poster width derived from the screen (Electron's density model): ~2 + a peek
+  // on a phone, more on a tablet — posters scale up with the device.
+  const cardW = posterShelfWidth(winW - 32, { target: SHELF_TARGET_W, gap: 10 });
   const handleLayout = useCallback(() => {
     if (!hasLoaded.current && shelf.items === null && !shelf.manual) {
       hasLoaded.current = true;
@@ -102,7 +104,7 @@ function Shelf({ shelf, onVisible, onPress, onTitlePress, onLoadMore }) {
           }}
           scrollEventThrottle={200}
         >
-          {shelf.items.map((item) => <PosterCard key={String(item.series_id)} item={item} onPress={onPress} />)}
+          {shelf.items.map((item) => <PosterCard key={String(item.series_id)} item={item} onPress={onPress} width={cardW} />)}
           {shelf.loadingMore && <YStack width={60} justifyContent="center" alignItems="center"><Spinner size="small" color={colors.accent} /></YStack>}
         </ScrollView>
       )}
@@ -115,8 +117,9 @@ function CategoryPage({ name, items, onBack, onPress, onLoadMore, hasRemote, loa
   const [displayCount, setDisplayCount] = useState(GRID_PAGE);
   const [search, setSearch] = useState("");
   const { width: winW } = useWindowDimensions();
-  // Responsive card width so GRID_COLS fit with equal outer margins + gaps.
-  const cardW = Math.floor((winW - GRID_OUTER * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
+  // Column count is DERIVED from the screen width (Electron's density model):
+  // ~3 across on a phone, more on a tablet, posters sized to fill the row.
+  const { cols, cardW } = posterGrid(winW - GRID_OUTER * 2, { target: GRID_TARGET_W, gap: GRID_GAP });
   const filtered = items ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items) : null;
   const displayed = filtered ? filtered.slice(0, displayCount) : null;
   const hasLocalMore = filtered && displayCount < filtered.length;
@@ -142,10 +145,11 @@ function CategoryPage({ name, items, onBack, onPress, onLoadMore, hasRemote, loa
         <YStack flex={1} justifyContent="center" alignItems="center"><Spinner size="large" color={colors.accent} /></YStack>
       ) : (
         <FlatList
+          key={`grid-${cols}`}
           style={{ flex: 1 }}
           data={displayed}
           keyExtractor={(item) => String(item.series_id)}
-          numColumns={GRID_COLS}
+          numColumns={cols}
           contentContainerStyle={{ paddingHorizontal: GRID_OUTER, paddingVertical: 12 }}
           columnWrapperStyle={{ gap: GRID_GAP, marginBottom: GRID_GAP }}
           renderItem={({ item }) => <PosterCard item={item} onPress={onPress} width={cardW} />}
@@ -332,21 +336,8 @@ export default function SeriesScreen({ navigation }) {
   }
 
   const isTopRated = currentCategory?.catId === "top_rated";
-  // Hero featured item — picked over the first populated shelf's real titles
-  // (not the Discover pills); only on the browse list when no overlay is open.
-  const heroShelf = shelves.find((s) => s.items?.length);
-  const heroItem = heroShelf ? selectHeroItem(heroShelf.items) : null;
   const listHeader = (
     <YStack>
-      {heroItem && (
-        <YStack paddingHorizontal={16} paddingTop={16}>
-          <Hero
-            item={heroItem}
-            onPlay={() => handleSeriesPress(heroItem)}
-            onDetails={() => handleSeriesPress(heroItem)}
-          />
-        </YStack>
-      )}
       <YStack paddingHorizontal={16} paddingTop={20} paddingBottom={4}>
         <Text color={colors.text} fontFamily={fonts.display} fontSize={20} fontWeight={fontWeights.bold} letterSpacing={-0.3} marginBottom={12}>Discover</Text>
         <XStack gap={10} flexWrap="wrap">
