@@ -222,6 +222,48 @@ const S = {
     fontWeight: active ? 700 : 400,
     backgroundColor: active ? accentAlpha(0.12) : "transparent",
   }),
+  bottomBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6,
+    flexWrap: "wrap",
+    padding: "8px 12px",
+    backgroundColor: "rgba(0,0,0,0.85)",
+    flexShrink: 0,
+  },
+  iconBtn: (active) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: active ? accentAlpha(0.2) : "rgba(255,255,255,0.12)",
+    border: "1px solid rgba(255,255,255,0.2)",
+    color: active ? colors.accent2 : colors.text,
+    borderRadius: radii.sm,
+    minWidth: 40,
+    height: 40,
+    padding: "0 10px",
+    fontSize: 12,
+    fontFamily: fonts.body,
+    fontWeight: 600,
+    cursor: "pointer",
+    justifyContent: "center",
+    whiteSpace: "nowrap",
+    transition: `box-shadow ${motion.base}ms ${easing}, outline-color ${motion.fast}ms ${easing}`,
+  }),
+  menuUp: {
+    position: "absolute",
+    bottom: "115%",
+    right: 0,
+    backgroundColor: colors.surface2,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.sm,
+    padding: 4,
+    minWidth: 130,
+    zIndex: 100,
+    maxHeight: 320,
+    overflowY: "auto",
+  },
   stateOverlay: {
     position: "absolute",
     top: 0,
@@ -1737,219 +1779,6 @@ export default function VideoPlayerScreen() {
         </button>
         <span style={S.title}>{currentVideo.name}</span>
 
-        <div style={S.dropdown} ref={speedRef}>
-          <button style={S.btn} onClick={() => setOpenMenu((m) => m === "speed" ? null : "speed")}>
-            <Icon name="play" size={13} color={colors.text} /> {playbackRate}x
-          </button>
-          {openMenu === "speed" && (
-            <div style={S.menu}>
-              {SPEEDS.map((r) => (
-                <button
-                  key={r}
-                  style={S.menuItem(playbackRate === r)}
-                  onClick={() => {
-                    applySpeed(r);
-                    setOpenMenu(null);
-                  }}
-                >
-                  {r}x{r === 1 ? " (Normal)" : ""}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {audioTracks.length > 1 && (
-          <div style={S.dropdown} ref={audioRef}>
-            <button style={S.btn} onClick={() => setOpenMenu((m) => m === "audio" ? null : "audio")}>
-              {audioTracks[selectedAudio]?.name || "Audio"}
-            </button>
-            {openMenu === "audio" && (
-              <div style={S.menu}>
-                {audioTracks.map((t, i) => (
-                  <div
-                    key={t.id ?? i}
-                    style={S.menuItem(selectedAudio === i)}
-                    onClick={() => {
-                      applyAudio(i);
-                      setOpenMenu(null);
-                    }}
-                  >
-                    {t.name || `Track ${i + 1}`}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {subtitleTracks.length > 0 && (
-          <div style={S.dropdown} ref={subtitleRef}>
-            <button style={S.btn} onClick={() => setOpenMenu((m) => m === "subtitle" ? null : "subtitle")}>
-              CC{" "}
-              {selectedSubtitle === -1
-                ? "Off"
-                : subtitleTracks[selectedSubtitle]?.name ||
-                  `Track ${selectedSubtitle + 1}`}
-            </button>
-            {openMenu === "subtitle" && (
-              <div style={S.menu}>
-                <button
-                  style={S.menuItem(selectedSubtitle === -1)}
-                  onClick={() => {
-                    applySubtitle(-1);
-                    setOpenMenu(null);
-                  }}
-                >
-                  Off
-                </button>
-                {subtitleTracks.map((t, i) => (
-                  <button
-                    key={t.id ?? i}
-                    style={S.menuItem(selectedSubtitle === i)}
-                    onClick={() => {
-                      applySubtitle(i);
-                      setOpenMenu(null);
-                    }}
-                  >
-                    {t.name || `Track ${i + 1}`}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div style={S.dropdown} ref={aspectRef}>
-          <button style={S.btn} onClick={() => setOpenMenu((m) => m === "aspect" ? null : "aspect")}>
-            {aspectRatio === "default" ? "Aspect" : aspectRatio}
-          </button>
-          {openMenu === "aspect" && (
-            <div style={S.menu}>
-              {ASPECT_RATIOS.map(({ value, label }) => (
-                <button
-                  key={value}
-                  style={S.menuItem(aspectRatio === value)}
-                  onClick={() => {
-                    applyAspect(value);
-                    setOpenMenu(null);
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {qualityLevels.length > 1 && (
-          <div style={S.dropdown} ref={qualityRef}>
-            <button style={S.btn} onClick={() => setOpenMenu((m) => m === "quality" ? null : "quality")}>
-              <Icon name="settings" size={13} color={colors.text} /> {currentQualityLabel}
-            </button>
-            {openMenu === "quality" && (
-              <div style={S.menu}>
-                <button
-                  style={S.menuItem(selectedLevel === -1)}
-                  onClick={() => handleSelectLevel(-1)}
-                >
-                  Auto
-                </button>
-                {[...qualityLevels]
-                  .map((l, i) => ({ l, i }))
-                  .sort((a, b) => (b.l.height || 0) - (a.l.height || 0))
-                  .map(({ l, i }) => (
-                    <button
-                      key={`${l.height}-${l.bitrate}`}
-                      style={S.menuItem(selectedLevel === i)}
-                      onClick={() => handleSelectLevel(i)}
-                    >
-                      {getLevelLabel(l, qualityLevels)}
-                    </button>
-                  ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* PiP toggle (when the browser supports it). Shortcut: 'p'. */}
-        {pipSupported && (
-          <button
-            style={pipActive ? { ...S.btn, color: colors.accent2 } : S.btn}
-            onClick={handleTogglePip}
-            title="Picture-in-Picture (p)"
-          >
-            {pipActive ? "PiP On" : "PiP"}
-          </button>
-        )}
-
-        {/* Cast / Remote Playback (when available). */}
-        {castSupported && (
-          <button style={S.btn} onClick={handleCast} title="Cast / AirPlay">
-            Cast
-          </button>
-        )}
-
-        {/* Stats overlay toggle. Shortcut: 'i'. */}
-        <button
-          style={{ ...S.btn, color: showStats ? colors.accent2 : colors.text }}
-          onClick={() => setShowStats((v) => !v)}
-          title="Stats for nerds (i)"
-        >
-          Stats
-        </button>
-
-        {/* More: subtitle/audio tuning + sleep timer. */}
-        <div style={S.dropdown} ref={moreRef}>
-          <button style={S.btn} onClick={() => setOpenMenu((m) => (m === "more" ? null : "more"))}>
-            {sleep.active ? formatRemaining(sleep.secondsLeft) : "More"}
-          </button>
-          {openMenu === "more" && (
-            <div style={{ ...S.menu, minWidth: 300, padding: 0, maxHeight: 520 }}>
-              <SubtitleSettings
-                style={subtitleStyle}
-                subtitleOffsetMs={subtitleOffsetMs}
-                audioOffsetMs={audioOffsetMs}
-                onChange={handleSubtitleSettingsChange}
-              />
-              <div style={{ padding: "10px 12px", borderTop: `1px solid ${colors.border}` }}>
-                <div style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 13, marginBottom: 8 }}>
-                  Sleep timer
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {SLEEP_PRESETS.map((p) => (
-                    <button
-                      key={p.label}
-                      style={S.menuItem(false)}
-                      onClick={() => {
-                        if (p.kind === "end-of-episode") {
-                          // No fixed duration: arm a long timer the end-of-media
-                          // handler can cancel; simplest is to cancel any timer
-                          // and rely on the 'ended' auto-advance/close.
-                          sleep.cancel();
-                        } else if (p.minutes) {
-                          sleep.start(p.minutes);
-                        }
-                        setOpenMenu(null);
-                      }}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                  {sleep.active && (
-                    <button
-                      style={{ ...S.menuItem(false), color: colors.danger }}
-                      onClick={() => { sleep.cancel(); setOpenMenu(null); }}
-                    >
-                      Cancel timer
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
         {nextEpisode && (
           <button
             style={S.nextBtn}
@@ -2032,6 +1861,160 @@ export default function VideoPlayerScreen() {
           </div>
         )}
         {busyOverlay}
+      </div>
+
+      {/* Bottom settings bar — icon controls, menus open upward. */}
+      <div style={S.bottomBar}>
+        <div style={S.dropdown} ref={speedRef}>
+          <button style={S.iconBtn(openMenu === "speed")} onClick={() => setOpenMenu((m) => (m === "speed" ? null : "speed"))} title="Playback speed" aria-label="Playback speed">
+            <Icon name="speed" size={18} color="currentColor" /> {playbackRate}x
+          </button>
+          {openMenu === "speed" && (
+            <div style={S.menuUp}>
+              {SPEEDS.map((r) => (
+                <button key={r} style={S.menuItem(playbackRate === r)} onClick={() => { applySpeed(r); setOpenMenu(null); }}>
+                  {r}x{r === 1 ? " (Normal)" : ""}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {audioTracks.length > 1 && (
+          <div style={S.dropdown} ref={audioRef}>
+            <button style={S.iconBtn(openMenu === "audio")} onClick={() => setOpenMenu((m) => (m === "audio" ? null : "audio"))} title="Audio track" aria-label="Audio track">
+              <Icon name="audio" size={18} color="currentColor" />
+            </button>
+            {openMenu === "audio" && (
+              <div style={S.menuUp}>
+                {audioTracks.map((t, i) => (
+                  <div key={t.id ?? i} style={S.menuItem(selectedAudio === i)} onClick={() => { applyAudio(i); setOpenMenu(null); }}>
+                    {t.name || `Track ${i + 1}`}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {subtitleTracks.length > 0 && (
+          <div style={S.dropdown} ref={subtitleRef}>
+            <button style={S.iconBtn(openMenu === "subtitle")} onClick={() => setOpenMenu((m) => (m === "subtitle" ? null : "subtitle"))} title="Subtitles" aria-label="Subtitles">
+              <Icon name="cc" size={18} color="currentColor" />
+            </button>
+            {openMenu === "subtitle" && (
+              <div style={S.menuUp}>
+                <button style={S.menuItem(selectedSubtitle === -1)} onClick={() => { applySubtitle(-1); setOpenMenu(null); }}>
+                  Off
+                </button>
+                {subtitleTracks.map((t, i) => (
+                  <button key={t.id ?? i} style={S.menuItem(selectedSubtitle === i)} onClick={() => { applySubtitle(i); setOpenMenu(null); }}>
+                    {t.name || `Track ${i + 1}`}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={S.dropdown} ref={aspectRef}>
+          <button style={S.iconBtn(openMenu === "aspect")} onClick={() => setOpenMenu((m) => (m === "aspect" ? null : "aspect"))} title="Aspect ratio" aria-label="Aspect ratio">
+            <Icon name="aspect" size={18} color="currentColor" />
+          </button>
+          {openMenu === "aspect" && (
+            <div style={S.menuUp}>
+              {ASPECT_RATIOS.map(({ value, label }) => (
+                <button key={value} style={S.menuItem(aspectRatio === value)} onClick={() => { applyAspect(value); setOpenMenu(null); }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {qualityLevels.length > 1 && (
+          <div style={S.dropdown} ref={qualityRef}>
+            <button style={S.iconBtn(openMenu === "quality")} onClick={() => setOpenMenu((m) => (m === "quality" ? null : "quality"))} title="Quality" aria-label="Quality">
+              <Icon name="settings" size={18} color="currentColor" /> {currentQualityLabel}
+            </button>
+            {openMenu === "quality" && (
+              <div style={S.menuUp}>
+                <button style={S.menuItem(selectedLevel === -1)} onClick={() => handleSelectLevel(-1)}>
+                  Auto
+                </button>
+                {[...qualityLevels]
+                  .map((l, i) => ({ l, i }))
+                  .sort((a, b) => (b.l.height || 0) - (a.l.height || 0))
+                  .map(({ l, i }) => (
+                    <button key={`${l.height}-${l.bitrate}`} style={S.menuItem(selectedLevel === i)} onClick={() => handleSelectLevel(i)}>
+                      {getLevelLabel(l, qualityLevels)}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {pipSupported && (
+          <button style={S.iconBtn(pipActive)} onClick={handleTogglePip} title="Picture-in-Picture (p)" aria-label="Picture-in-Picture">
+            <Icon name="pip" size={18} color="currentColor" />
+          </button>
+        )}
+
+        {castSupported && (
+          <button style={S.iconBtn(false)} onClick={handleCast} title="Cast / AirPlay" aria-label="Cast">
+            <Icon name="cast" size={18} color="currentColor" />
+          </button>
+        )}
+
+        <button style={S.iconBtn(showStats)} onClick={() => setShowStats((v) => !v)} title="Stats for nerds (i)" aria-label="Stats">
+          <Icon name="info" size={18} color="currentColor" />
+        </button>
+
+        <div style={S.dropdown} ref={moreRef}>
+          <button style={S.iconBtn(openMenu === "more" || sleep.active)} onClick={() => setOpenMenu((m) => (m === "more" ? null : "more"))} title="Subtitle tuning & sleep timer" aria-label="More settings">
+            <Icon name="tune" size={18} color="currentColor" />
+            {sleep.active ? ` ${formatRemaining(sleep.secondsLeft)}` : ""}
+          </button>
+          {openMenu === "more" && (
+            <div style={{ ...S.menuUp, minWidth: 300, padding: 0, maxHeight: 520 }}>
+              <SubtitleSettings
+                style={subtitleStyle}
+                subtitleOffsetMs={subtitleOffsetMs}
+                audioOffsetMs={audioOffsetMs}
+                onChange={handleSubtitleSettingsChange}
+              />
+              <div style={{ padding: "10px 12px", borderTop: `1px solid ${colors.border}` }}>
+                <div style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 13, marginBottom: 8 }}>
+                  Sleep timer
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {SLEEP_PRESETS.map((p) => (
+                    <button
+                      key={p.label}
+                      style={S.menuItem(false)}
+                      onClick={() => {
+                        if (p.kind === "end-of-episode") {
+                          sleep.cancel();
+                        } else if (p.minutes) {
+                          sleep.start(p.minutes);
+                        }
+                        setOpenMenu(null);
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  {sleep.active && (
+                    <button style={{ ...S.menuItem(false), color: colors.danger }} onClick={() => { sleep.cancel(); setOpenMenu(null); }}>
+                      Cancel timer
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div style={S.footer}>
