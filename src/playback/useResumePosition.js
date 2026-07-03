@@ -10,7 +10,7 @@
  * thin wrapper that locates the matching history entry and exposes the resume
  * affordance to the player. The pure helpers are re-exported for convenience.
  */
-import { useMemo, useState, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import { useApp } from "../context/AppContext";
 import { decideResume, resolveChoice, findHistoryEntry } from "./resumeDecision.js";
 
@@ -39,11 +39,33 @@ export function useResumePosition(currentVideo) {
   const [choice, setChoice] = useState(/** @type {'resume'|'startOver'|null} */ (null));
 
   const isLive = currentVideo?.type === "live";
+  const key = currentVideo?.url ?? null;
 
-  const decision = useMemo(() => {
+  // Freeze the resume decision at the moment the source opens. `watchHistory` is
+  // rewritten on every progress tick WHILE THIS VIDEO PLAYS, so recomputing it
+  // live would let hasResume flip true from the current session's own writes and
+  // re-pop the "Resume?" prompt mid-playback (and, on native, unload the source;
+  // on TV, seek backward). Snapshotting per-source keeps the affordance tied to
+  // the position that existed BEFORE this session started. Resolves on all
+  // platforms since they all consume this hook.
+  const snapRef = useRef(
+    /** @type {{ key: string|null|undefined, decision: import('./resumeDecision.js').ResumeDecision }} */ ({
+      key: undefined,
+      decision: { hasResume: false, resumeTime: 0, duration: 0, percent: 0 },
+    }),
+  );
+  // Reset the user's choice when the source changes (adjusting state during
+  // render — the supported React pattern via a tracked previous value).
+  const [prevKey, setPrevKey] = useState(key);
+  if (key !== prevKey) {
+    setPrevKey(key);
+    setChoice(null);
+  }
+  if (snapRef.current.key !== key) {
     const entry = findHistoryEntry(watchHistory, currentVideo);
-    return decideResume(entry, { isLive });
-  }, [watchHistory, currentVideo, isLive]);
+    snapRef.current = { key, decision: decideResume(entry, { isLive }) };
+  }
+  const decision = snapRef.current.decision;
 
   const decide = useCallback(
     (next) => {
