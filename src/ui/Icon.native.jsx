@@ -266,6 +266,188 @@ function EyeShape({ size, color, off }) {
   );
 }
 
+// Audio / speaker: cone (square + right triangle) with one sound arc.
+function AudioShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 12));
+  const boxH = size * 0.32;
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View style={{ width: size * 0.16, height: boxH, backgroundColor: color, borderRadius: 1 }} />
+        <View
+          style={{
+            width: 0,
+            height: 0,
+            borderTopWidth: boxH,
+            borderBottomWidth: boxH,
+            borderRightWidth: size * 0.24,
+            borderTopColor: "transparent",
+            borderBottomColor: "transparent",
+            borderRightColor: color,
+          }}
+        />
+        <View
+          style={{
+            width: size * 0.2,
+            height: size * 0.2,
+            borderWidth: t,
+            borderColor: color,
+            borderRadius: size * 0.2,
+            borderLeftColor: "transparent",
+            borderTopColor: "transparent",
+            borderBottomColor: "transparent",
+            marginLeft: size * 0.04,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+// Closed-caption: rounded frame with "CC" text inside.
+function CcShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 12));
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View
+        style={{
+          width: size * 0.86,
+          height: size * 0.6,
+          borderWidth: t,
+          borderColor: color,
+          borderRadius: Math.max(2, size * 0.14),
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text allowFontScaling={false} style={{ color, fontSize: size * 0.32, fontWeight: "700", lineHeight: size * 0.4 }}>
+          CC
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// Speed: two chevrons pointing right (fast-forward reads as speed).
+function SpeedShape({ size, color }) {
+  const s = size * 0.4;
+  const t = Math.max(2, size / 11);
+  const chev = {
+    width: s,
+    height: s,
+    borderRightWidth: t,
+    borderTopWidth: t,
+    borderColor: color,
+    transform: [{ rotate: "45deg" }],
+  };
+  return (
+    <View style={{ width: size, height: size, flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+      <View style={chev} />
+      <View style={[chev, { marginLeft: -s * 0.35 }]} />
+    </View>
+  );
+}
+
+// Aspect: a rounded rectangle frame outline.
+function AspectShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 12));
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: size * 0.82, height: size * 0.58, borderWidth: t, borderColor: color, borderRadius: Math.max(2, size * 0.12) }} />
+    </View>
+  );
+}
+
+// Tune: three horizontal slider lines with offset knobs.
+function TuneShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 12));
+  const knob = size * 0.16;
+  const row = (top, knobLeft) => (
+    <View style={{ position: "absolute", top, left: 0, right: 0, height: knob, justifyContent: "center" }}>
+      <View style={{ height: t, backgroundColor: color, borderRadius: t / 2 }} />
+      <View style={{ position: "absolute", left: knobLeft, width: knob, height: knob, borderRadius: knob / 2, backgroundColor: color }} />
+    </View>
+  );
+  return (
+    <View style={{ width: size * 0.82, height: size * 0.82, alignSelf: "center", justifyContent: "space-between" }}>
+      {row(0, size * 0.5)}
+      {row(size * 0.33, size * 0.15)}
+      {row(size * 0.66, size * 0.35)}
+    </View>
+  );
+}
+
+// Info: circle outline with an "i".
+function InfoShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 12));
+  const d = Math.round(size * 0.86);
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: d, height: d, borderRadius: d / 2, borderWidth: t, borderColor: color, alignItems: "center", justifyContent: "center" }}>
+        <Text allowFontScaling={false} style={{ color, fontSize: size * 0.5, fontWeight: "700", lineHeight: size * 0.56 }}>
+          i
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// Sleep timer: a clock ring with two hands (reads as a timer).
+function TimerShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 12));
+  const d = Math.round(size * 0.82);
+  const inn = d - 2 * t;
+  const c = inn / 2;
+  const minH = c * 0.72;
+  const hourW = c * 0.56;
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: d, height: d, borderRadius: d / 2, borderWidth: t, borderColor: color }}>
+        <View style={{ position: "absolute", width: t, height: minH, backgroundColor: color, borderRadius: t / 2, left: c - t / 2, top: c - minH }} />
+        <View style={{ position: "absolute", width: hourW, height: t, backgroundColor: color, borderRadius: t / 2, left: c, top: c - t / 2 }} />
+      </View>
+    </View>
+  );
+}
+
+// Picture-in-picture: outer screen outline + filled inner window (bottom-right).
+function PipShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 12));
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: size * 0.86, height: size * 0.62, borderWidth: t, borderColor: color, borderRadius: Math.max(2, size * 0.1), justifyContent: "flex-end", alignItems: "flex-end", padding: t }}>
+        <View style={{ width: size * 0.34, height: size * 0.24, backgroundColor: color, borderRadius: 2 }} />
+      </View>
+    </View>
+  );
+}
+
+// Fullscreen: four corner brackets.
+function FullscreenShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 11));
+  const arm = size * 0.22;
+  const inset = size * 0.14;
+  const corner = (pos) => (
+    <View
+      style={{
+        position: "absolute",
+        width: arm,
+        height: arm,
+        borderColor: color,
+        ...pos,
+      }}
+    />
+  );
+  return (
+    <View style={{ width: size, height: size }}>
+      {corner({ top: inset, left: inset, borderLeftWidth: t, borderTopWidth: t })}
+      {corner({ top: inset, right: inset, borderRightWidth: t, borderTopWidth: t })}
+      {corner({ bottom: inset, left: inset, borderLeftWidth: t, borderBottomWidth: t })}
+      {corner({ bottom: inset, right: inset, borderRightWidth: t, borderBottomWidth: t })}
+    </View>
+  );
+}
+
 function Glyph({ glyph, size, color }) {
   return (
     <Text
@@ -318,6 +500,24 @@ function Icon({ name, size = 20, color = colors.text, ...rest }) {
       return <View {...rest}><EyeShape size={size} color={color} /></View>;
     case "eye-off":
       return <View {...rest}><EyeShape size={size} color={color} off /></View>;
+    case "audio":
+      return <View {...rest}><AudioShape size={size} color={color} /></View>;
+    case "cc":
+      return <View {...rest}><CcShape size={size} color={color} /></View>;
+    case "speed":
+      return <View {...rest}><SpeedShape size={size} color={color} /></View>;
+    case "aspect":
+      return <View {...rest}><AspectShape size={size} color={color} /></View>;
+    case "tune":
+      return <View {...rest}><TuneShape size={size} color={color} /></View>;
+    case "info":
+      return <View {...rest}><InfoShape size={size} color={color} /></View>;
+    case "timer":
+      return <View {...rest}><TimerShape size={size} color={color} /></View>;
+    case "pip":
+      return <View {...rest}><PipShape size={size} color={color} /></View>;
+    case "fullscreen":
+      return <View {...rest}><FullscreenShape size={size} color={color} /></View>;
     default: {
       // Content icons fall back to a clean non-emoji Unicode glyph.
       const glyph = GLYPHS[name];
