@@ -85,6 +85,64 @@ const PATHS = {
       <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" />
     </>
   ),
+  // Audio / speaker with one sound wave.
+  audio: (
+    <>
+      <path d="M4 9v6h4l5 4V5L8 9H4z" />
+      <path d="M16 8a5 5 0 0 1 0 8" />
+    </>
+  ),
+  // Closed-caption: rounded frame with two "c" arcs.
+  cc: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M10 10.5a2.5 2.5 0 1 0 0 3M17 10.5a2.5 2.5 0 1 0 0 3" />
+    </>
+  ),
+  // Speed: gauge arc with a needle.
+  speed: (
+    <>
+      <path d="M4 18a8 8 0 1 1 16 0" />
+      <path d="M12 14l4-3" />
+    </>
+  ),
+  // Aspect: expand-frame corner brackets.
+  aspect: (
+    <path d="M4 9V6a2 2 0 0 1 2-2h3M20 9V6a2 2 0 0 0-2-2h-3M4 15v3a2 2 0 0 0 2 2h3M20 15v3a2 2 0 0 1-2 2h-3" />
+  ),
+  // Cast: screen outline + broadcast waves.
+  cast: (
+    <>
+      <path d="M4 6h16v12h-5" />
+      <path d="M4 12a5 5 0 0 1 5 5M4 16a2 2 0 0 1 2 2" />
+      <path d="M4 20h.01" />
+    </>
+  ),
+  // Picture-in-picture: outer screen + inner window.
+  pip: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <rect x="12" y="11" width="7" height="6" rx="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // Info: circle with an "i".
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </>
+  ),
+  // Sleep timer: crescent moon.
+  timer: <path d="M20 14.5A7.5 7.5 0 1 1 9.5 4a6 6 0 0 0 10.5 10.5z" />,
+  // Tune: three slider rows with knobs.
+  tune: (
+    <>
+      <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h6M14 18h6" />
+      <circle cx="15" cy="6" r="2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="12" r="2" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="18" r="2" fill="currentColor" stroke="none" />
+    </>
+  ),
   // Checkmark.
   check: <path d="M5 13l4 4L19 7" />,
   // Close / X.
