@@ -14,6 +14,9 @@ import "../styles/tvRemoteFocus.css";
 import "./SeriesScreen.tv.css";
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
+import PosterCardWeb from "../presentation/components/PosterCard.web";
+import Hero from "../presentation/components/Hero.web";
+import { ss } from "../utils/scaleSize";
 
 const CAT_COLS = 4;
 const SER_COLS = 5;
@@ -41,6 +44,11 @@ export default function SeriesScreenTV({ navigation, route }) {
   } = useApp();
   const tvUseShelvesRef = useRef(tvUseShelves);
   useEffect(() => { tvUseShelvesRef.current = tvUseShelves; }, [tvUseShelves]);
+  // "All Series" pill opens the category-grid landing over the shelves (cheap;
+  // reuses loaded categories). Transient — does not touch the persisted toggle.
+  const [browseAll, setBrowseAll] = useState(false);
+  const browseAllRef = useRef(false);
+  useEffect(() => { browseAllRef.current = browseAll; }, [browseAll]);
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
 
@@ -442,9 +450,13 @@ export default function SeriesScreenTV({ navigation, route }) {
       return;
     }
     e.preventDefault();
-    if (KEY_BACK.has(k)) { navigation.goBack?.(); return; }
+    if (KEY_BACK.has(k)) {
+      if (browseAllRef.current) { setBrowseAll(false); }
+      else { navigation.goBack?.(); }
+      return;
+    }
     // Shelves own the browse view — VirtualShelves.tv handles its own D-pad.
-    if (tvUseShelvesRef.current) return;
+    if (tvUseShelvesRef.current && !browseAllRef.current) return;
     if (catZoneRef.current === "search") { handleSearchKey(k); return; }
     switch (k) {
       case KEY_LEFT:
@@ -1055,7 +1067,7 @@ export default function SeriesScreenTV({ navigation, route }) {
   }
 
   // ── Shelf browse view (Electron-parity, flag on) ───────────────────────────
-  if (tvUseShelves) {
+  if (tvUseShelves && !browseAll) {
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar">
@@ -1070,7 +1082,21 @@ export default function SeriesScreenTV({ navigation, route }) {
               onLoadMore={handleLoadMore}
               onSelect={(item) => openDetail(item)}
               onSeeAll={(id, name) => openGrid({ id, name })}
-              renderCard={(item, isFocused) => <ShelfCard item={item} isFocused={isFocused} />}
+              renderCard={(item, isFocused) => (
+                <PosterCardWeb item={item} isFocused={isFocused} width={ss(200)} onPress={openDetail} />
+              )}
+              renderHero={(item, { focusedButton }) => (
+                <Hero
+                  item={item}
+                  focusedButton={focusedButton}
+                  onPlay={() => item && openDetail(item)}
+                  onDetails={() => item && openDetail(item)}
+                />
+              )}
+              discoverItems={[{ id: "all_series", label: "All Series" }]}
+              onPill={() => setBrowseAll(true)}
+              onHeroPlay={(item) => item && openDetail(item)}
+              onHeroDetails={(item) => item && openDetail(item)}
             />
           )}
       </div>
