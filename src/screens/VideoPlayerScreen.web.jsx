@@ -15,6 +15,7 @@ import {
 } from "../playback/subtitleStyle";
 import { nextChannel, prevChannel, fetchNowNext } from "../playback/liveExtras";
 import { INITIAL_TV_NAV, tvNavReduce } from "../playback/tvSettingsNav";
+import { isMacCommand } from "../platform/adapters/input/keys";
 import {
   isPipSupported,
   enterPip,
@@ -575,6 +576,11 @@ export default function VideoPlayerScreen() {
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [isFsWeb, setIsFsWeb] = useState(false);
+  // Auto-hiding control cluster (web): visible on activity, fades after idle.
+  const [webControlsVisible, setWebControlsVisible] = useState(true);
+  const webHideTimerRef = useRef(null);
+  const openMenuRef = useRef(null);
+  const pausedRef = useRef(false);
   const rootRef = useRef(null);
   const pipSupported = isPipSupported(videoRef.current);
   const castSupported = isWebCastAvailable(videoRef.current);
@@ -1351,6 +1357,28 @@ export default function VideoPlayerScreen() {
     return () => v.removeEventListener("volumechange", onVol);
   }, [currentVideo?.url]);
 
+  // Reveal the control cluster and (re)start the idle-hide countdown. Stays put
+  // while a menu is open or the video is paused (checked via refs so the timer
+  // callback sees the latest values without re-creating this callback).
+  const showWebControls = useCallback(() => {
+    setWebControlsVisible(true);
+    clearTimeout(webHideTimerRef.current);
+    if (openMenuRef.current || pausedRef.current) return;
+    webHideTimerRef.current = setTimeout(() => setWebControlsVisible(false), 3500);
+  }, []);
+
+  // Force controls visible while a menu is open or paused; resume the countdown
+  // once both clear. Also clears the timer on unmount.
+  useEffect(() => {
+    if (openMenu || pausedRef.current) {
+      setWebControlsVisible(true);
+      clearTimeout(webHideTimerRef.current);
+    } else {
+      showWebControls();
+    }
+    return () => clearTimeout(webHideTimerRef.current);
+  }, [openMenu, tvPaused, showWebControls]);
+
   // ── Live: channel list + zap ────────────────────────────────────────────────
   // Live channels in stable order, restricted to entries that carry a stream_id
   // (the zap helpers key on stream_id). Falls back to the full channels list.
@@ -1386,6 +1414,7 @@ export default function VideoPlayerScreen() {
   // PiP and speed handlers it references — so none are in the temporal dead zone.
   useEffect(() => {
     const onKey = (e) => {
+      if (isMacCommand(e)) return; // ⌘ shares keyCode 91 with Back in the sim
       if (!currentVideo || !videoRef.current) return;
       const video = videoRef.current;
       const k = e.keyCode || e.which;
@@ -1907,6 +1936,8 @@ export default function VideoPlayerScreen() {
   // Mirror nav state + the descriptor into refs so the global keydown listener
   // (registered once, in capture phase) always reads the latest without needing
   // to re-subscribe each render.
+  openMenuRef.current = openMenu;
+  pausedRef.current = tvPaused;
   tvNavRef.current = tvNav;
   tvSettingsItemsRef.current = tvSettingsItems;
 
@@ -2120,7 +2151,11 @@ export default function VideoPlayerScreen() {
         </div>
       )}
 
-      <div style={S.videoWrapper}>
+      <div
+        style={{ ...S.videoWrapper, cursor: webControlsVisible ? "default" : "none" }}
+        onMouseMove={showWebControls}
+        onMouseLeave={() => { if (!openMenuRef.current && !pausedRef.current) setWebControlsVisible(false); }}
+      >
         <video
           ref={videoRef}
           autoPlay
@@ -2161,7 +2196,14 @@ export default function VideoPlayerScreen() {
         {/* Custom control cluster overlaid on the video: settings icon row on
             top of our own seek/time bar (native <video controls> is disabled). */}
         {!isFatal && (
-        <div style={S.controlsOverlay}>
+        <div
+          style={{
+            ...S.controlsOverlay,
+            opacity: webControlsVisible ? 1 : 0,
+            pointerEvents: webControlsVisible ? "auto" : "none",
+            transition: "opacity 250ms ease",
+          }}
+        >
         <div style={S.bottomBar}>
         <div style={S.dropdown} ref={speedRef}>
           <button style={S.iconBtn(openMenu === "speed")} onClick={() => setOpenMenu((m) => (m === "speed" ? null : "speed"))} title="Playback speed" aria-label="Playback speed">
