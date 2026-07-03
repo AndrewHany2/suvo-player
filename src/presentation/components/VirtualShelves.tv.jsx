@@ -16,7 +16,7 @@ import {
 import Icon from "../../ui/Icon";
 import { useTVInput } from "../../hooks/useTVInput";
 import { colors, fonts, fontWeights } from "../../ui/tokens";
-import { ss } from "../../utils/scaleSize";
+import { ss, useScale } from "../../utils/scaleSize";
 import { posterUrl, prefetchImage } from "../../utils/imagePrefetch";
 
 const SHELF_OVERSCAN = 8; // shelves kept mounted above/below the visible page
@@ -32,12 +32,7 @@ const ROW_HEIGHT_D = 40 + Math.round(POSTER_W * 1.5) + TITLE_H_D + 28;
 const HERO_H = 620; // Hero.web billboard height falls out of tokens.heroHeights.tv; this
                     // constant is used only as the fallback when the rails-top can't be measured.
 
-// Scaled (px) values used at render time.
-const CARD_W = ss(POSTER_W);
-const CARD_GAP = ss(CARD_GAP_D);
-const STRIDE = CARD_W + CARD_GAP;
 const PAD = PAD_D; // kept as design px; call sites wrap it in ss(PAD)
-const ROW_HEIGHT = ss(ROW_HEIGHT_D);
 const HERO_DEBOUNCE_MS = 150;
 
 const loadedLen = (s) => (Array.isArray(s?.items) ? s.items.length : 0);
@@ -79,6 +74,17 @@ export function VirtualShelvesTV({
   // Hero billboard is optional (Home reuses this shelf without one). When off,
   // its height drops out of the anchor-rows measurement and the scroll offset.
   const heroH = showHero ? HERO_H : 0;
+
+  // Scaled (px) layout values used at render time. Computed HERE (not at module
+  // scope) so they track the live SCALE: on a webOS cold start the app window is
+  // sized AFTER the bundle runs, so a module-load ss() would freeze at scale 1.
+  // useScale() subscribes this component to SCALE corrections and re-renders it,
+  // and ss() reads the corrected SCALE on that re-render. See scaleSize.js.
+  const scale = useScale();
+  const CARD_W = ss(POSTER_W);
+  const CARD_GAP = ss(CARD_GAP_D);
+  const STRIDE = CARD_W + CARD_GAP;
+  const ROW_HEIGHT = ss(ROW_HEIGHT_D);
   const containerRef = useRef(null);
   const railRefs = useRef({}); // shelfId -> rail DOM node
   const focusedCardRef = useRef(null); // DOM node of the currently focused card
@@ -153,7 +159,9 @@ export function VirtualShelvesTV({
       ro?.disconnect();
       globalThis.removeEventListener?.("resize", measure);
     };
-  }, []);
+    // `scale` in deps: measure() reads STRIDE/ROW_HEIGHT from the render scope, so
+    // re-run it when the scale corrects (webOS cold start) to recompute cols/rows.
+  }, [scale]);
 
   // Visible-row range around the current focus. On TV the vertical scroll is
   // derived from focus (see the Apply-scroll effect), so this tracks where the
@@ -254,7 +262,11 @@ export function VirtualShelvesTV({
       if (!node || id === focusedId) continue;
       node.scrollLeft = railScrollLeft.current[id] ?? 0;
     }
-  }, [focus, shelves, dims]);
+    // `scale` in deps: this effect's vertical scroll math uses ROW_HEIGHT, so a
+    // scale correction must re-run it with the corrected value. It already tracks
+    // `dims` (which changes when measure re-runs), but `scale` makes it explicit
+    // and independent of ResizeObserver timing.
+  }, [focus, shelves, dims, scale]);
 
   // Track chevron hint edges + raw scrollLeft from a rail's real geometry. No
   // window anchoring — rails mount all their loaded items now.
