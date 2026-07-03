@@ -12,6 +12,10 @@ import iptvApi from "../services/iptvApi";
 import tmdbApi from "../services/tmdbApi";
 import SeriesDetail from "../components/SeriesDetail.web";
 import TVPosterCard from "../components/TVPosterCard";
+import { getShelfConfig } from "../presentation/virtualization/shelfConfig.js";
+
+// ponytail: match Movies shelf card size — same source (ContentShelf.web uses this too)
+const SHELF_CARD_W = getShelfConfig("web").posterWidth;
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 
@@ -227,12 +231,12 @@ function Shelf({
                 key={String(item.series_id)}
                 item={item}
                 onPress={onPress}
-                width={ss(340)}
+                width={ss(SHELF_CARD_W)}
               />
             ))}
             {loadingMore && (
               <YStack
-                width={ss(340)}
+                width={ss(SHELF_CARD_W)}
                 aspectRatio={2 / 3}
                 borderRadius={ss(8)}
                 backgroundColor={colors.surface}

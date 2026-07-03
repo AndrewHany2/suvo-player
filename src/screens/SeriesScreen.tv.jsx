@@ -202,7 +202,6 @@ export default function SeriesScreenTV({ navigation, route }) {
   // categories (excluding the synthetic "all", whose rail would fetch the whole
   // catalog). Items load lazily per rail as it scrolls into VirtualShelves'
   // vertical window, reusing allItemsRef so drill-in ("see all") is cache-warm.
-  const SER_SHELF_PAGE = 12;
   const [shelves, setShelves] = useState([]);
   const shelfLoadedRef = useRef(new Set());
   useEffect(() => {
@@ -220,24 +219,17 @@ export default function SeriesScreenTV({ navigation, route }) {
     try {
       let all = allItemsRef.current.get(catId);
       if (!all) { all = await contentService.getSeriesByCategory(catId); allItemsRef.current.set(catId, all); }
-      const firstPage = (all || []).slice(0, SER_SHELF_PAGE);
+      const items = all || [];
       setShelves((prev) => prev.map((s) =>
-        s.id === catId ? { ...s, items: firstPage, totalCount: all.length, hasMore: all.length > SER_SHELF_PAGE } : s));
+        s.id === catId ? { ...s, items, totalCount: items.length, hasMore: false } : s));
     } catch {
       setShelves((prev) => prev.map((s) =>
         s.id === catId ? { ...s, items: [], totalCount: 0, hasMore: false } : s));
     }
   }, [contentService]);
 
-  const handleLoadMore = useCallback((catId) => {
-    const all = allItemsRef.current.get(catId);
-    if (!all) return;
-    setShelves((prev) => prev.map((s) => {
-      if (s.id !== catId) return s;
-      const nextItems = all.slice(0, (s.items?.length || 0) + SER_SHELF_PAGE);
-      return { ...s, items: nextItems, hasMore: nextItems.length < all.length };
-    }));
-  }, []);
+  // ponytail: VirtualShelvesTV windows the full array; no per-rail paging.
+  const handleLoadMore = useCallback(() => {}, []);
 
   const resetFilter = () => {
     filterLetterRef.current = "all";
