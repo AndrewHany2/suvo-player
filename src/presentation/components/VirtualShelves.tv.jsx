@@ -2,9 +2,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   scrollAnchor,
   windowFromAnchor,
+  computeWindow,
   clampCol,
   railEdges,
 } from "./shelfWindow.js";
+import { getShelfConfig } from "../virtualization/shelfConfig.js";
 import HeroTV from "./Hero.tv.jsx";
 import DiscoverPills from "./DiscoverPills.web";
 import { enterTopFromShelves, zoneMove, zoneActivate } from "./heroZone.js";
@@ -15,11 +17,9 @@ import { ss, useScale } from "../../utils/scaleSize";
 import { posterUrl, prefetchImage } from "../../utils/imagePrefetch";
 
 const SHELF_OVERSCAN = 8; // shelves kept mounted above/below the visible page
-const H_OVERSCAN = 6; // posters kept mounted ahead of the scroll on each side (focused rail)
 // Design px (authored at the 1920 reference); ss() scales them for the pinned
 // 1280 TV viewport that the browser upscales ×1.5 — matching web proportions.
 const POSTER_W = 340; // design px — sized so ~5 posters show per rail in one view
-const MAX_PER_SHELF = 8; // hard cap per category rail — no pagination / load-more on TV
 const CARD_GAP_D = 8; // design px gap — matches ContentShelf.web
 const PAD_D = 48; // design px rail horizontal inset
 const TITLE_H_D = 34; // design px poster title block (PosterCard.web: 2-line clamp)
@@ -36,20 +36,26 @@ const loadedLen = (s) => (Array.isArray(s?.items) ? s.items.length : 0);
 /**
  * D-pad-driven shelf list for TV Movies/Series.
  *
- * VERTICAL axis is NOT windowed: every shelf row renders, each at a fixed
- * ROW_HEIGHT, so a row is never unmounted out from under the scroll. A
- * scroll-derived range (`fetchWin` via windowFromAnchor, anchored to the SCROLL
- * position rather than the focused index) survives only as a FETCH/prefetch
- * gate: it drives per-rail lazy-load (onShelfVisible) and poster prefetch for the
- * rows near the viewport, so 100+ categories don't all fetch at once. It no
- * longer controls what mounts.
+ * Both axes are windowed, and both windows are anchored ONLY on the deterministic
+ * D-pad focus index (never on an async scrollLeft/scrollTop read). On TV the
+ * scroll position is DERIVED FROM focus (the Apply-scroll effect sets
+ * scrollTop/scrollLeft from focus), so a focus-anchored window cannot slide ahead
+ * of the real scroll — the focused card/row is inside the window by construction.
+ * This is the structural fix for the 2026-07-02 blank-poster bug, which came from
+ * windowing driven by scroll reads that lagged/led the real scroll.
  *
- * HORIZONTAL axis is NOT windowed: each rail renders all of its loaded items
- * directly. Rails stay bounded because the API pages them (handleShelfVisible +
- * handleLoadMore, ~8–16 items), so mounting them all is cheap and there is no
- * window to blank a still-visible poster. Horizontal scroll-into-view uses the
- * focused card's REAL DOM position (offsetLeft); chevron hints read the rail's
- * real scroll geometry (railEdges).
+ * VERTICAL axis: `fetchWin` (via windowFromAnchor, anchored on focus.shelfAnchor
+ * which the move handler maintains edge-based via scrollAnchor) gates BOTH render
+ * and fetch/prefetch. Only rows in the window mount; top/bottom spacer divs sized
+ * from ROW_HEIGHT stand in for the skipped rows so scroll geometry stays exact.
+ *
+ * HORIZONTAL axis: each rendered rail windows its FULL loaded array. The per-rail
+ * anchor comes from the column focus (live focus.col on the focused rail, the
+ * remembered column on idle rails) through scrollAnchor, then computeWindow adds
+ * overscan. Left/right flex spacers sized from STRIDE stand in for the off-window
+ * posters. Horizontal scroll-into-view uses the focused card's REAL DOM position
+ * (offsetLeft) — a read used only to position the scroll, never to size the
+ * window. Chevron hints read the rail's real scroll geometry (railEdges).
  */
 export function VirtualShelvesTV({
   shelves,
@@ -78,6 +84,7 @@ export function VirtualShelvesTV({
   // useScale() subscribes this component to SCALE corrections and re-renders it,
   // and ss() reads the corrected SCALE on that re-render. See scaleSize.js.
   const scale = useScale();
+  const cfg = getShelfConfig("tv"); // hOverscan for the horizontal rail window
   const CARD_W = ss(POSTER_W);
   const CARD_GAP = ss(CARD_GAP_D);
   const STRIDE = CARD_W + CARD_GAP;
@@ -86,6 +93,7 @@ export function VirtualShelvesTV({
   const railRefs = useRef({}); // shelfId -> rail DOM node
   const focusedCardRef = useRef(null); // DOM node of the currently focused card
   const colMemory = useRef({}); // shelfId -> remembered column
+  const railAnchorRef = useRef({}); // shelfId -> per-rail horizontal window anchor (hysteresis)
   const railScrollLeft = useRef({}); // shelfId -> last scrollLeft, kept in sync from onRailScroll
   const [focus, setFocus] = useState({ shelf: 0, col: 0, shelfAnchor: 0 });
   // Focus zones ABOVE the shelves (Hero buttons, Discover pills). zone:"shelves"
@@ -166,8 +174,10 @@ export function VirtualShelvesTV({
 
   // Visible-row range around the current focus. On TV the vertical scroll is
   // derived from focus (see the Apply-scroll effect), so this tracks where the
-  // user is. It now gates ONLY fetching + prefetch — the render below mounts all
-  // rows. Renamed from vWin: it is no longer a render window.
+  // user is. It gates BOTH render and fetch/prefetch: the render below mounts
+  // only shelves.slice(fetchWin.start, fetchWin.end) between top/bottom spacers.
+  // Because focus.shelfAnchor is maintained edge-based (scrollAnchor in `move`),
+  // the window is focus-anchored and cannot slide ahead of the derived scroll.
   const fetchWin = windowFromAnchor(
     focus.shelfAnchor,
     shelfCount,
@@ -212,7 +222,7 @@ export function VirtualShelvesTV({
   // cursor in the focused rail and the leading posters of rows near the
   // viewport, so cards mount already-decoded and paint instantly.
   useEffect(() => {
-    const ahead = dims.cols + H_OVERSCAN;
+    const ahead = dims.cols + cfg.hOverscan;
     const s = shelves[focus.shelf];
     if (Array.isArray(s?.items)) {
       for (
@@ -227,7 +237,7 @@ export function VirtualShelvesTV({
       if (!Array.isArray(row?.items)) continue;
       for (
         let c = 0;
-        c < Math.min(row.items.length, dims.cols + H_OVERSCAN);
+        c < Math.min(row.items.length, dims.cols + cfg.hOverscan);
         c++
       )
         prefetchImage(posterUrl(row.items[c]));
@@ -300,8 +310,10 @@ export function VirtualShelvesTV({
     // and independent of ResizeObserver timing.
   }, [focus, shelves, dims, scale]);
 
-  // Track chevron hint edges + raw scrollLeft from a rail's real geometry. No
-  // window anchoring — rails mount all their loaded items now.
+  // Track chevron hint edges + raw scrollLeft from a rail's real geometry. This
+  // is UI/edge-hint state ONLY — it never feeds the mount window (that is
+  // focus-anchored via scrollAnchor). scrollLeft is also used to restore idle
+  // rails in the Apply-scroll effect.
   const onRailScroll = useCallback(
     (id) => (e) => {
       const t = e.currentTarget;
@@ -329,8 +341,9 @@ export function VirtualShelvesTV({
           const len = loadedLen(cur);
           const nextCol = clampCol(prev.col + dCol, len);
           if (cur) colMemory.current[cur.id] = nextCol;
-          // Load-more intentionally disabled: each rail is hard-capped at
-          // MAX_PER_SHELF (see items.slice below), so there is nothing to page in.
+          // Load-more intentionally disabled: the rail renders a focus-anchored
+          // window over the FULL loaded array (see the rail map below), and
+          // Task 4 makes hasMore false, so there is nothing to page in.
           return { ...prev, col: nextCol };
         }
         // Up on the top shelf yields to the caller (e.g. focus the navbar) when a
@@ -471,18 +484,59 @@ export function VirtualShelvesTV({
         </div>
       )}
       <div ref={railsRef}>
-        {shelves.map((shelf, shelfIdx) => {
+        {/* Top spacer stands in for the shelves skipped above the window, so
+            railsRef.offsetTop and scrollTop = railsTop + shelfAnchor*ROW_HEIGHT
+            stay exact. */}
+        <div style={{ height: fetchWin.start * ROW_HEIGHT }} />
+        {shelves.slice(fetchWin.start, fetchWin.end).map((shelf, i) => {
+          const shelfIdx = fetchWin.start + i;
           const isFocusedShelf = shelfIdx === focus.shelf;
-          const items = (Array.isArray(shelf.items) ? shelf.items : []).slice(
-            0,
-            MAX_PER_SHELF,
+          // Horizontal window over the FULL loaded array (no 8-cap). Anchor comes
+          // from FOCUS via scrollAnchor — the focused rail follows live focus.col,
+          // idle rails use their remembered column — never from a scroll read.
+          const full = Array.isArray(shelf.items) ? shelf.items : [];
+          const railFocusCol = isFocusedShelf
+            ? focus.col
+            : colMemory.current[shelf.id] ?? 0;
+          const prevA = railAnchorRef.current[shelf.id] ?? 0;
+          // scrollAnchor only moves the anchor when focus would leave the visible
+          // page [anchor, anchor+cols), so the window can't slide ahead of focus.
+          const railAnchor = scrollAnchor(
+            prevA,
+            clampCol(railFocusCol, full.length),
+            dims.cols,
+            full.length,
           );
+          // Memoize hysteresis. scrollAnchor is idempotent and side-effect-free on
+          // its inputs, so writing the ref during render is safe (no tearing).
+          railAnchorRef.current[shelf.id] = railAnchor;
+          const w = computeWindow({
+            anchor: railAnchor,
+            total: full.length,
+            viewportCount: dims.cols,
+            overscan: cfg.hOverscan,
+          });
+          const winItems = full.slice(w.start, w.end);
+          // INVARIANT: the focused card must be mounted. scrollAnchor keeps
+          // focus.col in [railAnchor, railAnchor+cols) and computeWindow pads by
+          // overscan, so focus.col ∈ [w.start, w.end). Dev guard catches a future
+          // regression that would unmount the focused card (the 2026-07-02 bug).
+          if (
+            isFocusedShelf &&
+            full.length &&
+            !(focus.col >= w.start && focus.col < w.end)
+          ) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[VirtualShelvesTV] focused col ${focus.col} outside window [${w.start},${w.end}) — would unmount focused card`,
+            );
+          }
           // Scroll-hint chevrons: driven by the rail's REAL scroll geometry once
           // it has scrolled (railEdge). Before the first scroll event, fall back
           // to a coarse estimate (at start; overflow if more items than fit).
           const edge = railEdge[shelf.id];
           const moreLeft = edge ? edge.left : false;
-          const moreRight = edge ? edge.right : items.length > dims.cols;
+          const moreRight = edge ? edge.right : full.length > dims.cols;
           const wrapCls = [
             "tvl-shelf-rowwrap",
             moreLeft && "more-left",
@@ -517,7 +571,7 @@ export function VirtualShelvesTV({
                   size={ss(22)}
                   color={colors.accent2}
                 />
-                {items.length > 0 && (
+                {full.length > 0 && (
                   <span
                     style={{
                       marginLeft: ss(6),
@@ -527,7 +581,7 @@ export function VirtualShelvesTV({
                       fontSize: ss(13),
                     }}
                   >
-                    {items.length}
+                    {full.length}
                   </span>
                 )}
               </div>
@@ -548,15 +602,21 @@ export function VirtualShelvesTV({
                     scrollbarWidth: "none",
                   }}
                 >
-                  {items.map((item, col) => {
-                    const isFocused = isFocusedShelf && col === focus.col;
+                  {/* Left spacer stands in for the off-window posters before the
+                      window. Cards render at STRIDE (CARD_W + gap), so the spacer
+                      must be sized in STRIDE — NOT cfg.posterWidth — to keep the
+                      rail's scroll geometry and focusedCardRef.offsetLeft exact. */}
+                  <div style={{ flex: `0 0 ${w.leadingCount * STRIDE}px` }} />
+                  {winItems.map((item, i) => {
+                    const realCol = w.start + i; // absolute column index
+                    const isFocused = isFocusedShelf && realCol === focus.col;
                     // Key by absolute column, NOT by stream_id/id: IPTV catalogs can
                     // carry duplicate stream_ids, and a duplicate key makes React drop
                     // one card. Column index is unique within a rail and stable
                     // (items only ever append).
                     return (
                       <div
-                        key={col}
+                        key={realCol}
                         ref={isFocused ? focusedCardRef : null}
                         style={{ flex: `0 0 ${CARD_W}px` }}
                       >
@@ -564,6 +624,7 @@ export function VirtualShelvesTV({
                       </div>
                     );
                   })}
+                  <div style={{ flex: `0 0 ${w.trailingCount * STRIDE}px` }} />
                 </div>
                 <span
                   className="tvl-shelf-chev tvl-shelf-chev--left"
