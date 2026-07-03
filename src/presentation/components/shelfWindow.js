@@ -1,3 +1,5 @@
+export { computeWindow } from "../virtualization/windowMath.js";
+
 // Pure windowing + focus math for the horizontal rails (ContentShelf.web) and
 // the 2-D virtualized TV shelf list (VirtualShelves.tv). No DOM, no React —
 // unit-tested in isolation.
