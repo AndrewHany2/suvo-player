@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ss } from "../../utils/scaleSize";
-import { windowFromAnchor } from "./shelfWindow.js";
+import { useShelfWindow } from "../virtualization/useShelfWindow.js";
+import { getShelfConfig } from "../virtualization/shelfConfig.js";
 import { Spinner } from "../../ui/primitives";
 import { colors, fonts, fontWeights, radii } from "../../ui/tokens";
 import Icon from "../../ui/Icon";
@@ -28,8 +29,22 @@ export default function ContentShelf({
   // Horizontal virtualization: mount only a window of cards around the scroll
   // position so a deeply-scrolled rail can't mount hundreds of posters. Desktop
   // has headroom, so this is a safety optimization; behavior is unchanged.
-  const CARD_W = ss(290), CARD_GAP = ss(8), H_VISIBLE = 10, H_OVERSCAN = 3;
+  const cfg = getShelfConfig("web");
+  const CARD_W = ss(cfg.posterWidth), CARD_GAP = ss(cfg.posterGap);
+  const viewportCount = 10;
   const [firstVisible, setFirstVisible] = useState(0);
+
+  // Mount the visible page anchored to the scroll position, plus overscan on
+  // each side (rendered ahead of the scroll). Anchoring to firstVisible — not a
+  // focused index — guarantees the leftmost on-screen card is always mounted, so
+  // scrolling never leaves a blank gap at the edge. Shelves now hold the full
+  // array (hasMore is always false), so the window covers everything. Called
+  // unconditionally at the top level (before any early return) per Rules of Hooks.
+  const stride = CARD_W + CARD_GAP;
+  const { start, end, leadingPad, trailingPad } = useShelfWindow({
+    anchor: firstVisible, total: items ? items.length : 0,
+    viewportCount, overscan: cfg.hOverscan, stride,
+  });
 
   useEffect(() => {
     if (items !== null || manual) return;
@@ -77,19 +92,9 @@ export default function ContentShelf({
 
   const scrollBy = (delta) => { const el = railRef.current; if (el) el.scrollLeft = Math.max(0, el.scrollLeft + delta); };
   const handleScroll = (e) => {
-    const { scrollLeft, scrollWidth, clientWidth } = e.target;
+    const { scrollLeft } = e.target;
     setFirstVisible(Math.floor(scrollLeft / (CARD_W + CARD_GAP)));
-    if (!hasMore || loadingMore) return;
-    if (scrollWidth - scrollLeft - clientWidth < 500) onLoadMore?.();
   };
-
-  // Mount the visible page anchored to the scroll position, plus 3 posters of
-  // overscan on each side (rendered ahead of the scroll). Anchoring to
-  // firstVisible — not a focused index — guarantees the leftmost on-screen card
-  // is always mounted, so scrolling never leaves a blank gap at the edge.
-  const rw = windowFromAnchor(firstVisible, items ? items.length : 0, H_VISIBLE, H_OVERSCAN);
-  const leftPad = rw.start * (CARD_W + CARD_GAP);
-  const rightPad = Math.max(0, (items ? items.length : 0) - rw.end) * (CARD_W + CARD_GAP);
 
   return (
     <div style={{ paddingTop: ss(28), paddingBottom: ss(8) }}>
@@ -124,11 +129,11 @@ export default function ContentShelf({
             onDragStart={(e) => e.preventDefault()}
             style={{ display: "flex", overflowX: "auto", gap: ss(8), paddingLeft: ss(48), paddingRight: ss(48), paddingTop: ss(10), paddingBottom: ss(10), scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab", userSelect: "none" }}
           >
-            <div style={{ flex: `0 0 ${leftPad}px` }} />
-            {items.slice(rw.start, rw.end).map((item) => (renderItem
+            <div style={{ flex: `0 0 ${leadingPad}px` }} />
+            {items.slice(start, end).map((item) => (renderItem
               ? renderItem(item)
               : <PosterCard key={String(item.stream_id ?? item.id)} item={item} onPress={onPress} width={CARD_W} />))}
-            <div style={{ flex: `0 0 ${rightPad}px` }} />
+            <div style={{ flex: `0 0 ${trailingPad}px` }} />
             {loadingMore && (
               <div style={{ width: CARD_W, aspectRatio: "2/3", borderRadius: radii.sm, backgroundColor: colors.surface, border: `1px solid ${colors.border}`, display: "flex", justifyContent: "center", alignItems: "center" }}>
                 <Spinner size="small" color={colors.accent} />

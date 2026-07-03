@@ -12,6 +12,8 @@ import PosterCard from "../presentation/components/PosterCard.web";
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import MovieDetail from "../components/MovieDetail.web";
+import { useShelfWindow } from "../presentation/virtualization/useShelfWindow.js";
+import { getShelfConfig } from "../presentation/virtualization/shelfConfig.js";
 
 // Caps the browse content width on ultrawide monitors (centered via margin auto).
 const MAX_W = 1700;
@@ -139,9 +141,29 @@ export default function MoviesScreen({ navigation }) {
 
   useScale(); // re-render + recompute ss() on window resize
 
+  const [scrollTop, setScrollTop] = useState(0);
+  const scrollRef = useRef(null);
+  const listRef = useRef(null);
+
   const { focusedRow, focusedCol } = useTVNavigation({
     active: !categoryPage && !selectedMovie,
     rows: [{ items: discoverItems, onSelect: (i) => openCategory(discoverItems[i].id, discoverItems[i].label) }],
+  });
+
+  // Vertical shelf window: mount only shelves near the viewport, with spacer
+  // divs above/below preserving scroll geometry. listTop is the Discover
+  // section's height (distance from scroll top to the first shelf), measured off
+  // the wrapper's offsetTop. Called unconditionally, before the early returns
+  // below, per Rules of Hooks.
+  const vcfg = getShelfConfig("web");
+  const rowStride = ss(vcfg.rowHeight);
+  const viewportH = scrollRef.current?.clientHeight || (typeof window !== "undefined" ? window.innerHeight : 900);
+  const listTop = listRef.current?.offsetTop || 0;
+  const rowsVisible = Math.max(1, Math.ceil(viewportH / rowStride));
+  const vAnchor = Math.max(0, Math.floor((scrollTop - listTop) / rowStride));
+  const vWin = useShelfWindow({
+    anchor: vAnchor, total: shelves.length,
+    viewportCount: rowsVisible, overscan: vcfg.vOverscan, stride: rowStride,
   });
 
   if (loading) {
@@ -175,7 +197,11 @@ export default function MoviesScreen({ navigation }) {
 
   return (
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
-      <ScrollView flex={1} minHeight={0} contentContainerStyle={{ paddingBottom: ss(80) }}>
+      <ScrollView
+        ref={scrollRef}
+        onScroll={(e) => setScrollTop(e.nativeEvent.contentOffset.y)}
+        flex={1} minHeight={0} contentContainerStyle={{ paddingBottom: ss(80) }}
+      >
         <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
         <YStack paddingHorizontal={ss(48)} paddingTop={ss(24)} paddingBottom={ss(4)}>
           <Text color={colors.text} fontSize={ss(22)} fontWeight="700" letterSpacing={-0.3} marginBottom={ss(12)}>Discover</Text>
@@ -187,17 +213,22 @@ export default function MoviesScreen({ navigation }) {
         </YStack>
         <YStack>
           {shelves.length > 0 ? (
-            shelves.map((shelf) => (
-              <ContentShelf
-                key={shelf.id}
-                title={shelf.name} count={shelf.totalCount} items={shelf.items}
-                hasMore={shelf.hasMore} loadingMore={shelf.loadingMore} manual={false}
-                onVisible={() => handleShelfVisible(shelf.id)}
-                onPress={selectMovie}
-                onTitlePress={() => openCategory(shelf.id, shelf.name)}
-                onLoadMore={() => handleLoadMore(shelf.id)}
-              />
-            ))
+            <div ref={listRef}>
+              <div style={{ height: vWin.leadingPad }} />
+              {shelves.slice(vWin.start, vWin.end).map((shelf) => (
+                <div key={shelf.id} style={{ height: rowStride, overflow: "visible" }}>
+                  <ContentShelf
+                    title={shelf.name} count={shelf.totalCount} items={shelf.items}
+                    hasMore={shelf.hasMore} loadingMore={shelf.loadingMore} manual={false}
+                    onVisible={() => handleShelfVisible(shelf.id)}
+                    onPress={selectMovie}
+                    onTitlePress={() => openCategory(shelf.id, shelf.name)}
+                    onLoadMore={() => handleLoadMore(shelf.id)}
+                  />
+                </div>
+              ))}
+              <div style={{ height: vWin.trailingPad }} />
+            </div>
           ) : (
             <StatePanel mode="empty" icon="film" title="No movies found" />
           )}

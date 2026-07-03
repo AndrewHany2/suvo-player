@@ -4,7 +4,7 @@
 // focused card sits comfortably inside the mounted window.
 
 const CONFIG = {
-  web:    { hOverscan: 4, vOverscan: 2, posterWidth: 290, posterGap: 8,  rowHeight: 360 },
+  web:    { hOverscan: 4, vOverscan: 2, posterWidth: 290, posterGap: 8,  rowHeight: 560 },
   native: { hOverscan: 4, vOverscan: 2, posterWidth: 150, posterGap: 10, rowHeight: 240 },
   tv:     { hOverscan: 6, vOverscan: 2, posterWidth: 340, posterGap: 12, rowHeight: 520 },
 };
