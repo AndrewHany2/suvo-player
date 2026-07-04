@@ -36,6 +36,13 @@ import { stepCap } from './backoff.js';
 export const BUFFERING_DOWNGRADE_THRESHOLD = 3;
 
 /**
+ * Minimum currentTime advance (seconds) that counts as real playback progress
+ * while recovering/buffering. Absorbs sub-second poll jitter so a frozen,
+ * stalled engine isn't misread as recovered.
+ */
+export const PROGRESS_EPSILON = 0.05;
+
+/**
  * @typedef {'idle'|'loading'|'playing'|'buffering'|'recovering'|'fatal'} PlayerState
  */
 
@@ -142,6 +149,17 @@ export function reduce(state, event) {
 
     case 'PROGRESS': {
       const t = typeof event.currentTime === 'number' ? event.currentTime : s.savedTime;
+      // A stalled engine keeps polling `currentTime` at a frozen value. While
+      // recovering/buffering, only *advancing* time proves the stream came back
+      // — a repeated frozen sample must NOT be mistaken for recovery, or it
+      // cancels the scheduled RELOAD and the retry ladder never runs. Stay put
+      // and leave the pending retry armed. (~0.05s absorbs poll jitter.)
+      if (
+        (s.state === 'recovering' || s.state === 'buffering') &&
+        t <= s.savedTime + PROGRESS_EPSILON
+      ) {
+        return { state: s, effects };
+      }
       // Sustained progress while playing = stable: reset attempts, clear the
       // buffering streak, and step the quality cap back up one rung.
       let next = { ...s, savedTime: t, state: 'playing' };

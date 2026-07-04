@@ -4,6 +4,7 @@ import {
   getUserId,
   adminClient,
   assertBoundDevice,
+  assertOwnsUserKey,
   json,
   corsPreflight,
 } from "../_shared/deviceGate.ts";
@@ -63,6 +64,7 @@ Deno.serve(async (req) => {
       case "iptv.list": {
         const { data } = await db("iptv_accounts")
           .select("*")
+          .eq("user_id", userId)
           .eq("profile_id", payload.profileId)
           .order("created_at", { ascending: true });
         return json(
@@ -106,6 +108,7 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
       case "history.fetch": {
+        await assertOwnsUserKey(admin, userId, payload.userKey);
         const { data } = await db("watch_history")
           .select("entry")
           .eq("user_key", payload.userKey)
@@ -114,6 +117,7 @@ Deno.serve(async (req) => {
         return json((data ?? []).map((r: any) => r.entry));
       }
       case "history.upsert": {
+        await assertOwnsUserKey(admin, userId, payload.userKey);
         await db("watch_history").upsert(
           {
             user_key: payload.userKey,
@@ -126,6 +130,7 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
       case "history.delete": {
+        await assertOwnsUserKey(admin, userId, payload.userKey);
         await db("watch_history")
           .delete()
           .eq("user_key", payload.userKey)
@@ -133,6 +138,7 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
       case "favorites.fetch": {
+        await assertOwnsUserKey(admin, userId, payload.userKey);
         const { data } = await db("favorites")
           .select("entry")
           .eq("user_key", payload.userKey)
@@ -140,6 +146,7 @@ Deno.serve(async (req) => {
         return json((data ?? []).map((r: any) => r.entry));
       }
       case "favorites.upsert": {
+        await assertOwnsUserKey(admin, userId, payload.userKey);
         await db("favorites").upsert(
           {
             user_key: payload.userKey,
@@ -152,6 +159,7 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
       case "favorites.delete": {
+        await assertOwnsUserKey(admin, userId, payload.userKey);
         await db("favorites")
           .delete()
           .eq("user_key", payload.userKey)
@@ -165,6 +173,7 @@ Deno.serve(async (req) => {
     const msg = (e as Error).message;
     if (msg === "Unauthorized") return json({ error: "Unauthorized" }, 401);
     if (msg === "DEVICE_MISMATCH") return json({ error: "DEVICE_MISMATCH" }, 403);
+    if (msg === "FORBIDDEN") return json({ error: "FORBIDDEN" }, 403);
     return json({ error: "SERVER_ERROR" }, 500);
   }
 });

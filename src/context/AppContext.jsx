@@ -39,15 +39,8 @@ export const AppProvider = ({ children }) => {
 
   // ─── Content ───────────────────────────────────────────────────────────────
   const [channels, setChannels]       = useState([]);
-  const [filteredChannels, setFilteredChannels] = useState([]);
   const [users, setUsers]             = useState([]);
   const [activeUserId, setActiveUserId] = useState(null);
-  const [movieCategories, setMovieCategories]   = useState([]);
-  const [movies, setMovies]                     = useState([]);
-  const [currentMovieCategory, setCurrentMovieCategory] = useState(null);
-  const [seriesCategories, setSeriesCategories] = useState([]);
-  const [series, setSeries]                     = useState([]);
-  const [currentSeriesCategory, setCurrentSeriesCategory] = useState(null);
   // TV layout preference: shelves (Electron-parity) vs. the current grid.
   // Persisted so on-device A/B needs no rebuild. Default true = shelves (Electron-parity).
   const [tvUseShelves, setTvUseShelvesState] = useState(true);
@@ -566,21 +559,12 @@ export const AppProvider = ({ children }) => {
   // lose the last few seconds of watch position on app teardown.
   useEffect(() => () => { flushProgress(); }, [flushProgress]);
 
-  useEffect(() => {
-    const q = searchQuery.trim().toLowerCase();
-    setFilteredChannels(q ? channels.filter((ch) => ch.name.toLowerCase().includes(q)) : channels);
-  }, [searchQuery, channels]);
-
   // ─── Context value ─────────────────────────────────────────────────────────
   const value = useMemo(() => ({
     authUser, authLoading, profile, deviceStatus, signIn, signUp, signOut,
     appProfiles, activeProfileId, activeProfile, switchProfile, addProfile, updateProfile, removeProfile,
-    channels, setChannels, filteredChannels,
+    channels, setChannels,
     users, setUsers, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser,
-    movieCategories, setMovieCategories, movies, setMovies,
-    currentMovieCategory, setCurrentMovieCategory,
-    seriesCategories, setSeriesCategories, series, setSeries,
-    currentSeriesCategory, setCurrentSeriesCategory,
     currentSeries, setCurrentSeries,
     watchHistory, addToWatchHistory, updateWatchProgress, removeFromWatchHistory,
     flushProgress, refetchLibrary, isSyncing,
@@ -592,7 +576,7 @@ export const AppProvider = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [authUser, authLoading, profile, deviceStatus, appProfiles, activeProfileId, activeProfile,
     tvUseShelves,
-    channels, filteredChannels,
+    channels,
     users, activeUserId, watchHistory, isSyncing, myList, currentVideo,
     searchQuery, isLoading, error,
     signIn, signUp, signOut, switchProfile, addProfile, updateProfile, removeProfile,

@@ -2,6 +2,7 @@
 // SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are injected
 // automatically into deployed functions — no manual secrets needed.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { userKeyIsAuthorized } from "./authz.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -65,4 +66,29 @@ export async function assertBoundDevice(
     .update({ last_seen_at: new Date().toISOString() })
     .eq("user_id", userId)
     .eq("device_id", deviceId);
+}
+
+// Throws FORBIDDEN unless the client-supplied library `userKey` belongs to the
+// authenticated user — i.e. it is their own auth id, or an app_profile they
+// own. Without this, a bound caller could read/write another account's watch
+// history or favorites by passing a foreign userKey (service role bypasses RLS).
+export async function assertOwnsUserKey(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+  userKey: string,
+) {
+  if (!userKey) throw new Error("FORBIDDEN");
+  let appProfileOwnerId: string | null = null;
+  if (userKey !== userId) {
+    const { data, error } = await admin
+      .from("app_profiles")
+      .select("user_id")
+      .eq("id", userKey)
+      .maybeSingle();
+    if (error) throw new Error("SERVER_ERROR");
+    appProfileOwnerId = data?.user_id ?? null;
+  }
+  if (!userKeyIsAuthorized(userKey, userId, appProfileOwnerId)) {
+    throw new Error("FORBIDDEN");
+  }
 }

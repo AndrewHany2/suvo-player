@@ -89,6 +89,36 @@ describe("self-recovery cancels a pending retry", () => {
   });
 });
 
+describe("stalled progress does not defeat recovery", () => {
+  test("PROGRESS with unchanged currentTime while recovering stays recovering and leaves the retry armed", () => {
+    let s = initialState();
+    s = reduce(s, { type: "PLAYING" }).state;
+    s = reduce(s, { type: "PROGRESS", currentTime: 100 }).state;
+    // A stall enters recovering and schedules a reload.
+    const stall = reduce(s, { type: "STALL" });
+    assert.equal(stall.state.state, "recovering");
+    assert.ok(effect(stall.effects, "SCHEDULE_RETRY"));
+    // The 1s progress poll fires with the SAME frozen currentTime because the
+    // stream is genuinely stalled. This must NOT be mistaken for recovery.
+    const r = reduce(stall.state, { type: "PROGRESS", currentTime: 100 });
+    assert.equal(r.state.state, "recovering");
+    assert.ok(!effect(r.effects, "CANCEL_RETRY"));
+    assert.ok(!effect(r.effects, "HIDE_RECONNECTING"));
+  });
+
+  test("PROGRESS with advanced currentTime while recovering recovers and cancels the retry", () => {
+    let s = initialState();
+    s = reduce(s, { type: "PLAYING" }).state;
+    s = reduce(s, { type: "PROGRESS", currentTime: 100 }).state;
+    const stall = reduce(s, { type: "STALL" });
+    // Time genuinely advances past the saved position -> real self-recovery.
+    const r = reduce(stall.state, { type: "PROGRESS", currentTime: 100.5 });
+    assert.equal(r.state.state, "playing");
+    assert.ok(effect(r.effects, "CANCEL_RETRY"));
+    assert.ok(effect(r.effects, "HIDE_RECONNECTING"));
+  });
+});
+
 describe("GONE -> fatal", () => {
   test("404 raw error goes fatal", () => {
     let s = initialState();
