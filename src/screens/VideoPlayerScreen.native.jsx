@@ -38,6 +38,10 @@ const MODAL_ORIENTATIONS = ["portrait", "landscape"];
 // Namespaced storage key remembering the last-watched live channel stream id.
 const LAST_CHANNEL_KEY = "player_last_live_channel";
 
+// Valid expo-video VideoView contentFit values (module scope so its identity is
+// stable — a per-render array literal would churn effect/callback deps).
+const VALID_CONTENT_FITS = ["contain", "cover", "fill"];
+
 // Gesture tuning. Pixels of vertical travel that map to the full 0..1 range for
 // volume/brightness, and the horizontal pixels-per-second mapping for seek.
 const VERT_SWIPE_RANGE_PX = 220;
@@ -151,7 +155,7 @@ export default function VideoPlayerScreen({ navigation }) {
     controlsTimerRef.current = setTimeout(() => setShowControls(false), 4000);
   }, []);
 
-  useEffect(() => { resetControlsTimer(); return () => clearTimeout(controlsTimerRef.current); }, []);
+  useEffect(() => { resetControlsTimer(); return () => clearTimeout(controlsTimerRef.current); }, [resetControlsTimer]);
 
   // Transient gesture indicator helper.
   const flashHint = useCallback((kind, label) => {
@@ -231,6 +235,9 @@ export default function VideoPlayerScreen({ navigation }) {
       }
     });
     return () => { sub?.remove(); clearInterval(progressIntervalRef.current); };
+  // Keyed on the URL, not the whole currentVideo object: re-subscribe only when
+  // the actual stream changes, not on every metadata-object identity change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player, currentVideo?.url, updateWatchProgress]);
 
   useEffect(() => {
@@ -239,6 +246,9 @@ export default function VideoPlayerScreen({ navigation }) {
       hasAddedToHistory.current = true;
       addToWatchHistory({ ...currentVideo, currentTime: currentVideo.startTime || 0 });
     }
+  // Run once per distinct stream (keyed on URL); the hasAddedToHistory ref
+  // guards re-entry within the same stream.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentVideo?.url]);
 
   useEffect(() => {
@@ -268,7 +278,6 @@ export default function VideoPlayerScreen({ navigation }) {
 
   // ---- Group 1: aspect ratio is a VideoView prop (contentFit), not a player
   //      property in expo-video. Hold it in state and feed it to <VideoView>. ----
-  const VALID_CONTENT_FITS = ["contain", "cover", "fill"];
   const [contentFit, setContentFit] = useState("contain");
 
   useEffect(() => {
@@ -382,6 +391,9 @@ export default function VideoPlayerScreen({ navigation }) {
     if (!player || !currentVideo) return;
     const sub = player.addListener("playToEnd", () => { if (currentVideo.type === "series" && getNextEpisode()) handleNextEpisode(); });
     return () => sub?.remove();
+  // Keyed on the URL so the playToEnd listener is re-bound per stream, not on
+  // every currentVideo object identity change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player, currentVideo?.url, handleNextEpisode, getNextEpisode]);
 
   // ---- Group 4: live channel zap (prev/next) ----
@@ -505,9 +517,9 @@ export default function VideoPlayerScreen({ navigation }) {
         ? Math.max(0, player.bufferedPosition - player.currentTime)
         : undefined,
     };
-  }, [showStats, player, playback.qualityCap, playback.currentTime]);
+  }, [showStats, player, playback.qualityCap]);
 
-  useEffect(() => { if (!currentVideo) navigation.goBack(); }, [currentVideo]);
+  useEffect(() => { if (!currentVideo) navigation.goBack(); }, [currentVideo, navigation]);
 
   // ---- Group 3: touch gestures via PanResponder (no new deps) ----
   const brightnessRef = useRef(null); // lazy-loaded expo-brightness module
