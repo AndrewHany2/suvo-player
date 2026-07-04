@@ -94,6 +94,9 @@ export default function AccountsScreenTV({ navigation }) {
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
+  // Single capture-phase key router bound once; it dispatches through viewRef
+  // and the zone handlers read live state via refs, so deps stay empty.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── List keys ──────────────────────────────────────────────────────────────

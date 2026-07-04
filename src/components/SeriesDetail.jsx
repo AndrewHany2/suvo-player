@@ -75,6 +75,9 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
     };
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
+  // Re-bound on the state the handler branches on; handleContinue/onBack are
+  // stable for the mount, so they're intentionally omitted to avoid churn.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showEpisodes, isLoading, historyEntry]);
   const trailer = getTrailerUrl(data.youtube_trailer);
 

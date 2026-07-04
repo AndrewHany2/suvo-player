@@ -437,6 +437,9 @@ export default function AppNavigator() {
       document.removeEventListener("keydown", onBack, true);
       window.removeEventListener("popstate", onPop);
     };
+  // Mount-once webOS Back/history handler; isTV is a stable platform constant.
+  // Re-binding here would disturb the pushState trap, so deps stay empty.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Content signals "go to nav" by dispatching this custom event
@@ -504,6 +507,8 @@ export default function AppNavigator() {
     };
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
+  // Re-bound on navFocused; the IDX_*/NAV_TOTAL layout constants are stable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navFocused]);
 
   // Accounts and Settings own the remote themselves while open (each drives its

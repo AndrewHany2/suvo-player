@@ -21,6 +21,9 @@ const ChannelCard = memo(({ item, epg, onPress, fetchEpg }) => {
   const sid = item.stream_id || item.id;
   const inFav = isInMyList("live", sid);
 
+  // Fetch EPG once per channel (keyed on sid); epg is only a "not yet loaded"
+  // guard and fetchEpg is a stable prop, so neither belongs in the deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (epg === undefined && fetchEpg) fetchEpg(sid); }, [sid]);
 
   const toggleFav = (e) => {

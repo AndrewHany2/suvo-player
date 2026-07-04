@@ -114,6 +114,9 @@ export default function AccountsScreen({ navigation }) {
     };
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
+  // Re-bound on formData/loading, so handleSave is captured fresh; adding the
+  // per-render handleSave identity would only churn the listener.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showForm, formData, loading]);
 
   const inputStyle = {

@@ -111,6 +111,8 @@ export default function AuthScreen() {
     };
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
+  // Re-bound on the form fields/mode/loading, so handleSubmit is captured fresh.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username, email, password, confirmPassword, mode, loading]);
 
   // Shared, tokenized input styling so every field reads identically. Resting

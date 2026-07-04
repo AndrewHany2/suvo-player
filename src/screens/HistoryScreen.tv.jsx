@@ -257,6 +257,9 @@ export default function HistoryScreenTV({ navigation }) {
       document.removeEventListener("keydown", onKey);
       globalThis.removeEventListener("tv-nav-blur", onNavBlur);
     };
+  // Single key router bound once; the detail handlers read live state via refs
+  // (navActiveRef etc.), so the deps stay empty by design.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Movie detail navigation ───────────────────────────────────────────────

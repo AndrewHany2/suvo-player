@@ -59,6 +59,9 @@ export default function MovieDetail({ item, onBack, onPlay }) {
     };
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
+  // Re-bound on the state the handler branches on; handlePlay/onBack are stable
+  // for the mount, so they're intentionally omitted to avoid listener churn.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeTime, isLoading]);
 
   const handlePlay = (startTime) => {

@@ -29,6 +29,9 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
   const sid = item.stream_id || item.id;
   const inFav = isInMyList("live", sid);
 
+  // Fetch EPG once per channel (keyed on sid); epg is only a "not yet loaded"
+  // guard and fetchEpg is a stable prop, so neither belongs in the deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (epg === undefined && fetchEpg) fetchEpg(sid);
   }, [sid]);
@@ -216,6 +219,8 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
     return () => obs.disconnect();
   }, [cat.id, channels, onVisible]);
 
+  // Re-attach drag handlers once the shelf transitions from loading to loaded.
+  const channelsLoaded = channels !== null;
   useEffect(() => {
     const el = railRef.current;
     if (!el) return;
@@ -255,7 +260,7 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [channels !== null]);
+  }, [channelsLoaded]);
 
   if (channels !== null && !channels.length) return null;
 
@@ -366,9 +371,10 @@ export default function LiveTVScreen({ navigation }) {
   // channels); the hook owns the provider category list, so custom entries live
   // here and are merged into the rendered list below.
   const [customCats, setCustomCats] = useState([]);
-  const categories = customCats.length
-    ? [...baseCategories, ...customCats]
-    : baseCategories;
+  const categories = useMemo(
+    () => (customCats.length ? [...baseCategories, ...customCats] : baseCategories),
+    [customCats, baseCategories],
+  );
   const {
     setChannels,
     saveChannels,

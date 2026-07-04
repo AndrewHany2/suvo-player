@@ -103,6 +103,9 @@ export default function MoviesScreenTV({ navigation, route }) {
         navigation.setParams({ openDetail: false });
       }, 100);
     }
+  // Deep-link handler: fire only when the openDetail flag flips, reading the
+  // other route params at that moment; not on every param/navigation change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.params?.openDetail]);
 
   const openCat = async (cat) => {

@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef, useMemo } from "react";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { useApp } from "../context/AppContext";
 import { useSeries } from "../domain/hooks/useSeries";
@@ -105,14 +105,18 @@ export default function SeriesScreenTV({ navigation, route }) {
 
   // Category cards: the shared hook's shelves carry the real {id,name}; prepend
   // the synthetic "All Series" landing (its grid fetches the whole catalog).
-  const cats = categories.length
-    ? [{ id: "all", name: "All Series" }, ...categories]
-    : categories;
+  const cats = useMemo(
+    () => (categories.length ? [{ id: "all", name: "All Series" }, ...categories] : categories),
+    [categories],
+  );
   // Category cards filtered by the search query — "All Series" stays pinned.
   const q = query.trim().toLowerCase();
-  const visibleCats = q && cats.length
-    ? [cats[0], ...cats.slice(1).filter((c) => c.name?.toLowerCase().includes(q))]
-    : cats;
+  const visibleCats = useMemo(
+    () => (q && cats.length
+      ? [cats[0], ...cats.slice(1).filter((c) => c.name?.toLowerCase().includes(q))]
+      : cats),
+    [q, cats],
+  );
 
   useEffect(() => {
     catsRef.current = visibleCats;
@@ -151,6 +155,9 @@ export default function SeriesScreenTV({ navigation, route }) {
         navigation.setParams({ openDetail: false });
       }, 100);
     }
+  // Deep-link handler: fire only when the openDetail flag flips, reading the
+  // other route params at that moment; not on every param/navigation change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route?.params?.openDetail]);
 
   // ── Open category grid ────────────────────────────────────────────────────
@@ -336,6 +343,9 @@ export default function SeriesScreenTV({ navigation, route }) {
       document.removeEventListener("keydown", onKey);
       globalThis.removeEventListener("tv-nav-blur", onNavBlur);
     };
+  // Single key router bound once; handleCatKey/handleGridKey/handleDetailKey
+  // read live state via refs, so the deps stay empty by design.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Category grid ─────────────────────────────────────────────────────────
