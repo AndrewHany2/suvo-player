@@ -572,7 +572,8 @@ export default function MoviesScreenTV({ navigation, route }) {
               )}
               showHero={false}
               discoverItems={[{ id: "all", label: "All Movies" }]}
-              onPill={() => setBrowseAll(true)}
+              onPill={() => openCat({ id: "all", name: "All Movies" })}
+              onUpAtTop={yieldFocusToNav}
             />
           )}
       </div>

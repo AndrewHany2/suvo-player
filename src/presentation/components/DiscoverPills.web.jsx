@@ -28,14 +28,15 @@ function iconFor(id) {
 export default function DiscoverPills({ items, focusedCol = -1, onSelect }) {
   const tv = isTV();
   return (
-    <XStack gap={ss(10)} flexWrap="wrap">
+    <XStack gap={ss(tv ? 14 : 10)} flexWrap="wrap">
       {items.map((pill, idx) => {
         const focused = focusedCol === idx;
         return (
           <XStack
             key={pill.id}
-            alignItems="center" gap={ss(10)} paddingHorizontal={ss(18)} paddingVertical={ss(11)}
-            backgroundColor={accentAlpha(0.08)} borderWidth={1}
+            alignItems="center" gap={ss(tv ? 12 : 10)} paddingHorizontal={ss(tv ? 26 : 18)} paddingVertical={ss(tv ? 16 : 11)}
+            backgroundColor={focused ? accentAlpha(0.22) : accentAlpha(0.08)}
+            borderWidth={1} borderStyle="solid"
             borderColor={focused ? colors.accent2 : accentAlpha(0.28)}
             borderRadius={radii.pill} cursor="pointer"
             onPress={() => onSelect?.(pill)}
@@ -52,9 +53,9 @@ export default function DiscoverPills({ items, focusedCol = -1, onSelect }) {
             }}
             {...{ className: "lumen-load-cta" }}
           >
-            <Icon name={iconFor(pill.id)} size={ss(16)} color={colors.accent2} />
-            <Text color={colors.text} fontSize={ss(13)} fontWeight={fontWeights.medium} fontFamily={fonts.body} letterSpacing={0.1}>{pill.label}</Text>
-            <Icon name="chevron-right" size={ss(16)} color={colors.accent} />
+            <Icon name={iconFor(pill.id)} size={ss(tv ? 22 : 16)} color={colors.accent2} />
+            <Text color={colors.text} fontSize={ss(tv ? 18 : 13)} fontWeight={fontWeights.medium} fontFamily={fonts.body} letterSpacing={0.1}>{pill.label}</Text>
+            <Icon name="chevron-right" size={ss(tv ? 22 : 16)} color={colors.accent} />
           </XStack>
         );
       })}

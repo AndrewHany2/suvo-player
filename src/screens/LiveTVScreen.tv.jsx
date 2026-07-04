@@ -6,6 +6,7 @@ import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
+import { isMacCommand } from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
 import "../styles/tvRemoteFocus.css";
@@ -164,6 +165,7 @@ export default function LiveTVScreenTV({ navigation }) {
 
   useEffect(() => {
     const onKey = (e) => {
+      if (isMacCommand(e)) return; // ⌘ shares keyCode 91 with Back in the sim
       const k = e.keyCode || e.which;
       if (navActiveRef.current) return;
       if (currentVideoRef.current) return;

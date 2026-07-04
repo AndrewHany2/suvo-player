@@ -3,10 +3,11 @@ import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 import { useContentService } from "../domain/hooks/useContentService";
 import Icon from "../ui/Icon";
-import ShelfCard from "../presentation/components/ShelfCard.tv";
+import PosterCardWeb from "../presentation/components/PosterCard.web";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import StatePanel from "../ui/StatePanel";
 import { colors } from "../ui/tokens";
+import { isMacCommand } from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
 import "../styles/tvRemoteFocus.css";
@@ -239,6 +240,7 @@ export default function HistoryScreenTV({ navigation }) {
   // ── D-pad key handler ─────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
+      if (isMacCommand(e)) return; // ⌘ shares keyCode 91 with Back in the sim
       if (navActiveRef.current) return;
       if (currentVideoRef.current) return;
       const k = e.keyCode || e.which;
@@ -752,7 +754,9 @@ export default function HistoryScreenTV({ navigation }) {
         onSelect={openItem}
         onUpAtTop={focusNav}
         onBack={() => navigation.goBack?.()}
-        renderCard={(item, isFocused) => <ShelfCard item={item} isFocused={isFocused} />}
+        renderCard={(item, isFocused, cardW) => (
+          <PosterCardWeb item={item} isFocused={isFocused} width={cardW} onPress={openItem} />
+        )}
       />
     </div>
   );

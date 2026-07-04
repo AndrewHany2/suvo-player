@@ -105,6 +105,27 @@ export function createExpoVideoDriver(player, opts = {}) {
   // (see setQualityCap below).
   let requestedCap = 'auto';
 
+  // Play intent. A single play() issued immediately after replace() on a
+  // freshly-created (null-source) player is unreliable: the item may not exist
+  // yet, so the call is dropped (or throws and is swallowed), leaving the player
+  // at readyToPlay but paused — the source loads, the spinner hides, and nothing
+  // ever starts. We track whether we WANT to be playing and re-assert play() the
+  // moment the player reaches readyToPlay. Cleared by pause().
+  let wantPlay = false;
+  try {
+    player?.addListener?.('statusChange', (payload) => {
+      if (payload?.status === 'readyToPlay' && wantPlay) {
+        try {
+          player.play();
+        } catch {
+          /* play() on a released/torn-down player throws; ignore */
+        }
+      }
+    });
+  } catch {
+    /* addListener unavailable on this build */
+  }
+
   // ── lifecycle / transport ─────────────────────────────────────────────────
   /**
    * @param {PlayerSource} source
@@ -114,6 +135,10 @@ export function createExpoVideoDriver(player, opts = {}) {
     if (!player || !source) return;
     const uri = typeof source === 'string' ? source : source.uri;
     if (!uri) return;
+    // We intend to play this source; the readyToPlay listener above re-asserts
+    // play() once the pipeline is actually ready, in case the immediate play()
+    // below is dropped (item not yet loaded on a freshly-replaced source).
+    wantPlay = true;
     // replace() swaps the active source and re-initialises the pipeline — this
     // is how recovery RELOADs the stream after an error/stall.
     try {
@@ -139,6 +164,7 @@ export function createExpoVideoDriver(player, opts = {}) {
   }
 
   function play() {
+    wantPlay = true;
     try {
       player?.play();
     } catch {
@@ -147,6 +173,7 @@ export function createExpoVideoDriver(player, opts = {}) {
   }
 
   function pause() {
+    wantPlay = false;
     try {
       player?.pause();
     } catch {
@@ -155,27 +182,50 @@ export function createExpoVideoDriver(player, opts = {}) {
   }
 
   // ── getters ────────────────────────────────────────────────────────────────
+  // NOTE: expo-video player properties are backed by a native SharedObject.
+  // Reading one before a source is loaded, or after the player is released,
+  // throws NativeSharedObjectNotFoundException — the optional-chain (`player?.`)
+  // does NOT catch that (player is a live JS object; the *getter* throws). Every
+  // getter below must be try/catch-guarded so a lifecycle race can never crash
+  // the render or a poll callback. Return the same safe defaults as a missing
+  // player.
   function currentTime() {
-    const t = player?.currentTime;
-    return typeof t === 'number' && Number.isFinite(t) ? t : 0;
+    try {
+      const t = player?.currentTime;
+      return typeof t === 'number' && Number.isFinite(t) ? t : 0;
+    } catch {
+      return 0;
+    }
   }
 
   function duration() {
-    const d = player?.duration;
-    return typeof d === 'number' ? d : NaN;
+    try {
+      const d = player?.duration;
+      return typeof d === 'number' ? d : NaN;
+    } catch {
+      return NaN;
+    }
   }
 
   function buffered() {
     // expo-video exposes bufferedPosition as an absolute time; convert to
     // seconds-ahead-of-currentTime to match the contract.
-    const bp = player?.bufferedPosition;
-    if (typeof bp !== 'number' || !Number.isFinite(bp)) return 0;
-    const ahead = bp - currentTime();
-    return ahead > 0 ? ahead : 0;
+    try {
+      const bp = player?.bufferedPosition;
+      if (typeof bp !== 'number' || !Number.isFinite(bp)) return 0;
+      const ahead = bp - currentTime();
+      return ahead > 0 ? ahead : 0;
+    } catch {
+      return 0;
+    }
   }
 
   function isLive() {
-    return !!player?.isLive;
+    try {
+      return !!player?.isLive;
+    } catch {
+      return false;
+    }
   }
 
   // ── quality ──────────────────────────────────────────────────────────────────

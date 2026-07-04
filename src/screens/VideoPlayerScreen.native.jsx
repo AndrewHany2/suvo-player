@@ -116,11 +116,12 @@ export default function VideoPlayerScreen({ navigation }) {
   const [resolvedStart, setResolvedStart] = useState(0);
 
   // The expo-video player instance. The resilient-playback hook owns the
-  // initial load/seek/play, so the init callback only mirrors the player.
-  const player = useVideoPlayer(
-    currentVideo ? { uri: currentVideo.url } : null,
-    () => {},
-  );
+  // initial load/seek/play (via driver.load -> player.replace), so we create the
+  // player with a NULL source. Passing the real URI here would make expo-video
+  // start buffering the stream immediately, only for the hook's load to
+  // player.replace() it moments later — a redundant teardown/rebuild of the
+  // whole pipeline that doubles time-to-first-frame. Let the machine load once.
+  const player = useVideoPlayer(null, () => {});
 
   // expo-video VideoView ref — needed for startPictureInPicture().
   const videoViewRef = useRef(null);
@@ -182,16 +183,23 @@ export default function VideoPlayerScreen({ navigation }) {
     };
   }, []);
 
-  // Background audio / now-playing controls — expo-video player config. Guarded:
+  // Now-playing controls + external playback — expo-video player config. Guarded:
   // these setters are no-ops on platforms/builds that don't expose them.
+  // staysActiveInBackground is left false (the expo-video default) so playback
+  // pauses when the app is backgrounded / the screen locks — otherwise video
+  // keeps playing (audio) in the background. See the AppState effect below, which
+  // also pauses explicitly for builds where the flag setter is a no-op.
   useEffect(() => {
     if (!player) return;
-    try { player.staysActiveInBackground = true; } catch {}
+    try { player.staysActiveInBackground = false; } catch {}
     try { player.showNowPlayingNotification = true; } catch {}
     try { if (typeof player.allowsExternalPlayback !== "undefined") player.allowsExternalPlayback = true; } catch {}
   }, [player]);
 
-  // Flush watch progress when the app is backgrounded/inactivated.
+  // Flush watch progress when the app is backgrounded/inactivated, and pause
+  // playback so nothing keeps playing in the background. Pause only on a true
+  // "background" transition — "inactive" is transient (Control Center, an
+  // incoming call/notification) and pausing there would be jarring.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "background" && state !== "inactive") return;
@@ -199,6 +207,9 @@ export default function VideoPlayerScreen({ navigation }) {
         updateWatchProgress(currentVideo.streamId, currentVideo.type, player.currentTime, Number.isFinite(player.duration) ? player.duration : 0);
       }
       flushProgress();
+      if (state === "background") {
+        try { player?.pause(); } catch {}
+      }
     });
     return () => sub.remove();
   }, [player, currentVideo, updateWatchProgress, flushProgress]);
@@ -655,7 +666,7 @@ export default function VideoPlayerScreen({ navigation }) {
           style={{ flex: 1 }}
           contentFit={contentFit}
           nativeControls={false}
-          allowsFullscreen
+          fullscreenOptions={{ enable: true }}
           allowsPictureInPicture
         />
       </View>

@@ -105,6 +105,14 @@ export function VirtualShelvesTV({
     heroBtn: 0,
     pillCol: 0,
   });
+  // True while the top navbar holds the remote (it dispatches tv-nav-focus /
+  // tv-nav-blur). We pause this component's D-pad handling and clear its focus
+  // ring so the navbar is the ONLY thing highlighted. We track it in a REF
+  // (not useTVInput's internal navHasFocus flag) because this component
+  // re-registers its key handler on most renders — which resets that flag while
+  // the nav still has focus — and read the ref synchronously inside the handlers.
+  const navActiveRef = useRef(false);
+  const [navActive, setNavActive] = useState(false);
   const railsRef = useRef(null); // wraps the shelf rows; offsetTop = hero+pills height
   const [heroItem, setHeroItem] = useState(null);
   // shelfId -> { left, right }: which scroll-hint edges to show, derived from the
@@ -127,6 +135,25 @@ export function VirtualShelvesTV({
     hasPills: pills.length > 0,
     pillCount: pills.length,
   };
+
+  // Follow the navbar's focus hand-off. Stable listener (empty deps) so the ref
+  // survives this component's frequent handler re-registration.
+  useEffect(() => {
+    const onFocus = () => {
+      navActiveRef.current = true;
+      setNavActive(true);
+    };
+    const onBlur = () => {
+      navActiveRef.current = false;
+      setNavActive(false);
+    };
+    globalThis.addEventListener?.("tv-nav-focus", onFocus);
+    globalThis.addEventListener?.("tv-nav-blur", onBlur);
+    return () => {
+      globalThis.removeEventListener?.("tv-nav-focus", onFocus);
+      globalThis.removeEventListener?.("tv-nav-blur", onBlur);
+    };
+  }, []);
 
   // Keep focus in range when the shelves prop mutates — Home's Favorites/History
   // rails shrink as items are removed, and a stale focus would point past the end.
@@ -379,11 +406,10 @@ export function VirtualShelvesTV({
     (dir) => {
       const res = zoneMove(topFocus, dir, zoneCfg);
       if (res.action === "toNavbar") {
-        setTopFocus({
-          zone: "shelves",
-          heroBtn: topFocus.heroBtn,
-          pillCol: topFocus.pillCol,
-        });
+        // Keep the current top zone (don't drop back to "shelves"): the navbar
+        // takes focus now, and the ring is cleared via navActive. When the
+        // navbar hands focus back (Down/Back → tv-nav-blur) the same pill/hero
+        // is focused again, instead of the ring silently landing on a poster.
         onUpAtTop?.();
         return;
       }
@@ -396,46 +422,55 @@ export function VirtualShelvesTV({
     [topFocus, zoneCfg, onUpAtTop],
   );
 
-  useEffect(
-    () =>
-      register(
-        {
-          left: () =>
-            topFocus.zone !== "shelves" ? applyZoneMove("left") : move(0, -1),
-          right: () =>
-            topFocus.zone !== "shelves" ? applyZoneMove("right") : move(0, 1),
-          up: () => {
-            if (topFocus.zone !== "shelves") return applyZoneMove("up");
-            // At the top shelf, climb into the top zones if any exist.
-            if (focus.shelf === 0) {
-              const z = enterTopFromShelves(zoneCfg);
-              if (z) return setTopFocus((t) => ({ ...t, zone: z }));
-              if (onUpAtTop) return onUpAtTop();
-            }
-            move(-1, 0);
-          },
-          down: () =>
-            topFocus.zone !== "shelves" ? applyZoneMove("down") : move(1, 0),
-          enter: () => {
-            if (topFocus.zone !== "shelves") {
-              const what = zoneActivate(topFocus);
-              if (what === "play") onHeroPlay?.(heroItem);
-              else if (what === "details") onHeroDetails?.(heroItem);
-              else if (what === "pill") onPill?.(pills[topFocus.pillCol]);
-              return;
-            }
-            const s = shelves[focus.shelf];
-            const item =
-              s && Array.isArray(s.items)
-                ? s.items[clampCol(focus.col, loadedLen(s))]
-                : null;
-            if (item) onSelect?.(item);
-          },
-          ...(onBack ? { back: () => onBack() } : {}),
-        },
-        { yieldToNav: true },
-      ),
-    [
+  useEffect(() => {
+    // While the navbar owns the remote, ignore keys here. useTVInput's own
+    // yieldToNav flag is unreliable for this component because it re-registers
+    // on most renders (which resets that flag), so guard on our persistent ref.
+    const guard = (fn) => (e) => {
+      if (navActiveRef.current) return;
+      return fn(e);
+    };
+    return register(
+      {
+        left: guard(() =>
+          topFocus.zone !== "shelves" ? applyZoneMove("left") : move(0, -1),
+        ),
+        right: guard(() =>
+          topFocus.zone !== "shelves" ? applyZoneMove("right") : move(0, 1),
+        ),
+        up: guard(() => {
+          if (topFocus.zone !== "shelves") return applyZoneMove("up");
+          // At the top shelf, climb into the top zones if any exist.
+          if (focus.shelf === 0) {
+            const z = enterTopFromShelves(zoneCfg);
+            if (z) return setTopFocus((t) => ({ ...t, zone: z }));
+            if (onUpAtTop) return onUpAtTop();
+          }
+          move(-1, 0);
+        }),
+        down: guard(() =>
+          topFocus.zone !== "shelves" ? applyZoneMove("down") : move(1, 0),
+        ),
+        enter: guard(() => {
+          if (topFocus.zone !== "shelves") {
+            const what = zoneActivate(topFocus);
+            if (what === "play") onHeroPlay?.(heroItem);
+            else if (what === "details") onHeroDetails?.(heroItem);
+            else if (what === "pill") onPill?.(pills[topFocus.pillCol]);
+            return;
+          }
+          const s = shelves[focus.shelf];
+          const item =
+            s && Array.isArray(s.items)
+              ? s.items[clampCol(focus.col, loadedLen(s))]
+              : null;
+          if (item) onSelect?.(item);
+        }),
+        ...(onBack ? { back: guard(() => onBack()) } : {}),
+      },
+      { yieldToNav: true },
+    );
+  }, [
       register,
       move,
       shelves,
@@ -465,7 +500,7 @@ export function VirtualShelvesTV({
         (renderHero ? (
           renderHero(heroItem, {
             focusedButton:
-              topFocus.zone === "hero"
+              topFocus.zone === "hero" && !navActive
                 ? topFocus.heroBtn === 0
                   ? "play"
                   : "details"
@@ -478,7 +513,9 @@ export function VirtualShelvesTV({
         <div style={{ padding: `${ss(36)}px ${ss(PAD)}px ${ss(20)}px` }}>
           <DiscoverPills
             items={pills}
-            focusedCol={topFocus.zone === "pills" ? topFocus.pillCol : -1}
+            focusedCol={
+              topFocus.zone === "pills" && !navActive ? topFocus.pillCol : -1
+            }
             onSelect={(pill) => onPill?.(pill)}
           />
         </div>
@@ -609,7 +646,15 @@ export function VirtualShelvesTV({
                   <div style={{ flex: `0 0 ${w.leadingCount * STRIDE}px` }} />
                   {winItems.map((item, i) => {
                     const realCol = w.start + i; // absolute column index
-                    const isFocused = isFocusedShelf && realCol === focus.col;
+                    // The logically-focused card (keeps the scroll ref so the rail
+                    // stays scrolled to it) vs. whether it should show its focus
+                    // RING. When focus climbs into a top zone (Hero/Discover pills),
+                    // the ring must clear so the pill's focus is the only one shown —
+                    // otherwise the lingering poster ring makes the pill focus
+                    // invisible and Up looks like it did nothing.
+                    const isFocusCol = isFocusedShelf && realCol === focus.col;
+                    const showRing =
+                      isFocusCol && topFocus.zone === "shelves" && !navActive;
                     // Key by absolute column, NOT by stream_id/id: IPTV catalogs can
                     // carry duplicate stream_ids, and a duplicate key makes React drop
                     // one card. Column index is unique within a rail and stable
@@ -617,10 +662,10 @@ export function VirtualShelvesTV({
                     return (
                       <div
                         key={realCol}
-                        ref={isFocused ? focusedCardRef : null}
+                        ref={isFocusCol ? focusedCardRef : null}
                         style={{ flex: `0 0 ${CARD_W}px` }}
                       >
-                        {renderCard(item, isFocused, CARD_W)}
+                        {renderCard(item, showRing, CARD_W)}
                       </div>
                     );
                   })}
