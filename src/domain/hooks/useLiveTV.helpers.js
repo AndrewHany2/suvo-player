@@ -35,3 +35,38 @@ export function toFlatChannel(ch, buildUrl) {
     logo: ch.stream_icon || ch.logo || null,
   };
 }
+
+/**
+ * Build the display shelves for the Live TV screen, matching a search query
+ * against BOTH category names and channel names:
+ *
+ * - Empty query → every category, channels untouched (loaded array or `null`
+ *   while still lazy-loading).
+ * - Category name matches → the WHOLE category is kept (full channel list, or
+ *   `null` if not loaded yet so the shelf can lazy-load and reveal everything).
+ * - Otherwise → only the channels whose name matches are kept, and categories
+ *   left with no matching channels are dropped.
+ *
+ * `channelsFor(cat)` returns that category's channel array, or a nullish value
+ * while its channels are still loading. Kept pure (no React/RN) so the two
+ * LiveTV screen variants share one tested implementation.
+ */
+export function filterCategoriesBySearch(categories, query, channelsFor) {
+  const q = (query ?? "").trim().toLowerCase();
+  if (!q) {
+    return categories.map((cat) => ({ ...cat, channels: channelsFor(cat) ?? null }));
+  }
+  const out = [];
+  for (const cat of categories) {
+    if (cat.name?.toLowerCase().includes(q)) {
+      // Preserve `null` so an unloaded name-matched shelf still lazy-loads.
+      out.push({ ...cat, channels: channelsFor(cat) ?? null });
+      continue;
+    }
+    const matched = (channelsFor(cat) || []).filter((ch) =>
+      (ch._lc ?? ch.name?.toLowerCase() ?? "").includes(q),
+    );
+    if (matched.length) out.push({ ...cat, channels: matched });
+  }
+  return out;
+}

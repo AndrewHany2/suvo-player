@@ -7,6 +7,7 @@ import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
+import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
 import { ss, useScale } from "../utils/scaleSize";
 import ProxiedImage from "../components/ProxiedImage";
@@ -539,24 +540,25 @@ export default function LiveTVScreen({ navigation }) {
 
   const handleChannelPress = playChannel;
 
+  // While a search is active, eagerly load every category's channels so the
+  // channel-name match spans ALL categories, not just the ones scrolled into
+  // view. handleShelfVisible dedupes via loadedRef and the bounded queue caps
+  // concurrency, so this is safe to call for every category each keystroke.
+  useEffect(() => {
+    if (!debouncedQuery) return;
+    categories.forEach((cat) => handleShelfVisible(cat.id));
+  }, [debouncedQuery, categories, handleShelfVisible]);
+
   // Derived shelves. Memoized on [categories, channelsByCategory, debouncedQuery]
   // so a keystroke that doesn't change the (debounced) query is a no-op, and the
   // filter reuses the names lowercased once at load (item._lc).
   const displayCategories = useMemo(
     () =>
-      debouncedQuery
-        ? categories
-            .map((cat) => ({
-              ...cat,
-              channels: (channelsByCategory[cat.id] || []).filter((ch) =>
-                (ch._lc ?? ch.name.toLowerCase()).includes(debouncedQuery),
-              ),
-            }))
-            .filter((cat) => cat.channels.length > 0)
-        : categories.map((cat) => ({
-            ...cat,
-            channels: channelsByCategory[cat.id] ?? null,
-          })),
+      filterCategoriesBySearch(
+        categories,
+        debouncedQuery,
+        (cat) => channelsByCategory[cat.id],
+      ),
     [categories, channelsByCategory, debouncedQuery],
   );
 

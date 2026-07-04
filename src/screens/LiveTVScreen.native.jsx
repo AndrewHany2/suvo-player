@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
 import { FlatList, Image, Modal, Alert, TouchableOpacity, RefreshControl } from "react-native";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
 import { colors, fonts, fontWeights, iconSizes, accentAlpha } from "../ui/tokens";
@@ -7,6 +7,7 @@ import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
+import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 
 const getAbbrev = (name) => {
   const words = name.trim().split(/\s+/);
@@ -106,7 +107,10 @@ export default function LiveTVScreen({ navigation }) {
   // Locally-injected synthetic categories (currently just "Custom" for
   // user-added channels); the hook owns the provider category list.
   const [customCats, setCustomCats] = useState([]);
-  const categories = customCats.length ? [...baseCategories, ...customCats] : baseCategories;
+  const categories = useMemo(
+    () => (customCats.length ? [...baseCategories, ...customCats] : baseCategories),
+    [baseCategories, customCats],
+  );
   const [channelsByCategory, setChannelsByCategory] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [epgCache, setEpgCache] = useState({});
@@ -172,9 +176,20 @@ export default function LiveTVScreen({ navigation }) {
 
   const handleChannelPress = playChannel;
 
-  const displayCategories = searchQuery
-    ? categories.map((cat) => ({ ...cat, channels: (channelsByCategory[cat.id] || []).filter((ch) => ch.name.toLowerCase().includes(searchQuery.toLowerCase())) })).filter((cat) => cat.channels.length > 0)
-    : categories.map((cat) => ({ ...cat, channels: channelsByCategory[cat.id] ?? null }));
+  // While a search is active, eagerly load every category's channels so the
+  // channel-name match spans ALL categories, not just the ones scrolled into
+  // view. loadChannelCategory dedupes via loadedRef, so this fires each
+  // category's fetch at most once.
+  useEffect(() => {
+    if (!searchQuery) return;
+    categories.forEach((cat) => loadChannelCategory(cat.id));
+  }, [searchQuery, categories, loadChannelCategory]);
+
+  const displayCategories = filterCategoriesBySearch(
+    categories,
+    searchQuery,
+    (cat) => channelsByCategory[cat.id],
+  );
 
   if (loading) {
     return <StatePanel mode="loading" title="Loading channels..." />;

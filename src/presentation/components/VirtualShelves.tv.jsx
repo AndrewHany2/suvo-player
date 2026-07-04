@@ -60,7 +60,6 @@ const loadedLen = (s) => (Array.isArray(s?.items) ? s.items.length : 0);
 export function VirtualShelvesTV({
   shelves,
   onShelfVisible,
-  onLoadMore,
   onSelect,
   onSeeAll,
   renderCard,
@@ -196,7 +195,7 @@ export function VirtualShelvesTV({
     };
     // `scale` in deps: measure() reads STRIDE/ROW_HEIGHT from the render scope, so
     // re-run it when the scale corrects (webOS cold start) to recompute cols/rows.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scale]);
 
   // Visible-row range around the current focus. On TV the vertical scroll is
@@ -269,9 +268,9 @@ export function VirtualShelvesTV({
       )
         prefetchImage(posterUrl(row.items[c]));
     }
-  // cfg.hOverscan is a stable layout constant read from the render scope; this
-  // prefetch effect tracks focus movement, so it stays out of the deps.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // cfg.hOverscan is a stable layout constant read from the render scope; this
+    // prefetch effect tracks focus movement, so it stays out of the deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     focus.shelf,
     focus.col,
@@ -338,7 +337,7 @@ export function VirtualShelvesTV({
     // scale correction must re-run it with the corrected value. It already tracks
     // `dims` (which changes when measure re-runs), but `scale` makes it explicit
     // and independent of ResizeObserver timing.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, shelves, dims, scale]);
 
   // Track chevron hint edges + raw scrollLeft from a rail's real geometry. This
@@ -468,23 +467,22 @@ export function VirtualShelvesTV({
       { yieldToNav: true },
     );
   }, [
-      register,
-      move,
-      shelves,
-      focus,
-      onSelect,
-      onBack,
-      topFocus,
-      applyZoneMove,
-      zoneCfg,
-      onUpAtTop,
-      onHeroPlay,
-      onHeroDetails,
-      onPill,
-      pills,
-      heroItem,
-    ],
-  );
+    register,
+    move,
+    shelves,
+    focus,
+    onSelect,
+    onBack,
+    topFocus,
+    applyZoneMove,
+    zoneCfg,
+    onUpAtTop,
+    onHeroPlay,
+    onHeroDetails,
+    onPill,
+    pills,
+    heroItem,
+  ]);
 
   return (
     <div
@@ -531,7 +529,7 @@ export function VirtualShelvesTV({
           const full = Array.isArray(shelf.items) ? shelf.items : [];
           const railFocusCol = isFocusedShelf
             ? focus.col
-            : colMemory.current[shelf.id] ?? 0;
+            : (colMemory.current[shelf.id] ?? 0);
           const prevA = railAnchorRef.current[shelf.id] ?? 0;
           // scrollAnchor only moves the anchor when focus would leave the visible
           // page [anchor, anchor+cols), so the window can't slide ahead of focus.

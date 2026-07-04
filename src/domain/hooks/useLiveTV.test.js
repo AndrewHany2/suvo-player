@@ -1,7 +1,11 @@
 // @ts-check
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { epgNowTitle, toFlatChannel } from "./useLiveTV.helpers.js";
+import {
+  epgNowTitle,
+  toFlatChannel,
+  filterCategoriesBySearch,
+} from "./useLiveTV.helpers.js";
 
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
 
@@ -48,4 +52,63 @@ test("toFlatChannel falls back to id and .logo, and null logo when absent", () =
   assert.equal(out.logo, "l.png");
   const out2 = toFlatChannel({ id: 8, name: "NoLogo" }, buildUrl);
   assert.equal(out2.logo, null);
+});
+
+const CATS = [
+  { id: "sports", name: "Sports" },
+  { id: "news", name: "News HD" },
+  { id: "kids", name: "Kids" },
+];
+const CHANNELS = {
+  sports: [
+    { name: "ESPN", _lc: "espn" },
+    { name: "Sky Sports", _lc: "sky sports" },
+  ],
+  news: [{ name: "BBC News", _lc: "bbc news" }],
+  kids: [{ name: "Cartoon", _lc: "cartoon" }],
+};
+const chFor = (cat) => CHANNELS[cat.id];
+
+test("filterCategoriesBySearch returns every category untouched for an empty query", () => {
+  const out = filterCategoriesBySearch(CATS, "", chFor);
+  assert.equal(out.length, 3);
+  assert.deepEqual(out[0], { id: "sports", name: "Sports", channels: CHANNELS.sports });
+});
+
+test("filterCategoriesBySearch keeps the whole category when its name matches", () => {
+  const out = filterCategoriesBySearch(CATS, "sport", chFor);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].id, "sports");
+  // full channel list kept even though "sport" doesn't match every channel name
+  assert.deepEqual(out[0].channels, CHANNELS.sports);
+});
+
+test("filterCategoriesBySearch filters by channel name when the category name doesn't match", () => {
+  const out = filterCategoriesBySearch(CATS, "bbc", chFor);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].id, "news");
+  assert.deepEqual(out[0].channels, [{ name: "BBC News", _lc: "bbc news" }]);
+});
+
+test("filterCategoriesBySearch matches category name OR channel name across categories", () => {
+  // "news" hits the "News HD" category name AND, incidentally, the BBC News channel.
+  const out = filterCategoriesBySearch(CATS, "news", chFor);
+  assert.deepEqual(out.map((c) => c.id), ["news"]);
+  assert.deepEqual(out[0].channels, CHANNELS.news);
+});
+
+test("filterCategoriesBySearch drops categories with no name or channel match", () => {
+  assert.deepEqual(filterCategoriesBySearch(CATS, "zzz", chFor), []);
+});
+
+test("filterCategoriesBySearch preserves null channels for an unloaded name-matched category", () => {
+  const out = filterCategoriesBySearch(CATS, "kids", () => undefined);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].channels, null);
+});
+
+test("filterCategoriesBySearch falls back to ch.name when _lc is absent", () => {
+  const cats = [{ id: "c", name: "Misc" }];
+  const out = filterCategoriesBySearch(cats, "gala", () => [{ name: "Galaxy TV" }]);
+  assert.deepEqual(out[0].channels, [{ name: "Galaxy TV" }]);
 });
