@@ -60,6 +60,8 @@ function Shelf({
     return () => obs.disconnect();
   }, [catId, items, onVisible, manual]);
 
+  // Re-attach drag handlers once the shelf transitions from loading to loaded.
+  const itemsLoaded = items !== null;
   useEffect(() => {
     const el = railRef.current;
     if (!el) return;
@@ -101,7 +103,7 @@ function Shelf({
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [items !== null]);
+  }, [itemsLoaded]);
 
   if (items !== null && !items?.length) return null;
 

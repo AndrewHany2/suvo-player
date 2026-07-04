@@ -549,7 +549,6 @@ export function VirtualShelvesTV({
             full.length &&
             !(focus.col >= w.start && focus.col < w.end)
           ) {
-            // eslint-disable-next-line no-console
             console.warn(
               `[VirtualShelvesTV] focused col ${focus.col} outside window [${w.start},${w.end}) — would unmount focused card`,
             );

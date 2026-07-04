@@ -1,5 +1,6 @@
-import { memo, useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef, useMemo } from "react";
 import { useApp } from "../context/AppContext";
+import { buildCategoryFilter, filterMovies } from "./moviesFilter.helpers";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useTVInput } from "../hooks/useTVInput";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
@@ -74,13 +75,7 @@ export default function MoviesScreenTV({ navigation, route }) {
   const gridQueryRef = useRef("");
   const gridSearchInputRef = useRef(null);
 
-  const q = query.trim().toLowerCase();
-  const cats = categories.length
-    ? [
-        { id: "all", name: "All Movies" },
-        ...(q ? categories.filter((c) => c.name?.toLowerCase().includes(q)) : categories),
-      ]
-    : categories;
+  const cats = useMemo(() => buildCategoryFilter(categories, query), [categories, query]);
   useEffect(() => { catsRef.current = cats; }, [cats]);
   // Keep category focus in range whenever the filtered list shrinks.
   useEffect(() => {
@@ -89,15 +84,8 @@ export default function MoviesScreenTV({ navigation, route }) {
   useEffect(() => { pageRef.current = page; }, [page]);
   useEffect(() => { detailRef.current = detail; }, [detail]);
 
-  const getFilteredItems = (items) => {
-    if (!items) return [];
-    const letter = filterLetterRef.current;
-    const gridQ = gridQueryRef.current;
-    let out = items;
-    if (letter !== "all") out = out.filter((m) => m.name?.toLowerCase().startsWith(letter));
-    if (gridQ) out = out.filter((m) => m.name?.toLowerCase().includes(gridQ));
-    return out;
-  };
+  const getFilteredItems = (items) =>
+    filterMovies(items, filterLetterRef.current, gridQueryRef.current);
 
   // Open detail directly when navigated from history.
   useEffect(() => {

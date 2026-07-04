@@ -25,6 +25,7 @@
     "sim:tizen": "npm run build:tv && cp -r tv/dist/* tv/packaging/samsung/ && tizen package -t wgt -o tv/packaging/samsung -- tv/packaging/samsung && (em-cli launch --name \"${TIZEN_EMU:-T-10.0-x86_64}\" || true) && sleep 8 && tizen install -n IptvPlayer.wgt -t \"${TIZEN_EMU:-T-10.0-x86_64}\" -- tv/packaging/samsung && tizen run -p IptvPlayer.Lumen -t \"${TIZEN_EMU:-T-10.0-x86_64}\"",
     "deploy:tizen": "test -n \"$TIZEN_TV_IP\" || { echo 'Set TIZEN_TV_IP to your TV IP (Developer Mode must be on), e.g. TIZEN_TV_IP=192.168.1.42 npm run deploy:tizen'; exit 1; } && npm run build:tv && cp -r tv/dist/* tv/packaging/samsung/ && tizen package -t wgt -o tv/packaging/samsung -- tv/packaging/samsung && sdb connect \"$TIZEN_TV_IP\" && tizen install -n IptvPlayer.wgt -t \"${TIZEN_TV:-$TIZEN_TV_IP}\" -- tv/packaging/samsung && tizen run -p IptvPlayer.Lumen -t \"${TIZEN_TV:-$TIZEN_TV_IP}\"",
     "test": "node --test src scripts supabase electron",
+    "test:coverage": "node --test --experimental-test-coverage src scripts supabase electron",
     "lint": "eslint .",
     "android": "expo run:android",
     "ios": "expo run:ios"

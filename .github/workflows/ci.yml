@@ -23,3 +23,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      # Coverage is reported for visibility, not gated: Node 20 has no
+      # --test-coverage-* threshold flags (added in Node 22). Revisit as a hard
+      # gate when the runtime moves to 22+.
+      - run: npm run test:coverage

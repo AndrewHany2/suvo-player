@@ -411,7 +411,6 @@ export const AppProvider = ({ children }) => {
       .finally(() => { clearTimeout(authTimeout); setAuthLoading(false); });
     const unsub = onAuthStateChange((user) => { setAuthUser(user); setAuthLoading(false); });
     return () => { clearTimeout(authTimeout); unsub(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Claim (bind or verify) this device once we have an authed user, before any
@@ -495,7 +494,6 @@ export const AppProvider = ({ children }) => {
       if (!cancelled && !applied) { setUsers([]); setActiveUserId(null); }
     })();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfileId]);
 
   useEffect(() => {
