@@ -31,9 +31,9 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
 
   // Fetch EPG once per channel (keyed on sid); epg is only a "not yet loaded"
   // guard and fetchEpg is a stable prop, so neither belongs in the deps.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (epg === undefined && fetchEpg) fetchEpg(sid);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sid]);
 
   const toggleFav = (e) => {

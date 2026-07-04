@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   scrollAnchor,
   windowFromAnchor,
@@ -127,12 +127,18 @@ export function VirtualShelvesTV({
   const shelfCount = shelves.length;
 
   const heroInteractive = !!renderHero && (!!onHeroPlay || !!onHeroDetails);
-  const pills = Array.isArray(discoverItems) ? discoverItems : [];
-  const zoneCfg = {
-    hasHero: showHero && heroInteractive,
-    hasPills: pills.length > 0,
-    pillCount: pills.length,
-  };
+  const pills = useMemo(
+    () => (Array.isArray(discoverItems) ? discoverItems : []),
+    [discoverItems],
+  );
+  const zoneCfg = useMemo(
+    () => ({
+      hasHero: showHero && heroInteractive,
+      hasPills: pills.length > 0,
+      pillCount: pills.length,
+    }),
+    [showHero, heroInteractive, pills],
+  );
 
   // Follow the navbar's focus hand-off to clear/restore the poster ring. Stable
   // listener (empty deps). Key suppression is NOT done here — useTVInput's
@@ -190,6 +196,7 @@ export function VirtualShelvesTV({
     };
     // `scale` in deps: measure() reads STRIDE/ROW_HEIGHT from the render scope, so
     // re-run it when the scale corrects (webOS cold start) to recompute cols/rows.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scale]);
 
   // Visible-row range around the current focus. On TV the vertical scroll is
@@ -262,6 +269,9 @@ export function VirtualShelvesTV({
       )
         prefetchImage(posterUrl(row.items[c]));
     }
+  // cfg.hOverscan is a stable layout constant read from the render scope; this
+  // prefetch effect tracks focus movement, so it stays out of the deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     focus.shelf,
     focus.col,
@@ -328,6 +338,7 @@ export function VirtualShelvesTV({
     // scale correction must re-run it with the corrected value. It already tracks
     // `dims` (which changes when measure re-runs), but `scale` makes it explicit
     // and independent of ResizeObserver timing.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, shelves, dims, scale]);
 
   // Track chevron hint edges + raw scrollLeft from a rail's real geometry. This
@@ -389,7 +400,7 @@ export function VirtualShelvesTV({
         return { shelf: nextShelf, col, shelfAnchor };
       });
     },
-    [shelves, shelfCount, onLoadMore, onUpAtTop],
+    [shelves, shelfCount, onUpAtTop],
   );
 
   const { register } = useTVInput();

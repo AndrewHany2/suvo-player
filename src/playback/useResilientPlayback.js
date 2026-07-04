@@ -167,6 +167,11 @@ export function useResilientPlayback({
           break;
       }
     },
+    // `send` is a forward reference (declared below) invoked lazily inside
+    // setTimeout. It can't go in these deps — it's in the TDZ when this array is
+    // evaluated — and it doesn't need to: send depends on this stable runEffect,
+    // so its identity never changes. This breaks the send<->runEffect cycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [clearRetryTimer]
   );
 
