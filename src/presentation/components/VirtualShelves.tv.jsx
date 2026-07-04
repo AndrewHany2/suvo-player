@@ -106,12 +106,10 @@ export function VirtualShelvesTV({
     pillCol: 0,
   });
   // True while the top navbar holds the remote (it dispatches tv-nav-focus /
-  // tv-nav-blur). We pause this component's D-pad handling and clear its focus
-  // ring so the navbar is the ONLY thing highlighted. We track it in a REF
-  // (not useTVInput's internal navHasFocus flag) because this component
-  // re-registers its key handler on most renders — which resets that flag while
-  // the nav still has focus — and read the ref synchronously inside the handlers.
-  const navActiveRef = useRef(false);
+  // tv-nav-blur). Key SUPPRESSION while the navbar has focus is handled by
+  // useTVInput's yieldToNav (its flag now survives this component's frequent
+  // handler re-registration — see useTVInput.js). We keep this STATE only to
+  // clear the poster focus RING so the navbar is the only thing highlighted.
   const [navActive, setNavActive] = useState(false);
   const railsRef = useRef(null); // wraps the shelf rows; offsetTop = hero+pills height
   const [heroItem, setHeroItem] = useState(null);
@@ -136,17 +134,12 @@ export function VirtualShelvesTV({
     pillCount: pills.length,
   };
 
-  // Follow the navbar's focus hand-off. Stable listener (empty deps) so the ref
-  // survives this component's frequent handler re-registration.
+  // Follow the navbar's focus hand-off to clear/restore the poster ring. Stable
+  // listener (empty deps). Key suppression is NOT done here — useTVInput's
+  // yieldToNav owns that.
   useEffect(() => {
-    const onFocus = () => {
-      navActiveRef.current = true;
-      setNavActive(true);
-    };
-    const onBlur = () => {
-      navActiveRef.current = false;
-      setNavActive(false);
-    };
+    const onFocus = () => setNavActive(true);
+    const onBlur = () => setNavActive(false);
     globalThis.addEventListener?.("tv-nav-focus", onFocus);
     globalThis.addEventListener?.("tv-nav-blur", onBlur);
     return () => {
@@ -423,22 +416,16 @@ export function VirtualShelvesTV({
   );
 
   useEffect(() => {
-    // While the navbar owns the remote, ignore keys here. useTVInput's own
-    // yieldToNav flag is unreliable for this component because it re-registers
-    // on most renders (which resets that flag), so guard on our persistent ref.
-    const guard = (fn) => (e) => {
-      if (navActiveRef.current) return;
-      return fn(e);
-    };
+    // yieldToNav:true makes useTVInput drop every key while the navbar owns the
+    // remote (its flag survives this component's frequent re-registration), so
+    // no per-handler nav guard is needed here.
     return register(
       {
-        left: guard(() =>
+        left: () =>
           topFocus.zone !== "shelves" ? applyZoneMove("left") : move(0, -1),
-        ),
-        right: guard(() =>
+        right: () =>
           topFocus.zone !== "shelves" ? applyZoneMove("right") : move(0, 1),
-        ),
-        up: guard(() => {
+        up: () => {
           if (topFocus.zone !== "shelves") return applyZoneMove("up");
           // At the top shelf, climb into the top zones if any exist.
           if (focus.shelf === 0) {
@@ -447,11 +434,10 @@ export function VirtualShelvesTV({
             if (onUpAtTop) return onUpAtTop();
           }
           move(-1, 0);
-        }),
-        down: guard(() =>
+        },
+        down: () =>
           topFocus.zone !== "shelves" ? applyZoneMove("down") : move(1, 0),
-        ),
-        enter: guard(() => {
+        enter: () => {
           if (topFocus.zone !== "shelves") {
             const what = zoneActivate(topFocus);
             if (what === "play") onHeroPlay?.(heroItem);
@@ -465,8 +451,8 @@ export function VirtualShelvesTV({
               ? s.items[clampCol(focus.col, loadedLen(s))]
               : null;
           if (item) onSelect?.(item);
-        }),
-        ...(onBack ? { back: guard(() => onBack()) } : {}),
+        },
+        ...(onBack ? { back: () => onBack() } : {}),
       },
       { yieldToNav: true },
     );

@@ -6,9 +6,8 @@ import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
+import { useLiveTV } from "../domain/hooks/useLiveTV";
 
-const decodeEpgTitle = (title) => { try { return atob(title); } catch { return title; } };
 const getAbbrev = (name) => {
   const words = name.trim().split(/\s+/);
   if (words.length >= 2) return (words[0].slice(0, 2) + words[1].slice(0, 1)).toUpperCase();
@@ -89,11 +88,22 @@ function LiveShelf({ cat, epgCache, fetchEpg, onPress }) {
 }
 
 export default function LiveTVScreen({ navigation }) {
-  const { users, activeUserId, channels, setChannels, saveChannels, playVideo } = useApp();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const {
+    loading,
+    error,
+    reload: loadChannels,
+    activeUserId,
+    categories: baseCategories,
+    getFlatChannels,
+    fetchEpgTitle,
+    playChannel,
+  } = useLiveTV({ navigation });
+  const { setChannels, saveChannels } = useApp();
   const [refreshing, setRefreshing] = useState(false);
-  const [categories, setCategories] = useState([]);
+  // Locally-injected synthetic categories (currently just "Custom" for
+  // user-added channels); the hook owns the provider category list.
+  const [customCats, setCustomCats] = useState([]);
+  const categories = customCats.length ? [...baseCategories, ...customCats] : baseCategories;
   const [channelsByCategory, setChannelsByCategory] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [epgCache, setEpgCache] = useState({});
@@ -105,12 +115,10 @@ export default function LiveTVScreen({ navigation }) {
   const fetchEpg = useCallback(async (streamId) => {
     setEpgCache((prev) => { if (prev[streamId] !== undefined) return prev; return { ...prev, [streamId]: null }; });
     try {
-      const data = await iptvApi.getShortEpg(streamId, 1);
-      const listing = data?.epg_listings?.[0];
-      const title = listing ? decodeEpgTitle(listing.title) : "";
+      const title = await fetchEpgTitle(streamId);
       setEpgCache((prev) => ({ ...prev, [streamId]: title }));
     } catch { setEpgCache((prev) => ({ ...prev, [streamId]: "" })); }
-  }, []);
+  }, [fetchEpgTitle]);
 
   const handleAddChannel = () => {
     if (!newChannelName.trim() || !newStreamUrl.trim()) {
@@ -119,49 +127,47 @@ export default function LiveTVScreen({ navigation }) {
     }
     const ch = { name: newChannelName.trim(), url: newStreamUrl.trim(), id: Date.now().toString(), stream_id: Date.now().toString(), logo: null };
     setChannelsByCategory((prev) => ({ ...prev, Custom: [...(prev.Custom || []), ch] }));
-    setCategories((prev) => prev.some((c) => c.id === "Custom") ? prev : [...prev, { id: "Custom", name: "Custom" }]);
+    setCustomCats((prev) => prev.some((c) => c.id === "Custom") ? prev : [...prev, { id: "Custom", name: "Custom" }]);
     setChannels((prev) => [...prev, ch]);
     saveChannels();
     setNewChannelName(""); setNewStreamUrl(""); setShowAddChannel(false);
     Alert.alert("Channel Added", `"${ch.name}" added to Custom category.`);
   };
 
-  useEffect(() => { setEpgCache({}); if (activeUserId) loadChannels(); }, [activeUserId]);
+  // Categories load is owned by useLiveTV; reset screen-local shelf state when
+  // the active account changes.
+  useEffect(() => {
+    setEpgCache({});
+    setChannelsByCategory({});
+    setCustomCats([]);
+    loadedRef.current.clear();
+  }, [activeUserId]);
 
   const loadChannelCategory = useCallback(async (catId) => {
     if (loadedRef.current.has(catId)) return;
     loadedRef.current.add(catId);
     try {
-      const data = await iptvApi.getLiveStreamsByCategory(catId);
-      const formatted = (data || []).map((ch) => ({ name: ch.name, url: iptvApi.buildStreamUrl("live", ch.stream_id, "m3u8"), id: ch.stream_id, stream_id: ch.stream_id, logo: ch.stream_icon || null }));
+      // useLiveTV returns the flat card shape and caches the fetch.
+      const formatted = await getFlatChannels(catId);
       setChannelsByCategory((prev) => ({ ...prev, [catId]: formatted }));
       setChannels((prev) => { const existingIds = new Set(prev.map((c) => String(c.stream_id))); return [...prev, ...formatted.filter((c) => !existingIds.has(String(c.stream_id)))]; });
     } catch { setChannelsByCategory((prev) => ({ ...prev, [catId]: [] })); }
-  }, []);
+  }, [setChannels, getFlatChannels]);
 
-  const loadChannels = async () => {
-    const user = users.find((u) => u.id === activeUserId);
-    if (!user) return;
-    setLoading(true); setError(false); loadedRef.current.clear(); setCategories([]); setChannelsByCategory({});
-    try {
-      iptvApi.setCredentials(user.host, user.username, user.password);
-      const cats = await iptvApi.getLiveCategories();
-      if (!cats?.length) { setLoading(false); return; }
-      const catList = cats.map((c) => ({ id: c.category_id, name: c.category_name }));
-      setCategories(catList);
-      catList.slice(0, 3).forEach((c) => loadChannelCategory(c.id));
-    } catch (err) { console.error("Error loading channels:", err); setError(true); } finally { setLoading(false); }
-  };
+  // Eagerly warm the first few shelves once the hook delivers categories
+  // (the FlatList's onViewableItemsChanged loads the rest as they scroll in).
+  useEffect(() => {
+    baseCategories.slice(0, 3).forEach((c) => loadChannelCategory(c.id));
+  }, [baseCategories, loadChannelCategory]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    loadedRef.current.clear();
+    setChannelsByCategory({});
     try { await loadChannels(); } finally { setRefreshing(false); }
   };
 
-  const handleChannelPress = (item) => {
-    playVideo({ type: "live", streamId: item.stream_id || item.id, name: item.name, url: item.url });
-    navigation.navigate("VideoPlayer");
-  };
+  const handleChannelPress = playChannel;
 
   const displayCategories = searchQuery
     ? categories.map((cat) => ({ ...cat, channels: (channelsByCategory[cat.id] || []).filter((ch) => ch.name.toLowerCase().includes(searchQuery.toLowerCase())) })).filter((cat) => cat.channels.length > 0)

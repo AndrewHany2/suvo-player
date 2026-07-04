@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
-import { useContentService } from "../domain/hooks/useContentService";
+import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
@@ -27,13 +27,19 @@ const KEY_ENTER = 13;
 const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 
 export default function LiveTVScreenTV({ navigation }) {
-  const { contentService, activeUser, activeUserId } = useContentService();
-  const { playVideo, currentVideo } = useApp();
+  const {
+    loading,
+    error: catsFailed,
+    reload: loadCats,
+    activeUserId,
+    categories: cats,
+    getChannels,
+    playChannelTV,
+  } = useLiveTV({ navigation });
+  const { currentVideo } = useApp();
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
 
-  const [loading, setLoading] = useState(false);
-  const [cats, setCats] = useState([]);
   const [catFocus, setCatFocus] = useState(0);
   const [page, setPage] = useState(null);
   const [query, setQuery] = useState("");
@@ -44,7 +50,6 @@ export default function LiveTVScreenTV({ navigation }) {
   const catsRef = useRef([]);
   const catFocusRef = useRef(0);
   const pageRef = useRef(null);
-  const allItemsRef = useRef(new Map());
   const catElRef = useRef(null);
   const navActiveRef = useRef(false);
   // State mirror of navActiveRef so search/zone highlights re-render (and clear)
@@ -96,25 +101,9 @@ export default function LiveTVScreenTV({ navigation }) {
     if (pg) { const n = { ...pg, focus: 0, display: CH_PAGE }; pageRef.current = n; setPage(n); }
   };
 
-  useEffect(() => {
-    if (activeUserId) loadCats();
-  }, [activeUserId]);
-
-  const loadCats = async () => {
-    if (!activeUser) return;
-    setLoading(true);
-    allItemsRef.current.clear();
-    try {
-      const list = await contentService.getLiveCategories();
-      if (!list?.length) return;
-      setCats(list);
-      catsRef.current = list;
-    } catch (e) {
-      console.error("LiveTVScreenTV:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Categories load is owned by useLiveTV (its own activeUserId effect). The
+  // visibleCats effect above already mirrors the list into catsRef for D-pad
+  // bounds, reacting to the hook's `cats` via the derived filter.
 
   const openCat = async (cat) => {
     const next = {
@@ -123,20 +112,19 @@ export default function LiveTVScreenTV({ navigation }) {
       items: null,
       display: CH_PAGE,
       focus: 0,
+      failed: false,
     };
     setPage(next);
     pageRef.current = next;
     try {
-      let all = allItemsRef.current.get(cat.id);
-      if (!all) {
-        all = await contentService.getLiveChannels(cat.id);
-        allItemsRef.current.set(cat.id, all);
-      }
+      // getChannels is cached in the hook (re-open is instant).
+      const all = await getChannels(cat.id);
       const updated = { ...next, items: all };
       setPage(updated);
       pageRef.current = updated;
     } catch {
-      const updated = { ...next, items: [] };
+      // Fetch FAILURE (error + retry), distinct from an empty channel list.
+      const updated = { ...next, items: [], failed: true };
       setPage(updated);
       pageRef.current = updated;
     }
@@ -150,18 +138,7 @@ export default function LiveTVScreenTV({ navigation }) {
     gridQueryRef.current = "";
   };
 
-  const play = (item) => {
-    const url = contentService.buildLiveUrl(item.stream_id, item.container_extension || "ts");
-    playVideo({
-      type: "live",
-      streamId: item.stream_id,
-      name: item.name,
-      url,
-      cover: item.stream_icon || null,
-      startTime: 0,
-    });
-    navigation.navigate("VideoPlayer");
-  };
+  const play = playChannelTV;
 
   useEffect(() => {
     const onKey = (e) => {
@@ -409,13 +386,21 @@ export default function LiveTVScreenTV({ navigation }) {
             onChange={(e) => onGridQueryChange(e.target.value)}
           />
         </div>
-        {!filteredItems && (
+        {!filteredItems && !page.failed && (
           <div className="tvl-center">
             <div className="tvl-spinner" />
             <p>Loading…</p>
           </div>
         )}
-        {filteredItems?.length === 0 && (
+        {page.failed && (
+          <StatePanel
+            mode="error"
+            title="Couldn't load channels"
+            message="Something went wrong fetching this category."
+            onRetry={() => openCat({ id: page.catId, name: page.name })}
+          />
+        )}
+        {!page.failed && filteredItems?.length === 0 && (
           <div className="tvl-center"><p className="tvl-empty-msg">No results</p></div>
         )}
         {filteredItems && filteredItems.length > 0 && (
@@ -462,23 +447,32 @@ export default function LiveTVScreenTV({ navigation }) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <div className="tvl-cat-grid">
-          {visibleCats.map((cat, i) => (
-            <div
-              key={cat.id}
-              ref={i === catFocus ? catElRef : null}
-              className={
-                catZone === "grid" && i === catFocus
-                  ? "tvl-cat-card tvl-cat-card--on"
-                  : "tvl-cat-card"
-              }
-              onClick={() => openCat(cat)}
-            >
-              {cat.name}
-            </div>
-          ))}
-        </div>
-        {q && visibleCats.length === 0 && (
+        {catsFailed ? (
+          <StatePanel
+            mode="error"
+            title="Couldn't load channels"
+            message="Something went wrong fetching the channel categories."
+            onRetry={loadCats}
+          />
+        ) : (
+          <div className="tvl-cat-grid">
+            {visibleCats.map((cat, i) => (
+              <button
+                key={cat.id}
+                ref={i === catFocus ? catElRef : null}
+                className={
+                  catZone === "grid" && i === catFocus
+                    ? "tvl-cat-card tvl-cat-card--on"
+                    : "tvl-cat-card"
+                }
+                onClick={() => openCat(cat)}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        )}
+        {!catsFailed && q && visibleCats.length === 0 && (
           <div className="tvl-center"><p className="tvl-empty-msg">No categories match</p></div>
         )}
       </div>
@@ -486,7 +480,9 @@ export default function LiveTVScreenTV({ navigation }) {
   );
 }
 
-function ChannelCard({ item, isFocused }) {
+// Memoized: only `item` + `isFocused` matter, so moving focus re-renders just
+// the two affected tiles, not every mounted channel in the grid.
+const ChannelCard = memo(function ChannelCard({ item, isFocused }) {
   const [err, setErr] = useState(false);
   const src = item.stream_icon || null;
   return (
@@ -506,4 +502,4 @@ function ChannelCard({ item, isFocused }) {
       <div className="tvl-ch-name">{item.name}</div>
     </div>
   );
-}
+});

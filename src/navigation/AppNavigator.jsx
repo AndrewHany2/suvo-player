@@ -7,7 +7,7 @@ import { YStack, XStack, Text } from "../ui/primitives";
 import Icon from "../ui/Icon";
 import { colors, accentAlpha } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
-import { isSupabaseConfigured } from "../services/supabase";
+import { useAppGate } from "./useAppGate";
 
 import AuthScreen from "../screens/AuthScreen";
 import ConfigErrorScreen from "../screens/ConfigErrorScreen";
@@ -84,7 +84,7 @@ function MainTabs() {
 }
 
 export default function AppNavigator() {
-  const { authUser, authLoading, activeProfileId, deviceStatus } = useApp();
+  const gate = useAppGate();
   // Neutral boot splash while the session/device resolves — auth-agnostic spinner
   // only, never an optimistic skeleton. The 8s authLoading ceiling lives in AppContext.
   const splash = (
@@ -92,12 +92,11 @@ export default function AppNavigator() {
       <ActivityIndicator size="large" color={colors.accent} />
     </YStack>
   );
-  if (!isSupabaseConfigured()) return <ConfigErrorScreen />;
-  if (authLoading) return splash;
-  if (!authUser) return <AuthScreen />;
-  if (deviceStatus === "pending") return splash;
-  if (deviceStatus === "denied") return <DeviceLockedScreen />;
-  if (!activeProfileId) return <ProfilesScreen />;
+  if (gate === "config-error") return <ConfigErrorScreen />;
+  if (gate === "loading") return splash;
+  if (gate === "auth") return <AuthScreen />;
+  if (gate === "device-locked") return <DeviceLockedScreen />;
+  if (gate === "profiles") return <ProfilesScreen />;
 
   return (
     <NavigationContainer>

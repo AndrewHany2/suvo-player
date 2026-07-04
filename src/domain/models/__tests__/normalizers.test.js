@@ -1,53 +1,58 @@
-import { test, describe } from "node:test";
+import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
+import { register } from "node:module";
 
-// Inline the normalizers so these tests run without React Native available.
-// If the normalizer implementations change, update here or import directly.
+// These tests exercise the REAL shipped normalizers, not inline copies, so a
+// regression in src/domain/models/* actually turns a test red.
+//
+// Category.js and Channel.js have no internal imports and load under node:test
+// directly. Movie.js and Series.js do `import { parseRating } from "./parse"`
+// (extensionless — metro/expo resolve it, Node's native ESM resolver does not).
+// We register a tiny resolve hook that appends ".js" to that one specifier so
+// the untouched source modules load. Nothing here is a copy of the mapper.
+register(
+  "data:text/javascript," +
+    encodeURIComponent(
+      `export async function resolve(spec, ctx, next) {
+         if (spec === "./parse") {
+           try { return await next(spec, ctx); }
+           catch { return next(spec + ".js", ctx); }
+         }
+         return next(spec, ctx);
+       }`,
+    ),
+  import.meta.url,
+);
 
-function normalizeCategory(raw) {
-  return {
-    id: String(raw.category_id ?? raw.id ?? ""),
-    name: raw.category_name ?? raw.name ?? "",
-    parentId: raw.parent_id ? String(raw.parent_id) : null,
-  };
-}
+let normalizeCategory, normalizeMovie, normalizeChannel, normalizeSeries, parseRating;
 
-function parseRating(v) {
-  const n = parseFloat(v);
-  return Number.isNaN(n) ? null : n;
-}
+before(async () => {
+  ({ normalizeCategory } = await import("../Category.js"));
+  ({ normalizeChannel } = await import("../Channel.js"));
+  ({ normalizeMovie } = await import("../Movie.js"));
+  ({ normalizeSeries } = await import("../Series.js"));
+  ({ parseRating } = await import("../parse.js"));
+});
 
-function normalizeMovie(raw) {
-  return {
-    ...raw,
-    id: raw.stream_id ?? raw.streamId,
-    poster: raw.stream_icon || raw.cover || raw.movie_image || null,
-    containerExtension: raw.container_extension || "mp4",
-    rating: parseRating(raw.tmdb_rating ?? raw.rating),
-    categoryId: raw.category_id ? String(raw.category_id) : null,
-  };
-}
+// ── parseRating (shared rating coercion used by Movie/Series) ──────────────────
 
-function normalizeChannel(raw) {
-  return {
-    ...raw,
-    id: raw.stream_id ?? raw.streamId,
-    logo: raw.stream_icon || null,
-    epgId: raw.epg_channel_id || null,
-    categoryId: raw.category_id ? String(raw.category_id) : null,
-    streamType: raw.stream_type || "live",
-  };
-}
+describe("parseRating", () => {
+  test("returns null for null/undefined/empty string", () => {
+    assert.equal(parseRating(null), null);
+    assert.equal(parseRating(undefined), null);
+    assert.equal(parseRating(""), null);
+  });
 
-function normalizeSeries(raw) {
-  return {
-    ...raw,
-    id: raw.series_id ?? raw.seriesId,
-    poster: raw.cover || null,
-    rating: parseRating(raw.rating),
-    categoryId: raw.category_id ? String(raw.category_id) : null,
-  };
-}
+  test("passes numbers through", () => {
+    assert.equal(parseRating(7.5), 7.5);
+    assert.equal(parseRating(0), 0);
+  });
+
+  test("parses numeric strings, null when non-numeric", () => {
+    assert.equal(parseRating("8.1"), 8.1);
+    assert.equal(parseRating("N/A"), null);
+  });
+});
 
 // ── Category ────────────────────────────────────────────────────────────────
 
@@ -74,6 +79,12 @@ describe("normalizeCategory", () => {
     const result = normalizeCategory({ category_name: "Unknown" });
     assert.equal(result.id, "");
   });
+
+  test("coerces numeric category_id to a String id (ContentService dedup relies on this)", () => {
+    const result = normalizeCategory({ category_id: 42, category_name: "Action" });
+    assert.equal(result.id, "42");
+    assert.equal(typeof result.id, "string");
+  });
 });
 
 // ── Movie ───────────────────────────────────────────────────────────────────
@@ -86,9 +97,16 @@ describe("normalizeMovie", () => {
     assert.equal(result.stream_id, 101); // backward compat spread
   });
 
-  test("prefers stream_icon for poster, falls back to cover then movie_image", () => {
-    assert.equal(normalizeMovie({ stream_id: 1, stream_icon: "icon.jpg", cover: "c.jpg" }).poster, "icon.jpg");
-    assert.equal(normalizeMovie({ stream_id: 1, cover: "c.jpg" }).poster, "c.jpg");
+  test("id falls back to streamId when stream_id absent", () => {
+    assert.equal(normalizeMovie({ streamId: 55 }).id, 55);
+  });
+
+  test("poster fallback order: stream_icon → cover → movie_image → null", () => {
+    assert.equal(
+      normalizeMovie({ stream_id: 1, stream_icon: "icon.jpg", cover: "c.jpg", movie_image: "m.jpg" }).poster,
+      "icon.jpg",
+    );
+    assert.equal(normalizeMovie({ stream_id: 1, cover: "c.jpg", movie_image: "m.jpg" }).poster, "c.jpg");
     assert.equal(normalizeMovie({ stream_id: 1, movie_image: "m.jpg" }).poster, "m.jpg");
     assert.equal(normalizeMovie({ stream_id: 1 }).poster, null);
   });
@@ -98,15 +116,16 @@ describe("normalizeMovie", () => {
     assert.equal(normalizeMovie({ stream_id: 1, container_extension: "mkv" }).containerExtension, "mkv");
   });
 
-  test("parses rating as float, null when invalid", () => {
+  test("prefers tmdb_rating over rating, null when invalid/absent", () => {
     assert.equal(normalizeMovie({ stream_id: 1, rating: "7.5" }).rating, 7.5);
-    assert.equal(normalizeMovie({ stream_id: 1, tmdb_rating: "8.1" }).rating, 8.1);
+    assert.equal(normalizeMovie({ stream_id: 1, tmdb_rating: "8.1", rating: "1.0" }).rating, 8.1);
     assert.equal(normalizeMovie({ stream_id: 1, rating: "N/A" }).rating, null);
     assert.equal(normalizeMovie({ stream_id: 1 }).rating, null);
   });
 
   test("categoryId is stringified", () => {
     assert.equal(normalizeMovie({ stream_id: 1, category_id: 5 }).categoryId, "5");
+    assert.equal(typeof normalizeMovie({ stream_id: 1, category_id: 5 }).categoryId, "string");
     assert.equal(normalizeMovie({ stream_id: 1 }).categoryId, null);
   });
 });
@@ -128,11 +147,18 @@ describe("normalizeChannel", () => {
 
   test("defaults streamType to live", () => {
     assert.equal(normalizeChannel({ stream_id: 1 }).streamType, "live");
+    assert.equal(normalizeChannel({ stream_id: 1, stream_type: "radio" }).streamType, "radio");
   });
 
   test("maps epg_channel_id → epgId", () => {
     assert.equal(normalizeChannel({ stream_id: 1, epg_channel_id: "EPG123" }).epgId, "EPG123");
     assert.equal(normalizeChannel({ stream_id: 1 }).epgId, null);
+  });
+
+  test("categoryId is stringified", () => {
+    assert.equal(normalizeChannel({ stream_id: 1, category_id: 9 }).categoryId, "9");
+    assert.equal(typeof normalizeChannel({ stream_id: 1, category_id: 9 }).categoryId, "string");
+    assert.equal(normalizeChannel({ stream_id: 1 }).categoryId, null);
   });
 });
 
@@ -147,12 +173,29 @@ describe("normalizeSeries", () => {
     assert.equal(result.series_id, 300); // backward compat
   });
 
-  test("poster is null when cover absent", () => {
+  test("id falls back to seriesId when series_id absent", () => {
+    assert.equal(normalizeSeries({ seriesId: 88 }).id, 88);
+  });
+
+  test("poster fallback order: cover → backdrop_path → null", () => {
+    assert.equal(normalizeSeries({ series_id: 1, cover: "c.jpg", backdrop_path: "b.jpg" }).poster, "c.jpg");
+    assert.equal(normalizeSeries({ series_id: 1, backdrop_path: "b.jpg" }).poster, "b.jpg");
     assert.equal(normalizeSeries({ series_id: 1 }).poster, null);
   });
 
-  test("rating parsed as float", () => {
-    assert.equal(normalizeSeries({ series_id: 1, rating: "9.0" }).rating, 9.0);
+  test("rating parsed as float, null when absent", () => {
+    assert.equal(normalizeSeries({ series_id: 1, rating: "9.0" }).rating, 9);
     assert.equal(normalizeSeries({ series_id: 1 }).rating, null);
+  });
+
+  test("genre takes first comma-separated value, trimmed", () => {
+    assert.equal(normalizeSeries({ series_id: 1, genre: "Drama, Sci-Fi, Thriller" }).genre, "Drama");
+    assert.equal(normalizeSeries({ series_id: 1 }).genre, null);
+  });
+
+  test("categoryId is stringified", () => {
+    assert.equal(normalizeSeries({ series_id: 1, category_id: 3 }).categoryId, "3");
+    assert.equal(typeof normalizeSeries({ series_id: 1, category_id: 3 }).categoryId, "string");
+    assert.equal(normalizeSeries({ series_id: 1 }).categoryId, null);
   });
 });

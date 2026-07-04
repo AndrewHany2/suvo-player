@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { useApp } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
-import { useContentService } from "../domain/hooks/useContentService";
+import { useSeries } from "../domain/hooks/useSeries";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
 import StatePanel from "../ui/StatePanel";
@@ -35,9 +34,13 @@ const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 // mode: 'cats' | 'grid' | 'detail'
 
 export default function SeriesScreenTV({ navigation, route }) {
-  const { contentService, activeUser, activeUserId } = useContentService();
   const {
-    playVideo, watchHistory,
+    loading, error, reload, activeUserId,
+    categories, getCategoryItems, fetchSeriesInfo, buildEpisodeUrl, playEpisodeObject,
+    shelves, handleShelfVisible, handleLoadMore,
+  } = useSeries({ navigation });
+  const {
+    watchHistory,
     isInMyList, addToMyList, removeFromMyList,
     currentVideo, tvUseShelves,
   } = useApp();
@@ -51,8 +54,6 @@ export default function SeriesScreenTV({ navigation, route }) {
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
 
-  const [loading, setLoading] = useState(false);
-  const [cats, setCats] = useState([]);
   const [catFocus, setCatFocus] = useState(0);
   const [grid, setGrid] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -65,7 +66,6 @@ export default function SeriesScreenTV({ navigation, route }) {
   const searchInputRef = useRef(null);
   const gridRef = useRef(null);
   const detailRef = useRef(null);
-  const allItemsRef = useRef(new Map());
   const catElRef = useRef(null);
   const epElRef = useRef(null);
   const snElRef = useRef(null);
@@ -103,6 +103,11 @@ export default function SeriesScreenTV({ navigation, route }) {
     globalThis.dispatchEvent(new CustomEvent("tv-nav-focus"));
   };
 
+  // Category cards: the shared hook's shelves carry the real {id,name}; prepend
+  // the synthetic "All Series" landing (its grid fetches the whole catalog).
+  const cats = categories.length
+    ? [{ id: "all", name: "All Series" }, ...categories]
+    : categories;
   // Category cards filtered by the search query — "All Series" stays pinned.
   const q = query.trim().toLowerCase();
   const visibleCats = q && cats.length
@@ -122,10 +127,6 @@ export default function SeriesScreenTV({ navigation, route }) {
   useEffect(() => {
     detailRef.current = detail;
   }, [detail]);
-
-  useEffect(() => {
-    if (activeUserId) loadCats();
-  }, [activeUserId]);
 
   // Handle navigation from history - open detail if params provided
   useEffect(() => {
@@ -152,23 +153,6 @@ export default function SeriesScreenTV({ navigation, route }) {
     }
   }, [route?.params?.openDetail]);
 
-  const loadCats = async () => {
-    if (!activeUser) return;
-    setLoading(true);
-    allItemsRef.current.clear();
-    try {
-      const list = await contentService.getSeriesCategories();
-      if (!list?.length) return;
-      const withAll = [{ id: "all", name: "All Series" }, ...list];
-      setCats(withAll);
-      catsRef.current = withAll;
-    } catch (e) {
-      console.error("SeriesScreenTV:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // ── Open category grid ────────────────────────────────────────────────────
   const openGrid = async (cat) => {
     const next = {
@@ -177,60 +161,24 @@ export default function SeriesScreenTV({ navigation, route }) {
       items: null,
       display: SER_PAGE,
       focus: 0,
+      failed: false,
     };
     setGrid(next);
     gridRef.current = next;
     try {
-      let all = allItemsRef.current.get(cat.id);
-      if (!all) {
-        all = cat.id === "all"
-          ? await contentService.getAllSeries()
-          : await contentService.getSeriesByCategory(cat.id);
-        allItemsRef.current.set(cat.id, all);
-      }
+      // getCategoryItems is cache-warm (shared with shelf drill-in) and handles
+      // the synthetic "all" (whole catalog) vs a real category internally.
+      const all = await getCategoryItems(cat.id);
       const updated = { ...next, items: all };
       setGrid(updated);
       gridRef.current = updated;
     } catch {
-      const updated = { ...next, items: [] };
+      // Fetch FAILURE (error + retry), distinct from an empty series list.
+      const updated = { ...next, items: [], failed: true };
       setGrid(updated);
       gridRef.current = updated;
     }
   };
-
-  // ── Shelf adapter (flag on) ────────────────────────────────────────────────
-  // Series has no shared shelf hook, so build shelf state from the real
-  // categories (excluding the synthetic "all", whose rail would fetch the whole
-  // catalog). Items load lazily per rail as it scrolls into VirtualShelves'
-  // vertical window, reusing allItemsRef so drill-in ("see all") is cache-warm.
-  const [shelves, setShelves] = useState([]);
-  const shelfLoadedRef = useRef(new Set());
-  useEffect(() => {
-    if (!tvUseShelves) return;
-    const real = cats.filter((c) => c.id !== "all");
-    setShelves(real.map((c) => ({
-      id: c.id, name: c.name, items: null, totalCount: null, hasMore: false, loadingMore: false,
-    })));
-    shelfLoadedRef.current = new Set();
-  }, [tvUseShelves, cats]);
-
-  const handleShelfVisible = useCallback(async (catId) => {
-    if (shelfLoadedRef.current.has(catId)) return;
-    shelfLoadedRef.current.add(catId);
-    try {
-      let all = allItemsRef.current.get(catId);
-      if (!all) { all = await contentService.getSeriesByCategory(catId); allItemsRef.current.set(catId, all); }
-      const items = all || [];
-      setShelves((prev) => prev.map((s) =>
-        s.id === catId ? { ...s, items, totalCount: items.length, hasMore: false } : s));
-    } catch {
-      setShelves((prev) => prev.map((s) =>
-        s.id === catId ? { ...s, items: [], totalCount: 0, hasMore: false } : s));
-    }
-  }, [contentService]);
-
-  // ponytail: VirtualShelvesTV windows the full array; no per-rail paging.
-  const handleLoadMore = useCallback(() => {}, []);
 
   const resetFilter = () => {
     filterLetterRef.current = "all";
@@ -277,7 +225,7 @@ export default function SeriesScreenTV({ navigation, route }) {
     setDetail(next);
     detailRef.current = next;
     try {
-      const info = await iptvApi.getSeriesInfo(item.series_id || item.id);
+      const info = await fetchSeriesInfo(item.series_id || item.id);
       const rawSeasons = info?.seasons;
       const seasons = Array.isArray(rawSeasons)
         ? rawSeasons
@@ -325,7 +273,7 @@ export default function SeriesScreenTV({ navigation, route }) {
 
   // ── Play episode ──────────────────────────────────────────────────────────
   const playEpisode = (series, episode) => {
-    const url = contentService.buildEpisodeUrl(episode.id, episode.container_extension || "mp4");
+    const url = buildEpisodeUrl(episode.id, episode.container_extension || "mp4");
 
     // Check if there's watch history for this episode
     const historyEntry = (watchHistory || []).find(
@@ -333,7 +281,7 @@ export default function SeriesScreenTV({ navigation, route }) {
     );
     const startTime = historyEntry?.currentTime || 0;
 
-    playVideo({
+    playEpisodeObject({
       type: "series",
       streamId: String(episode.id),
       seriesId: series.series_id || series.id,
@@ -344,7 +292,6 @@ export default function SeriesScreenTV({ navigation, route }) {
       cover: series.cover || series.stream_icon,
       startTime,
     });
-    navigation.navigate("VideoPlayer");
   };
 
   // ── Continue watching a series ────────────────────────────────────────────
@@ -354,8 +301,8 @@ export default function SeriesScreenTV({ navigation, route }) {
       (h) => h.type === "series" && String(h.seriesId) === String(seriesId),
     );
     if (!entry) return;
-    const url = contentService.buildEpisodeUrl(entry.streamId);
-    playVideo({
+    const url = buildEpisodeUrl(entry.streamId);
+    playEpisodeObject({
       type: "series",
       streamId: entry.streamId,
       seriesId: entry.seriesId,
@@ -366,7 +313,6 @@ export default function SeriesScreenTV({ navigation, route }) {
       cover: d.item.cover || d.item.stream_icon,
       startTime: entry.currentTime || 0,
     });
-    navigation.navigate("VideoPlayer");
   };
 
   // ── D-pad handler ─────────────────────────────────────────────────────────
@@ -1023,12 +969,20 @@ export default function SeriesScreenTV({ navigation, route }) {
             );
           })}
         </div>
-        {!filteredItems && (
+        {!filteredItems && !grid.failed && (
           <div className="tvl-center">
             <div className="tvl-spinner" />
           </div>
         )}
-        {filteredItems?.length === 0 && (
+        {grid.failed && (
+          <StatePanel
+            mode="error"
+            title="Couldn't load series"
+            message="Something went wrong fetching this category."
+            onRetry={() => openGrid({ id: grid.catId, name: grid.name })}
+          />
+        )}
+        {!grid.failed && filteredItems?.length === 0 && (
           <div className="tvl-center">
             <p className="tvl-empty-msg">{gridQuery.trim() ? "No results" : `No titles starting with "${filterLetter.toUpperCase()}"`}</p>
           </div>
@@ -1107,23 +1061,32 @@ export default function SeriesScreenTV({ navigation, route }) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <div className="tvl-cat-grid">
-          {visibleCats.map((cat, i) => (
-            <button
-              key={cat.id}
-              ref={i === catFocus ? catElRef : null}
-              className={
-                catZone === "grid" && i === catFocus
-                  ? "tvl-cat-card tvl-cat-card--on"
-                  : "tvl-cat-card"
-              }
-              onClick={() => openGrid(cat)}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
-        {q && visibleCats.length <= 1 && (
+        {error ? (
+          <StatePanel
+            mode="error"
+            title="Couldn't load series"
+            message="Something went wrong fetching the series categories."
+            onRetry={reload}
+          />
+        ) : (
+          <div className="tvl-cat-grid">
+            {visibleCats.map((cat, i) => (
+              <button
+                key={cat.id}
+                ref={i === catFocus ? catElRef : null}
+                className={
+                  catZone === "grid" && i === catFocus
+                    ? "tvl-cat-card tvl-cat-card--on"
+                    : "tvl-cat-card"
+                }
+                onClick={() => openGrid(cat)}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        )}
+        {!error && q && visibleCats.length <= 1 && (
           <div className="tvl-center"><p className="tvl-empty-msg">No categories match</p></div>
         )}
       </div>
@@ -1131,7 +1094,9 @@ export default function SeriesScreenTV({ navigation, route }) {
   );
 }
 
-function PosterCard({ item, isFocused }) {
+// Memoized: only `item` + `isFocused` matter, so moving focus re-renders just
+// the two affected posters, not every mounted card in the grid.
+const PosterCard = memo(function PosterCard({ item, isFocused }) {
   const [err, setErr] = useState(false);
   const src = item.cover || item.stream_icon || null;
   const rating = item.rating;
@@ -1154,4 +1119,4 @@ function PosterCard({ item, isFocused }) {
       <div className="tvl-card-title">{item.name}</div>
     </div>
   );
-}
+});

@@ -29,7 +29,6 @@ import { initialState, reduce } from './recoveryMachine.js';
  */
 function resolveNetInfo() {
   try {
-    // eslint-disable-next-line global-require, import/no-extraneous-dependencies
     const mod = require('@react-native-community/netinfo');
     return mod?.default ?? mod ?? null;
   } catch {

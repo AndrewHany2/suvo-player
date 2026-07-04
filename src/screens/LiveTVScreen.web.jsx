@@ -6,23 +6,15 @@ import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
-import { useContentService } from "../domain/hooks/useContentService";
+import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
 import { ss, useScale } from "../utils/scaleSize";
-import iptvApi from "../services/iptvApi";
 import ProxiedImage from "../components/ProxiedImage";
 
 // Caps the browse content width so rows don't stretch edge-to-edge on ultrawide
 // monitors. Centered via margin auto on the inner wrapper.
 const MAX_W = 1700;
 
-const decodeEpgTitle = (title) => {
-  try {
-    return atob(title);
-  } catch {
-    return title;
-  }
-};
 const getAbbrev = (name) => {
   const words = name.trim().split(/\s+/);
   if (words.length >= 2)
@@ -67,6 +59,16 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
       pressStyle={{ opacity: 0.8 }}
       hoverStyle={{ borderColor: colors.accent }}
       animation="quick"
+      // Real button semantics so keyboard/AT users can reach and fire the card.
+      role="button"
+      tabIndex={0}
+      aria-label={item.name}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          onPress(item);
+        }
+      }}
       {...{ className: "lumen-live-card" }}
     >
       <XStack alignItems="center" gap={ss(10)} marginBottom={ss(10)}>
@@ -350,18 +352,29 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
 }
 
 export default function LiveTVScreen({ navigation }) {
-  const { activeUser, activeUserId } = useContentService();
   const {
-    channels,
+    loading,
+    error,
+    reload: loadChannels,
+    activeUserId,
+    categories: baseCategories,
+    getFlatChannels,
+    fetchEpgTitle,
+    playChannel,
+  } = useLiveTV({ navigation });
+  // Locally-injected synthetic categories (currently just "Custom" for user-added
+  // channels); the hook owns the provider category list, so custom entries live
+  // here and are merged into the rendered list below.
+  const [customCats, setCustomCats] = useState([]);
+  const categories = customCats.length
+    ? [...baseCategories, ...customCats]
+    : baseCategories;
+  const {
     setChannels,
     saveChannels,
-    playVideo,
     searchQuery,
     setSearchQuery,
   } = useApp();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  const [categories, setCategories] = useState([]);
   const [channelsByCategory, setChannelsByCategory] = useState({});
   const [epgCache, setEpgCache] = useState({});
   const [showAddChannel, setShowAddChannel] = useState(false);
@@ -426,14 +439,12 @@ export default function LiveTVScreen({ navigation }) {
       return { ...prev, [streamId]: null };
     });
     try {
-      const data = await iptvApi.getShortEpg(streamId, 1);
-      const listing = data?.epg_listings?.[0];
-      const title = listing ? decodeEpgTitle(listing.title) : "";
+      const title = await fetchEpgTitle(streamId);
       setEpgCache((prev) => ({ ...prev, [streamId]: title }));
     } catch {
       setEpgCache((prev) => ({ ...prev, [streamId]: "" }));
     }
-  }, []);
+  }, [fetchEpgTitle]);
 
   const handleAddChannel = () => {
     if (!newChannelName.trim() || !newStreamUrl.trim()) {
@@ -455,7 +466,7 @@ export default function LiveTVScreen({ navigation }) {
       ...prev,
       Custom: [...(prev.Custom || []), ch],
     }));
-    setCategories((prev) =>
+    setCustomCats((prev) =>
       prev.some((c) => c.id === "Custom")
         ? prev
         : [...prev, { id: "Custom", name: "Custom" }],
@@ -468,9 +479,16 @@ export default function LiveTVScreen({ navigation }) {
     Alert.alert("Channel Added", `"${ch.name}" added to Custom category.`);
   };
 
+  // Categories load is owned by useLiveTV (its own activeUserId effect). Here we
+  // just reset the screen-local shelf state (EPG cache, per-category channels,
+  // and the fetch queue) whenever the active account changes.
   useEffect(() => {
     setEpgCache({});
-    if (activeUserId) loadChannels();
+    setChannelsByCategory({});
+    setCustomCats([]);
+    loadedRef.current.clear();
+    queueRef.current = [];
+    activeRef.current = 0;
   }, [activeUserId]);
 
   // Fetch one category's channels. On failure, re-queue (up to SHELF_FETCH_RETRIES)
@@ -478,16 +496,9 @@ export default function LiveTVScreen({ navigation }) {
   // the retries are exhausted is it marked empty.
   const fetchShelf = useCallback(async (catId, attempts) => {
     try {
-      const data = await iptvApi.getLiveStreamsByCategory(catId);
-      const formatted = (data || []).map((ch) => ({
-        name: ch.name,
-        // Lowercased once at load so the search filter never re-lowercases per keystroke.
-        _lc: (ch.name || "").toLowerCase(),
-        url: iptvApi.buildStreamUrl("live", ch.stream_id, "m3u8"),
-        id: ch.stream_id,
-        stream_id: ch.stream_id,
-        logo: ch.stream_icon || null,
-      }));
+      // useLiveTV returns the flat card shape ({name,_lc,url,id,stream_id,logo})
+      // and caches the fetch, so a re-visit is instant.
+      const formatted = await getFlatChannels(catId);
       setChannelsByCategory((prev) => ({ ...prev, [catId]: formatted }));
       setChannels((prev) => [...prev, ...formatted]);
     } catch {
@@ -497,7 +508,7 @@ export default function LiveTVScreen({ navigation }) {
         setChannelsByCategory((prev) => ({ ...prev, [catId]: [] }));
       }
     }
-  }, [setChannels]);
+  }, [setChannels, getFlatChannels]);
 
   // Drain the queue up to SHELF_FETCH_CONCURRENCY in flight. Each completing
   // fetch pumps again, so slots free up in FIFO order — the shelves that became
@@ -520,44 +531,7 @@ export default function LiveTVScreen({ navigation }) {
     pumpQueue();
   }, [pumpQueue]);
 
-  const loadChannels = async () => {
-    if (!activeUser) return;
-    setLoading(true);
-    setError(false);
-    loadedRef.current.clear();
-    queueRef.current = [];
-    activeRef.current = 0;
-    setCategories([]);
-    setChannelsByCategory({});
-    try {
-      const cats = await iptvApi.getLiveCategories();
-      if (!cats?.length) {
-        setLoading(false);
-        return;
-      }
-      setCategories(
-        cats.map((c) => ({ id: c.category_id, name: c.category_name })),
-      );
-    } catch (err) {
-      console.error("Error loading channels:", err);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleChannelPress = useCallback(
-    (item) => {
-      playVideo({
-        type: "live",
-        streamId: item.stream_id || item.id,
-        name: item.name,
-        url: item.url,
-      });
-      navigation.navigate("VideoPlayer");
-    },
-    [playVideo, navigation],
-  );
+  const handleChannelPress = playChannel;
 
   // Derived shelves. Memoized on [categories, channelsByCategory, debouncedQuery]
   // so a keystroke that doesn't change the (debounced) query is a no-op, and the

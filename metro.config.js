@@ -17,7 +17,10 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     if (m) {
       return context.resolveRequest(context, `${m[1]}${m[2]}.tv`, platform);
     }
-    if (/\/screens\/AccountsScreen$/.test(moduleName)) {
+    // AccountsScreen and VideoPlayerScreen are imported without a .web suffix
+    // (AppNavigator relies on Metro's platform-extension resolution to pick
+    // .web/.native). Match the bare specifier and redirect to the .tv sibling.
+    if (/\/screens\/(AccountsScreen|VideoPlayerScreen)$/.test(moduleName)) {
       return context.resolveRequest(context, `${moduleName}.tv`, platform);
     }
   }

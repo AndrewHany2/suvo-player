@@ -4,7 +4,7 @@ import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import { colors, accentAlpha, fonts } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
-import { isSupabaseConfigured } from "../services/supabase";
+import { useAppGate } from "./useAppGate";
 import { ss } from "../utils/scaleSize";
 import { isMacCommand } from "../platform/adapters/input/keys";
 
@@ -340,15 +340,12 @@ function TopNav({
 export default function AppNavigator() {
   const { isTV } = usePlatform();
   const {
-    authUser,
-    authLoading,
-    deviceStatus,
-    activeProfileId,
     activeProfile,
     currentVideo,
     switchProfile,
     setSearchQuery,
   } = useApp();
+  const gate = useAppGate();
   const [activeTab, setActiveTab] = useState("live");
   const [showAccounts, setShowAccounts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -608,12 +605,11 @@ export default function AppNavigator() {
       <div style={{ width: 48, height: 48, border: "4px solid #28324E", borderTopColor: "#6C5CE7", borderRadius: "50%", animation: "lumen-spin 0.8s linear infinite" }} />
     </div>
   );
-  if (!isSupabaseConfigured()) return <ConfigErrorScreen />;
-  if (authLoading) return splash;
-  if (!authUser) return <AuthScreen />;
-  if (deviceStatus === "pending") return splash;
-  if (deviceStatus === "denied") return <DeviceLockedScreen />;
-  if (!activeProfileId) return <ProfilesScreen />;
+  if (gate === "config-error") return <ConfigErrorScreen />;
+  if (gate === "loading") return splash;
+  if (gate === "auth") return <AuthScreen />;
+  if (gate === "device-locked") return <DeviceLockedScreen />;
+  if (gate === "profiles") return <ProfilesScreen />;
 
   const ContentComponent = CONTENT_MAP[activeTab] || LiveTVScreen;
 
@@ -646,7 +642,6 @@ export default function AppNavigator() {
       {currentVideo && <VideoPlayerScreen />}
 
       {showAccounts && (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
         <div
           style={{
             position: "fixed",
@@ -714,7 +709,6 @@ export default function AppNavigator() {
       )}
 
       {showSettings && (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
         <div
           style={{
             position: "fixed",

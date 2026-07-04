@@ -53,7 +53,6 @@ const LONG_PRESS_MS = 450;
  */
 function loadBrightness() {
   try {
-    // eslint-disable-next-line global-require, import/no-extraneous-dependencies
     return require("expo-brightness");
   } catch {
     return null;

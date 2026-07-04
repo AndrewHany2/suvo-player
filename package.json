@@ -2,6 +2,9 @@
   "name": "iptv-player",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "expo start",
     "dev:android": "expo run:android",
@@ -21,7 +24,8 @@
     "debug:lg": "npm run build:tv && cp -r tv/dist/* tv/packaging/lg/ && ares-package tv/packaging/lg -o tv/packaging/lg/out --no-minify && ares-install tv/packaging/lg/out/*.ipk -d lg && ares-inspect -d lg -a com.andrew1h1.iptvplayer --open",
     "sim:tizen": "npm run build:tv && cp -r tv/dist/* tv/packaging/samsung/ && tizen package -t wgt -o tv/packaging/samsung -- tv/packaging/samsung && (em-cli launch --name \"${TIZEN_EMU:-T-10.0-x86_64}\" || true) && sleep 8 && tizen install -n IptvPlayer.wgt -t \"${TIZEN_EMU:-T-10.0-x86_64}\" -- tv/packaging/samsung && tizen run -p IptvPlayer.Lumen -t \"${TIZEN_EMU:-T-10.0-x86_64}\"",
     "deploy:tizen": "test -n \"$TIZEN_TV_IP\" || { echo 'Set TIZEN_TV_IP to your TV IP (Developer Mode must be on), e.g. TIZEN_TV_IP=192.168.1.42 npm run deploy:tizen'; exit 1; } && npm run build:tv && cp -r tv/dist/* tv/packaging/samsung/ && tizen package -t wgt -o tv/packaging/samsung -- tv/packaging/samsung && sdb connect \"$TIZEN_TV_IP\" && tizen install -n IptvPlayer.wgt -t \"${TIZEN_TV:-$TIZEN_TV_IP}\" -- tv/packaging/samsung && tizen run -p IptvPlayer.Lumen -t \"${TIZEN_TV:-$TIZEN_TV_IP}\"",
-    "test": "node --test src scripts supabase",
+    "test": "node --test src scripts supabase electron",
+    "lint": "eslint .",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
@@ -41,7 +45,6 @@
     "expo-screen-orientation": "~9.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-video": "~3.0.16",
-    "express": "^4.22.1",
     "hls.js": "^1.6.16",
     "jail-monkey": "^3.0.0",
     "react": "19.1.0",
@@ -63,6 +66,9 @@
     "concurrently": "^9.2.1",
     "electron": "^40.6.0",
     "electron-builder": "^26.8.1",
+    "eslint": "^10.6.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
     "javascript-obfuscator": "^5.4.3",
     "react-refresh": "^0.18.0",
     "typescript": "^6.0.3",

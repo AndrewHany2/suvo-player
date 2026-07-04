@@ -4,7 +4,7 @@ import { YStack, Text, ScrollView } from "../ui/primitives";
 import { colors, fonts, fontWeights, overlay, radii } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
-import { useApp } from "../context/AppContext";
+import { useHistory } from "../domain/hooks/useHistory";
 import { ss, useScale } from "../utils/scaleSize";
 import MovieDetail from "../components/MovieDetail.web";
 import SeriesDetail from "../components/SeriesDetail.web";
@@ -318,12 +318,13 @@ function CWCard({ item, onPress, onRemove }) {
 
 export default function HistoryScreen({ navigation }) {
   const {
-    watchHistory,
+    watchedHistory,
     removeFromWatchHistory,
-    playVideo,
+    playLive,
+    playVideoObject,
     myList,
     removeFromMyList,
-  } = useApp();
+  } = useHistory({ navigation });
   useScale(); // re-render + recompute ss() on window resize
   const fav$ = useDragScroll();
   const cw$ = useDragScroll();
@@ -331,8 +332,7 @@ export default function HistoryScreen({ navigation }) {
 
   const openDetail = (item) => {
     if (item.type === "live") {
-      playVideo({ ...item, startTime: 0 });
-      navigation.navigate("VideoPlayer");
+      playLive(item);
       return;
     }
     // Transform history item to match detail screen expectations
@@ -347,12 +347,9 @@ export default function HistoryScreen({ navigation }) {
   };
   const closeDetail = () => setCurrentDetail(null);
   const handlePlay = (videoObj) => {
-    playVideo(videoObj);
-    navigation.navigate("VideoPlayer");
+    playVideoObject(videoObj);
     setCurrentDetail(null);
   };
-
-  const watchedHistory = watchHistory.filter((item) => item.type !== "live");
 
   if (currentDetail?.type === "movies")
     return (

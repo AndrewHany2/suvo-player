@@ -35,6 +35,12 @@ const FETCH_TIMEOUT = 15 * 1000;
 // a generous budget so a large-but-working dump isn't aborted into the slower
 // per-category fan-out fallback (which only exists for servers that BLOCK bulk).
 const BULK_FETCH_TIMEOUT = 90 * 1000;
+// Bounded retry for the idempotent GET path: a single transient 5xx / network
+// blip on first load otherwise surfaces a hard error (SWR only helps once a
+// value is cached). Retries do NOT apply to aborts (caller cancel / timeout)
+// or to non-transient 4xx responses.
+const FETCH_RETRIES = 2;
+const FETCH_RETRY_BACKOFF = 300;
 // Only these (small, slow-changing) keys are persisted to disk. Full stream
 // lists are intentionally NOT persisted — they can be multiple MB and would
 // blow the ~5 MB localStorage quota on web/webOS.
@@ -91,9 +97,12 @@ export class IPTVApi {
   password = null;
 
   setCredentials(host, username, password) {
-    let cleanHost = host.replace(/^(https?:\/\/)/, '');
-    cleanHost = cleanHost.replace(/\/$/, '');
-    const newBase = `http://${cleanHost}`;
+    // Preserve an explicit scheme the user provided (https-only Xtream panels
+    // break — and mixed-content-block on the https web/Electron build — if we
+    // force http://). Default to http only when the host is bare.
+    const scheme = /^https:\/\//i.test(host) ? 'https' : 'http';
+    const cleanHost = host.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+    const newBase = `${scheme}://${cleanHost}`;
     if (newBase !== this.baseUrl || username !== this.username) {
       // Credentials changed → the old account's cache is invalid. Drop it and
       // begin hydrating this account's persisted category cache from disk.
@@ -216,8 +225,24 @@ export class IPTVApi {
   }
 
   async fetch(url, { signal, timeout = FETCH_TIMEOUT } = {}) {
-    // Abort on our own timeout OR when the caller's signal aborts (whichever
-    // first). A hung provider then rejects fast instead of stalling forever.
+    // Bounded retry-with-backoff around the idempotent GET: a transient 5xx or
+    // network blip on the retry-eligible attempts is retried; a caller abort,
+    // our own timeout, or a non-transient 4xx is not (they re-throw at once).
+    for (let attempt = 0; ; attempt++) {
+      // Don't retry once the caller has cancelled between attempts.
+      if (signal?.aborted) return this._fetchOnce(url, signal, timeout);
+      try {
+        return await this._fetchOnce(url, signal, timeout);
+      } catch (e) {
+        if (attempt >= FETCH_RETRIES || !this._isTransient(e)) throw e;
+        await new Promise((r) => setTimeout(r, FETCH_RETRY_BACKOFF * (attempt + 1)));
+      }
+    }
+  }
+
+  // A single GET attempt. Aborts on our own timeout OR when the caller's signal
+  // aborts (whichever first) so a hung provider rejects fast.
+  async _fetchOnce(url, signal, timeout) {
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
@@ -241,6 +266,16 @@ export class IPTVApi {
       clearTimeout(timer);
       if (signal) signal.removeEventListener('abort', onAbort);
     }
+  }
+
+  // Transient = worth retrying: a 5xx response or a network-level error. NOT an
+  // abort (caller cancel / our timeout) and NOT a 4xx client error.
+  _isTransient(e) {
+    const msg = e?.message || '';
+    if (e?.name === 'AbortError' || /aborted|timed out/i.test(msg)) return false;
+    const m = msg.match(/status: (\d+)/);
+    if (m) return Number(m[1]) >= 500;
+    return true; // network-level error (TypeError: fetch failed, etc.)
   }
 
   async _cached(key, ttl, fetcher) {

@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, useMemo, useCal
 import storage from '../utils/storage';
 import iptvApi from '../services/iptvApi';
 import {
-  fetchRemoteHistory, upsertHistoryEntry, deleteHistoryEntry, mergeHistories, MAX_HISTORY,
+  fetchRemoteHistory, upsertHistoryEntry, deleteHistoryEntry, mergeHistories,
   fetchFavorites, upsertFavorite, deleteFavorite,
   isSupabaseConfigured, getSession, claimDevice,
   signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut,
@@ -12,7 +12,7 @@ import {
   updateIptvAccount as supabaseUpdateIptvAccount,
   deleteIptvAccount as supabaseDeleteIptvAccount,
 } from '../services/supabase';
-import { resolveProgressFields } from './historyEntry';
+import { normalizeHistoryItem, upsertHistoryItem, applyProgress } from './historyProgress';
 import { getDeviceSignature } from '../security/deviceSignature';
 import { setDeviceId } from '../services/deviceHeader';
 
@@ -191,27 +191,9 @@ export const AppProvider = ({ children }) => {
   }, [users, activeUserId, usersKey]);
 
   // ─── Watch history ─────────────────────────────────────────────────────────
-  const shouldKeep = (h, newItem) => {
-    if (newItem.type === 'series' && h.type === 'series') {
-      if (newItem.seriesId && h.seriesId) return h.seriesId !== newItem.seriesId;
-      if (newItem.seriesName && h.seriesName) return h.seriesName !== newItem.seriesName;
-      return h.streamId !== newItem.streamId;
-    }
-    return !(h.type === newItem.type && h.streamId === newItem.streamId);
-  };
-
-  // Normalize a raw item into a consistent history entry shape so every
-  // platform can resolve resume. Single write chokepoint.
-  const normalizeHistoryItem = (item) => {
-    const type = item.type === 'movie' ? 'movies' : item.type;
-    const streamId = item.streamId ?? item.stream_id ?? item.id;
-    const episodeId = item.episodeId ?? streamId;
-    const cover = item.cover ?? item.poster ?? item.stream_icon ?? item.movie_image ?? null;
-    const normalized = { ...item, type, streamId, episodeId, cover };
-    if (item.container_extension != null) normalized.container_extension = item.container_extension;
-    return normalized;
-  };
-
+  // normalize/dedupe/upsert/apply-progress live in the pure historyProgress
+  // module so addToWatchHistory and updateWatchProgress agree on the
+  // (type, streamId) key and share one create-if-missing chokepoint.
   const persistHistory = (key, history) => {
     if (!key) return;
     storage.setItem('iptv_history_' + key, JSON.stringify(history));
@@ -220,18 +202,9 @@ export const AppProvider = ({ children }) => {
   const addToWatchHistory = useCallback((rawItem) => {
     const item = normalizeHistoryItem(rawItem);
     const now = new Date().toISOString();
-    const prev = watchHistoryRef.current;
-    const existingIdx = prev.findIndex((h) => !shouldKeep(h, item));
-    let entry, newHistory;
-    if (existingIdx === -1) {
-      entry = { ...item, watchedAt: now, id: `${item.type}_${item.streamId || item.id}_${Date.now()}`, ...resolveProgressFields(undefined, item) };
-      newHistory = [entry, ...prev].slice(0, MAX_HISTORY);
-    } else {
-      // Re-opening a watched title must NOT reset its saved position: opens carry
-      // currentTime = startTime||0, so preserve the previous entry's progress.
-      entry = { ...prev[existingIdx], ...item, id: prev[existingIdx].id, watchedAt: now, ...resolveProgressFields(prev[existingIdx], item) };
-      newHistory = [entry, ...prev.filter((_, i) => i !== existingIdx)].slice(0, MAX_HISTORY);
-    }
+    // Re-opening a watched title must NOT reset its saved position: opens carry
+    // currentTime = startTime||0, so upsertHistoryItem preserves prior progress.
+    const { history: newHistory, entry } = upsertHistoryItem(watchHistoryRef.current, item, now);
     setWatchHistory(newHistory);
     persistHistory(userKey, newHistory);
     if (userKey) upsertHistoryEntry(userKey, entry);
@@ -260,14 +233,15 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   const updateWatchProgress = useCallback((streamId, type, currentTime, duration) => {
-    const normType = type === 'movie' ? 'movies' : type;
-    const updated = watchHistoryRef.current.map((item) =>
-      item.streamId === streamId && item.type === normType
-        ? { ...item, currentTime, duration, watchedAt: new Date().toISOString() }
-        : item
+    // Upsert semantics: a progress event with no matching row creates the entry
+    // so resume data emitted before/without addToWatchHistory is never lost.
+    const { history: updated, entry } = applyProgress(
+      watchHistoryRef.current,
+      { streamId, type, currentTime, duration },
+      new Date().toISOString(),
     );
     setWatchHistory(updated);
-    const timerKey = `${normType}_${streamId}`;
+    const timerKey = `${entry.type}_${entry.streamId}`;
     if (userKey) {
       // Flush any pending entry for a *different* stream before scheduling this one.
       for (const [k, timer] of progressSyncTimers.current.entries()) {
@@ -278,8 +252,7 @@ export const AppProvider = ({ children }) => {
         pendingProgressEntries.current.delete(k);
         if (pendingEntry) upsertHistoryEntry(userKey, pendingEntry);
       }
-      const entry = updated.find((item) => item.streamId === streamId && item.type === normType);
-      if (entry) pendingProgressEntries.current.set(timerKey, entry);
+      pendingProgressEntries.current.set(timerKey, entry);
       clearTimeout(progressSyncTimers.current.get(timerKey));
       progressSyncTimers.current.set(timerKey, setTimeout(() => {
         const e = pendingProgressEntries.current.get(timerKey);

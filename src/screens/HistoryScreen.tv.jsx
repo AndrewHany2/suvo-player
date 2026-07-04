@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
-import { useContentService } from "../domain/hooks/useContentService";
+import { useHistory } from "../domain/hooks/useHistory";
 import Icon from "../ui/Icon";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
@@ -28,18 +27,26 @@ const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 export default function HistoryScreenTV({ navigation }) {
-  // Credentials are kept in sync automatically by useContentService
-  useContentService();
   const {
     activeUserId,
-    playVideo,
-    watchHistory,
     myList,
     removeFromMyList,
     addToMyList,
     isInMyList,
     currentVideo,
   } = useApp();
+  // History list data, playback + url builders / info fetchers (routed through
+  // ContentService/iptvApi inside the hook — the screen no longer imports either).
+  // useHistory also keeps ContentService credentials in sync via useContentService.
+  const {
+    watchHistory,
+    playLive,
+    playVideoObject,
+    buildMovieUrl,
+    buildEpisodeUrl,
+    fetchMovieInfo,
+    fetchSeriesInfo,
+  } = useHistory({ navigation });
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
 
@@ -96,7 +103,7 @@ export default function HistoryScreenTV({ navigation }) {
     setMovieDetail(next);
     movieDetailRef.current = next;
     try {
-      const info = await iptvApi.getVODInfo(streamId);
+      const info = await fetchMovieInfo(streamId);
       const updated = { ...next, info };
       setMovieDetail(updated);
       movieDetailRef.current = updated;
@@ -119,8 +126,8 @@ export default function HistoryScreenTV({ navigation }) {
 
   const playMovie = (d, startTime = 0) => {
     const streamId = d.item.stream_id ?? d.item.streamId;
-    const url = contentService.buildMovieUrl(streamId, d.item.container_extension || "mp4");
-    playVideo({
+    const url = buildMovieUrl(streamId, d.item.container_extension || "mp4");
+    playVideoObject({
       type: "movies",
       streamId,
       name: d.item.name,
@@ -128,7 +135,6 @@ export default function HistoryScreenTV({ navigation }) {
       cover: d.item.stream_icon || d.item.cover || null,
       startTime,
     });
-    navigation.navigate("VideoPlayer");
   };
 
   // ── Open series detail ────────────────────────────────────────────────────
@@ -149,7 +155,7 @@ export default function HistoryScreenTV({ navigation }) {
     setSeriesDetail(next);
     seriesDetailRef.current = next;
     try {
-      const info = await iptvApi.getSeriesInfo(seriesId);
+      const info = await fetchSeriesInfo(seriesId);
       const rawSeasons = info?.seasons;
       const seasons = Array.isArray(rawSeasons)
         ? rawSeasons
@@ -177,12 +183,12 @@ export default function HistoryScreenTV({ navigation }) {
   };
 
   const playEpisode = (series, episode) => {
-    const url = contentService.buildEpisodeUrl(episode.id, episode.container_extension || "mp4");
+    const url = buildEpisodeUrl(episode.id, episode.container_extension || "mp4");
     const epHistory = (watchHistory || []).find(
       (h) =>
         h.type === "series" && String(h.episodeId) === String(episode.id),
     );
-    playVideo({
+    playVideoObject({
       type: "series",
       streamId: String(episode.id),
       seriesId: series.series_id || series.id,
@@ -193,7 +199,6 @@ export default function HistoryScreenTV({ navigation }) {
       cover: series.cover || series.stream_icon,
       startTime: epHistory?.currentTime || 0,
     });
-    navigation.navigate("VideoPlayer");
   };
 
   const continueSeriesWatching = (d) => {
@@ -202,8 +207,8 @@ export default function HistoryScreenTV({ navigation }) {
       (h) => h.type === "series" && String(h.seriesId) === String(seriesId),
     );
     if (!entry) return;
-    const url = contentService.buildEpisodeUrl(entry.streamId);
-    playVideo({
+    const url = buildEpisodeUrl(entry.streamId);
+    playVideoObject({
       type: "series",
       streamId: entry.streamId,
       seriesId: entry.seriesId,
@@ -214,23 +219,13 @@ export default function HistoryScreenTV({ navigation }) {
       cover: d.item.cover || d.item.stream_icon,
       startTime: entry.currentTime || 0,
     });
-    navigation.navigate("VideoPlayer");
   };
 
   // ── Open item from list ───────────────────────────────────────────────────
   const openItem = (item) => {
     const type = item.type;
     if (type === "live") {
-      const url = contentService.buildLiveUrl(item.streamId, item.containerExtension || "ts");
-      playVideo({
-        type: "live",
-        streamId: item.streamId,
-        name: item.name,
-        url,
-        cover: item.cover,
-        startTime: 0,
-      });
-      navigation.navigate("VideoPlayer");
+      playLive(item);
       return;
     }
     if (type === "movies" || type === "movie") openMovieDetail(item);

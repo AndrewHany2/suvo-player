@@ -186,8 +186,9 @@ export async function deleteIptvAccount(accountId) {
 
 // ─── Watch History ────────────────────────────────────────────────────────────
 
-// Max number of history entries kept locally, remotely-fetched, and after merge.
-export const MAX_HISTORY = 20;
+// Max number of history entries + the local+remote merge live in the pure
+// historyProgress module; re-export so existing importers keep working.
+export { MAX_HISTORY, mergeHistories } from "../context/historyProgress.js";
 
 export async function fetchRemoteHistory(userKey) {
   return invokeData("history.fetch", { userKey });
@@ -241,15 +242,3 @@ export async function deleteFavorite(userKey, entryId) {
   }
 }
 
-export function mergeHistories(local, remote) {
-  const map = new Map();
-  for (const item of local) map.set(item.id, item);
-  for (const item of remote) {
-    const existing = map.get(item.id);
-    if (!existing || new Date(item.watchedAt) > new Date(existing.watchedAt))
-      map.set(item.id, item);
-  }
-  return Array.from(map.values())
-    .sort((a, b) => new Date(b.watchedAt) - new Date(a.watchedAt))
-    .slice(0, MAX_HISTORY);
-}

@@ -34,6 +34,17 @@ export default function DiscoverPills({ items, focusedCol = -1, onSelect }) {
         return (
           <XStack
             key={pill.id}
+            // Real button semantics: keyboard/AT users can Tab to the pill and
+            // fire it with Enter/Space (the div still handles mouse via onPress).
+            role="button"
+            tabIndex={0}
+            aria-label={pill.label}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                e.preventDefault();
+                onSelect?.(pill);
+              }
+            }}
             alignItems="center" gap={ss(tv ? 12 : 10)} paddingHorizontal={ss(tv ? 26 : 18)} paddingVertical={ss(tv ? 16 : 11)}
             backgroundColor={focused ? accentAlpha(0.22) : accentAlpha(0.08)}
             borderWidth={1} borderStyle="solid"

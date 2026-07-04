@@ -12,8 +12,9 @@ try {
 const { app, BrowserWindow, ipcMain, dialog, session, protocol } = electron;
 const path = require("path");
 const fs = require("fs");
-const { exec } = require("child_process");
+const { execFile } = require("child_process");
 const os = require("os");
+const { buildVlcInvocation } = require("./vlcInvocation.js");
 
 // Must be called before app.whenReady — registers app:// as a secure standard scheme
 // so root-relative paths in the expo build (/_expo/...) resolve within the scheme
@@ -147,35 +148,17 @@ ipcMain.handle("save-playlist", async (_event, content) => {
   return { success: false, error: "Save canceled" };
 });
 
-function buildVLCCommand(streamUrl, vlcArgs, platform) {
-  const argsString = vlcArgs.length > 0 ? vlcArgs.join(" ") : "";
-
-  switch (platform) {
-    case "darwin":
-      return `open -a VLC "${streamUrl}"${argsString ? ` --args ${argsString}` : ""}`;
-    case "win32":
-      return `"C:\\Program Files\\VideoLAN\\VLC\\vlc.exe"${argsString ? ` ${argsString}` : ""} "${streamUrl}"`;
-    default:
-      return `vlc${argsString ? ` ${argsString}` : ""} "${streamUrl}"`;
-  }
-}
-
 ipcMain.handle("open-in-vlc", async (_event, streamUrl, options = {}) => {
-  const { startTime = 0, name = "Stream" } = options;
-  const platform = os.platform();
-  const vlcArgs = [];
-
-  if (startTime > 0) {
-    vlcArgs.push(`--start-time=${Math.floor(startTime)}`);
+  // Untrusted streamUrl/name — build an argv array and spawn without a shell.
+  // buildVlcInvocation validates the URL (http/https only) and returns null on
+  // anything unsafe, so a crafted stream name/URL cannot inject a command.
+  const invocation = buildVlcInvocation(streamUrl, options, os.platform());
+  if (!invocation) {
+    return { success: false, error: "Invalid or unsupported stream URL" };
   }
-  if (name) {
-    vlcArgs.push(`--meta-title="${name}"`);
-  }
-
-  const vlcCommand = buildVLCCommand(streamUrl, vlcArgs, platform);
 
   return new Promise((resolve) => {
-    exec(vlcCommand, (error, _stdout, stderr) => {
+    execFile(invocation.file, invocation.args, (error, _stdout, stderr) => {
       if (error) {
         console.error("Error opening VLC:", error);
         console.error("stderr:", stderr);

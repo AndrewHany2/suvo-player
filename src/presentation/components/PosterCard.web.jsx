@@ -61,6 +61,16 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
     <div
       className="lumen-poster-card"
       onClick={() => onPress?.(item)}
+      // Real button semantics so keyboard/AT users can reach and fire the card.
+      role="button"
+      tabIndex={0}
+      aria-label={item.name}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          onPress?.(item);
+        }
+      }}
       data-tv-focused={isFocused ? "true" : undefined}
       style={{
         width,

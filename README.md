@@ -1,116 +1,93 @@
 # IPTV Player
 
-A modern IPTV player built with Electron and React, supporting Xtream Codes API for Live TV, Movies, and Series.
-
-## Features
-
-- 📺 **Live TV** - Browse and play live IPTV channels
-- 🎬 **Movies** - Browse movies by category with VLC playback
-- 📺 **Series** - Watch TV shows with season/episode navigation
-- 👥 **Multi-User** - Manage multiple IPTV service accounts
-- 🔍 **Search** - Search across all content types
-- 🎥 **VLC Integration** - Reliable playback with VLC Media Player
-- 🌐 **Proxy Support** - Built-in proxy server for CORS handling
+A cross-platform IPTV player built with Expo and React Native. One codebase
+targets iOS, Android, desktop (Electron), the web, and TV (LG webOS + Samsung
+Tizen). It connects to any Xtream Codes provider for Live TV, Movies, and
+Series, enriches VOD with TMDB metadata, and syncs profiles / accounts / watch
+history / favorites through Supabase.
 
 ## Tech Stack
 
-- **Electron** - Desktop application framework
-- **React** - UI library with hooks and context
-- **Vite** - Fast build tool and dev server
-- **Express** - Proxy server for API calls
-- **HLS.js** - HTTP Live Streaming support
+- **Expo ~54 / React Native 0.81 / React 19** — the single app codebase
+- **react-native-web** — powers the web, Electron, and TV builds via a Metro web export
+- **expo-video + hls.js** — playback engines (expo-video on native, hls.js on web/TV)
+- **React Navigation** — native-stack + bottom-tabs
+- **Supabase** — auth + Edge Functions + Postgres for cloud sync
+- **Xtream Codes API** — IPTV content source
+- **TMDB** — movie/series artwork and metadata
+- **Electron** — desktop shell around the web build (with an optional external-VLC handoff)
+
+## Platform Matrix
+
+| Platform          | Bundler / Build                     | Runtime engine        |
+| ----------------- | ----------------------------------- | --------------------- |
+| iOS               | `expo run:ios` (native)             | expo-video            |
+| Android           | `expo run:android` (native)         | expo-video            |
+| Web               | `expo export --platform web` (Metro, `output: single`) | hls.js |
+| Electron desktop  | web build wrapped by Electron       | hls.js (opt. VLC)     |
+| TV — LG webOS     | web build + `tv/patch-index.js`     | hls.js                |
+| TV — Samsung Tizen| web build + `tv/patch-index.js`     | hls.js                |
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture,
+the `.tv` / `.web` / `.native` Metro variant convention, and the playback
+driver model.
 
 ## Prerequisites
 
-- Node.js (v16 or higher)
-- VLC Media Player (for stream playback)
+- **Node.js 20** (see `.nvmrc`; `npm install` requires `node >=20`)
+- A **Supabase project** for cloud sync — copy `.env.example` to `.env` and
+  fill in `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+  Without these the app silently falls back to device-local storage.
+- A **TMDB API key** (`EXPO_PUBLIC_TMDB_API_KEY`) for artwork/metadata.
+- For native builds: Xcode (iOS) / Android Studio (Android).
+- For TV builds: **LG webOS `ares-cli`** and/or the **Samsung Tizen CLI**
+  (`tizen`, `sdb`, and an emulator via `em-cli`).
 
-## Installation
+## Setup
 
 ```bash
-# Install dependencies
+nvm use            # Node 20 (per .nvmrc)
 npm install
-
-# Install VLC (macOS)
-brew install --cask vlc
+cp .env.example .env   # then fill in Supabase + TMDB values
 ```
 
 ## Development
 
 ```bash
-# Start the app in development mode
-npm run dev
-
-# Start the proxy server (in a separate terminal)
-npm run proxy
+npm start            # Expo dev server (choose a target)
+npm run dev:ios      # build & run on iOS simulator (expo run:ios)
+npm run dev:android  # build & run on Android (expo run:android)
+npm run web          # web dev server on http://localhost:3001
+npm run dev:electron # web dev server + Electron shell (concurrently)
 ```
 
-## Build
+## Building
 
 ```bash
-# Build the React app
-npm run build
-
-# Run the built app
-npm start
+npm run build:web       # export web bundle to dist/ (+ obfuscate)
+npm run build:electron  # web build packaged as an Electron app (electron-builder)
+npm run build:tv        # TV web build to tv/dist/ (EXPO_PUBLIC_TV=1 + patch-index + obfuscate)
 ```
 
-## Project Structure
+### TV deploy / simulate
 
-```
-iptv-player/
-├── src/                    # React application
-│   ├── components/         # React components
-│   ├── context/           # State management
-│   ├── services/          # API services
-│   ├── App.jsx            # Main app component
-│   └── main.jsx           # React entry point
-├── main.js                # Electron main process
-├── preload.js             # Electron preload script
-├── proxy-server.js        # Express proxy server
-├── index.html             # HTML template
-└── vite.config.mjs        # Vite configuration
+```bash
+npm run sim:lg      # build TV bundle and launch in the webOS 26 simulator (ares-launch)
+npm run deploy:lg   # package + install + launch on a connected LG TV (ares-*)
+npm run sim:tizen   # build + package + launch in a Tizen emulator
+npm run deploy:tizen # TIZEN_TV_IP=<ip> npm run deploy:tizen  — install + run on a Tizen TV
 ```
 
-## Usage
+## Testing & Linting
 
-1. **Add IPTV Service**
-   - Click "Users" button
-   - Add your Xtream Codes credentials
-   - Click "Connect" to load channels
+```bash
+npm test        # node --test src scripts supabase electron
+npm run lint    # eslint . (react-hooks rules; warnings OK, errors fail)
+```
 
-2. **Browse Content**
-   - Use tabs to switch between Live TV, Movies, and Series
-   - Click categories to browse content
-   - Search for specific content
-
-3. **Play Content**
-   - Click any channel/movie/episode
-   - Choose VLC for reliable playback
-   - Or try browser playback (may have limitations)
-
-## Configuration
-
-### Proxy Server
-
-The proxy server runs on `http://localhost:3000` and handles:
-
-- CORS headers
-- 302 redirects
-- Authentication headers
-- Connection management
-
-### Xtream Codes API
-
-Supports standard Xtream Codes endpoints:
-
-- `get_live_streams` - Live TV channels
-- `get_vod_categories` - Movie categories
-- `get_vod_streams` - Movies list
-- `get_series_categories` - Series categories
-- `get_series` - Series list
-- `get_series_info` - Episodes by season
+Run both before committing.
 
 ## License
 
-ISC
+This repository is private (`"private": true` in `package.json`) and is not
+published under an open-source license.

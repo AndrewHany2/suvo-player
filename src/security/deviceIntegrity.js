@@ -8,7 +8,6 @@ import { evaluateIntegrity } from "./integrityPolicy.js";
 
 function loadJailMonkey() {
   try {
-    // eslint-disable-next-line global-require, import/no-extraneous-dependencies
     const mod = require("jail-monkey");
     return mod?.default ?? mod;
   } catch {

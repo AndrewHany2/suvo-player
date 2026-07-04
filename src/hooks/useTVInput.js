@@ -1,6 +1,7 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { resolveAction } from "../platform/adapters/input/keys";
+import { shouldSuppressKey } from "./navFocusSuppression";
 
 const isWeb = Platform.OS === "web";
 const noop = () => {};
@@ -24,15 +25,33 @@ const noop = () => {};
  * On native this is an inert no-op (TV is a web/DOM target only).
  */
 export function useTVInput() {
-  const cleanupRef = useRef(noop);
+  // navHasFocus lives on the hook instance (a ref), NOT inside register()'s
+  // closure — so it survives the frequent re-register() that screens do on most
+  // renders. A closure-scoped flag reset to false on every register(), which
+  // silently defeated yieldToNav (the navbar would lose its exclusive focus the
+  // moment the screen re-rendered). See navFocusSuppression.test.js.
+  const navHasFocusRef = useRef(false);
+
+  // Subscribe to the navbar's focus hand-off ONCE (stable empty deps). Because
+  // this is independent of register(), re-registering handlers can't drop or
+  // reset the subscription or the flag.
+  useEffect(() => {
+    if (!isWeb) return undefined;
+    const onNavFocus = () => { navHasFocusRef.current = true; };
+    const onNavBlur = () => { navHasFocusRef.current = false; };
+    globalThis.addEventListener("tv-nav-focus", onNavFocus);
+    globalThis.addEventListener("tv-nav-blur", onNavBlur);
+    return () => {
+      globalThis.removeEventListener("tv-nav-focus", onNavFocus);
+      globalThis.removeEventListener("tv-nav-blur", onNavBlur);
+    };
+  }, []);
 
   const register = useCallback((handlers, { yieldToNav = false } = {}) => {
     if (!isWeb) return noop;
 
-    let navHasFocus = false;
-
     const onKey = (e) => {
-      if (navHasFocus) return;
+      if (shouldSuppressKey(navHasFocusRef.current, yieldToNav)) return;
       const action = resolveAction(e);
       if (!action) return;
       const handler = handlers[action];
@@ -42,24 +61,8 @@ export function useTVInput() {
       }
     };
 
-    const onNavFocus = () => { navHasFocus = true; };
-    const onNavBlur = () => { navHasFocus = false; };
-
     globalThis.addEventListener("keydown", onKey);
-    if (yieldToNav) {
-      globalThis.addEventListener("tv-nav-focus", onNavFocus);
-      globalThis.addEventListener("tv-nav-blur", onNavBlur);
-    }
-
-    const cleanup = () => {
-      globalThis.removeEventListener("keydown", onKey);
-      if (yieldToNav) {
-        globalThis.removeEventListener("tv-nav-focus", onNavFocus);
-        globalThis.removeEventListener("tv-nav-blur", onNavBlur);
-      }
-    };
-    cleanupRef.current = cleanup;
-    return cleanup;
+    return () => globalThis.removeEventListener("keydown", onKey);
   }, []);
 
   return { register };

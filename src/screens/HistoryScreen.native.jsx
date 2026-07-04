@@ -6,7 +6,7 @@ import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
 import { colors, fonts, fontWeights, overlay, radii } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
-import { useApp } from "../context/AppContext";
+import { useHistory } from "../domain/hooks/useHistory";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import MovieDetail from "../components/MovieDetail";
 import SeriesDetail from "../components/SeriesDetail";
@@ -102,24 +102,22 @@ function CWCard({ item, onPress, onRemove, focused }) {
 
 /* ── Screen ── */
 export default function HistoryScreen({ navigation }) {
-  const { watchHistory, removeFromWatchHistory, playVideo, myList, removeFromMyList } = useApp();
+  const { watchedHistory, removeFromWatchHistory, playLive, playVideoObject, myList, removeFromMyList } = useHistory({ navigation });
   const insets = useSafeAreaInsets();
   const [currentDetail, setCurrentDetail] = useState(null);
 
   const openDetail = (item) => {
-    if (item.type === "live") { playVideo({ ...item, startTime: 0 }); navigation.navigate("VideoPlayer"); return; }
+    if (item.type === "live") { playLive(item); return; }
     setCurrentDetail(item);
   };
   const closeDetail = () => setCurrentDetail(null);
-  const handlePlay = (videoObj) => { playVideo(videoObj); navigation.navigate("VideoPlayer"); setCurrentDetail(null); };
+  const handlePlay = (videoObj) => { playVideoObject(videoObj); setCurrentDetail(null); };
   const confirmRemove = (item) => {
     Alert.alert("Remove from History", `Remove "${item.name}" from history?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Remove", style: "destructive", onPress: () => removeFromWatchHistory(item.id) },
     ]);
   };
-
-  const watchedHistory = watchHistory.filter((item) => item.type !== "live");
 
   // Build TV navigation rows dynamically
   const tvRows = [

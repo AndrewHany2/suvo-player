@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useTVInput } from "../hooks/useTVInput";
@@ -118,14 +118,16 @@ export default function MoviesScreenTV({ navigation, route }) {
   }, [route?.params?.openDetail]);
 
   const openCat = async (cat) => {
-    const next = { catId: cat.id, name: cat.name, items: null, display: MOV_PAGE, focus: 0 };
+    const next = { catId: cat.id, name: cat.name, items: null, display: MOV_PAGE, focus: 0, failed: false };
     setPage(next); pageRef.current = next;
     try {
       const all = await getCategoryItems(cat.id);
       const updated = { ...next, items: all };
       setPage(updated); pageRef.current = updated;
     } catch {
-      const updated = { ...next, items: [] };
+      // Distinguish a fetch FAILURE (show error + retry) from a genuinely empty
+      // catalog (items: []). Without this flag both rendered identically.
+      const updated = { ...next, items: [], failed: true };
       setPage(updated); pageRef.current = updated;
     }
   };
@@ -530,8 +532,16 @@ export default function MoviesScreenTV({ navigation, route }) {
             );
           })}
         </div>
-        {!filteredItems && <div className="tvl-center"><div className="tvl-spinner" /><p>Loading movies…</p></div>}
-        {filteredItems?.length === 0 && <div className="tvl-center"><p className="tvl-empty-msg">{gridQuery.trim() ? "No results" : `No titles starting with "${filterLetter.toUpperCase()}"`}</p></div>}
+        {!filteredItems && !page.failed && <div className="tvl-center"><div className="tvl-spinner" /><p>Loading movies…</p></div>}
+        {page.failed && (
+          <StatePanel
+            mode="error"
+            title="Couldn't load movies"
+            message="Something went wrong fetching this category."
+            onRetry={() => openCat({ id: page.catId, name: page.name })}
+          />
+        )}
+        {!page.failed && filteredItems?.length === 0 && <div className="tvl-center"><p className="tvl-empty-msg">{gridQuery.trim() ? "No results" : `No titles starting with "${filterLetter.toUpperCase()}"`}</p></div>}
         {filteredItems && filteredItems.length > 0 && (
           <div className="tvl-mov-grid-window">
             <PagedGridTV
@@ -618,7 +628,10 @@ export default function MoviesScreenTV({ navigation, route }) {
   );
 }
 
-function MovieCard({ item, isFocused }) {
+// Memoized: only `item` + `isFocused` matter, so a keypress that moves focus
+// re-renders just the two affected cards, not the whole mounted grid. This is
+// the immediate per-keypress win for the webOS scroll-freeze profile.
+const MovieCard = memo(function MovieCard({ item, isFocused }) {
   const [err, setErr] = useState(false);
   const src = item.stream_icon || item.cover || item.movie_image || null;
   const rating = item.tmdb_rating ?? item.rating;
@@ -632,4 +645,4 @@ function MovieCard({ item, isFocused }) {
       <div className="tvl-card-title">{item.name}</div>
     </div>
   );
-}
+});

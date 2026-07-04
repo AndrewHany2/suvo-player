@@ -4,37 +4,15 @@ import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitiv
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
-import { useApp } from "../context/AppContext";
+import { useSeries } from "../domain/hooks/useSeries";
 import { useTVNavigation } from "../hooks/useTVNavigation";
-import iptvApi from "../services/iptvApi";
-import tmdbApi from "../services/tmdbApi";
 import SeriesDetail from "../components/SeriesDetail";
 import { posterGrid, posterShelfWidth, GRID_TARGET_W, SHELF_TARGET_W } from "../utils/posterLayout";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
-const SHELF_PAGE = 12;
 const GRID_PAGE = 40;
 const GRID_OUTER = 16; // equal left/right screen margin
 const GRID_GAP = 12; // gap between posters (columns and rows)
-
-async function prefetchTopRatedSeries() {
-  try {
-    const series = await iptvApi.getAllSeriesRobust();
-    if (!series?.length) return null;
-    if (!tmdbApi.hasKey) {
-      return {
-        streams: series,
-        matched: [...series].filter((s) => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating)),
-        hasTmdb: false, seenIds: new Set(), totalPages: 0, hasMore: false,
-      };
-    }
-    const seenIds = new Set();
-    const { matched, totalPages, hasMore } = await tmdbApi.matchTopRatedRange({
-      type: "tv", iptvItems: series, idField: "series_id", fromPage: 1, toPage: 5, seenIds,
-    });
-    return { streams: series, matched, seenIds, totalPages, hasMore, hasTmdb: true };
-  } catch { return null; }
-}
 
 /* ─── Poster Card ─── */
 const PosterCard = memo(function PosterCard({ item, onPress, width = 130 }) {
@@ -165,145 +143,23 @@ function CategoryPage({ name, items, onBack, onPress, onLoadMore, hasRemote, loa
 
 /* ─── Screen ─── */
 export default function SeriesScreen({ navigation }) {
-  const { users, activeUserId, playVideo } = useApp();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const {
+    loading, error, reload, activeUserId, shelves, discoverItems,
+    handleShelfVisible, handleLoadMore, openCategory, closeCategory,
+    categoryPage, isTopRatedCategory, topRatedHasMore, topRatedLoadingMore, handleTopRatedMore,
+    selectedSeries, selectSeries, clearSelectedSeries, playVideoObject,
+  } = useSeries({ navigation });
+
   const [refreshing, setRefreshing] = useState(false);
-  const [shelves, setShelves] = useState([]);
-  const [currentCategory, setCurrentCategory] = useState(null);
-  const [categoryItems, setCategoryItems] = useState(null);
-  const [currentSeries, setCurrentSeries] = useState(null);
-  const loadedRef = useRef(new Set());
-  const allShuffledRef = useRef([]);
-  const topRatedRef = useRef([]);
-  const prefetchRef = useRef({ topRated: null });
-  const topRatedCursorRef = useRef(null);
-  const [topRatedLoadingMore, setTopRatedLoadingMore] = useState(false);
-  const [topRatedHasMore, setTopRatedHasMore] = useState(false);
-
-  useEffect(() => { if (activeUserId) load(); }, [activeUserId]);
-
-  const load = async () => {
-    const user = users.find((u) => u.id === activeUserId);
-    if (!user) return;
-    setLoading(true); setError(false);
-    loadedRef.current.clear(); allShuffledRef.current = []; topRatedRef.current = []; prefetchRef.current = { topRated: null }; setShelves([]);
-    try {
-      iptvApi.setCredentials(user.host, user.username, user.password);
-      const cats = await iptvApi.getSeriesCategories();
-      if (!cats?.length) { setLoading(false); return; }
-      setShelves(cats.map((c) => ({ id: c.category_id, name: c.category_name, items: null, totalCount: null, hasMore: false, loadingMore: false, manual: false })));
-      prefetchRef.current = { topRated: prefetchTopRatedSeries() };
-    } catch (err) { console.error("Error loading series:", err); setError(true); } finally { setLoading(false); }
-  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    try { await load(); } finally { setRefreshing(false); }
+    try { await reload(); } finally { setRefreshing(false); }
   };
 
-  const handleShelfVisible = useCallback(async (catId) => {
-    if (loadedRef.current.has(catId)) return;
-    loadedRef.current.add(catId);
-    try {
-      let all;
-      if (catId === "all") {
-        const prefetched = prefetchRef.current.topRated ? await prefetchRef.current.topRated : null;
-        const series = prefetched?.streams || await iptvApi.getAllSeriesRobust();
-        all = [...(series || [])].sort(() => Math.random() - 0.5);
-        allShuffledRef.current = all;
-      } else if (catId === "top_rated") {
-        const series = await iptvApi.getAllSeriesRobust();
-        if (tmdbApi.hasKey) all = await tmdbApi.matchSeries(series || []);
-        if (!all?.length) all = [...(series || [])].filter((s) => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
-        topRatedRef.current = all;
-      } else { all = await iptvApi.getSeries(catId); }
-      const firstPage = (all || []).slice(0, SHELF_PAGE);
-      setShelves((prev) => prev.map((s) => s.id === catId ? { ...s, items: firstPage, totalCount: all.length, hasMore: all.length > SHELF_PAGE } : s));
-    } catch { setShelves((prev) => prev.map((s) => s.id === catId ? { ...s, items: [], totalCount: 0, hasMore: false } : s)); }
-  }, []);
-
-  const handleLoadMore = useCallback(async (catId) => {
-    setShelves((prev) => prev.map((s) => s.id === catId ? { ...s, loadingMore: true } : s));
-    try {
-      const all = catId === "all" ? allShuffledRef.current : catId === "top_rated" ? topRatedRef.current : await iptvApi.getSeries(catId);
-      setShelves((prev) => prev.map((s) => { if (s.id !== catId) return s; const nextItems = (all || []).slice(0, (s.items?.length || 0) + SHELF_PAGE); return { ...s, items: nextItems, hasMore: nextItems.length < (all?.length || 0), loadingMore: false }; }));
-    } catch { setShelves((prev) => prev.map((s) => s.id === catId ? { ...s, loadingMore: false } : s)); }
-  }, []);
-
-  const handleSeriesPress = (item) => setCurrentSeries(item);
-
-  const handleTitlePress = async (catId, name) => {
-    setCurrentCategory({ catId, name }); setCategoryItems(null);
-    try {
-      let all;
-      if (catId === "all") {
-        if (!allShuffledRef.current.length) {
-          const prefetched = prefetchRef.current.topRated ? await prefetchRef.current.topRated : null;
-          const series = prefetched?.streams || await iptvApi.getAllSeriesRobust();
-          allShuffledRef.current = [...(series || [])].sort(() => Math.random() - 0.5);
-        }
-        all = allShuffledRef.current;
-      } else if (catId === "top_rated") {
-        const prefetched = prefetchRef.current.topRated ? await prefetchRef.current.topRated : null;
-        if (prefetched?.hasTmdb) {
-          const { streams, matched, seenIds, totalPages, hasMore } = prefetched;
-          topRatedCursorRef.current = { streams, type: "tv", idField: "series_id", page: 5, totalPages, seenIds, prefetch: null, prefetchTo: 0 };
-          setTopRatedHasMore(hasMore);
-          all = matched.length ? matched : [...streams].filter((s) => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
-          if (!matched.length) setTopRatedHasMore(false); else if (hasMore) kickoffPrefetch(topRatedCursorRef.current);
-        } else if (prefetched) { all = prefetched.matched; setTopRatedHasMore(false); }
-        else {
-          const series = await iptvApi.getAllSeriesRobust();
-          if (tmdbApi.hasKey) {
-            const seenIds = new Set();
-            const { matched, totalPages, hasMore } = await tmdbApi.matchTopRatedRange({ type: "tv", iptvItems: series || [], idField: "series_id", fromPage: 1, toPage: 5, seenIds });
-            topRatedCursorRef.current = { streams: series || [], type: "tv", idField: "series_id", page: 5, totalPages, seenIds, prefetch: null, prefetchTo: 0 };
-            setTopRatedHasMore(hasMore); all = matched;
-            if (!all.length) { all = [...(series || [])].filter((s) => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating)); setTopRatedHasMore(false); }
-            else if (hasMore) kickoffPrefetch(topRatedCursorRef.current);
-          } else { all = [...(series || [])].filter((s) => parseFloat(s.rating) > 0).sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating)); setTopRatedHasMore(false); }
-        }
-      } else { all = await iptvApi.getSeries(catId); if (!loadedRef.current.has(catId)) handleShelfVisible(catId); }
-      setCategoryItems(all || []);
-    } catch { setCategoryItems([]); }
-  };
-
-  const kickoffPrefetch = (cursor) => {
-    if (!cursor || cursor.prefetch) return;
-    const fromPage = cursor.page + 1; const toPage = Math.min(cursor.page + 5, cursor.totalPages || Infinity);
-    if (fromPage > toPage) return;
-    cursor.prefetchTo = toPage;
-    cursor.prefetch = tmdbApi.matchTopRatedRange({ type: cursor.type, iptvItems: cursor.streams, idField: cursor.idField, fromPage, toPage, seenIds: cursor.seenIds }).catch(() => null);
-  };
-
-  const handleTopRatedMore = useCallback(async () => {
-    const cursor = topRatedCursorRef.current;
-    if (!cursor || topRatedLoadingMore) return;
-    if (cursor.page >= cursor.totalPages && !cursor.prefetch) { setTopRatedHasMore(false); return; }
-    setTopRatedLoadingMore(true);
-    try {
-      let result;
-      if (cursor.prefetch) { result = await cursor.prefetch; cursor.page = cursor.prefetchTo; cursor.prefetch = null; }
-      else {
-        const fromPage = cursor.page + 1; const toPage = Math.min(cursor.page + 5, cursor.totalPages);
-        result = await tmdbApi.matchTopRatedRange({ type: cursor.type, iptvItems: cursor.streams, idField: cursor.idField, fromPage, toPage, seenIds: cursor.seenIds });
-        cursor.page = toPage;
-      }
-      if (!result) return;
-      cursor.totalPages = result.totalPages; setTopRatedHasMore(result.hasMore);
-      if (result.matched.length) setCategoryItems((prev) => [...(prev || []), ...result.matched]);
-      if (result.hasMore) kickoffPrefetch(cursor);
-    } finally { setTopRatedLoadingMore(false); }
-  }, [topRatedLoadingMore]);
-
-  const discoverItems = [
-    { id: "all", label: "All Series" },
-    { id: "top_rated", label: "Top Rated" },
-  ];
   const { focusedRow, focusedCol } = useTVNavigation({
-    active: !currentCategory && !currentSeries,
-    rows: [{ items: discoverItems, onSelect: (i) => handleTitlePress(discoverItems[i].id, discoverItems[i].label) }],
+    active: !categoryPage && !selectedSeries,
+    rows: [{ items: discoverItems, onSelect: (i) => openCategory(discoverItems[i].id, discoverItems[i].label) }],
   });
 
   if (loading) {
@@ -329,13 +185,12 @@ export default function SeriesScreen({ navigation }) {
         mode="error"
         title="Couldn't load series"
         message="Check your connection and try again."
-        onRetry={load}
+        onRetry={reload}
         retryLabel="Retry"
       />
     );
   }
 
-  const isTopRated = currentCategory?.catId === "top_rated";
   const listHeader = (
     <YStack>
       <YStack paddingHorizontal={16} paddingTop={20} paddingBottom={4}>
@@ -348,7 +203,7 @@ export default function SeriesScreen({ navigation }) {
               backgroundColor="rgba(108, 92, 231,0.08)" borderWidth={1}
               borderColor={focusedRow === 0 && focusedCol === idx ? colors.accent2 : "rgba(108, 92, 231,0.28)"}
               borderRadius={999} cursor="pointer"
-              onPress={() => handleTitlePress(pill.id, pill.label)}
+              onPress={() => openCategory(pill.id, pill.label)}
               pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent }} animation="quick"
               scale={focusedRow === 0 && focusedCol === idx ? 1.05 : 1}
             >
@@ -372,29 +227,29 @@ export default function SeriesScreen({ navigation }) {
         keyExtractor={(item) => String(item.id)}
         ListHeaderComponent={listHeader}
         renderItem={({ item }) => (
-          <Shelf shelf={item} onVisible={handleShelfVisible} onPress={handleSeriesPress} onTitlePress={handleTitlePress} onLoadMore={handleLoadMore} />
+          <Shelf shelf={item} onVisible={handleShelfVisible} onPress={selectSeries} onTitlePress={openCategory} onLoadMore={handleLoadMore} />
         )}
         ListEmptyComponent={<StatePanel mode="empty" icon="tv" title="No series found" message="We couldn't find any series for this account." />}
         windowSize={5} maxToRenderPerBatch={3} initialNumToRender={3} removeClippedSubviews
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} colors={[colors.accent]} />}
       />
-      {currentCategory && (
+      {categoryPage && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
           <CategoryPage
-            name={currentCategory.name} items={categoryItems}
-            onBack={() => { setCurrentCategory(null); setCategoryItems(null); topRatedCursorRef.current = null; setTopRatedHasMore(false); setTopRatedLoadingMore(false); }}
-            onPress={handleSeriesPress}
-            hasRemote={isTopRated && topRatedHasMore} loadingMore={isTopRated && topRatedLoadingMore}
-            onLoadMore={isTopRated ? handleTopRatedMore : undefined}
+            name={categoryPage.name} items={categoryPage.items}
+            onBack={closeCategory}
+            onPress={selectSeries}
+            hasRemote={isTopRatedCategory && topRatedHasMore} loadingMore={isTopRatedCategory && topRatedLoadingMore}
+            onLoadMore={isTopRatedCategory ? handleTopRatedMore : undefined}
           />
         </YStack>
       )}
-      {currentSeries && (
+      {selectedSeries && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
           <SeriesDetail
-            item={currentSeries}
-            onBack={() => setCurrentSeries(null)}
-            onPlayEpisode={(videoObj) => { playVideo(videoObj); navigation.navigate("VideoPlayer"); setCurrentSeries(null); }}
+            item={selectedSeries}
+            onBack={clearSelectedSeries}
+            onPlayEpisode={(videoObj) => { playVideoObject(videoObj); clearSelectedSeries(); }}
           />
         </YStack>
       )}
