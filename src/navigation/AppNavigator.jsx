@@ -24,12 +24,10 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function HeaderRight() {
-  const { users, activeUserId, profile, authUser, isSyncing } = useApp();
+  const { users, activeUserId, activeProfile, switchProfile, isSyncing } = useApp();
   const navigation = useNavigation();
   const activeUser = users.find((u) => u.id === activeUserId);
   const playlistName = activeUser?.nickname || activeUser?.username;
-  const profileName = authUser ? profile?.username : null;
-  const initial = (profileName || "?").trim().charAt(0).toUpperCase() || "?";
 
   return (
     <XStack alignItems="center" gap={8} marginRight={12} flexShrink={1}>
@@ -47,12 +45,17 @@ function HeaderRight() {
           <Text color={colors.text} fontSize={12} fontWeight="600" numberOfLines={1} maxWidth={120}>{playlistName}</Text>
         </XStack>
       )}
-      {profileName && (
+      {activeProfile && (
+        // Tap the profile avatar to switch profiles: clearing the active id drops
+        // the app back through the gate to the "Who's watching?" picker (mirrors
+        // the web/TV TopNav avatar button).
         <YStack
-          width={28} height={28} borderRadius={999} backgroundColor={colors.accent}
+          width={32} height={32} borderRadius={999} backgroundColor={colors.accent}
           alignItems="center" justifyContent="center" flexShrink={0}
+          cursor="pointer" onPress={() => switchProfile(null)} pressStyle={{ opacity: 0.7 }}
+          hitSlop={8}
         >
-          <Text color={colors.text} fontSize={13} fontWeight="700">{initial}</Text>
+          <Text fontSize={18}>{activeProfile.avatar || "👤"}</Text>
         </YStack>
       )}
       <YStack cursor="pointer" onPress={() => navigation.navigate("Accounts")} pressStyle={{ opacity: 0.7 }} flexShrink={0} minWidth={44} minHeight={44} alignItems="center" justifyContent="center" hitSlop={8}>
