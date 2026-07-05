@@ -46,7 +46,10 @@ if (typeof document !== "undefined") {
   style.textContent = `
     *, *::before, *::after { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; background: #0A0E1A; color: #EAF0FF; font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif; }
-    @keyframes lumen-spin { to { transform: rotate(360deg); } }
+    /* translateZ(0) in both frames GPU-composites the rotation so it keeps
+       spinning smoothly on webOS even while the main thread is busy (e.g. big
+       catalog parse) instead of freezing. */
+    @keyframes lumen-spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }
     #root, #app, [data-reactroot] { height: 100%; }
     .aurora-grad-bg { background: linear-gradient(100deg, #6C5CE7, #22D3EE) !important; }
     * { scrollbar-width: thin; scrollbar-color: #28324E transparent; }
@@ -470,17 +473,28 @@ export default function AppNavigator() {
     };
     const handler = (e) => {
       if (isMacCommand(e)) return; // Mac ⌘ shares keyCode 91 — ignore in the simulator
+      // The focused navbar owns the remote exclusively. Enter/Down/Back blur the
+      // nav, which synchronously clears useTVInput's yieldToNav flag (via
+      // tv-nav-blur) — so without stopImmediatePropagation the SAME keydown then
+      // reaches the screen's (later-registered) keydown listener unsuppressed and
+      // gets double-handled: Down would blur the nav AND move the screen's focus
+      // down onto the first poster. Stop every key the nav acts on so it never
+      // leaks to the screen in the same tick.
       if (e.key === "ArrowRight" || e.keyCode === 39) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         const next = Math.min(navIdxRef.current + 1, NAV_TOTAL - 1);
         navIdxRef.current = next;
         setFocusedNavIdx(next);
       } else if (e.key === "ArrowLeft" || e.keyCode === 37) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         const prev = Math.max(navIdxRef.current - 1, 0);
         navIdxRef.current = prev;
         setFocusedNavIdx(prev);
       } else if (e.key === "Enter" || e.keyCode === 13) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         const idx = navIdxRef.current;
         if (idx < NAV_ITEMS.length) {
           goToTab(NAV_ITEMS[idx].id);
@@ -502,6 +516,7 @@ export default function AppNavigator() {
         e.keyCode === 91
       ) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         blurNav();
       }
     };
@@ -607,7 +622,7 @@ export default function AppNavigator() {
   // screen. The 8s authLoading ceiling lives in AppContext.
   const splash = (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0A0E1A" }}>
-      <div style={{ width: 48, height: 48, border: "4px solid #28324E", borderTopColor: "#6C5CE7", borderRadius: "50%", animation: "lumen-spin 0.8s linear infinite" }} />
+      <div style={{ width: 48, height: 48, border: "4px solid #28324E", borderTopColor: "#6C5CE7", borderRadius: "50%", animation: "lumen-spin 0.8s linear infinite", willChange: "transform" }} />
     </div>
   );
   if (gate === "config-error") return <ConfigErrorScreen />;
@@ -637,7 +652,7 @@ export default function AppNavigator() {
         idxSettings={IDX_SETTINGS}
         idxProfile={IDX_PROFILE}
       />
-      <YStack flex={1} minHeight={0} overflow="hidden">
+      <YStack flex={1} minHeight={0} overflow="hidden" {...{ className: "tvl-content-host" }}>
         <ContentComponent
           navigation={webNavigation}
           route={{ params: routeParams[activeTab] || {} }}

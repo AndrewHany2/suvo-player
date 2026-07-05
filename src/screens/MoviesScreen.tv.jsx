@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useApp } from "../context/AppContext";
 import { buildCategoryFilter, filterMovies } from "./moviesFilter.helpers";
 import { useMovies } from "../domain/hooks/useMovies";
@@ -7,6 +7,7 @@ import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { yieldFocusToNav } from "../platform/adapters/input/keys";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import PosterCard from "../presentation/components/PosterCard.web";
+import ShelfCard from "../presentation/components/ShelfCard.tv";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
@@ -350,14 +351,23 @@ export default function MoviesScreenTV({ navigation, route }) {
       { type: "fav" },
     ];
     const maxBtn = buttons.length - 1;
-    // btnIdx === -1 represents the topbar back icon, focused between the first
-    // action button and the global navbar.
-    if (dir === "up") {
+    // The action buttons are a HORIZONTAL row (Play / Trailer / Favorites), so
+    // Left/Right move between them. btnIdx === -1 is the topbar Back icon above
+    // the row; Up climbs row → Back icon → global navbar, Down drops back down.
+    if (dir === "left") {
       if (d.btnIdx > 0) updDetail({ ...d, btnIdx: d.btnIdx - 1 });
-      else if (d.btnIdx === 0) updDetail({ ...d, btnIdx: -1 });
-      else yieldFocusToNav();
+      // Left on the first button is a no-op — only Back closes the detail.
     }
-    else if (dir === "down") { if (d.btnIdx < maxBtn) updDetail({ ...d, btnIdx: d.btnIdx + 1 }); }
+    else if (dir === "right") {
+      if (d.btnIdx >= 0 && d.btnIdx < maxBtn) updDetail({ ...d, btnIdx: d.btnIdx + 1 });
+    }
+    else if (dir === "up") {
+      if (d.btnIdx === -1) yieldFocusToNav();
+      else updDetail({ ...d, btnIdx: -1 });
+    }
+    else if (dir === "down") {
+      if (d.btnIdx === -1) updDetail({ ...d, btnIdx: 0 });
+    }
     else if (dir === "enter") {
       if (d.btnIdx === -1) { closeDetail(); return; }
       const btn = buttons[d.btnIdx];
@@ -545,7 +555,7 @@ export default function MoviesScreenTV({ navigation, route }) {
               onGrow={growMovDisplay}
               className="tvl-mov-vgrid"
               renderItem={(item, i) => (
-                <MovieCard key={String(item.stream_id)} item={item} isFocused={filterZone === "grid" && !navActive && i === page.focus} />
+                <ShelfCard key={String(item.stream_id)} item={item} isFocused={filterZone === "grid" && !navActive && i === page.focus} />
               )}
             />
           </div>
@@ -619,21 +629,3 @@ export default function MoviesScreenTV({ navigation, route }) {
   );
 }
 
-// Memoized: only `item` + `isFocused` matter, so a keypress that moves focus
-// re-renders just the two affected cards, not the whole mounted grid. This is
-// the immediate per-keypress win for the webOS scroll-freeze profile.
-const MovieCard = memo(function MovieCard({ item, isFocused }) {
-  const [err, setErr] = useState(false);
-  const src = item.stream_icon || item.cover || item.movie_image || null;
-  const rating = item.tmdb_rating ?? item.rating;
-  const rLabel = rating != null && rating !== "" ? (typeof rating === "number" ? Math.round(rating) : rating) : null;
-  return (
-    <div className={isFocused ? "tvl-card tvl-card--on" : "tvl-card"}>
-      <div className="tvl-card-img">
-        {src && !err ? <img src={src} alt="" onError={() => setErr(true)} loading="lazy" decoding="async" /> : <div className="tvl-card-ph"><Icon name="play" size={iconSizes.lg} color={colors.border} /></div>}
-        {rLabel && <span className="tvl-card-rating">{rLabel}</span>}
-      </div>
-      <div className="tvl-card-title">{item.name}</div>
-    </div>
-  );
-});

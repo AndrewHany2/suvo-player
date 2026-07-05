@@ -44,7 +44,10 @@ body[data-tv="true"] {
   font-size: var(--tvl-rem);
 }
 
-/* The screen shell fills the (already-scaled) viewport. */
+/* The screen shell fills the (already-scaled) viewport. Nav-hosted screens are
+   narrowed to their content host (viewport minus the sticky nav) by the
+   `.tvl-content-host > .tvl-screen` rule in tvl.css — that override wins on
+   specificity, so this min-height only applies to modal-mounted screens. */
 .tvl-screen {
   width: 100%;
   min-height: 100vh;

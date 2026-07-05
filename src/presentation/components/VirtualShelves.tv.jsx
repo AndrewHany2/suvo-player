@@ -9,6 +9,7 @@ import {
 import { getShelfConfig } from "../virtualization/shelfConfig.js";
 import HeroTV from "./Hero.tv.jsx";
 import DiscoverPills from "./DiscoverPills.web";
+import SkeletonPoster from "./SkeletonPoster.web";
 import { enterTopFromShelves, zoneMove, zoneActivate } from "./heroZone.js";
 import Icon from "../../ui/Icon";
 import { useTVInput } from "../../hooks/useTVInput";
@@ -110,6 +111,9 @@ export function VirtualShelvesTV({
   // handler re-registration — see useTVInput.js). We keep this STATE only to
   // clear the poster focus RING so the navbar is the only thing highlighted.
   const [navActive, setNavActive] = useState(false);
+  // Latest zone config, read inside the (empty-deps) nav-blur listener so it can
+  // resolve the top zone without re-registering on every pills/hero change.
+  const zoneCfgRef = useRef(null);
   const railsRef = useRef(null); // wraps the shelf rows; offsetTop = hero+pills height
   const [heroItem, setHeroItem] = useState(null);
   // shelfId -> { left, right }: which scroll-hint edges to show, derived from the
@@ -138,13 +142,26 @@ export function VirtualShelvesTV({
     }),
     [showHero, heroInteractive, pills],
   );
+  zoneCfgRef.current = zoneCfg;
 
   // Follow the navbar's focus hand-off to clear/restore the poster ring. Stable
   // listener (empty deps). Key suppression is NOT done here — useTVInput's
   // yieldToNav owns that.
   useEffect(() => {
     const onFocus = () => setNavActive(true);
-    const onBlur = () => setNavActive(false);
+    const onBlur = () => {
+      setNavActive(false);
+      // Down/Back from the navbar hands focus back here. The screen never sees
+      // that keypress (yieldToNav suppresses it), so land on the top zone
+      // (Discover pills / Hero) instead of dropping onto the first poster. Only
+      // promote from "shelves"; a preserved pills/hero zone is kept so an
+      // Up→navbar→Down round trip returns to the same pill.
+      setTopFocus((t) => {
+        if (t.zone !== "shelves") return t;
+        const z = enterTopFromShelves(zoneCfgRef.current);
+        return z ? { ...t, zone: z } : t;
+      });
+    };
     globalThis.addEventListener?.("tv-nav-focus", onFocus);
     globalThis.addEventListener?.("tv-nav-blur", onBlur);
     return () => {
@@ -527,6 +544,9 @@ export function VirtualShelvesTV({
           // from FOCUS via scrollAnchor — the focused rail follows live focus.col,
           // idle rails use their remembered column — never from a scroll read.
           const full = Array.isArray(shelf.items) ? shelf.items : [];
+          // items null/undefined = still fetching this rail's category. Show a
+          // row of skeleton posters in place of the (empty) windowed cards.
+          const loading = !Array.isArray(shelf.items);
           const railFocusCol = isFocusedShelf
             ? focus.col
             : (colMemory.current[shelf.id] ?? 0);
@@ -633,11 +653,22 @@ export function VirtualShelvesTV({
                     scrollbarWidth: "none",
                   }}
                 >
+                  {loading &&
+                    Array.from({ length: dims.cols + cfg.hOverscan }).map(
+                      (_, i) => (
+                        <div
+                          key={`sk${i}`}
+                          style={{ flex: `0 0 ${CARD_W}px` }}
+                        >
+                          <SkeletonPoster width={CARD_W} />
+                        </div>
+                      ),
+                    )}
                   {/* Left spacer stands in for the off-window posters before the
                       window. Cards render at STRIDE (CARD_W + gap), so the spacer
                       must be sized in STRIDE — NOT cfg.posterWidth — to keep the
                       rail's scroll geometry and focusedCardRef.offsetLeft exact. */}
-                  <div style={{ flex: `0 0 ${w.leadingCount * STRIDE}px` }} />
+                  {!loading && <div style={{ flex: `0 0 ${w.leadingCount * STRIDE}px` }} />}
                   {winItems.map((item, i) => {
                     const realCol = w.start + i; // absolute column index
                     // The logically-focused card (keeps the scroll ref so the rail

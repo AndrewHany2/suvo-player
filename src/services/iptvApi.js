@@ -41,13 +41,20 @@ const BULK_FETCH_TIMEOUT = 90 * 1000;
 // or to non-transient 4xx responses.
 const FETCH_RETRIES = 2;
 const FETCH_RETRY_BACKOFF = 300;
-// Only these (small, slow-changing) keys are persisted to disk. Full stream
-// lists are intentionally NOT persisted — they can be multiple MB and would
-// blow the ~5 MB localStorage quota on web/webOS.
+// Small, slow-changing keys persisted together in one blob. Per-category stream
+// lists are still NOT persisted here — they can be multiple MB and would blow the
+// ~5 MB localStorage quota on web/webOS.
 const PERSIST_KEYS = new Set(['live_categories', 'vod_categories', 'series_categories']);
+// The two whole-catalog "robust" results ARE persisted, but each under its OWN
+// storage key (not the shared blob) so a quota failure on a big catalog can't
+// take the categories down with it, and so the big read only happens when the
+// user actually opens "All Movies/Series" (lazy disk-load in _cached). Serves the
+// stale value instantly on a warm launch; stale-while-revalidate refreshes it.
+const BULK_PERSIST_KEYS = new Set(['vod_streams_robust', 'series_robust']);
 // Debounce disk writes so a burst of category sets re-stringifies once.
 const PERSIST_DEBOUNCE = 2 * 1000;
 const persistStorageKey = (ns) => `iptvcache_${ns}`;
+const bulkStorageKey = (ns, key) => `iptvcache_${ns}_${key}`;
 
 // Run `tasks` (array of () => Promise) with at most `limit` in flight at once.
 // Preserves result order. Used to bound the per-category fan-out so we don't
@@ -92,6 +99,9 @@ export class IPTVApi {
   _ns = null;
   _hydratePromise = null;
   _persistTimer = null;
+  // Whole-catalog keys whose in-memory value changed since the last disk write.
+  // Flushed (each to its own storage key) alongside the category blob on persist.
+  _dirtyBulk = new Set();
   baseUrl = null;
   username = null;
   password = null;
@@ -108,6 +118,7 @@ export class IPTVApi {
       // begin hydrating this account's persisted category cache from disk.
       this._cache.clear();
       this._inflight.clear();
+      this._dirtyBulk.clear();
       clearTimeout(this._persistTimer);
       this._ns = this._hash(`${newBase}|${username}`);
       this._hydratePromise = this._hydrate();
@@ -168,6 +179,37 @@ export class IPTVApi {
       const storage = await getStorage();
       await storage.setItem(persistStorageKey(ns), JSON.stringify(blob));
     } catch { /* quota exceeded / storage error — skip, never crash */ }
+    // Flush each dirty whole-catalog key to its own storage entry. Isolated
+    // try/catch per key: a quota failure on one big catalog must not stop the
+    // other from persisting (or affect the category blob written above).
+    const dirty = [...this._dirtyBulk];
+    this._dirtyBulk.clear();
+    for (const key of dirty) {
+      if (this._ns !== ns) return; // account switched mid-flush
+      const entry = this._cache.get(key);
+      if (!entry) continue;
+      try {
+        const storage = await getStorage();
+        await storage.setItem(bulkStorageKey(ns, key), JSON.stringify({ data: entry.data, expiresAt: entry.expiresAt }));
+      } catch { /* quota exceeded / storage error — skip this catalog, keep going */ }
+    }
+  }
+
+  // Lazily read one whole-catalog key from its own storage entry. Returns the
+  // cache entry ({ data, expiresAt }) or null. Only called on an in-memory miss
+  // for a BULK key, so the (multi-MB) parse stays off the launch path and only
+  // happens when the user actually opens "All Movies/Series".
+  async _loadBulk(key) {
+    const ns = this._ns;
+    if (!ns) return null;
+    try {
+      const storage = await getStorage();
+      const raw = await storage.getItem(bulkStorageKey(ns, key));
+      if (!raw || this._ns !== ns) return null;
+      const entry = JSON.parse(raw);
+      if (entry && entry.data !== undefined) return { data: entry.data, expiresAt: entry.expiresAt ?? 0 };
+    } catch { /* missing / corrupt / storage error — treat as a miss */ }
+    return null;
   }
 
   _cacheSet(key, data, ttl) {
@@ -179,6 +221,7 @@ export class IPTVApi {
     }
     this._cache.set(key, { data, expiresAt: Date.now() + ttl });
     if (PERSIST_KEYS.has(key)) this._schedulePersist();
+    else if (BULK_PERSIST_KEYS.has(key)) { this._dirtyBulk.add(key); this._schedulePersist(); }
   }
 
   // Foreground fetch for a cache miss: dedupe concurrent misses on the same key
@@ -284,7 +327,13 @@ export class IPTVApi {
     // the one-time AsyncStorage load off the first "All Movies/All Series" fetch
     // (which otherwise made the very first open feel slow).
     if (PERSIST_KEYS.has(key)) await this._ensureHydrated();
-    const entry = this._cache.get(key);
+    let entry = this._cache.get(key);
+    // Whole-catalog miss: try this account's persisted copy before the network so
+    // a warm launch serves the (stale) catalog instantly and revalidates below.
+    if (!entry && BULK_PERSIST_KEYS.has(key)) {
+      const disk = await this._loadBulk(key);
+      if (disk && !this._cache.has(key)) { this._cache.set(key, disk); entry = disk; }
+    }
     if (entry) {
       if (Date.now() <= entry.expiresAt) return entry.data;        // fresh
       this._revalidate(key, ttl, fetcher);                          // stale-while-revalidate

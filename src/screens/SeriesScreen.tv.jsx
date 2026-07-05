@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { useApp } from "../context/AppContext";
 import { useSeries } from "../domain/hooks/useSeries";
@@ -1009,7 +1009,7 @@ export default function SeriesScreenTV({ navigation, route }) {
               onGrow={growGridDisplay}
               className="tvl-ser-vgrid"
               renderItem={(item, i) => (
-                <PosterCard
+                <ShelfCard
                   key={String(item.series_id)}
                   item={item}
                   isFocused={filterZone === "grid" && !navActive && i === grid.focus}
@@ -1104,29 +1104,3 @@ export default function SeriesScreenTV({ navigation, route }) {
   );
 }
 
-// Memoized: only `item` + `isFocused` matter, so moving focus re-renders just
-// the two affected posters, not every mounted card in the grid.
-const PosterCard = memo(function PosterCard({ item, isFocused }) {
-  const [err, setErr] = useState(false);
-  const src = item.cover || item.stream_icon || null;
-  const rating = item.rating;
-  let rLabel = null;
-  if (rating != null && rating !== "") {
-    rLabel = typeof rating === "number" ? Math.round(rating) : rating;
-  }
-  return (
-    <div
-      className={isFocused ? "tvl-card tvl-card--on" : "tvl-card"}
-    >
-      <div className="tvl-card-img">
-        {src && !err ? (
-          <img src={src} alt="" onError={() => setErr(true)} loading="lazy" decoding="async" />
-        ) : (
-          <div className="tvl-card-ph"><Icon name="tv" size={iconSizes.lg} color={colors.border} /></div>
-        )}
-        {rLabel && <span className="tvl-card-rating">{rLabel}</span>}
-      </div>
-      <div className="tvl-card-title">{item.name}</div>
-    </div>
-  );
-});

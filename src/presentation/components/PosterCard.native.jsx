@@ -1,8 +1,14 @@
-import { memo } from "react";
-import { View, Image, Text, Pressable, StyleSheet } from "react-native";
+import { memo, useEffect, useRef, useState } from "react";
+import { View, Text, Pressable, StyleSheet, Animated } from "react-native";
+import { Image } from "expo-image";
 import { colors, radii, fonts, fontWeights, glow, focusRing, overlay } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
+import { isLowEndDevice } from "../../utils/deviceTier";
 import Icon from "../../ui/Icon";
+
+// Device tier is frozen at first read, so resolve it once at module scope.
+// Low-end: no image crossfade, static (non-pulsing) placeholder, no HD badge.
+const LOW_END = isLowEndDevice();
 
 /**
  * Poster card — native. Shared across Movies/Series/LiveTV grids and shelves.
@@ -15,12 +21,34 @@ import Icon from "../../ui/Icon";
  * star glyphs are the shared Icon set, not emoji.
  */
 function PosterCardNative({ item, onPress, isFocused = false, width = 130 }) {
-  const poster = item.stream_icon || item.cover || item.movie_image || null;
+  // Movies/Live resolve stream_icon/cover first; series carry no stream_icon so
+  // they fall through to cover, with backdrop_path as the cover-absent fallback.
+  const poster = item.stream_icon || item.cover || item.movie_image || item.backdrop_path || null;
   const ratingValue = item.tmdb_rating ?? item.rating;
   const ratingLabel = ratingValue != null && ratingValue !== ""
     ? (typeof ratingValue === "number" ? ratingValue.toFixed(1) : ratingValue)
     : null;
   const height = (width * 3) / 2;
+
+  // Skeleton shimmer while THIS poster's image decodes: a native-driver opacity
+  // pulse (UI thread, so it stays smooth while JS parses the catalog), hidden
+  // once the image loads. expo-image auto-downscales the remote poster to the
+  // cell size, so no full-res decode into a small card on low-end devices.
+  const [loaded, setLoaded] = useState(false);
+  const shimmer = useRef(new Animated.Value(0.4)).current;
+  useEffect(() => {
+    // Skip the pulse on low-end: a static placeholder block avoids running one
+    // native-driver loop per mounted card on weak hardware.
+    if (!poster || loaded || LOW_END) return undefined;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [poster, loaded, shimmer]);
 
   return (
     <Pressable
@@ -39,15 +67,28 @@ function PosterCardNative({ item, onPress, isFocused = false, width = 130 }) {
               ]}
             >
               {poster ? (
-                <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                <>
+                  {!loaded && <Animated.View style={[StyleSheet.absoluteFill, styles.shimmer, { opacity: shimmer }]} />}
+                  <Image
+                    source={poster}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    recyclingKey={poster}
+                    transition={LOW_END ? 0 : 150}
+                    onLoad={() => setLoaded(true)}
+                  />
+                </>
               ) : (
                 <View style={[StyleSheet.absoluteFill, styles.placeholder]}>
                   <Icon name="film" size={ss(34)} color={colors.faint} />
                 </View>
               )}
-              <View style={[styles.badge, styles.hdBadge]}>
-                <Text style={styles.badgeText}>HD</Text>
-              </View>
+              {!LOW_END && (
+                <View style={[styles.badge, styles.hdBadge]}>
+                  <Text style={styles.badgeText}>HD</Text>
+                </View>
+              )}
               {ratingLabel && (
                 <View style={[styles.badge, styles.ratingBadge]}>
                   <Icon name="star" size={ss(11)} color={colors.rating} />
@@ -82,6 +123,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
+  },
+  shimmer: {
+    backgroundColor: colors.surface2,
   },
   badge: {
     position: "absolute",

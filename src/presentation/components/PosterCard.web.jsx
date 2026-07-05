@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { colors, focusRing, GLOW_WEB, motion, easing, overlay, radii, fonts, fontWeights } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
 import Icon from "../../ui/Icon";
+import { ensureSkeletonKeyframes } from "./SkeletonPoster.web";
 
 import { isTV } from "../../utils/isTV";
 
@@ -45,7 +46,7 @@ function ensureHoverGlowRule() {
 function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  if (!tv) ensureHoverGlowRule();
+  if (!tv) { ensureHoverGlowRule(); ensureSkeletonKeyframes(); }
   const posterH = Math.round(width * 1.5);
   const poster = item.stream_icon || item.cover || item.movie_image || item.backdrop_path || null;
   const ratingValue = item.tmdb_rating ?? item.rating;
@@ -56,6 +57,17 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
   // has decoded, or there's no poster to wait for. Otherwise, on first paint the
   // dark loading box reads as the page background and the badges appear to float.
   const showBadges = !poster || imageError || imageLoaded;
+  // Resume progress for continue-watching cards (Home). Catalog items carry no
+  // currentTime/duration, so the bar+readout never show on Movies/Series shelves.
+  const watched = item.currentTime || 0;
+  const duration = item.duration || 0;
+  const watchedPct = duration > 0 ? Math.min((watched / duration) * 100, 100) : 0;
+  const fmtDur = (s) => {
+    const t = Math.max(0, Math.round(s));
+    const h = Math.floor(t / 3600);
+    const m = Math.floor((t % 3600) / 60);
+    return h ? `${h}h ${m}m` : `${m}m`;
+  };
 
   return (
     <div
@@ -93,7 +105,10 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
           boxSizing: "border-box",
           // Resting: subtle hairline border, NO glow/ring. Focus: cyan ring +
           // (web only) soft glow. Hover glow is injected via CSS above.
-          border: `1px solid ${isFocused ? focusRing.color : colors.border}`,
+          // Focus ring is a thicker (3px) cyan border so the selected poster
+          // reads clearly at 10-foot distance; rest is a 1px hairline. border-box
+          // keeps the extra width from shifting layout.
+          border: `${isFocused ? 3 : 1}px solid ${isFocused ? focusRing.color : colors.border}`,
           boxShadow: isFocused && !tv ? GLOW_WEB : "none",
           transition: tv ? undefined : `box-shadow ${motion.base}ms ${easing}, border-color ${motion.fast}ms ${easing}`,
         }}
@@ -103,8 +118,17 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
           <Icon name="film" color={colors.muted} size={ss(32)} />
         </div>
+        {/* Animated skeleton sweep while THIS poster's image decodes (web/desktop
+            only; TV keeps the static film-icon base to spare old Chromium). It sits
+            over the film icon and under the img, which fades in on load. */}
+        {poster && !imageError && !imageLoaded && !tv && (
+          <div style={{ position: "absolute", inset: 0, overflow: "hidden" }} aria-hidden="true">
+            <div style={{ position: "absolute", inset: 0, background: `linear-gradient(100deg, transparent 20%, ${colors.surface2} 50%, transparent 80%)`, animation: "_skel_sweep 1.4s ease-in-out infinite", willChange: "transform" }} />
+          </div>
+        )}
         {poster && !imageError && (
-          <img src={poster} alt={item.name} loading="lazy" draggable={false}
+          <img src={poster} alt={item.name} loading="lazy" decoding="async" draggable={false}
+            width={width} height={posterH}
             onLoad={() => setImageLoaded(true)} onError={() => setImageError(true)}
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: imageLoaded ? 1 : 0, transition: "opacity 0.2s ease", WebkitUserDrag: "none", userSelect: "none" }} />
         )}
@@ -118,6 +142,14 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
             <Icon name="star" color={colors.rating} size={ss(10)} />
             <span style={{ color: colors.rating, fontFamily: fonts.body, fontSize: 9, fontWeight: fontWeights.bold }}>{ratingLabel}</span>
           </div>
+        )}
+        {watchedPct > 0 && watchedPct < 100 && (
+          <>
+            <div style={{ position: "absolute", bottom: 6, left: 8, backgroundColor: overlay, borderRadius: radii.sm / 2, padding: "2px 6px", color: "#fff", fontFamily: fonts.body, fontSize: 10, fontWeight: fontWeights.bold }}>
+              {fmtDur(watched)}{duration > 0 ? ` / ${fmtDur(duration)}` : ""}
+            </div>
+            <div style={{ position: "absolute", bottom: 0, left: 0, height: 6, width: `${watchedPct}%`, backgroundColor: colors.accent }} />
+          </>
         )}
       </div>
       <div style={{

@@ -44,6 +44,19 @@
   flex-direction: column;
 }
 
+/* Nav-hosted screens must fill the content area (viewport minus the sticky
+   top-nav), NOT the full viewport. Forcing 100vh here makes the screen overflow
+   its `overflow:hidden` host by the nav's height; scrollIntoView() then scrolls
+   that clipped host, tucking the screen's own top bar permanently under the nav.
+   Filling the host (height:100%) removes the overflow so only .tvl-scroll moves.
+   Scoped to the host so modal-mounted .tvl-screen (e.g. Accounts dialog, which
+   is auto-height) keeps its own sizing and its flex:1 scroll area doesn't
+   collapse. */
+.tvl-content-host > .tvl-screen {
+  height: 100%;
+  min-height: 0;
+}
+
 /* Display face for titles / headings (Aurora) */
 .tvl-topbar-title,
 .tvl-det-hero-title,
@@ -149,10 +162,20 @@
   border-top-color: var(--a-cyan);
   border-radius: 50%;
   animation: tvl-spin 0.9s linear infinite;
+  /* Promote to its own compositor layer so the rotation runs on the GPU/compositor
+     thread. Without this, webOS animates the transform on the main thread, which
+     freezes the spinner the moment a big catalog JSON.parse/normalize blocks it —
+     the exact "spinner stuck" symptom during first-run loading. The translateZ in
+     the keyframes forces layer promotion on older TV engines that predate
+     will-change. */
+  will-change: transform;
 }
 @keyframes tvl-spin {
+  from {
+    transform: translateZ(0) rotate(0deg);
+  }
   to {
-    transform: rotate(360deg);
+    transform: translateZ(0) rotate(360deg);
   }
 }
 

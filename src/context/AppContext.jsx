@@ -13,6 +13,7 @@ import {
   deleteIptvAccount as supabaseDeleteIptvAccount,
 } from '../services/supabase';
 import { normalizeHistoryItem, upsertHistoryItem, applyProgress } from './historyProgress';
+import { pickLibraryBase } from './libraryBase';
 import { getDeviceSignature } from '../security/deviceSignature';
 import { setDeviceId } from '../services/deviceHeader';
 
@@ -70,6 +71,12 @@ export const AppProvider = ({ children }) => {
   const [myList, setMyList] = useState([]);
   const myListRef = useRef([]);
   myListRef.current = myList;
+
+  // Which userKey the in-memory library (watchHistory + myList) currently
+  // belongs to. loadLibrary uses this so it never treats one profile's list as
+  // the base when loading a different profile (which would cross-contaminate
+  // favorites/history across profiles).
+  const libraryKeyRef = useRef(null);
 
   // ─── UI ────────────────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -325,11 +332,17 @@ export const AppProvider = ({ children }) => {
       const rawF = await storage.getItem(`iptv_mylist_${key}`);
       if (rawF) localFavorites = JSON.parse(rawF);
     } catch { /**/ }
-    // Prefer in-memory state if it is already richer than what is on disk.
-    const baseHistory = watchHistoryRef.current.length >= localHistory.length
-      ? watchHistoryRef.current : localHistory;
-    const baseFavorites = myListRef.current.length >= localFavorites.length
-      ? myListRef.current : localFavorites;
+    // Prefer in-memory state if it is already richer than what is on disk, but
+    // only when it belongs to this same key — otherwise it holds the previous
+    // profile's data and must be ignored so profiles stay separate.
+    const sameKey = libraryKeyRef.current === key;
+    const baseHistory = pickLibraryBase({
+      sameKey, inMemory: watchHistoryRef.current, onDisk: localHistory,
+    });
+    const baseFavorites = pickLibraryBase({
+      sameKey, inMemory: myListRef.current, onDisk: localFavorites,
+    });
+    libraryKeyRef.current = key;
 
     if (!isSupabaseConfigured()) {
       setWatchHistory(baseHistory);
@@ -521,7 +534,10 @@ export const AppProvider = ({ children }) => {
   // activeProfileId) so the fetch target always matches the write target.
   // Hydrates local first, merges remote, and re-upserts local-newer entries.
   useEffect(() => {
-    if (!userKey || deviceStatus !== 'ok') { setWatchHistory([]); setMyList([]); return; }
+    if (!userKey || deviceStatus !== 'ok') { libraryKeyRef.current = null; setWatchHistory([]); setMyList([]); return; }
+    // Switching profiles: drop the previous profile's lists immediately so they
+    // never flash (or get merged) under the new profile while remote loads.
+    if (libraryKeyRef.current !== userKey) { setWatchHistory([]); setMyList([]); }
     loadLibrary(userKey);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userKey, deviceStatus]);

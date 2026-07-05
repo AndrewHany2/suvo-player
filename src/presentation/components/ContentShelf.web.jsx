@@ -6,6 +6,7 @@ import { Spinner } from "../../ui/primitives";
 import { colors, fonts, fontWeights, radii } from "../../ui/tokens";
 import Icon from "../../ui/Icon";
 import PosterCard from "./PosterCard.web";
+import SkeletonPoster from "./SkeletonPoster.web";
 
 import { isTV } from "../../utils/isTV";
 
@@ -111,8 +112,15 @@ export default function ContentShelf({
         {count != null && <span style={{ color: colors.faint, fontSize: ss(13), fontWeight: fontWeights.medium }}>{count}</span>}
       </div>
       {items === null ? (
-        <div style={{ paddingLeft: ss(48), paddingRight: ss(48), paddingTop: ss(18), paddingBottom: ss(18) }}>
-          <Spinner size="small" color={colors.accent} />
+        // Skeleton rail: a row of poster-shaped placeholders that reserves the
+        // real posters' footprint, clipped to the viewport. overflow:hidden drops
+        // the ones past the right edge so we don't need to measure the count.
+        <div style={{ display: "flex", gap: ss(8), paddingLeft: ss(48), paddingRight: ss(48), paddingTop: ss(10), paddingBottom: ss(10), overflow: "hidden" }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} style={{ flex: `0 0 ${CARD_W}px` }}>
+              <SkeletonPoster width={CARD_W} />
+            </div>
+          ))}
         </div>
       ) : (
         <div style={{ position: "relative" }} className="lumen-shelf-rail">

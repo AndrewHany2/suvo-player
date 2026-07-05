@@ -3,10 +3,12 @@ import { useApp } from "../../context/AppContext";
 import { useContentService } from "./useContentService";
 import tmdbApi from "../../services/tmdbApi";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
+import { isLowEndDevice } from "../../utils/deviceTier";
 
-// Cap the TV drill-in item cache so a long browsing session can't pin the
-// item lists for every category in memory at once (WebOS budget is tight).
-const ITEMS_CACHE_MAX = 8;
+// Cap the drill-in item cache so a long browsing session can't pin the item lists
+// for every category in memory at once (WebOS budget is tight). Halved on low-RAM
+// devices to shed memory pressure sooner.
+const ITEMS_CACHE_MAX = isLowEndDevice() ? 4 : 8;
 
 /**
  * Single source of truth for the Movies feature.
@@ -61,8 +63,13 @@ export function useMovies({ navigation } = {}) {
 
   // ── Top-rated prefetch (TMDB) ───────────────────────────────────────────────
   const prefetchTopRated = useCallback(async () => {
-    // TV has no discover/top-rated UI; skip the expensive all-streams fetch.
-    if (typeof globalThis !== "undefined" && globalThis.__TV__) return null;
+    // TV has no discover/top-rated UI, so skip the TMDB matching — but still warm
+    // the whole-catalog fetch in the background so opening "All Movies" (which
+    // calls getAllMovies) is instant instead of downloading the catalog on click.
+    if (typeof globalThis !== "undefined" && globalThis.__TV__) {
+      contentService.getAllMovies().catch(() => {});
+      return null;
+    }
     try {
       const streams = await contentService.getAllMovies();
       if (!streams?.length) return null;

@@ -48,7 +48,9 @@
       "WebFetch(domain:api.anthropic.com)",
       "WebFetch(domain:fec3f78a-97c5-45fb-8bba-034fbb94c425.claudeusercontent.com)",
       "Bash(node --test 'src/**/__tests__/*.test.js')",
-      "Bash(node --input-type=module)"
+      "Bash(node --input-type=module)",
+      "Bash(npm test *)",
+      "Bash(grep -nA12 \"const onDetailLeft\" src/screens/SeriesScreen.tv.jsx)"
     ]
   }
 }

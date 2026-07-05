@@ -115,6 +115,55 @@ describe("IPTVApi cache — persistence", () => {
     assert.notEqual(nsA, nsB, "different username → different namespace");
     assert.equal(api._cache.size, 0, "cache cleared on credential change");
   });
+
+  test("whole-catalog keys persist to their own storage entry (not the shared blob)", async () => {
+    const api = new IPTVApi();
+    api.setCredentials("http://box.example:8080", "alice", "pw");
+    await api._hydratePromise;
+    api._cacheSet("vod_categories", [{ id: 1 }], 10_000);
+    api._cacheSet("vod_streams_robust", [{ stream_id: 9 }], 10_000); // whitelisted bulk key
+    clearTimeout(api._persistTimer);
+    await api._persist();
+
+    const blob = JSON.parse(storage.store.get(`iptvcache_${api._ns}`));
+    assert.equal(blob.vod_streams_robust, undefined, "catalog kept out of the shared blob");
+    const bulk = JSON.parse(storage.store.get(`iptvcache_${api._ns}_vod_streams_robust`));
+    assert.deepEqual(bulk.data, [{ stream_id: 9 }], "catalog written under its own key");
+  });
+
+  test("a warm launch serves the persisted catalog without a network fetch", async () => {
+    const api = new IPTVApi();
+    api.setCredentials("http://box.example:8080", "alice", "pw");
+    await api._hydratePromise;
+    // Prior run left a still-fresh catalog on disk under its own key.
+    storage.store.set(
+      `iptvcache_${api._ns}_vod_streams_robust`,
+      JSON.stringify({ data: [{ stream_id: 1 }], expiresAt: Date.now() + 10_000 }),
+    );
+    let calls = 0;
+    const fetcher = async () => { calls++; return [{ stream_id: 2 }]; };
+    const out = await api._cached("vod_streams_robust", 10_000, fetcher);
+    assert.deepEqual(out, [{ stream_id: 1 }], "disk copy served");
+    await flush();
+    assert.equal(calls, 0, "fresh disk copy → no network fetch");
+  });
+
+  test("an expired persisted catalog serves stale then revalidates", async () => {
+    const api = new IPTVApi();
+    api.setCredentials("http://box.example:8080", "alice", "pw");
+    await api._hydratePromise;
+    storage.store.set(
+      `iptvcache_${api._ns}_series_robust`,
+      JSON.stringify({ data: [{ series_id: 1 }], expiresAt: Date.now() - 1 }), // expired
+    );
+    let calls = 0;
+    const fetcher = async () => { calls++; return [{ series_id: 2 }]; };
+    const out = await api._cached("series_robust", 10_000, fetcher);
+    assert.deepEqual(out, [{ series_id: 1 }], "stale disk copy served immediately");
+    await flush();
+    assert.equal(calls, 1, "one background revalidate fired");
+    assert.deepEqual(api._cache.get("series_robust").data, [{ series_id: 2 }], "cache refreshed");
+  });
 });
 
 describe("IPTVApi fetch wrapper", () => {

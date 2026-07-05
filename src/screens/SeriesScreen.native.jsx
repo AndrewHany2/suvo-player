@@ -1,94 +1,19 @@
-import { useState, useEffect, useCallback, useRef, memo } from "react";
-import { FlatList, Image, RefreshControl, useWindowDimensions } from "react-native";
-import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
+import { useState, useEffect, useCallback } from "react";
+import { FlatList, RefreshControl, useWindowDimensions } from "react-native";
+import { YStack, XStack, Text, Input, Spinner } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { useSeries } from "../domain/hooks/useSeries";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import SeriesDetail from "../components/SeriesDetail";
-import { posterGrid, posterShelfWidth, GRID_TARGET_W, SHELF_TARGET_W } from "../utils/posterLayout";
+import ContentShelf from "../presentation/components/ContentShelf.native";
+import PosterCard from "../presentation/components/PosterCard.native";
+import { posterGrid, GRID_TARGET_W } from "../utils/posterLayout";
 
-const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 const GRID_PAGE = 40;
 const GRID_OUTER = 16; // equal left/right screen margin
 const GRID_GAP = 12; // gap between posters (columns and rows)
-
-/* ─── Poster Card ─── */
-const PosterCard = memo(function PosterCard({ item, onPress, width = 130 }) {
-  const poster = item.cover || item.backdrop_path || item.stream_icon || null;
-  const ratingValue = item.tmdb_rating ?? item.rating;
-  const ratingLabel = ratingValue != null && ratingValue !== ""
-    ? (typeof ratingValue === "number" ? ratingValue.toFixed(1) : ratingValue)
-    : null;
-  return (
-    <YStack width={width} cursor="pointer" onPress={() => onPress(item)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick">
-      <YStack width={width} aspectRatio={2 / 3} borderRadius={8} backgroundColor={colors.surface} overflow="hidden" position="relative">
-        {poster
-          ? <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
-          : <YStack style={FILL} backgroundColor={colors.surface} />}
-        <YStack position="absolute" top={8} right={8} zIndex={4} backgroundColor="rgba(0,0,0,0.65)" borderRadius={4} paddingHorizontal={5} paddingVertical={2}>
-          <Text color={colors.muted} fontSize={9} fontWeight="700" letterSpacing={0.5}>HD</Text>
-        </YStack>
-        {ratingLabel && (
-          <XStack position="absolute" top={8} left={8} zIndex={4} alignItems="center" gap={3} backgroundColor="rgba(0,0,0,0.7)" borderRadius={4} paddingHorizontal={5} paddingVertical={2}>
-            <Icon name="star" size={10} color={colors.rating} />
-            <Text color={colors.rating} fontSize={9} fontWeight={fontWeights.bold}>{ratingLabel}</Text>
-          </XStack>
-        )}
-      </YStack>
-      <Text color={colors.text} fontSize={12} fontWeight="600" marginTop={8} lineHeight={16} numberOfLines={2}>{item.name}</Text>
-    </YStack>
-  );
-});
-
-/* ─── Shelf ─── */
-function Shelf({ shelf, onVisible, onPress, onTitlePress, onLoadMore }) {
-  const hasLoaded = useRef(false);
-  const { width: winW } = useWindowDimensions();
-  // Poster width derived from the screen (Electron's density model): ~2 + a peek
-  // on a phone, more on a tablet — posters scale up with the device.
-  const cardW = posterShelfWidth(winW - 32, { target: SHELF_TARGET_W, gap: 10 });
-  const handleLayout = useCallback(() => {
-    if (!hasLoaded.current && shelf.items === null && !shelf.manual) {
-      hasLoaded.current = true;
-      onVisible(shelf.id);
-    }
-  }, [shelf.id, shelf.items, shelf.manual, onVisible]);
-
-  if (shelf.items !== null && !shelf.items.length) return null;
-
-  return (
-    <YStack paddingTop={20} paddingBottom={8} onLayout={handleLayout}>
-      <XStack alignItems="baseline" justifyContent="space-between" paddingHorizontal={16} marginBottom={14}>
-        <XStack alignItems="center" gap={4} cursor="pointer" onPress={() => onTitlePress?.(shelf.id, shelf.name)} pressStyle={{ opacity: 0.8 }}>
-          <Text color={colors.text} fontFamily={fonts.display} fontSize={20} fontWeight={fontWeights.bold} letterSpacing={-0.3}>
-            {shelf.name}
-          </Text>
-          <Icon name="chevron-right" size={16} color={colors.accent} />
-        </XStack>
-        {shelf.totalCount != null && <Text color={colors.muted} fontSize={13} fontWeight={fontWeights.medium}>{shelf.totalCount}</Text>}
-      </XStack>
-      {shelf.items === null ? (
-        <YStack paddingHorizontal={16} paddingVertical={18}><Spinner size="small" color={colors.accent} /></YStack>
-      ) : (
-        <ScrollView
-          horizontal showsHorizontalScrollIndicator={false} removeClippedSubviews
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
-          onScroll={(e) => {
-            if (!shelf.hasMore || shelf.loadingMore) return;
-            const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-            if (contentSize.width - contentOffset.x - layoutMeasurement.width < 400) onLoadMore(shelf.id);
-          }}
-          scrollEventThrottle={200}
-        >
-          {shelf.items.map((item) => <PosterCard key={String(item.series_id)} item={item} onPress={onPress} width={cardW} />)}
-          {shelf.loadingMore && <YStack width={60} justifyContent="center" alignItems="center"><Spinner size="small" color={colors.accent} /></YStack>}
-        </ScrollView>
-      )}
-    </YStack>
-  );
-}
 
 /* ─── Category Page ─── */
 function CategoryPage({ name, items, onBack, onPress, onLoadMore, hasRemote, loadingMore }) {
@@ -227,7 +152,15 @@ export default function SeriesScreen({ navigation }) {
         keyExtractor={(item) => String(item.id)}
         ListHeaderComponent={listHeader}
         renderItem={({ item }) => (
-          <Shelf shelf={item} onVisible={handleShelfVisible} onPress={selectSeries} onTitlePress={openCategory} onLoadMore={handleLoadMore} />
+          <ContentShelf
+            id={item.id}
+            title={item.name} count={item.totalCount} items={item.items}
+            hasMore={item.hasMore} loadingMore={item.loadingMore} manual={item.manual}
+            onVisible={handleShelfVisible}
+            onPress={selectSeries}
+            onTitlePress={openCategory}
+            onLoadMore={handleLoadMore}
+          />
         )}
         ListEmptyComponent={<StatePanel mode="empty" icon="tv" title="No series found" message="We couldn't find any series for this account." />}
         windowSize={5} maxToRenderPerBatch={3} initialNumToRender={3} removeClippedSubviews

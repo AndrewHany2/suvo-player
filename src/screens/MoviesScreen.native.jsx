@@ -157,12 +157,13 @@ export default function MoviesScreen({ navigation }) {
         ListHeaderComponent={listHeader}
         renderItem={({ item }) => (
           <ContentShelf
+            id={item.id}
             title={item.name} count={item.totalCount} items={item.items}
             hasMore={item.hasMore} loadingMore={item.loadingMore} manual={item.manual}
-            onVisible={() => handleShelfVisible(item.id)}
+            onVisible={handleShelfVisible}
             onPress={selectMovie}
-            onTitlePress={() => openCategory(item.id, item.name)}
-            onLoadMore={() => handleLoadMore(item.id)}
+            onTitlePress={openCategory}
+            onLoadMore={handleLoadMore}
           />
         )}
         ListEmptyComponent={<StatePanel mode="empty" icon="film" title="No movies found" />}

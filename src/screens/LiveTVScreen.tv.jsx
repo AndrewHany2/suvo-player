@@ -327,8 +327,17 @@ export default function LiveTVScreenTV({ navigation }) {
   };
 
   useEffect(() => {
-    catElRef.current?.scrollIntoView({ block: "nearest" });
-  }, [catFocus]);
+    // The search bar sits above the grid inside .tvl-scroll, so scrollIntoView
+    // (block:"nearest") pins the top row to the container edge and leaves the
+    // search bar hidden above it. When focus reaches the first row or the search
+    // zone, scroll the whole region to the top so the search bar is revealed.
+    const scroller = catElRef.current?.closest(".tvl-scroll");
+    if (catZone === "search" || catFocus < CAT_COLS) {
+      if (scroller) scroller.scrollTop = 0;
+    } else {
+      catElRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [catFocus, catZone]);
   // Channel-grid focus scrolling is handled inside PagedGridTV (focusIndex).
 
   // ── Render ────────────────────────────────────────────────────────────────

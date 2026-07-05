@@ -3,10 +3,12 @@ import { useApp } from "../../context/AppContext";
 import { useContentService } from "./useContentService";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 import { epgNowTitle, toFlatChannel } from "./useLiveTV.helpers";
+import { isLowEndDevice } from "../../utils/deviceTier";
 
 // Cap the per-category channel cache so a long browsing session can't pin every
-// category's channel list in memory at once (WebOS budget is tight).
-const CHANNELS_CACHE_MAX = 12;
+// category's channel list in memory at once (WebOS budget is tight). Halved on
+// low-RAM devices to shed memory pressure sooner.
+const CHANNELS_CACHE_MAX = isLowEndDevice() ? 6 : 12;
 
 /**
  * Single source of truth for the Live TV feature.

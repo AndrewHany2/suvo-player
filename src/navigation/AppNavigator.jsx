@@ -65,6 +65,10 @@ function HeaderRight() {
 function MainTabs() {
   return (
     <Tab.Navigator screenOptions={{
+      // Suspend (freeze) a tab's render tree while it's not focused, so the
+      // inactive Movies/Series/LiveTV/History screens don't re-render in the
+      // background. Backed by react-native-screens + react-freeze.
+      freezeOnBlur: true,
       tabBarStyle: { backgroundColor: colors.surface2, borderTopColor: colors.border },
       tabBarActiveTintColor: colors.accent,
       tabBarInactiveTintColor: colors.muted,
@@ -100,7 +104,7 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text, contentStyle: { backgroundColor: colors.bg } }}>
+      <Stack.Navigator screenOptions={{ freezeOnBlur: true, headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="Main"        component={MainTabs}         options={{ headerShown: false }} />
         <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
         <Stack.Screen name="Accounts"    component={AccountsScreen}   options={{ title: "IPTV Accounts", presentation: "modal", headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text }} />

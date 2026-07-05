@@ -514,6 +514,7 @@ export default function VideoPlayerScreen() {
           borderTopColor: colors.accent2,
           borderRadius: "50%",
           animation: "spin 0.8s linear infinite",
+          willChange: "transform",
         }}
       />
       <span style={{ color: colors.text, fontFamily: fonts.body, fontSize: 18, fontWeight: 600 }}>
@@ -823,7 +824,7 @@ export default function VideoPlayerScreen() {
         {isLive ? "↑↓: Channel" : "↑↓: Volume"} · [ ]: Speed · P: PiP · I: Stats ·
         Esc: Close
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`@keyframes spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }`}</style>
     </div>
   );
 }

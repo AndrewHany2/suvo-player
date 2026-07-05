@@ -1,13 +1,20 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
-import { FlatList, Image, Modal, Alert, TouchableOpacity, RefreshControl } from "react-native";
-import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
-import { colors, fonts, fontWeights, iconSizes, accentAlpha } from "../ui/tokens";
+import { FlatList, Modal, Alert, TouchableOpacity, RefreshControl } from "react-native";
+import { Image } from "expo-image";
+import { YStack, XStack, Text, Input } from "../ui/primitives";
+import { colors, iconSizes, accentAlpha } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
+import ContentShelf from "../presentation/components/ContentShelf.native";
+import { isLowEndDevice } from "../utils/deviceTier";
+
+// Low-end: drop the decorative progress bar + "now playing" label to shave a few
+// views off every channel card (frozen at first read).
+const LOW_END = isLowEndDevice();
 
 const getAbbrev = (name) => {
   const words = name.trim().split(/\s+/);
@@ -41,7 +48,7 @@ const ChannelCard = memo(({ item, epg, onPress, fetchEpg }) => {
     >
       <XStack alignItems="center" gap={8} marginBottom={8}>
         {item.logo
-          ? <Image source={{ uri: item.logo }} style={{ width: 28, height: 28, borderRadius: 5, backgroundColor: colors.bg }} resizeMode="contain" />
+          ? <Image source={item.logo} style={{ width: 28, height: 28, borderRadius: 5, backgroundColor: colors.bg }} contentFit="contain" cachePolicy="memory-disk" recyclingKey={item.logo} />
           : (
             <YStack width={28} height={28} borderRadius={5} backgroundColor={colors.surface} borderWidth={1} borderColor={colors.border} justifyContent="center" alignItems="center">
               <Text color={colors.accent} fontWeight="800" fontSize={10} letterSpacing={0.5}>{abbrev}</Text>
@@ -58,38 +65,17 @@ const ChannelCard = memo(({ item, epg, onPress, fetchEpg }) => {
         </XStack>
       </XStack>
       <Text color={colors.muted} fontSize={12} lineHeight={17} minHeight={34} numberOfLines={2}>{epg || " "}</Text>
-      <YStack height={3} backgroundColor={colors.border} borderRadius={2} marginTop={10}>
-        <YStack width="35%" height="100%" backgroundColor={colors.accent} borderRadius={2} />
-      </YStack>
-      <Text color={colors.faint} fontSize={10} marginTop={7} letterSpacing={0.2}>Live · now playing</Text>
-    </YStack>
-  );
-});
-
-/* ─── Live Shelf ─── */
-function LiveShelf({ cat, epgCache, fetchEpg, onPress }) {
-  const channels = cat.channels;
-  if (channels !== null && !channels.length) return null;
-  return (
-    <YStack paddingTop={8} paddingBottom={20}>
-      <XStack alignItems="center" gap={8} paddingHorizontal={16} marginBottom={12}>
-        <Icon name="tv" size={iconSizes.md} color={colors.accent2} />
-        <Text color={colors.text} fontFamily={fonts.display} fontSize={18} fontWeight={fontWeights.bold} letterSpacing={-0.2}>{cat.name}</Text>
-        {channels && <Text color={colors.faint} fontSize={13} fontWeight={fontWeights.medium}>{channels.length}</Text>}
-      </XStack>
-      {channels === null ? (
-        <YStack paddingHorizontal={16} paddingVertical={18}><Spinner size="small" color={colors.accent} /></YStack>
-      ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-          {channels.map((item) => {
-            const sid = item.stream_id || item.id;
-            return <ChannelCard key={String(sid)} item={item} epg={epgCache[sid]} onPress={onPress} fetchEpg={fetchEpg} />;
-          })}
-        </ScrollView>
+      {!LOW_END && (
+        <>
+          <YStack height={3} backgroundColor={colors.border} borderRadius={2} marginTop={10}>
+            <YStack width="35%" height="100%" backgroundColor={colors.accent} borderRadius={2} />
+          </YStack>
+          <Text color={colors.faint} fontSize={10} marginTop={7} letterSpacing={0.2}>Live · now playing</Text>
+        </>
       )}
     </YStack>
   );
-}
+});
 
 export default function LiveTVScreen({ navigation }) {
   const {
@@ -233,13 +219,27 @@ export default function LiveTVScreen({ navigation }) {
       <FlatList
         data={displayCategories}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => (
-          <LiveShelf cat={item} epgCache={epgCache} fetchEpg={fetchEpg} onPress={handleChannelPress} />
+        renderItem={({ item: cat }) => (
+          <ContentShelf
+            id={cat.id}
+            title={cat.name}
+            count={cat.channels?.length ?? null}
+            items={cat.channels}
+            hasMore={false} loadingMore={false} manual={false}
+            leadingIcon="tv"
+            itemWidth={160} gap={8}
+            onVisible={loadChannelCategory}
+            onPress={handleChannelPress}
+            renderItem={(channel) => (
+              <ChannelCard
+                item={channel}
+                epg={epgCache[channel.stream_id || channel.id]}
+                onPress={handleChannelPress}
+                fetchEpg={fetchEpg}
+              />
+            )}
+          />
         )}
-        onViewableItemsChanged={({ viewableItems }) => {
-          viewableItems.forEach(({ item }) => { if (channelsByCategory[item.id] === undefined) loadChannelCategory(item.id); });
-        }}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 10 }}
         ListEmptyComponent={<YStack padding={60} alignItems="center"><Text color={colors.faint} fontSize={15}>No channels found</Text></YStack>}
         contentContainerStyle={{ paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}

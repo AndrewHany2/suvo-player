@@ -13,7 +13,6 @@ import { forwardRef } from "react";
 import { splitStyleProps, toWebStyle } from "./styleProps";
 import { colors, accentAlpha } from "./tokens";
 
-import { isTV } from "../utils/isTV";
 
 // Web-only-or-native-only props that should never reach the DOM element.
 const DROP = ["pressStyle", "hoverStyle", "animation", "space", "onPress", "cursor"];
@@ -104,14 +103,16 @@ function ensureSpinKeyframes() {
   if (keyframesInjected || typeof document === "undefined") return;
   keyframesInjected = true;
   const el = document.createElement("style");
-  el.textContent = "@keyframes _ui_spin{to{transform:rotate(360deg)}}";
+  // translateZ(0) in both frames forces a compositor layer so the rotation runs
+  // on the GPU/compositor thread — this is what lets it spin smoothly on webOS
+  // even while the main thread is blocked (e.g. parsing a big catalog).
+  el.textContent = "@keyframes _ui_spin{from{transform:translateZ(0) rotate(0deg)}to{transform:translateZ(0) rotate(360deg)}}";
   document.head.appendChild(el);
 }
 
 export const Spinner = forwardRef(function Spinner({ size = "small", color = colors.accent, ...rest }, ref) {
   ensureSpinKeyframes();
   const d = size === "large" ? 36 : 20;
-  // On TV animations are disabled globally; the ring still reads as a "loading" affordance.
   return (
     <div
       ref={ref}
@@ -120,7 +121,11 @@ export const Spinner = forwardRef(function Spinner({ size = "small", color = col
         // Track ring = faint accent wash; the moving arc is the full accent.
         border: `${Math.max(2, d / 10)}px solid ${accentAlpha(0.18)}`,
         borderTopColor: color,
-        animation: isTV() ? undefined : "_ui_spin 0.8s linear infinite",
+        // Runs on TV too: the keyframes are GPU-composited (translateZ), so the
+        // rotation stays smooth instead of janking the main thread like a plain
+        // transform animation would on old webOS.
+        animation: "_ui_spin 0.8s linear infinite",
+        willChange: "transform",
       }}
       {...rest}
     />

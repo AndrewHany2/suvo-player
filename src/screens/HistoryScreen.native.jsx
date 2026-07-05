@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Image, Alert, View } from "react-native";
+import { Alert, View } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
@@ -37,7 +38,7 @@ function MyListCard({ item, onPress, onRemove, focused }) {
     <YStack width={130} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick">
       <YStack width={130} aspectRatio={2 / 3} borderRadius={radii.sm} backgroundColor={colors.surface} overflow="hidden" borderWidth={2} borderColor={focused ? colors.accent2 : colors.border}>
         {poster
-          ? <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
+          ? <Image source={poster} style={FILL} contentFit="cover" cachePolicy="memory-disk" recyclingKey={poster} transition={150} />
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
         <YStack position="absolute" top={8} right={8} zIndex={4} backgroundColor={overlay} borderRadius={4} paddingHorizontal={5} paddingVertical={2}>
           <Text color={colors.muted} fontFamily={fonts.body} fontSize={9} fontWeight={fontWeights.bold} letterSpacing={0.5}>HD</Text>
@@ -66,7 +67,7 @@ function CWCard({ item, onPress, onRemove, focused }) {
     <YStack width={260} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.85 }} hoverStyle={{ scale: 1.02 }} animation="quick">
       <YStack width={260} height={148} borderRadius={radii.sm} backgroundColor={colors.surface} overflow="hidden" borderWidth={2} borderColor={focused ? colors.accent2 : colors.border}>
         {bg
-          ? <Image source={{ uri: bg }} style={FILL} resizeMode="cover" />
+          ? <Image source={bg} style={FILL} contentFit="cover" cachePolicy="memory-disk" recyclingKey={bg} transition={150} />
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.75)"]} style={FILL} />
         {seasonBadge && (

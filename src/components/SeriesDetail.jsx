@@ -1,5 +1,6 @@
 import { useState, useEffect, memo } from "react";
-import { Image, Linking, View, SectionList, Platform } from "react-native";
+import { Linking, View, SectionList, Platform } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
 import { colors } from "../ui/tokens";
@@ -145,7 +146,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
     <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
       <YStack width="100%" height={420} position="relative">
         {backdrop
-          ? <Image source={{ uri: backdrop }} style={FILL} resizeMode="cover" />
+          ? <Image source={backdrop} style={FILL} contentFit="cover" cachePolicy="memory-disk" transition={150} />
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
         <GradientOverlay />
 
