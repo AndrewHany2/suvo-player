@@ -385,7 +385,7 @@ export default function VideoPlayerScreen() {
           e.preventDefault();
           document.fullscreenElement
             ? document.exitFullscreen()
-            : video.requestFullscreen();
+            : rootRef.current?.requestFullscreen?.();
           break;
         case "Escape":
           handleClose();
@@ -604,7 +604,7 @@ export default function VideoPlayerScreen() {
           playsInline
           crossOrigin="anonymous"
           onClick={togglePlayWeb}
-          style={{ ...getVideoStyle, cursor: "pointer" }}
+          style={{ ...getVideoStyle, cursor: webControlsVisible ? "pointer" : "none" }}
         >
           <track kind="captions" />
         </video>
