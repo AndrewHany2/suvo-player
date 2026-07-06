@@ -465,7 +465,12 @@ export default function SeriesScreen({ navigation }) {
 
   return (
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
-      <ScrollView flex={1} minHeight={0} contentContainerStyle={{ paddingBottom: ss(80) }}>
+      <ScrollView
+        flex={1}
+        minHeight={0}
+        contentContainerStyle={{ paddingBottom: ss(80) }}
+        style={{ pointerEvents: categoryPage || selectedSeries ? "none" : "auto" }}
+      >
         <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
         <YStack
           paddingHorizontal={ss(48)}

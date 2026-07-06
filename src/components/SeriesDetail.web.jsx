@@ -150,7 +150,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
     const epPadH = ss(isTV ? 80 : 48);
 
     return (
-      <YStack flex={1} backgroundColor={colors.bg}>
+      <YStack flex={1} minHeight={0} backgroundColor={colors.bg}>
         <XStack
           alignItems="center"
           gap={ss(isTV ? 20 : 14)}
@@ -192,6 +192,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
         <SectionList
           sections={sections}
           keyExtractor={(ep) => String(ep.id)}
+          style={{ flex: 1, minHeight: 0 }}
           contentContainerStyle={{
             paddingHorizontal: epPadH,
             paddingVertical: ss(isTV ? 24 : 12),

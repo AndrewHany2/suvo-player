@@ -528,9 +528,21 @@ export default function VideoPlayerScreen() {
       ? "Auto"
       : getLevelLabel(qualityLevels[selectedLevel], qualityLevels);
 
+  // In fullscreen, fade the title bar and footer hints with the rest of the
+  // controls so the view is fully immersive once idle; outside fullscreen
+  // they stay put as normal window chrome.
+  const chromeHidden = isFsWeb && !webControlsVisible;
+
   return (
     <div style={S.overlay} ref={rootRef}>
-      <div style={S.header}>
+      <div
+        style={{
+          ...S.header,
+          opacity: chromeHidden ? 0 : 1,
+          pointerEvents: chromeHidden ? "none" : "auto",
+          transition: "opacity 250ms ease",
+        }}
+      >
         <button style={S.closeBtn} onClick={handleClose} title="Close (Esc)" aria-label="Close">
           <Icon name="close" size={16} color={colors.text} />
         </button>
@@ -819,7 +831,14 @@ export default function VideoPlayerScreen() {
         )}
       </div>
 
-      <div style={S.footer}>
+      <div
+        style={{
+          ...S.footer,
+          opacity: chromeHidden ? 0 : 1,
+          pointerEvents: chromeHidden ? "none" : "auto",
+          transition: "opacity 250ms ease",
+        }}
+      >
         Space/K: Play/Pause · F: Fullscreen · ←→: Seek ·{" "}
         {isLive ? "↑↓: Channel" : "↑↓: Volume"} · [ ]: Speed · P: PiP · I: Stats ·
         Esc: Close
