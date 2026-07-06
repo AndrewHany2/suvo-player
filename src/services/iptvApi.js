@@ -288,20 +288,38 @@ export class IPTVApi {
   async _fetchOnce(url, signal, timeout) {
     const controller = new AbortController();
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
+    let timer;
     const onAbort = () => controller.abort();
     if (signal) {
       if (signal.aborted) controller.abort();
       else signal.addEventListener('abort', onAbort, { once: true });
     }
+    // Hard deadline that rejects on its OWN — not only by aborting the request.
+    // Some React Native fetch engines don't reject a hung request when its
+    // AbortController fires, so relying on abort alone lets a stalled provider
+    // hang forever and pin a loading state open (e.g. the Live TV spinner never
+    // resolves to an error). Racing against this timer guarantees settlement.
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+        reject(new Error(`Request timed out after ${timeout}ms`));
+      }, timeout);
+    });
     try {
-      const response = await globalThis.fetch(url, {
-        method: 'GET',
-        headers: { Accept: 'application/json, text/plain, */*' },
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      return await response.json();
+      const request = (async () => {
+        const response = await globalThis.fetch(url, {
+          method: 'GET',
+          headers: { Accept: 'application/json, text/plain, */*' },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+      })();
+      // Swallow a late rejection from the losing branch so a request that
+      // rejects just after the deadline won't surface as an unhandled rejection.
+      request.catch(() => {});
+      return await Promise.race([request, deadline]);
     } catch (e) {
       if (timedOut) throw new Error(`Request timed out after ${timeout}ms`);
       throw e;

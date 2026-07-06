@@ -102,3 +102,22 @@ describe("IPTVApi fetch — bounded retry on transient failure", () => {
     assert.ok(calls >= 2, `retried at least once (calls=${calls})`);
   });
 });
+
+describe("IPTVApi fetch — hard timeout when the platform ignores abort", () => {
+  let realFetch;
+  beforeEach(() => { realFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  // Regression: some React Native engines don't reject a hung request when its
+  // AbortController fires, so a stalled provider would never settle and the
+  // loading state (e.g. the Live TV spinner) would stay open forever. The
+  // deadline must reject on its own, independent of the abort signal.
+  test("rejects at the deadline even when the underlying fetch never settles", async () => {
+    globalThis.fetch = () => new Promise(() => {}); // hangs; ignores abort
+    const api = new IPTVApi();
+    await assert.rejects(
+      () => api.fetch("http://x/api", { timeout: 50 }),
+      /timed out/,
+    );
+  });
+});
