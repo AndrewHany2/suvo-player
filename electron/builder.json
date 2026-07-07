@@ -1,6 +1,6 @@
 {
-  "appId": "com.iptv.player",
-  "productName": "IPTV Player",
+  "appId": "com.andrew1h1.iptvplayer",
+  "productName": "Lumen IPTV Player",
   "asar": true,
   "afterPack": "electron/afterPack.js",
   "extraMetadata": {
@@ -24,10 +24,21 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "allowElevation": false
+    "allowElevation": false,
+    "installerSidebar": "electron/assets/installerSidebar.bmp",
+    "installerHeader": "electron/assets/installerHeader.bmp"
   },
   "mac": {
     "target": "dmg"
+  },
+  "dmg": {
+    "background": "electron/assets/background.png",
+    "iconSize": 96,
+    "window": { "width": 660, "height": 400 },
+    "contents": [
+      { "x": 165, "y": 285, "type": "file" },
+      { "x": 495, "y": 285, "type": "link", "path": "/Applications" }
+    ]
   },
   "linux": {
     "target": "AppImage",
