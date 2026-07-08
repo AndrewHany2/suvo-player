@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "Lumen Player",
-    "slug": "iptv-player",
-    "scheme": "iptv-player",
+    "slug": "lumen-player",
+    "scheme": "lumen-player",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
@@ -19,7 +19,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.andrew1h1.iptvplayer",
+      "bundleIdentifier": "com.andrew1h1.lumenplayer",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
@@ -35,7 +35,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.andrew1h1.iptvplayer"
+      "package": "com.andrew1h1.lumenplayer"
     },
     "plugins": [
       "expo-video",

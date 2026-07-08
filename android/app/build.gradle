@@ -89,7 +89,7 @@ android {
 
     namespace 'com.andrew1h1.iptvplayer'
     defaultConfig {
-        applicationId 'com.andrew1h1.iptvplayer'
+        applicationId 'com.andrew1h1.lumenplayer'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

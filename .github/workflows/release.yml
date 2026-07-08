@@ -60,11 +60,11 @@ jobs:
       - run: npm ci
       - run: npm run build:web
       - name: Zip web bundle
-        run: cd dist && zip -r "../iptv-player-web-${{ needs.setup.outputs.version }}.zip" .
+        run: cd dist && zip -r "../lumen-player-web-${{ needs.setup.outputs.version }}.zip" .
       - uses: actions/upload-artifact@v4
         with:
           name: web
-          path: iptv-player-web-*.zip
+          path: lumen-player-web-*.zip
           if-no-files-found: error
 
   android:
@@ -87,11 +87,11 @@ jobs:
           eas build -p android --profile preview --non-interactive --wait --json > build.json
           URL=$(node -e "const b=JSON.parse(require('fs').readFileSync('build.json','utf8'))[0]; const a=b.artifacts||{}; process.stdout.write(a.applicationArchiveUrl||a.buildUrl||'')")
           if [[ -z "$URL" ]]; then echo "No artifact URL in EAS response"; cat build.json; exit 1; fi
-          curl -L -o "iptv-player-android-${{ needs.setup.outputs.version }}.apk" "$URL"
+          curl -L -o "lumen-player-android-${{ needs.setup.outputs.version }}.apk" "$URL"
       - uses: actions/upload-artifact@v4
         with:
           name: android
-          path: iptv-player-android-*.apk
+          path: lumen-player-android-*.apk
           if-no-files-found: error
 
   desktop:
@@ -144,11 +144,11 @@ jobs:
         run: |
           IPK=$(find tv/packaging/lg/out -name '*.ipk' | head -n1)
           if [[ -z "$IPK" ]]; then echo "No .ipk produced"; exit 1; fi
-          cp "$IPK" "iptv-player-${{ needs.setup.outputs.version }}.ipk"
+          cp "$IPK" "lumen-player-${{ needs.setup.outputs.version }}.ipk"
       - uses: actions/upload-artifact@v4
         with:
           name: tv
-          path: iptv-player-*.ipk
+          path: lumen-player-*.ipk
           if-no-files-found: error
 
   ios:
@@ -171,11 +171,11 @@ jobs:
           eas build -p ios --profile simulator --non-interactive --wait --json > build.json
           URL=$(node -e "const b=JSON.parse(require('fs').readFileSync('build.json','utf8'))[0]; const a=b.artifacts||{}; process.stdout.write(a.applicationArchiveUrl||a.buildUrl||'')")
           if [[ -z "$URL" ]]; then echo "No artifact URL in EAS response"; cat build.json; exit 1; fi
-          curl -L -o "iptv-player-ios-SIMULATOR-${{ needs.setup.outputs.version }}.tar.gz" "$URL"
+          curl -L -o "lumen-player-ios-SIMULATOR-${{ needs.setup.outputs.version }}.tar.gz" "$URL"
       - uses: actions/upload-artifact@v4
         with:
           name: ios-simulator
-          path: iptv-player-ios-SIMULATOR-*.tar.gz
+          path: lumen-player-ios-SIMULATOR-*.tar.gz
           if-no-files-found: error
 
   release:

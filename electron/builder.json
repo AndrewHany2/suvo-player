@@ -1,5 +1,5 @@
 {
-  "appId": "com.andrew1h1.iptvplayer",
+  "appId": "com.andrew1h1.lumenplayer",
   "productName": "Lumen Player",
   "asar": true,
   "afterPack": "electron/afterPack.js",
@@ -43,6 +43,6 @@
   },
   "linux": {
     "target": "AppImage",
-    "executableName": "iptv-player"
+    "executableName": "lumen-player"
   }
 }
