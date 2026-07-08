@@ -1,10 +1,11 @@
-# IPTV Player
+# Lumen Player
 
-A cross-platform IPTV player built with Expo and React Native. One codebase
+A cross-platform media player built with Expo and React Native. One codebase
 targets iOS, Android, desktop (Electron), the web, and TV (LG webOS + Samsung
-Tizen). It connects to any Xtream Codes provider for Live TV, Movies, and
-Series, enriches VOD with TMDB metadata, and syncs profiles / accounts / watch
-history / favorites through Supabase.
+Tizen). It plays media from a user-supplied playlist (Xtream Codes or M3U),
+organizing it into Live, Movies, and Series, enriches VOD with TMDB metadata,
+and syncs profiles / accounts / watch history / favorites through Supabase. It
+ships with no content of its own.
 
 ## Tech Stack
 
@@ -13,7 +14,7 @@ history / favorites through Supabase.
 - **expo-video + hls.js** — playback engines (expo-video on native, hls.js on web/TV)
 - **React Navigation** — native-stack + bottom-tabs
 - **Supabase** — auth + Edge Functions + Postgres for cloud sync
-- **Xtream Codes API** — IPTV content source
+- **Xtream Codes API** — user-supplied playlist source
 - **TMDB** — movie/series artwork and metadata
 - **Electron** — desktop shell around the web build (with an optional external-VLC handoff)
 
