@@ -519,7 +519,13 @@ export default function VideoPlayerScreen({ navigation }) {
     };
   }, [showStats, player, playback.qualityCap]);
 
-  useEffect(() => { if (!currentVideo) navigation.goBack(); }, [currentVideo, navigation]);
+  // Safety net: when the video is cleared *externally* (profile switch, sign-out)
+  // pop this screen off the native stack. handleClose already pops explicitly, so
+  // guard on canGoBack() — otherwise its closeVideo() nulls currentVideo and this
+  // effect double-pops, which React Navigation rejects ("GO_BACK was not handled").
+  useEffect(() => {
+    if (!currentVideo && navigation.canGoBack?.()) navigation.goBack();
+  }, [currentVideo, navigation]);
 
   // ---- Group 3: touch gestures via PanResponder (no new deps) ----
   const brightnessRef = useRef(null); // lazy-loaded expo-brightness module

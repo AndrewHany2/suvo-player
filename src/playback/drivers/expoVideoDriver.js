@@ -78,6 +78,41 @@ export function normalizeExpoError(err) {
   return out;
 }
 
+/**
+ * Headers sent with the native stream request, mirroring what the Electron
+ * build already injects (see electron/main.js) — the config proven to play
+ * these streams on desktop.
+ *
+ * iOS AVPlayer defaults to an `AppleCoreMedia/…` UA and Android ExoPlayer to a
+ * generic one. Many IPTV / Xtream-Codes servers whitelist by User-Agent (and
+ * expect a Referer) and answer an unrecognised request with a 404 / HTML error
+ * page — which AVPlayer then tries to parse as media and fails (`FigFilePlayer`
+ * err -12864) or surfaces as "The requested URL was not found on this server."
+ * The web/TV path works because the browser/webview sends an accepted request;
+ * expo-video sends nothing extra, so we must add these ourselves. The UA below
+ * is the exact string Electron uses (it impersonates IPTV Smarters Pro, which
+ * IPTV servers commonly whitelist). Referer is derived per-stream from its host.
+ */
+export const STREAM_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) IPTVSmartersPro/1.1.1 Chrome/53.0.2785.143 Electron/1.4.16 Safari/537.36';
+
+/**
+ * Derive the `Referer` header value (`scheme://host/`) from a stream URL. Uses a
+ * regex rather than `new URL()` so it doesn't depend on a URL polyfill in the
+ * native JS engine. Returns undefined for non-http(s) inputs.
+ *
+ * @param {string} uri
+ * @returns {string|undefined}
+ */
+export function refererForUri(uri) {
+  const m = /^(https?:\/\/[^/]+)/i.exec(uri || '');
+  return m ? `${m[1]}/` : undefined;
+}
+
+// TEMP diagnostic logging (dev only; inert under node:test). Remove once the
+// iOS stream-init failure is resolved.
+const RP_DEBUG = typeof __DEV__ !== 'undefined' && __DEV__;
+
 /** Interval (ms) for the progress poll that backs onProgress + the stall watchdog. */
 export const PROGRESS_POLL_MS = 1000;
 
@@ -139,27 +174,65 @@ export function createExpoVideoDriver(player, opts = {}) {
     // play() once the pipeline is actually ready, in case the immediate play()
     // below is dropped (item not yet loaded on a freshly-replaced source).
     wantPlay = true;
-    // replace() swaps the active source and re-initialises the pipeline — this
-    // is how recovery RELOADs the stream after an error/stall.
+    // For VOD, resume at the saved position then start; live ignores startTime
+    // (the engine joins at the live edge). On the async path this runs once the
+    // source has loaded; on the sync fallback, immediately after replace().
+    const seekAndPlay = () => {
+      if (!loadOpts.isLive && typeof loadOpts.startTime === 'number' && loadOpts.startTime > 0) {
+        try {
+          player.currentTime = loadOpts.startTime;
+        } catch {
+          /* seeking before metadata is ready can throw; ignore */
+        }
+      }
+      try {
+        player.play();
+      } catch {
+        /* noop */
+      }
+    };
+    // replace swaps the active source and re-initialises the pipeline (this is
+    // how recovery RELOADs after an error/stall). Prefer replaceAsync when the
+    // engine exposes it: the synchronous replace() loads the asset ON THE MAIN
+    // THREAD, which iOS flags with a deprecation warning and can freeze the UI
+    // on every (re)load. replaceAsync keeps the load off the main thread; we
+    // seek+play when it resolves. Falls back to sync replace() where absent.
+    // Mirror the Electron build's headers (User-Agent + Referer + Accept-Language)
+    // so UA/Referer-gating IPTV servers return media instead of a 404 / error
+    // page. Pass through any per-source headers last so a caller can override.
+    const perSourceHeaders =
+      source && typeof source === 'object' && source.headers ? source.headers : undefined;
+    const referer = refererForUri(uri);
+    const videoSource = {
+      uri,
+      headers: {
+        'User-Agent': STREAM_USER_AGENT,
+        'Accept-Language': 'en-US',
+        ...(referer ? { Referer: referer } : {}),
+        ...perSourceHeaders,
+      },
+    };
+    const useAsync = typeof player.replaceAsync === 'function';
+    if (RP_DEBUG) {
+      console.log(
+        `[RP:drv] load(v2 headers) via=${useAsync ? 'replaceAsync' : 'replace'} uri=${uri}` +
+          ` referer=${referer} ua="${STREAM_USER_AGENT.slice(0, 24)}…"`,
+      );
+    }
     try {
-      player.replace({ uri });
+      if (useAsync) {
+        player
+          .replaceAsync(videoSource)
+          .then(seekAndPlay)
+          .catch(() => {
+            /* torn down or load failed; the statusChange error path handles it */
+          });
+      } else {
+        player.replace(videoSource, true);
+        seekAndPlay();
+      }
     } catch {
       /* player may be torn down mid-recovery */
-      return;
-    }
-    // For VOD, resume at the saved position; live ignores startTime (the engine
-    // joins at the live edge by default).
-    if (!loadOpts.isLive && typeof loadOpts.startTime === 'number' && loadOpts.startTime > 0) {
-      try {
-        player.currentTime = loadOpts.startTime;
-      } catch {
-        /* seeking before metadata is ready can throw; ignore */
-      }
-    }
-    try {
-      player.play();
-    } catch {
-      /* noop */
     }
   }
 
@@ -320,8 +393,16 @@ export function createExpoVideoDriver(player, opts = {}) {
       const t = currentTime();
       const now = Date.now();
 
-      if (t > lastTime + 0.05) {
-        // Time advanced: reset the watchdog.
+      if (Math.abs(t - lastTime) > 0.05) {
+        // The clock MOVED — reset the watchdog. Note this is |Δ|, not just a
+        // forward advance: a recovery RELOAD (player.replace) or a seek can
+        // restart currentTime BELOW the last sample. Treating only forward
+        // motion as "alive" left `lastTime` a monotonic high-water mark, so
+        // after such a reset every sample looked "flat" (t never exceeds the
+        // old mark), lastAdvance never refreshed, and the watchdog fired a
+        // false STALL every stallThresholdMs while the stream was genuinely
+        // playing — an endless Reconnecting→reload→black loop. Any movement,
+        // in either direction, means the pipeline is not frozen.
         lastTime = t;
         lastAdvance = now;
         firedForThisStall = false;
@@ -353,6 +434,9 @@ export function createExpoVideoDriver(player, opts = {}) {
     if (!player?.addListener) return () => {};
     const sub = player.addListener('statusChange', (payload) => {
       if (payload?.status !== 'error') return;
+      if (RP_DEBUG) {
+        console.log(`[RP:drv] ERROR msg="${payload?.error?.message ?? ''}"`);
+      }
       cb(normalizeExpoError(payload?.error));
     });
     return () => {

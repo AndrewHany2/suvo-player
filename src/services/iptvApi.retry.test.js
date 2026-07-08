@@ -56,8 +56,8 @@ describe("IPTVApi fetch — bounded retry on transient failure", () => {
     let calls = 0;
     globalThis.fetch = async () => {
       calls++;
-      if (calls === 1) return { ok: false, status: 503, json: async () => ({}) };
-      return { ok: true, status: 200, json: async () => ({ ok: 1 }) };
+      if (calls === 1) return { ok: false, status: 503, text: async () => "{}" };
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: 1 }) };
     };
     const api = new IPTVApi();
     assert.deepEqual(await api.fetch("http://x/api"), { ok: 1 });
@@ -68,7 +68,7 @@ describe("IPTVApi fetch — bounded retry on transient failure", () => {
     let calls = 0;
     globalThis.fetch = async () => {
       calls++;
-      return { ok: false, status: 404, json: async () => ({}) };
+      return { ok: false, status: 404, text: async () => "{}" };
     };
     const api = new IPTVApi();
     await assert.rejects(() => api.fetch("http://x/api"), /status: 404/);
@@ -95,11 +95,35 @@ describe("IPTVApi fetch — bounded retry on transient failure", () => {
     let calls = 0;
     globalThis.fetch = async () => {
       calls++;
-      return { ok: false, status: 500, json: async () => ({}) };
+      return { ok: false, status: 500, text: async () => "{}" };
     };
     const api = new IPTVApi();
     await assert.rejects(() => api.fetch("http://x/api"), /status: 500/);
     assert.ok(calls >= 2, `retried at least once (calls=${calls})`);
+  });
+});
+
+describe("IPTVApi fetch — non-JSON provider body", () => {
+  let realFetch;
+  beforeEach(() => { realFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  // Regression: a 200 response whose body is NOT JSON (an upstream error page, a
+  // block notice, an HTML challenge) must reject with an error that carries a
+  // snippet of the actual body — not an opaque "Unexpected character: B".
+  test("surfaces a snippet of the body when it is not JSON", async () => {
+    globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => "Blocked by upstream firewall" });
+    const api = new IPTVApi();
+    await assert.rejects(
+      () => api.fetch("http://x/api"),
+      /Non-JSON response from provider: Blocked by upstream firewall/,
+    );
+  });
+
+  test("reports an empty body distinctly", async () => {
+    globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => "   " });
+    const api = new IPTVApi();
+    await assert.rejects(() => api.fetch("http://x/api"), /\(empty body\)/);
   });
 });
 

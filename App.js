@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, LogBox } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,6 +8,14 @@ import { colors } from './src/ui/tokens';
 import { AppProvider } from './src/context/AppContext';
 import { PlatformProvider } from './src/platform/PlatformProvider';
 import AppNavigator from './src/navigation/AppNavigator';
+
+// Supabase's GoTrueClient logs a bare console.error when a stored refresh token
+// is rejected on startup ("Invalid Refresh Token: Refresh Token Not Found").
+// This is benign and self-healed: the library removes the stale session
+// immediately after (auth-js GoTrueClient._recoverAndRefresh). We can't stop it
+// logging without patching the dep, so silence just that known message from the
+// native LogBox overlay. No-op on web/TV where LogBox.ignoreLogs is a shim.
+LogBox.ignoreLogs([/Invalid Refresh Token: Refresh Token Not Found/]);
 
 export default function App() {
   // Aurora typeface: Space Grotesk (display) + Inter (body), registered under

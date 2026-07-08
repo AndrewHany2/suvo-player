@@ -43,7 +43,10 @@ export default function SkeletonPoster({ width = 200 }) {
         <div
           style={{
             position: "absolute",
-            inset: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
             background: `linear-gradient(100deg, transparent 20%, ${colors.surface2} 50%, transparent 80%)`,
             animation: "_skel_sweep 1.4s ease-in-out infinite",
             willChange: "transform",

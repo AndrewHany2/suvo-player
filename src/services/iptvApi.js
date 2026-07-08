@@ -314,7 +314,19 @@ export class IPTVApi {
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return await response.json();
+        // Read the body as text and parse it ourselves rather than response.json():
+        // some providers answer a valid (200) request with a non-JSON body — an
+        // upstream error page, a block/"Blocked" notice, an HTML challenge. The
+        // native json() then throws an opaque "Unexpected character: X" with no
+        // hint of what came back. Surfacing a snippet of the actual body makes
+        // those provider/network responses diagnosable instead of a mystery.
+        const text = await response.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          const snippet = text.trim().slice(0, 200);
+          throw new Error(`Non-JSON response from provider: ${snippet || '(empty body)'}`);
+        }
       })();
       // Swallow a late rejection from the losing branch so a request that
       // rejects just after the deadline won't surface as an unhandled rejection.

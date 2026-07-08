@@ -9,6 +9,7 @@ import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
+import { isAuthError } from "../utils/authError";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import { isLowEndDevice } from "../utils/deviceTier";
 
@@ -138,13 +139,24 @@ export default function LiveTVScreen({ navigation }) {
 
   const loadChannelCategory = useCallback(async (catId) => {
     if (loadedRef.current.has(catId)) return;
+    // Mark loaded BEFORE the await — the no-loop guard. A category whose fetch
+    // fails below stays in loadedRef, so it is never re-fetched on its own; it
+    // reloads only on account switch / pull-to-refresh (which clears the set).
     loadedRef.current.add(catId);
     try {
       // useLiveTV returns the flat card shape and caches the fetch.
       const formatted = await getFlatChannels(catId);
       setChannelsByCategory((prev) => ({ ...prev, [catId]: formatted }));
       setChannels((prev) => { const existingIds = new Set(prev.map((c) => String(c.stream_id))); return [...prev, ...formatted.filter((c) => !existingIds.has(String(c.stream_id)))]; });
-    } catch { setChannelsByCategory((prev) => ({ ...prev, [catId]: [] })); }
+    } catch (err) {
+      // Auth failures (401/403) are account-level: useLiveTV trips its breaker
+      // and surfaces the error panel, so don't add per-category log noise here.
+      // Isolated failures just hide this category's rail (no retry, no loop).
+      if (!isAuthError(err)) {
+        console.warn(`LiveTV: channels for "${catId}" failed to load`, err);
+      }
+      setChannelsByCategory((prev) => ({ ...prev, [catId]: [] }));
+    }
   }, [setChannels, getFlatChannels]);
 
   // Eagerly warm the first few shelves once the hook delivers categories
@@ -198,10 +210,10 @@ export default function LiveTVScreen({ navigation }) {
     return (
       <StatePanel
         mode="error"
-        icon="tv"
         title="Couldn't load channels"
         message="Check your connection and try again."
         onRetry={loadChannels}
+        retryLabel="Retry"
       />
     );
   }

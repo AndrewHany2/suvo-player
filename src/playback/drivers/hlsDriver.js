@@ -457,7 +457,13 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
       const t = currentTime();
       const now = Date.now();
 
-      if (t > lastTime + 0.05) {
+      if (Math.abs(t - lastTime) > 0.05) {
+        // Any movement — forward playback OR a backward jump from a reload/seek
+        // (a live RELOAD seeks to the live edge, which can land below the last
+        // sample) — means the pipeline is alive. Comparing only `t > lastTime`
+        // made lastTime a monotonic high-water mark, so after such a reset the
+        // clock looked frozen and the watchdog fired false stalls forever. See
+        // expoVideoDriver for the native manifestation of the same bug.
         lastTime = t;
         lastAdvance = now;
         firedForThisStall = false;

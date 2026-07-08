@@ -4,6 +4,7 @@ import { useContentService } from "./useContentService";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 import { epgNowTitle, toFlatChannel } from "./useLiveTV.helpers";
 import { isLowEndDevice } from "../../utils/deviceTier";
+import { isAuthError } from "../../utils/authError";
 
 // Cap the per-category channel cache so a long browsing session can't pin every
 // category's channel list in memory at once (WebOS budget is tight). Halved on
@@ -36,12 +37,18 @@ export function useLiveTV({ navigation } = {}) {
   // LRU-capped catId -> normalized channel array. Shared by the shelf lazy-load
   // (web/native) and the TV drill-in so a re-open is instant.
   const channelsCacheRef = useRef(new MemoryManager(CHANNELS_CACHE_MAX));
+  // Circuit breaker: set once a channel fetch fails with a provider auth error
+  // (401/403). Xtream blocks at the account level, so that first failure means
+  // every remaining category will fail too — trip the error panel and stop
+  // rather than fanning out one doomed request per category.
+  const authFailedRef = useRef(false);
 
   // ── Initial load: live categories ───────────────────────────────────────────
   const loadCategories = useCallback(async () => {
     if (!activeUser) return;
     setLoading(true);
     setError(false);
+    authFailedRef.current = false;
     channelsCacheRef.current.clear();
     setCategories([]);
     try {
@@ -56,7 +63,14 @@ export function useLiveTV({ navigation } = {}) {
     }
   }, [activeUser, contentService]);
 
-  useEffect(() => { if (activeUserId) loadCategories(); }, [activeUserId, loadCategories]);
+  // Key ONLY on activeUserId (the stable account id), NOT loadCategories: the
+  // callback's identity churns whenever `users` is replaced (cached-then-remote
+  // account apply rebuilds the array, so `activeUser` → loadCategories get fresh
+  // identities). Depending on it re-fired this effect in a loop, and because
+  // each pass resets loading=true/error=false the error panel never rendered.
+  // Same account id => no refetch; a real account switch still reloads.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (activeUserId) loadCategories(); }, [activeUserId]);
 
   // ── Channel fetch (cached) ──────────────────────────────────────────────────
   /**
@@ -67,9 +81,21 @@ export function useLiveTV({ navigation } = {}) {
   const getChannels = useCallback(async (catId) => {
     const cached = channelsCacheRef.current.get(catId);
     if (cached) return cached;
-    const items = await contentService.getLiveChannels(catId);
-    channelsCacheRef.current.set(catId, items || []);
-    return items || [];
+    // Breaker tripped by an earlier 401/403: fail fast without hitting the
+    // network, so a burst of category fetches can't keep hammering a blocked
+    // account after we already know access is denied.
+    if (authFailedRef.current) throw new Error("HTTP error! status: 403");
+    try {
+      const items = await contentService.getLiveChannels(catId);
+      channelsCacheRef.current.set(catId, items || []);
+      return items || [];
+    } catch (err) {
+      // Account-level auth failure — surface the error panel once ("if one
+      // fails, all fail") and stop. The caller still gets the throw to decide
+      // its own per-shelf handling.
+      if (isAuthError(err)) { authFailedRef.current = true; setError(true); }
+      throw err;
+    }
   }, [contentService]);
 
   /**

@@ -476,7 +476,10 @@ export default function VideoPlayerScreen() {
       aria-hidden
       style={{
         position: "absolute",
-        inset: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
         width: "100%",
         height: "100%",
         objectFit: "contain",
@@ -495,7 +498,10 @@ export default function VideoPlayerScreen() {
     <div
       style={{
         position: "absolute",
-        inset: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
         zIndex: 15,
         display: "flex",
         flexDirection: "column",

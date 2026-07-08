@@ -34,7 +34,10 @@ export default function HeroTV({ item, height = 300 }) {
         aria-hidden="true"
         style={{
           position: "absolute",
-          inset: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
           background: `linear-gradient(to top, ${colors.bg} 2%, rgba(0,0,0,0.35) 40%, transparent 70%)`,
         }}
       />

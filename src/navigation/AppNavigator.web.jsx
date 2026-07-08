@@ -101,7 +101,7 @@ if (typeof document !== "undefined") {
       cursor: pointer !important; position: relative !important;
     }
     .lumen-cw-play {
-      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.15s ease;
       font-size: ${ss(38)}px; color: #fff; pointer-events: none; z-index: 5;
     }
@@ -665,7 +665,10 @@ export default function AppNavigator() {
         <div
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
             backgroundColor: "rgba(0,0,0,0.7)",
             zIndex: 200,
             display: "flex",
@@ -732,7 +735,10 @@ export default function AppNavigator() {
         <div
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
             backgroundColor: "rgba(0,0,0,0.7)",
             zIndex: 200,
             display: "flex",
@@ -799,7 +805,10 @@ export default function AppNavigator() {
         <div
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
             backgroundColor: "rgba(0,0,0,0.7)",
             zIndex: 300,
             display: "flex",

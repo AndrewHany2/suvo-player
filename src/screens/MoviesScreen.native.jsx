@@ -99,18 +99,6 @@ export default function MoviesScreen({ navigation }) {
     return <StatePanel mode="loading" title="Loading movies..." />;
   }
 
-  if (error) {
-    return (
-      <StatePanel
-        mode="error"
-        title="Couldn't load movies"
-        message="Check your connection and try again"
-        onRetry={reload}
-        retryLabel="Retry"
-      />
-    );
-  }
-
   if (!activeUserId) {
     return (
       <StatePanel
@@ -120,6 +108,18 @@ export default function MoviesScreen({ navigation }) {
         message='Tap "Accounts" to add your IPTV service'
         cta={() => navigation.navigate("Accounts")}
         ctaLabel="Add Account"
+      />
+    );
+  }
+
+  if (error) {
+    return (
+      <StatePanel
+        mode="error"
+        title="Couldn't load movies"
+        message="Check your connection and try again."
+        onRetry={reload}
+        retryLabel="Retry"
       />
     );
   }

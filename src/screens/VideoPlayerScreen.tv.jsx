@@ -117,9 +117,9 @@ const TV = {
     fontWeight: 600,
   },
   progressTrack: {
-    height: 6,
+    height: 14,
     background: "rgba(255,255,255,0.25)",
-    borderRadius: 3,
+    borderRadius: 7,
     overflow: "hidden",
     cursor: "pointer",
   },
@@ -127,7 +127,7 @@ const TV = {
     height: "100%",
     width: `${pct}%`,
     background: colors.accent2,
-    borderRadius: 3,
+    borderRadius: 7,
   }),
   seekHint: {
     textAlign: "center",
@@ -201,12 +201,10 @@ export default function VideoPlayerScreen() {
     currentVideo,
     isLive,
     videoRef,
-    frameCanvasRef,
     isBusy,
     isRecovering,
     isFatal,
     fatalMessage,
-    hasFrozenFrame,
     qualityLevels,
     selectedLevel,
     playbackRate,
@@ -428,37 +426,31 @@ export default function VideoPlayerScreen() {
 
   if (!currentVideo) return null;
 
-  // Offscreen-but-mounted canvas holding the last decoded frame (see .web).
-  const frozenFrame = (
-    <canvas
-      ref={frameCanvasRef}
-      aria-hidden
-      style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        objectFit: "contain",
-        backgroundColor: "#000",
-        display: hasFrozenFrame && isBusy ? "block" : "none",
-        zIndex: 12,
-        pointerEvents: "none",
-      }}
-    />
-  );
-
+  // No frozen-frame canvas on TV: webOS/Tizen decode video onto a hardware
+  // overlay plane that canvas.drawImage() can't read (it captures pure black),
+  // so a canvas snapshot is useless here. Instead we leave the real <video>
+  // uncovered — the hardware plane retains the last decoded frame through
+  // ordinary buffering — and float a light scrim + spinner over it, so the last
+  // movie image stays visible while loading. (A genuine reconnect tears down
+  // MSE and blanks the plane; that case is unavoidably black on TV.)
   const busyOverlay = isBusy && (
     <div
       style={{
         position: "absolute",
-        inset: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
         zIndex: 15,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         gap: 18,
-        backgroundColor: hasFrozenFrame ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.6)",
+        // Light scrim so the retained last frame shows through behind the
+        // spinner. On first load / reconnect there's no frame and the plane is
+        // black anyway, so a light scrim reads as black — no downside there.
+        backgroundColor: "rgba(0,0,0,0.35)",
         pointerEvents: "none",
       }}
     >
@@ -545,7 +537,10 @@ export default function VideoPlayerScreen() {
         crossOrigin="anonymous"
         style={{
           position: "absolute",
-          inset: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
           width: "100%",
           height: "100%",
           objectFit: "contain",
@@ -677,7 +672,6 @@ export default function VideoPlayerScreen() {
         </div>
       )}
 
-      {frozenFrame}
       {busyOverlay}
 
       <style>{`@keyframes spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }`}</style>

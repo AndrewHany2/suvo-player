@@ -115,22 +115,22 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
       >
         {/* Always-present placeholder so a loading/empty card reads as a card,
             not a floating badge. The poster fades in over it once decoded. */}
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
+        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
           <Icon name="film" color={colors.muted} size={ss(32)} />
         </div>
         {/* Animated skeleton sweep while THIS poster's image decodes (web/desktop
             only; TV keeps the static film-icon base to spare old Chromium). It sits
             over the film icon and under the img, which fades in on load. */}
         {poster && !imageError && !imageLoaded && !tv && (
-          <div style={{ position: "absolute", inset: 0, overflow: "hidden" }} aria-hidden="true">
-            <div style={{ position: "absolute", inset: 0, background: `linear-gradient(100deg, transparent 20%, ${colors.surface2} 50%, transparent 80%)`, animation: "_skel_sweep 1.4s ease-in-out infinite", willChange: "transform" }} />
+          <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, overflow: "hidden" }} aria-hidden="true">
+            <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, background: `linear-gradient(100deg, transparent 20%, ${colors.surface2} 50%, transparent 80%)`, animation: "_skel_sweep 1.4s ease-in-out infinite", willChange: "transform" }} />
           </div>
         )}
         {poster && !imageError && (
           <img src={poster} alt={item.name} loading="lazy" decoding="async" draggable={false}
             width={width} height={posterH}
             onLoad={() => setImageLoaded(true)} onError={() => setImageError(true)}
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: imageLoaded ? 1 : 0, transition: "opacity 0.2s ease", WebkitUserDrag: "none", userSelect: "none" }} />
+            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: imageLoaded ? 1 : 0, transition: "opacity 0.2s ease", WebkitUserDrag: "none", userSelect: "none" }} />
         )}
         {showBadges && (
           <div style={{ position: "absolute", top: 8, right: 8, backgroundColor: overlay, borderRadius: radii.sm / 2, padding: "2px 5px" }}>

@@ -5,6 +5,7 @@ import {
   reduce,
   initialState,
   BUFFERING_DOWNGRADE_THRESHOLD,
+  MAX_LOAD_ATTEMPTS,
 } from "./recoveryMachine.js";
 
 /** Find the first effect of a given type. */
@@ -128,6 +129,78 @@ describe("GONE -> fatal", () => {
     assert.ok(effect(r.effects, "GO_FATAL"));
     assert.equal(effect(r.effects, "GO_FATAL").reason, "GONE");
   });
+
+  // Regression: the native "black wedge" — a movie whose URL 404s goes fatal
+  // correctly, but the 1s onProgress poll keeps firing PROGRESS t=0 against the
+  // dead player. The PROGRESS handler used to set state:'playing' for any
+  // non-recovering state, flipping fatal->playing: the "Failed to load stream"
+  // panel vanished and a black "playing" frame was left instead. A background
+  // poll must never resurrect a terminal state.
+  test("PROGRESS from the background poll must not resurrect a fatal stream", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    s = reduce(s, { type: "ERROR", raw: { httpStatus: 404 } }).state;
+    assert.equal(s.state, "fatal");
+    const r = reduce(s, { type: "PROGRESS", currentTime: 0 });
+    assert.equal(r.state.state, "fatal", "fatal must stay fatal under a t=0 progress poll");
+  });
+});
+
+describe("bounded retry ladder -> fatal", () => {
+  // A source that fails identically on every attempt and never once reaches
+  // playing (a dead 404 link, an undecodable codec on the native <video> path
+  // where the error carries no HTTP status) must not retry forever. After
+  // MAX_LOAD_ATTEMPTS retries the machine gives up and surfaces a fatal error.
+  test("repeated unrecoverable network errors go fatal after MAX_LOAD_ATTEMPTS retries", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    let fatal = null;
+    for (let i = 0; i < MAX_LOAD_ATTEMPTS + 5 && !fatal; i += 1) {
+      const err = reduce(s, { type: "ERROR", raw: { kind: "network" } });
+      s = err.state;
+      fatal = effect(err.effects, "GO_FATAL");
+      if (fatal) break;
+      // Host fired the scheduled retry timer.
+      assert.ok(effect(err.effects, "SCHEDULE_RETRY"));
+      s = reduce(s, { type: "RETRY" }).state;
+    }
+    assert.ok(fatal, "should eventually go fatal instead of retrying forever");
+    assert.equal(fatal.reason, "UNPLAYABLE");
+    assert.equal(s.state, "fatal");
+  });
+
+  test("a successful play resets the ladder so later transient errors keep retrying", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    // Burn almost the whole ladder.
+    for (let i = 0; i < MAX_LOAD_ATTEMPTS - 1; i += 1) {
+      s = reduce(s, { type: "ERROR", raw: { kind: "network" } }).state;
+      s = reduce(s, { type: "RETRY" }).state;
+    }
+    // Stream comes back and makes real progress -> attemptCount resets.
+    s = reduce(s, { type: "PLAYING" }).state;
+    s = reduce(s, { type: "PROGRESS", currentTime: 10 }).state;
+    assert.equal(s.attemptCount, 0);
+    // A fresh error still schedules a retry rather than going straight to fatal.
+    const err = reduce(s, { type: "ERROR", raw: { kind: "network" } });
+    assert.ok(effect(err.effects, "SCHEDULE_RETRY"));
+    assert.ok(!effect(err.effects, "GO_FATAL"));
+  });
+
+  test("the stall ladder is bounded too", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    let fatal = null;
+    for (let i = 0; i < MAX_LOAD_ATTEMPTS + 5 && !fatal; i += 1) {
+      const st = reduce(s, { type: "STALL" });
+      s = st.state;
+      fatal = effect(st.effects, "GO_FATAL");
+      if (fatal) break;
+      s = reduce(s, { type: "RETRY" }).state;
+    }
+    assert.ok(fatal, "an unrecoverable stall loop should go fatal");
+    assert.equal(s.state, "fatal");
+  });
 });
 
 describe("AUTH_EXPIRED", () => {
@@ -219,7 +292,7 @@ describe("STALL / TRANSIENT recovering + retry", () => {
     assert.ok(effect(r.effects, "SHOW_RECONNECTING"));
   });
 
-  test("retry delays increase and cap; attempts are indefinite", () => {
+  test("retry delays increase and cap within the bounded ladder", () => {
     let s = initialState();
     s = reduce(s, { type: "PLAYING" }).state;
     const delays = [];
@@ -229,23 +302,25 @@ describe("STALL / TRANSIENT recovering + retry", () => {
     delays.push(effect(r.effects, "SCHEDULE_RETRY").delayMs);
     s = r.state;
 
-    // Fire many retries; each RETRY increments attemptCount and RELOADs.
-    for (let i = 0; i < 20; i++) {
+    // Fire retries up to (but not past) the cap; each RETRY increments
+    // attemptCount and RELOADs, and every error before the cap re-schedules.
+    for (let i = 0; i < MAX_LOAD_ATTEMPTS - 1; i++) {
       r = reduce(s, { type: "RETRY" });
       assert.ok(effect(r.effects, "RELOAD"), "retry reloads");
       s = r.state;
-      // Re-error to schedule the next retry.
       r = reduce(s, { type: "ERROR", raw: { kind: "timeout" } });
       delays.push(effect(r.effects, "SCHEDULE_RETRY").delayMs);
       s = r.state;
     }
 
-    // attemptCount kept incrementing (indefinite retry).
-    assert.ok(s.attemptCount >= 20, `attemptCount=${s.attemptCount}`);
     // All delays within cap (default max 15000).
     for (const d of delays) assert.ok(d <= 15000 + 1, `delay ${d} <= max`);
-    // Later delays are at the cap region (>= an early delay), proving growth.
     assert.ok(delays[delays.length - 1] > 0);
+    // One more RETRY reaches the cap, and the next error is fatal (not a retry).
+    s = reduce(s, { type: "RETRY" }).state;
+    const dead = reduce(s, { type: "ERROR", raw: { kind: "timeout" } });
+    assert.equal(dead.state.state, "fatal");
+    assert.ok(!effect(dead.effects, "SCHEDULE_RETRY"));
   });
 
   test("STALL while user-paused is ignored", () => {

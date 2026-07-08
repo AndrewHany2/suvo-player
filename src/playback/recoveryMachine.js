@@ -21,7 +21,9 @@
  *  - OFFLINE event behaves like an OFFLINE-classified error.
  *  - ONLINE while recovering -> RELOAD at saved position (toLiveEdge if live).
  *  - RETRY (host fired the scheduled timer) -> RELOAD; attemptCount increments
- *    monotonically so delays grow and cap, retrying indefinitely.
+ *    so delays grow and cap. The ladder is bounded: MAX_LOAD_ATTEMPTS retries
+ *    without ever reaching sustained playback -> fatal (GO_FATAL 'UNPLAYABLE'),
+ *    so a dead 404 / undecodable source can't reconnect forever.
  *  - Buffering: K consecutive buffering episodes -> SET_QUALITY_CAP one rung down.
  *  - Sustained PLAYING (PROGRESS while playing) resets attemptCount, clears the
  *    buffering streak, and steps the quality cap back up one rung.
@@ -34,6 +36,20 @@ import { stepCap } from './backoff.js';
 
 /** Consecutive buffering episodes before stepping quality down. */
 export const BUFFERING_DOWNGRADE_THRESHOLD = 3;
+
+/**
+ * How many retries a source may burn WITHOUT ever reaching sustained playback
+ * before the machine gives up and goes fatal. `attemptCount` resets to 0 on
+ * real progress (see PROGRESS), so this only bites a source that fails
+ * identically on every attempt — a dead 404 link, or an undecodable codec on
+ * the native <video> path whose error carries no HTTP status (so it can't be
+ * classified GONE). Without this cap those loop "Reconnecting…" forever.
+ *
+ * With the default backoff ladder (~1s,2s,4s,8s,15s,15s) 6 retries spans ~45s
+ * of genuine attempts — enough to ride out a transient blip, then surface an
+ * actionable error with a Retry button.
+ */
+export const MAX_LOAD_ATTEMPTS = 6;
 
 /**
  * Minimum currentTime advance (seconds) that counts as real playback progress
@@ -107,6 +123,29 @@ function scheduleRetryEffect(s) {
 }
 
 /**
+ * True when the source has burned the full retry ladder without ever reaching
+ * sustained playback (attemptCount resets to 0 on real progress). Such a source
+ * is effectively unplayable — retrying again would just loop forever.
+ * @param {MachineState} s
+ * @returns {boolean}
+ */
+function retriesExhausted(s) {
+  return s.attemptCount >= MAX_LOAD_ATTEMPTS;
+}
+
+/**
+ * Transition to the fatal state, emitting GO_FATAL for the host.
+ * @param {MachineState} s
+ * @param {string} reason
+ * @param {Array<Object>} effects
+ * @returns {{state: MachineState, effects: Array<Object>}}
+ */
+function goFatal(s, reason, effects) {
+  effects.push({ type: 'GO_FATAL', reason });
+  return { state: { ...s, state: 'fatal' }, effects };
+}
+
+/**
  * Pure reducer. Returns the next state plus a list of effects for the host.
  *
  * @param {MachineState} state
@@ -149,6 +188,17 @@ export function reduce(state, event) {
 
     case 'PROGRESS': {
       const t = typeof event.currentTime === 'number' ? event.currentTime : s.savedTime;
+      // Terminal / not-yet-started states are never advanced by the background
+      // progress poll. A dead source (fatal) keeps its onProgress interval
+      // firing PROGRESS at a frozen currentTime (typically 0); without this
+      // guard that flips fatal->playing, hiding the "Failed to load stream"
+      // panel and leaving a black "playing" frame instead of the actionable
+      // Retry screen. `idle` likewise has nothing to advance, and `loading`
+      // must reach `playing` via the PLAYING event (readyToPlay/canplay), not
+      // via a frozen t=0 poll that would hide the loading spinner over black.
+      if (s.state === 'fatal' || s.state === 'idle' || s.state === 'loading') {
+        return { state: { ...s, savedTime: t }, effects };
+      }
       // A stalled engine keeps polling `currentTime` at a frozen value. While
       // recovering/buffering, only *advancing* time proves the stream came back
       // — a repeated frozen sample must NOT be mistaken for recovery, or it
@@ -196,6 +246,8 @@ export function reduce(state, event) {
         // Paused stalls are not real stalls.
         return { state: s, effects };
       }
+      // A stall loop that never recovers is as fatal as a dead source.
+      if (retriesExhausted(s)) return goFatal(s, 'UNPLAYABLE', effects);
       const streak = s.bufferingStreak + 1;
       let next = { ...s, state: 'recovering', bufferingStreak: streak };
 
@@ -317,6 +369,7 @@ function errorTransition(s, raw, effects) {
     }
 
     case ErrorClass.STALL: {
+      if (retriesExhausted(s)) return goFatal(s, 'UNPLAYABLE', effects);
       // Treat like a stall episode (counts toward downgrade).
       const streak = s.bufferingStreak + 1;
       let next = { ...s, state: 'recovering', bufferingStreak: streak };
@@ -335,6 +388,10 @@ function errorTransition(s, raw, effects) {
     case ErrorClass.MEDIA_DECODE:
     case ErrorClass.TRANSIENT_NETWORK:
     default: {
+      // A 404 / undecodable source on the native <video> path arrives here with
+      // no HTTP status (it can't be classified GONE); bound the ladder so it
+      // surfaces a fatal error instead of reconnecting forever.
+      if (retriesExhausted(s)) return goFatal(s, 'UNPLAYABLE', effects);
       const next = { ...s, state: 'recovering' };
       effects.push({ type: 'SHOW_RECONNECTING' });
       effects.push(scheduleRetryEffect(next));

@@ -230,22 +230,20 @@ export default function AccountsScreenTV({ navigation }) {
     } finally { setLoading(false); }
   };
 
-  const connectUser = async (userId) => {
+  const connectUser = (userId) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
+    // Switching the active user is all that's needed: setActiveUserId drives the
+    // AppContext effect that swaps iptvApi credentials, and each screen's data
+    // hook (e.g. useLiveTV) reloads its own categories keyed on activeUserId.
+    // We deliberately do NOT fetch the whole live catalog here — the TV screens
+    // never consume the context `channels`, and dumping a multi-MB array into
+    // state forces a blocking JSON.stringify to webOS localStorage that made the
+    // app crawl after every account switch.
     setActiveUserId(userId); saveUsers();
-    setLoading(true); setError("");
-    try {
-      iptvApi.setCredentials(user.host, user.username, user.password);
-      const channels = await iptvApi.getLiveStreams();
-      setChannels((channels || []).map((ch) => ({
-        name: ch.name,
-        url: iptvApi.buildStreamUrl("live", ch.stream_id, ch.stream_type || "ts"),
-        id: ch.stream_id,
-      })));
-      navigation.goBack?.();
-    } catch { setError("Failed to connect. Check your credentials."); }
-    finally { setLoading(false); }
+    iptvApi.setCredentials(user.host, user.username, user.password);
+    setChannels([]);
+    navigation.goBack?.();
   };
 
   const confirmDelete = async () => {

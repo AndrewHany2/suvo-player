@@ -172,7 +172,7 @@ describe("IPTVApi fetch wrapper", () => {
   afterEach(() => { globalThis.fetch = realFetch; });
 
   test("returns parsed JSON on a 200 response", async () => {
-    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ hello: "world" }) });
+    globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ hello: "world" }) });
     const api = new IPTVApi();
     assert.deepEqual(await api.fetch("http://x/api"), { hello: "world" });
   });
