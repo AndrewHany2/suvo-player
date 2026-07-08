@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { usePlayer, SPEEDS, ASPECT_RATIOS } from "../playback/usePlayer";
+import { ADJUST_MIN, ADJUST_MAX, ADJUST_STEP } from "../playback/videoAdjust";
 import { SLEEP_PRESETS, formatRemaining } from "../playback/useSleepTimer";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import ResumePrompt from "../playback/components/ResumePrompt";
@@ -250,6 +251,10 @@ export default function VideoPlayerScreen() {
     subtitleTracks,
     selectedSubtitle,
     aspectRatio,
+    videoAdjust,
+    videoFilter,
+    applyVideoAdjust,
+    resetVideoAdjust,
     openMenu,
     setOpenMenu,
     tvCurrentTime,
@@ -441,7 +446,10 @@ export default function VideoPlayerScreen() {
   }, [currentVideo, videoRef, handleClose, isLive, handleChannelUp, handleChannelDown, applySpeed, handleTogglePip, setShowStats]);
 
   const getVideoStyle = useMemo(() => {
-    const base = { ...S.video };
+    // `filter` carries the brightness/contrast picture adjustment; undefined when
+    // neutral so we don't force needless compositing. All aspect branches spread
+    // `base`, so every path inherits it.
+    const base = { ...S.video, filter: videoFilter || undefined };
     if (aspectRatio === "16:9")
       return {
         ...base,
@@ -463,7 +471,7 @@ export default function VideoPlayerScreen() {
     if (aspectRatio === "fill") return { ...base, objectFit: "cover" };
     if (aspectRatio === "stretch") return { ...base, objectFit: "fill" };
     return base;
-  }, [aspectRatio]);
+  }, [aspectRatio, videoFilter]);
 
   if (!currentVideo) return null;
 
@@ -773,6 +781,31 @@ export default function VideoPlayerScreen() {
                 onChange={handleSubtitleSettingsChange}
               />
               <div style={{ padding: "10px 12px", borderTop: `1px solid ${colors.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 13 }}>Picture</span>
+                  {(videoAdjust.brightness !== 100 || videoAdjust.contrast !== 100) && (
+                    <button
+                      style={{ ...S.menuItem(false), width: "auto", padding: "2px 8px", fontSize: 12 }}
+                      onClick={resetVideoAdjust}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <AdjustRow
+                  label="Brightness"
+                  value={videoAdjust.brightness}
+                  onDec={() => applyVideoAdjust({ brightness: videoAdjust.brightness - ADJUST_STEP })}
+                  onInc={() => applyVideoAdjust({ brightness: videoAdjust.brightness + ADJUST_STEP })}
+                />
+                <AdjustRow
+                  label="Contrast"
+                  value={videoAdjust.contrast}
+                  onDec={() => applyVideoAdjust({ contrast: videoAdjust.contrast - ADJUST_STEP })}
+                  onInc={() => applyVideoAdjust({ contrast: videoAdjust.contrast + ADJUST_STEP })}
+                />
+              </div>
+              <div style={{ padding: "10px 12px", borderTop: `1px solid ${colors.border}` }}>
                 <div style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 13, marginBottom: 8 }}>
                   Sleep timer
                 </div>
@@ -850,6 +883,35 @@ export default function VideoPlayerScreen() {
         Esc: Close
       </div>
       <style>{`@keyframes spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+// A labelled −/＋ stepper row for a picture-adjustment value (brightness/contrast).
+function AdjustRow({ label, value, onDec, onInc }) {
+  const btn = {
+    width: 30,
+    height: 30,
+    borderRadius: radii.sm,
+    border: `1px solid ${colors.border}`,
+    background: colors.surface,
+    color: colors.text,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    fontWeight: 700,
+    cursor: "pointer",
+    lineHeight: 1,
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+      <span style={{ color: colors.text, fontFamily: fonts.body, fontSize: 14 }}>{label}</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button style={btn} onClick={onDec} disabled={value <= ADJUST_MIN} aria-label={`Decrease ${label}`}>−</button>
+        <span style={{ color: colors.text, fontFamily: fonts.body, fontSize: 14, minWidth: 44, textAlign: "center" }}>
+          {value}%
+        </span>
+        <button style={btn} onClick={onInc} disabled={value >= ADJUST_MAX} aria-label={`Increase ${label}`}>+</button>
+      </span>
     </div>
   );
 }

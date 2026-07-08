@@ -21,6 +21,27 @@ framed that way — see the policy note in `docs/PUBLISHING.md`.
 > metadata for movies and series, and a 10-foot TV interface for LG webOS and
 > Samsung Tizen.
 
+## LG webOS Content Store (Seller Lounge) — paste-ready
+
+Seller Lounge → App Registration → App Information. App ID must match
+`appinfo.json`: `com.andrew1h1.lumenplayer`. Keep the generic-player framing.
+
+- **App Title:** Lumen Player
+- **App Description** (paste into the description field):
+
+> Lumen Player is a fast, resilient media player for the playlists you already
+> own. Point it at your own Xtream Codes or M3U playlist and Lumen organizes your
+> media into Live, Movies, and Series, remembers where you left off, and keeps
+> your favorites and history in sync across your devices.
+>
+> Built for the living room: a 10-foot interface designed for your LG remote,
+> with smooth D-pad navigation, cover artwork and metadata for movies and series,
+> and playback that automatically recovers from network hiccups so you spend less
+> time buffering.
+>
+> Lumen Player includes no content and provides no channels, streams, or media of
+> its own — you bring your own playlist. It neither hosts nor supplies any media.
+
 ## Keywords (safe set)
 media player, video player, playlist player, m3u player, xtream, vod, resume
 playback, favorites, tv interface

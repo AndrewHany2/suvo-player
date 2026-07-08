@@ -1,4 +1,4 @@
-package com.andrew1h1.iptvplayer
+package com.andrew1h1.lumenplayer
 
 import android.os.Build
 import android.os.Bundle

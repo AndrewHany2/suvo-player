@@ -143,6 +143,20 @@ const PATHS = {
       <circle cx="12" cy="18" r="2" fill="currentColor" stroke="none" />
     </>
   ),
+  // Brightness: sun — centre disc + eight rays.
+  brightness: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </>
+  ),
+  // Contrast: circle with one half filled.
+  contrast: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none" />
+    </>
+  ),
   // Pause: two vertical bars.
   pause: (
     <>

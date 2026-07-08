@@ -159,19 +159,19 @@ git commit -m "refactor: rename display name to 'Lumen Player' across platform m
 |---|---|---|
 | `app.json` | `"slug": "iptv-player"` | `"slug": "lumen-player"` |
 | `app.json` | `"scheme": "iptv-player"` | `"scheme": "lumen-player"` |
-| `app.json` | `"bundleIdentifier": "com.andrew1h1.iptvplayer"` | `"bundleIdentifier": "com.andrew1h1.lumenplayer"` |
-| `app.json` | `"package": "com.andrew1h1.iptvplayer"` | `"package": "com.andrew1h1.lumenplayer"` |
-| `electron/builder.json` | `"appId": "com.andrew1h1.iptvplayer"` | `"appId": "com.andrew1h1.lumenplayer"` |
+| `app.json` | `"bundleIdentifier": "com.andrew1h1.lumenplayer"` | `"bundleIdentifier": "com.andrew1h1.lumenplayer"` |
+| `app.json` | `"package": "com.andrew1h1.lumenplayer"` | `"package": "com.andrew1h1.lumenplayer"` |
+| `electron/builder.json` | `"appId": "com.andrew1h1.lumenplayer"` | `"appId": "com.andrew1h1.lumenplayer"` |
 | `electron/builder.json` | `"executableName": "iptv-player"` | `"executableName": "lumen-player"` |
-| `android/app/build.gradle` | `applicationId 'com.andrew1h1.iptvplayer'` | `applicationId 'com.andrew1h1.lumenplayer'` |
-| `tv/packaging/lg/appinfo.json` | `"id": "com.andrew1h1.iptvplayer"` | `"id": "com.andrew1h1.lumenplayer"` |
+| `android/app/build.gradle` | `applicationId 'com.andrew1h1.lumenplayer'` | `applicationId 'com.andrew1h1.lumenplayer'` |
+| `tv/packaging/lg/appinfo.json` | `"id": "com.andrew1h1.lumenplayer"` | `"id": "com.andrew1h1.lumenplayer"` |
 | `tv/packaging/samsung/config.xml` | `id="http://andrew1h1.com/iptvplayer"` | `id="http://andrew1h1.com/lumenplayer"` |
 | `tv/packaging/samsung/config.xml` | `id="IptvPlayer.Lumen"` | `id="LumenPlayr.Lumen"` |
 | `tv/packaging/samsung/config.xml` | `package="IptvPlayer"` | `package="LumenPlayr"` |
 | `tv/packaging/samsung/config.xml` header comment | `The package id (IptvPlayer, 10 alphanumeric chars)` | `The package id (LumenPlayr, 10 alphanumeric chars)` |
 | `package.json` | `"name": "iptv-player"` | `"name": "lumen-player"` |
 
-**IMPORTANT — do NOT touch** in `android/app/build.gradle`: the `namespace 'com.andrew1h1.iptvplayer'` line stays as-is. Gradle allows `applicationId` ≠ `namespace`.
+**IMPORTANT — do NOT touch** in `android/app/build.gradle`: the `namespace 'com.andrew1h1.lumenplayer'` line stays as-is. Gradle allows `applicationId` ≠ `namespace`.
 
 - [ ] **Step 2: Update supabase, CI, and gitignore references**
 
@@ -179,7 +179,7 @@ Run to locate them:
 ```bash
 grep -rniE "iptv-player|iptvplayer" supabase/config.toml .github/workflows/release.yml .gitignore
 ```
-For each hit that is a project name / artifact filename / ignore path (NOT the `com.andrew1h1.iptvplayer` Java package or a URL you already changed), replace `iptv-player` → `lumen-player` and `iptvplayer` → `lumenplayer`. In `release.yml`, ensure artifact upload/download names stay consistent with each other after the edit (search the whole file for the old string).
+For each hit that is a project name / artifact filename / ignore path (NOT the `com.andrew1h1.lumenplayer` Java package or a URL you already changed), replace `iptv-player` → `lumen-player` and `iptvplayer` → `lumenplayer`. In `release.yml`, ensure artifact upload/download names stay consistent with each other after the edit (search the whole file for the old string).
 
 - [ ] **Step 3: Verify Samsung 10-char rule + no stray store-visible IDs**
 
@@ -193,7 +193,7 @@ Run:
 ```bash
 grep -rniE "com\.andrew1h1\.iptvplayer" app.json electron/builder.json tv/packaging
 ```
-Expected: **no matches** (the only remaining `com.andrew1h1.iptvplayer` occurrences are the intentionally-kept Android Java `namespace`/package in `android/`).
+Expected: **no matches** (the only remaining `com.andrew1h1.lumenplayer` occurrences are the intentionally-kept Android Java `namespace`/package in `android/`).
 
 - [ ] **Step 4: Lint and test**
 

@@ -14,6 +14,11 @@ import {
 } from "./subtitleStyle";
 import { nextChannel, prevChannel, fetchNowNext } from "./liveExtras";
 import {
+  DEFAULT_VIDEO_ADJUST,
+  normalizeAdjust,
+  buildVideoFilter,
+} from "./videoAdjust";
+import {
   isPipSupported,
   enterPip,
   exitPip,
@@ -126,6 +131,11 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
       return JSON.parse(localStorage.getItem("lumen_settings") || "{}").defaultAspect || "default";
     } catch { return "default"; }
   });
+
+  // Picture adjustment (brightness / contrast) — applied as a CSS filter on the
+  // <video> by the web/TV screens. Percentages, 100 = neutral. Persisted via prefs.
+  const [videoAdjust, setVideoAdjust] = useState(DEFAULT_VIDEO_ADJUST);
+  const videoFilter = useMemo(() => buildVideoFilter(videoAdjust), [videoAdjust]);
 
   const [tvCurrentTime, setTvCurrentTime] = useState(0);
   const [tvDuration, setTvDuration] = useState(0);
@@ -556,7 +566,9 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     if (typeof prefs.qualityCap === "string" && prefs.qualityCap !== "auto") {
       setManualCap(prefs.qualityCap);
     }
-  }, [prefsLoaded, currentVideo, prefs.aspectRatio, prefs.playbackSpeed, prefs.qualityCap]);
+
+    if (prefs.videoAdjust) setVideoAdjust(normalizeAdjust(prefs.videoAdjust));
+  }, [prefsLoaded, currentVideo, prefs.aspectRatio, prefs.playbackSpeed, prefs.qualityCap, prefs.videoAdjust]);
 
   // Audio track — apply once tracks are known (matched by name, falling back to index).
   useEffect(() => {
@@ -821,6 +833,21 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
   const applyAspect = useCallback((value) => {
     setAspectRatio(value);
     setPref("aspectRatio", value);
+  }, [setPref]);
+
+  // Picture adjustment: merge a partial {brightness?, contrast?} into the
+  // current value (clamped), apply live via the derived filter, and persist.
+  const applyVideoAdjust = useCallback((partial) => {
+    setVideoAdjust((prev) => {
+      const next = normalizeAdjust({ ...prev, ...partial });
+      setPref("videoAdjust", next);
+      return next;
+    });
+  }, [setPref]);
+
+  const resetVideoAdjust = useCallback(() => {
+    setVideoAdjust(DEFAULT_VIDEO_ADJUST);
+    setPref("videoAdjust", DEFAULT_VIDEO_ADJUST);
   }, [setPref]);
 
   // SubtitleSettings onChange: persist subtitle style + a/v offsets via prefs.
@@ -1161,6 +1188,9 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     selectedSubtitle,
     aspectRatio,
     manualCap,
+    // Picture adjustment (brightness / contrast)
+    videoAdjust,
+    videoFilter,
     // Menu + transport UI state
     openMenu,
     setOpenMenu,
@@ -1204,6 +1234,8 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     applyAudio,
     applySubtitle,
     applyAspect,
+    applyVideoAdjust,
+    resetVideoAdjust,
     handleSubtitleSettingsChange,
     handleTogglePip,
     handleCast,

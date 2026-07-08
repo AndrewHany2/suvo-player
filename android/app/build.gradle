@@ -87,7 +87,7 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.andrew1h1.iptvplayer'
+    namespace 'com.andrew1h1.lumenplayer'
     defaultConfig {
         applicationId 'com.andrew1h1.lumenplayer'
         minSdkVersion rootProject.ext.minSdkVersion

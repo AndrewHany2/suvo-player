@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { usePlayer, SPEEDS, ASPECT_RATIOS } from "../playback/usePlayer";
+import { ADJUST_LEVELS } from "../playback/videoAdjust";
 import { INITIAL_TV_NAV, tvNavReduce } from "../playback/tvSettingsNav";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import StatsOverlay from "../playback/components/StatsOverlay";
@@ -213,6 +214,9 @@ export default function VideoPlayerScreen() {
     subtitleTracks,
     selectedSubtitle,
     aspectRatio,
+    videoAdjust,
+    videoFilter,
+    applyVideoAdjust,
     tvCurrentTime,
     tvDuration,
     tvPaused,
@@ -506,6 +510,26 @@ export default function VideoPlayerScreen() {
       items: ASPECT_RATIOS.map(({ value, label }) => ({ label, active: aspectRatio === value, run: () => applyAspect(value) })),
       selected: Math.max(0, ASPECT_RATIOS.findIndex(({ value }) => value === aspectRatio)),
     },
+    {
+      key: "brightness",
+      icon: "brightness",
+      items: ADJUST_LEVELS.map((lvl) => ({
+        label: `${lvl}%${lvl === 100 ? " (Normal)" : ""}`,
+        active: videoAdjust.brightness === lvl,
+        run: () => applyVideoAdjust({ brightness: lvl }),
+      })),
+      selected: Math.max(0, ADJUST_LEVELS.indexOf(videoAdjust.brightness)),
+    },
+    {
+      key: "contrast",
+      icon: "contrast",
+      items: ADJUST_LEVELS.map((lvl) => ({
+        label: `${lvl}%${lvl === 100 ? " (Normal)" : ""}`,
+        active: videoAdjust.contrast === lvl,
+        run: () => applyVideoAdjust({ contrast: lvl }),
+      })),
+      selected: Math.max(0, ADJUST_LEVELS.indexOf(videoAdjust.contrast)),
+    },
     qualityLevels.length > 1 && {
       key: "quality",
       icon: "settings",
@@ -544,6 +568,8 @@ export default function VideoPlayerScreen() {
           width: "100%",
           height: "100%",
           objectFit: "contain",
+          // Brightness/contrast picture adjustment (undefined when neutral).
+          filter: videoFilter || undefined,
         }}
       />
 

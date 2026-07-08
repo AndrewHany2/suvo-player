@@ -99,16 +99,16 @@ user-facing occurrence of the word "IPTV":
 
 | Field / File | From → To |
 |---|---|
-| `app.json` `ios.bundleIdentifier` | `com.andrew1h1.iptvplayer` → `com.andrew1h1.lumenplayer` |
-| `app.json` `android.package` | `com.andrew1h1.iptvplayer` → `com.andrew1h1.lumenplayer` |
+| `app.json` `ios.bundleIdentifier` | `com.andrew1h1.lumenplayer` → `com.andrew1h1.lumenplayer` |
+| `app.json` `android.package` | `com.andrew1h1.lumenplayer` → `com.andrew1h1.lumenplayer` |
 | `app.json` `slug` + `scheme` | `iptv-player` → `lumen-player` |
-| `electron/builder.json` `appId` | `com.andrew1h1.iptvplayer` → `com.andrew1h1.lumenplayer` |
+| `electron/builder.json` `appId` | `com.andrew1h1.lumenplayer` → `com.andrew1h1.lumenplayer` |
 | `electron/builder.json` `executableName` | `iptv-player` → `lumen-player` |
-| `tv/packaging/lg/appinfo.json` `id` | `com.andrew1h1.iptvplayer` → `com.andrew1h1.lumenplayer` |
+| `tv/packaging/lg/appinfo.json` `id` | `com.andrew1h1.lumenplayer` → `com.andrew1h1.lumenplayer` |
 | `tv/packaging/samsung/config.xml` `id` (widget) | `http://andrew1h1.com/iptvplayer` → `http://andrew1h1.com/lumenplayer` |
 | `tv/packaging/samsung/config.xml` `tizen:application id` | `IptvPlayer.Lumen` → `LumenPlayr.Lumen` |
 | `tv/packaging/samsung/config.xml` `package` | `IptvPlayer` → `LumenPlayr` (must stay exactly 10 alphanumeric; `LumenPlayr` = 10) |
-| `android/app/build.gradle` `applicationId` | `com.andrew1h1.iptvplayer` → `com.andrew1h1.lumenplayer` |
+| `android/app/build.gradle` `applicationId` | `com.andrew1h1.lumenplayer` → `com.andrew1h1.lumenplayer` |
 | `supabase/config.toml` project id/name | `iptv-player` → `lumen-player` |
 | `.github/workflows/release.yml` artifact names/paths referencing `iptv-player` | → `lumen-player` |
 | `.gitignore` paths referencing `iptv-player` | → `lumen-player` (verify no stale ignore breaks) |
