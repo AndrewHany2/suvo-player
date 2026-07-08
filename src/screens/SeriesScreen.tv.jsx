@@ -5,6 +5,7 @@ import { useSeries } from "../domain/hooks/useSeries";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
 import StatePanel from "../ui/StatePanel";
+import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
 import { isMacCommand } from "../platform/adapters/input/keys";
@@ -35,7 +36,7 @@ const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 
 export default function SeriesScreenTV({ navigation, route }) {
   const {
-    loading, error, reload, activeUserId,
+    loading, loaded, error, reload, activeUserId,
     categories, getCategoryItems, fetchSeriesInfo, buildEpisodeUrl, playEpisodeObject,
     shelves, handleShelfVisible, handleLoadMore,
   } = useSeries({ navigation });
@@ -1030,7 +1031,9 @@ export default function SeriesScreenTV({ navigation, route }) {
           <span className="tvl-topbar-title">Series</span>
         </div>
         {shelves.length === 0
-          ? <div className="tvl-center"><div className="tvl-spinner" /><p>Loading series…</p></div>
+          ? (loaded
+              ? <StatePanel mode="empty" {...emptyContentProps("series")} />
+              : <div className="tvl-center"><div className="tvl-spinner" /><p>Loading series…</p></div>)
           : (
             <VirtualShelvesTV
               shelves={shelves}

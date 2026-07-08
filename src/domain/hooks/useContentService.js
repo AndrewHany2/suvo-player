@@ -18,9 +18,11 @@ export function useContentService() {
   useEffect(() => {
     if (activeUser) {
       contentService.configure({
+        type: activeUser.type,
         host: activeUser.host,
         username: activeUser.username,
         password: activeUser.password,
+        url: activeUser.url,
       });
     } else {
       contentService.configure(null);

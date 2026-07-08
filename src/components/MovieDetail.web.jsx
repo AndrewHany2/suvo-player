@@ -4,7 +4,7 @@ import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
 import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
-import iptvApi from "../services/iptvApi";
+import { contentService } from "../domain/services/ContentService";
 import ProxiedImage from "./ProxiedImage";
 import { usePlatform } from "../platform";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
@@ -42,8 +42,8 @@ export default function MovieDetail({ item, onBack, onPlay }) {
   useEffect(() => {
     setInfo(null);
     setShowTrailer(false);
-    iptvApi
-      .getVODInfo(streamId)
+    contentService
+      .getMovieInfoRaw(streamId)
       .then(setInfo)
       .catch(() => setInfo({}));
   }, [streamId]);
@@ -67,11 +67,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
   });
 
   const handlePlay = (startTime) => {
-    const url = iptvApi.buildStreamUrl(
-      "movie",
-      streamId,
-      item.container_extension || "mp4",
-    );
+    const url = contentService.buildMovieUrl(streamId, item.container_extension || "mp4");
     onPlay({ type: "movies", streamId, name, url, cover, startTime });
   };
 

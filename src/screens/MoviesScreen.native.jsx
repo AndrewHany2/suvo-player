@@ -8,6 +8,7 @@ import PosterCard from "../presentation/components/PosterCard.native";
 import MovieDetail from "../components/MovieDetail";
 import { colors, accentAlpha } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
+import { emptyContentProps } from "../ui/emptyContentProps";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { posterGrid, GRID_TARGET_W } from "../utils/posterLayout";
@@ -166,7 +167,7 @@ export default function MoviesScreen({ navigation }) {
             onLoadMore={handleLoadMore}
           />
         )}
-        ListEmptyComponent={<StatePanel mode="empty" icon="film" title="No movies found" />}
+        ListEmptyComponent={<StatePanel mode="empty" {...emptyContentProps("movies")} />}
         windowSize={5}
         maxToRenderPerBatch={3}
         initialNumToRender={2 + vcfg.vOverscan}

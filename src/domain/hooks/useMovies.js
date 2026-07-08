@@ -33,6 +33,10 @@ export function useMovies({ navigation } = {}) {
   const { playVideo } = useApp();
 
   const [loading, setLoading] = useState(false);
+  // True once the first category load has completed (success, error, or empty),
+  // so a screen can tell "still loading" apart from "loaded but zero shelves"
+  // (the M3U live-only case) without treating the latter as a stuck spinner.
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [shelves, setShelves] = useState([]);
   const [categoryPage, setCategoryPage] = useState(null); // { catId, name, items }
@@ -141,6 +145,7 @@ export function useMovies({ navigation } = {}) {
       setError(true);
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, [activeUser, contentService, schedulePrefetch]);
 
@@ -336,7 +341,7 @@ export function useMovies({ navigation } = {}) {
 
   return {
     // status
-    loading, error, reload: load, activeUserId,
+    loading, loaded, error, reload: load, activeUserId,
     // discover + shelves (native/web)
     discoverItems, shelves, handleShelfVisible, handleLoadMore,
     // category drill-in

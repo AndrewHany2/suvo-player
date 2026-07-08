@@ -8,7 +8,9 @@ import Icon from "../ui/Icon";
 import PasswordInput from "../ui/PasswordInput";
 import StatePanel from "../ui/StatePanel";
 import { useApp } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
+import { contentService } from "../domain/services/ContentService";
+
+const EMPTY_FORM = { type: "xtream", nickname: "", host: "", username: "", password: "", url: "" };
 
 export default function AccountsScreen({ navigation }) {
   useScale(); // re-render + recompute ss() when the scale corrects (webOS cold start)
@@ -17,28 +19,42 @@ export default function AccountsScreen({ navigation }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ nickname: "", host: "", username: "", password: "" });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const isM3U = formData.type === "m3u";
 
   const resetForm = () => {
-    setFormData({ nickname: "", host: "", username: "", password: "" });
+    setFormData(EMPTY_FORM);
     setEditingId(null);
     setShowForm(false);
   };
 
   const handleAddNew = () => {
-    setFormData({ nickname: "", host: "", username: "", password: "" });
+    setFormData(EMPTY_FORM);
     setEditingId(null);
     setShowForm(true);
   };
 
   const handleEdit = (user) => {
-    setFormData({ nickname: user.nickname || "", host: user.host, username: user.username, password: user.password });
+    setFormData({
+      type: user.type === "m3u" ? "m3u" : "xtream",
+      nickname: user.nickname || "",
+      host: user.host || "",
+      username: user.username || "",
+      password: user.password || "",
+      url: user.url || "",
+    });
     setEditingId(user.id);
     setShowForm(true);
   };
 
   const handleSave = async () => {
-    if (!formData.host || !formData.username || !formData.password) {
+    if (isM3U) {
+      if (!formData.url) {
+        Alert.alert("Missing Fields", "Please enter a playlist URL.");
+        return;
+      }
+    } else if (!formData.host || !formData.username || !formData.password) {
       Alert.alert("Missing Fields", "Please fill in Host, Username, and Password.");
       return;
     }
@@ -76,12 +92,12 @@ export default function AccountsScreen({ navigation }) {
     saveUsers();
     setLoading(true);
     try {
-      iptvApi.setCredentials(user.host, user.username, user.password);
-      const channelsData = await iptvApi.getLiveStreams();
+      contentService.configure(user);
+      const channelsData = await contentService.getLiveChannels();
       const formatted = channelsData.map((ch) => ({
         name: ch.name,
-        url: iptvApi.buildStreamUrl("live", ch.stream_id, ch.stream_type || "ts"),
-        id: ch.stream_id,
+        url: contentService.buildLiveUrl(ch.id, ch.streamType || "ts"),
+        id: ch.id,
       }));
       setChannels(formatted);
       Alert.alert("Connected!", `Loaded ${formatted.length} channels from ${user.nickname || user.username}`, [{ text: "OK", onPress: () => navigation.goBack() }]);
@@ -143,17 +159,41 @@ export default function AccountsScreen({ navigation }) {
             {editingId ? "Edit Account" : "Add New Account"}
           </Text>
 
+          <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)}>Source type</Text>
+          <XStack gap={ss(10)}>
+            {[{ key: "xtream", label: "Xtream login" }, { key: "m3u", label: "M3U playlist" }].map((opt) => (
+              <Button
+                key={opt.key}
+                variant={formData.type === opt.key ? "primary" : "secondary"}
+                disabled={loading}
+                onPress={() => setFormData({ ...formData, type: opt.key })}
+                style={{ flex: 1 }}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </XStack>
+
           <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Nickname (optional)</Text>
           <Input placeholder="e.g., My account" placeholderTextColor={colors.faint} value={formData.nickname} onChangeText={(v) => setFormData({ ...formData, nickname: v })} disabled={loading} {...inputStyle} />
 
-          <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Server / Host *</Text>
-          <Input placeholder="s1.example.com:8080" placeholderTextColor={colors.faint} value={formData.host} onChangeText={(v) => setFormData({ ...formData, host: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
+          {isM3U ? (
+            <>
+              <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Playlist URL *</Text>
+              <Input placeholder="http://host/get.php?...type=m3u_plus  or  .m3u/.m3u8" placeholderTextColor={colors.faint} value={formData.url} onChangeText={(v) => setFormData({ ...formData, url: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
+            </>
+          ) : (
+            <>
+              <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Server / Host *</Text>
+              <Input placeholder="s1.example.com:8080" placeholderTextColor={colors.faint} value={formData.host} onChangeText={(v) => setFormData({ ...formData, host: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
 
-          <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Username *</Text>
-          <Input placeholder="your_username" placeholderTextColor={colors.faint} value={formData.username} onChangeText={(v) => setFormData({ ...formData, username: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
+              <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Username *</Text>
+              <Input placeholder="your_username" placeholderTextColor={colors.faint} value={formData.username} onChangeText={(v) => setFormData({ ...formData, username: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
 
-          <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Password *</Text>
-          <PasswordInput placeholder="your_password" placeholderTextColor={colors.faint} value={formData.password} onChangeText={(v) => setFormData({ ...formData, password: v })} disabled={loading} inputStyle={inputStyle} />
+              <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Password *</Text>
+              <PasswordInput placeholder="your_password" placeholderTextColor={colors.faint} value={formData.password} onChangeText={(v) => setFormData({ ...formData, password: v })} disabled={loading} inputStyle={inputStyle} />
+            </>
+          )}
 
           <XStack gap={ss(12)} marginTop={ss(28)}>
             <Button variant="secondary" disabled={loading} onPress={resetForm} style={{ flex: 1 }}>
@@ -214,9 +254,9 @@ export default function AccountsScreen({ navigation }) {
             <XStack backgroundColor={colors.surface2} borderRadius={radii.md} padding={ss(16)} marginBottom={ss(12)} alignItems="center" borderWidth={1} borderColor={colors.border}>
               <YStack flex={1}>
                 <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(15)} fontWeight={fontWeights.medium} marginBottom={ss(3)}>
-                  {item.nickname || `${item.username}@${item.host}`}
+                  {item.nickname || (item.type === "m3u" ? "M3U playlist" : `${item.username}@${item.host}`)}
                 </Text>
-                <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(13)}>{item.host}</Text>
+                <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(13)} numberOfLines={1}>{item.type === "m3u" ? item.url : item.host}</Text>
                 {activeUserId === item.id && (
                   <XStack marginTop={ss(6)} alignItems="center" gap={ss(4)} backgroundColor={accentAlpha(0.15)} borderRadius={radii.sm} paddingHorizontal={ss(8)} paddingVertical={ss(3)} alignSelf="flex-start">
                     <Icon name="check" size={ss(12)} color={colors.accent2} />

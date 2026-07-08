@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
+import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
 import { useSeries } from "../domain/hooks/useSeries";
@@ -511,12 +512,7 @@ export default function SeriesScreen({ navigation }) {
               />
             ))
           ) : (
-            <StatePanel
-              mode="empty"
-              icon="tv"
-              title="No series found"
-              message="We couldn't find any series for this account."
-            />
+            <StatePanel mode="empty" {...emptyContentProps("series")} />
           )}
         </YStack>
         </YStack>

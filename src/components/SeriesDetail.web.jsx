@@ -4,7 +4,7 @@ import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
 import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
-import iptvApi from "../services/iptvApi";
+import { contentService } from "../domain/services/ContentService";
 import ProxiedImage from "./ProxiedImage";
 import { usePlatform } from "../platform";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
@@ -61,8 +61,8 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
     setEpisodes({});
     setShowEpisodes(false);
     setShowTrailer(false);
-    iptvApi
-      .getSeriesInfo(seriesId)
+    contentService
+      .getSeriesInfoRaw(seriesId)
       .then((result) => {
         setInfo(result.info || {});
         setEpisodes(result.episodes || {});
@@ -95,11 +95,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
 
   const handleEpisodePress = (ep, seasonNum) => {
     const epNum = getEpisodeNumber(ep);
-    const url = iptvApi.buildStreamUrl(
-      "series",
-      ep.id,
-      ep.container_extension || "mp4",
-    );
+    const url = contentService.buildEpisodeUrl(ep.id, ep.container_extension || "mp4");
     const epHistory = watchHistory.find(
       (h) => h.type === "series" && String(h.streamId) === String(ep.id),
     );
@@ -121,7 +117,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
   const handleContinue = () => {
     const url =
       historyEntry.url ||
-      iptvApi.buildStreamUrl("series", historyEntry.streamId, "mp4");
+      contentService.buildEpisodeUrl(historyEntry.streamId, "mp4");
     onPlayEpisode({
       ...historyEntry,
       url,

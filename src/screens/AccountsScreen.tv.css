@@ -135,6 +135,10 @@
 
 .tvl-btn--on { outline: 4px solid var(--a-cyan); outline-offset: 3px; }
 
+/* Source-type segmented control (Xtream / M3U). */
+.tvl-seg { display: flex; gap: 12px; }
+.tvl-seg .tvl-btn { flex: 1; }
+
 .tvl-form-actions { display: flex; gap: 12px; padding-top: 4px; }
 
 /* ── Confirm dialog ──────────────────────────────────────────────────────── */

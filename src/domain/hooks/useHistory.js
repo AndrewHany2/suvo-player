@@ -2,7 +2,6 @@ import { useCallback, useMemo } from "react";
 import { useApp } from "../../context/AppContext";
 import { useContentService } from "./useContentService";
 import { splitHistory } from "./historyGroups";
-import iptvApi from "../../services/iptvApi";
 
 /**
  * Single source of truth for the History feature.
@@ -68,11 +67,10 @@ export function useHistory({ navigation } = {}) {
     [contentService],
   );
 
-  /** Raw provider series info ({ info, seasons, episodes }) for the TV detail view.
-   *  ContentService exposes no series-info wrapper, so — mirroring useSeries'
-   *  fetchSeriesInfo — this goes straight to iptvApi. Screens consume it through
-   *  the hook so they no longer import iptvApi themselves. */
-  const fetchSeriesInfo = useCallback((seriesId) => iptvApi.getSeriesInfo(seriesId), []);
+  /** Raw provider series info ({ info, seasons, episodes }) for the TV detail
+   *  view, routed through ContentService so it resolves against the active
+   *  source (Xtream or M3U). */
+  const fetchSeriesInfo = useCallback((seriesId) => contentService.getSeriesInfoRaw(seriesId), [contentService]);
 
   return {
     // selectors

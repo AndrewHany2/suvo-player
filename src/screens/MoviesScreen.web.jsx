@@ -6,6 +6,7 @@ import { useTVNavigation } from "../hooks/useTVNavigation";
 import { ss, useScale } from "../utils/scaleSize";
 import { colors } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
+import { emptyContentProps } from "../ui/emptyContentProps";
 import Button from "../ui/Button";
 import ContentShelf from "../presentation/components/ContentShelf.web";
 import PosterCard from "../presentation/components/PosterCard.web";
@@ -230,7 +231,7 @@ export default function MoviesScreen({ navigation }) {
               <div style={{ height: vWin.trailingPad }} />
             </div>
           ) : (
-            <StatePanel mode="empty" icon="film" title="No movies found" />
+            <StatePanel mode="empty" {...emptyContentProps("movies")} />
           )}
         </YStack>
         </YStack>

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
 import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
+import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
@@ -52,7 +52,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
     setInfo(null);
     setEpisodes({});
     setShowEpisodes(false);
-    iptvApi.getSeriesInfo(seriesId)
+    contentService.getSeriesInfoRaw(seriesId)
       .then((result) => { setInfo(result.info || {}); setEpisodes(result.episodes || {}); })
       .catch(() => setInfo({}));
   }, [seriesId]);
@@ -84,7 +84,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
 
   const handleEpisodePress = (ep, seasonNum) => {
     const epNum = getEpisodeNumber(ep);
-    const url = iptvApi.buildStreamUrl("series", ep.id, ep.container_extension || "mp4");
+    const url = contentService.buildEpisodeUrl(ep.id, ep.container_extension || "mp4");
     onPlayEpisode({
       type: "series", streamId: ep.id, seriesId, seriesName,
       name: `${seriesName} — S${String(seasonNum).padStart(2, "0")}E${String(epNum).padStart(2, "0")}`,
@@ -93,7 +93,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
   };
 
   const handleContinue = () => {
-    const url = historyEntry.url || iptvApi.buildStreamUrl("series", historyEntry.streamId, "mp4");
+    const url = historyEntry.url || contentService.buildEpisodeUrl(historyEntry.streamId, "mp4");
     onPlayEpisode({ ...historyEntry, url, startTime: historyEntry.currentTime || 0 });
   };
 

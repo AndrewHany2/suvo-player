@@ -11,6 +11,7 @@ import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
 import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
+import { contentService } from "../domain/services/ContentService";
 import storage from "../utils/storage";
 import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
@@ -381,7 +382,7 @@ export default function VideoPlayerScreen({ navigation }) {
     const next = getNextEpisode();
     if (!next) return;
     const { episode, seasonNum } = next;
-    const streamUrl = iptvApi.buildStreamUrl("series", episode.id, episode.container_extension || "mp4");
+    const streamUrl = contentService.buildEpisodeUrl(episode.id, episode.container_extension || "mp4");
     const epNum = String(episode.episode_num).padStart(2, "0");
     const sNum = String(seasonNum).padStart(2, "0");
     playVideo({ type: "series", streamId: episode.id, seriesId: currentVideo.seriesId, seriesName: currentVideo.seriesName, name: `${currentVideo.seriesName} - S${sNum}E${epNum}`, url: streamUrl, seasonNum, episodeNum: episode.episode_num, seriesSeasons: currentVideo.seriesSeasons });

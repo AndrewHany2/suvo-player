@@ -1,19 +1,37 @@
 import iptvApi from "../../services/iptvApi";
+import m3uApi from "../../services/m3uApi";
 import { normalizeCategory } from "../models/Category";
 import { normalizeMovie } from "../models/Movie";
 import { normalizeSeries } from "../models/Series";
 import { normalizeChannel } from "../models/Channel";
 
 class ContentService {
+  // The active source backend. Xtream (`iptvApi`) by default; swapped to the
+  // M3U source (`m3uApi`) for `type: "m3u"` accounts in configure(). Every data
+  // method below goes through `this.api`, so the two backends are interchangeable
+  // and downstream hooks/screens never learn which one is live.
+  api = iptvApi;
+
   // ── Configuration ──────────────────────────────────────────────────────────
 
   /**
    * Point the service at an IPTV account. Pass null to clear.
    * Replaces callers reaching into iptvApi.setCredentials directly.
-   * @param {{ host: string, username: string, password: string } | null} credentials
+   * @param {{ type?: "xtream"|"m3u", host?: string, username?: string,
+   *           password?: string, url?: string } | null} credentials
    */
   configure(credentials) {
-    if (credentials) {
+    if (!credentials) return;
+    // Route by explicit type, falling back to the account SHAPE: a playlist URL
+    // with no host can only be an M3U source. The shape fallback keeps live/VOD
+    // fetching correct even when `type` is missing (e.g. a row synced before the
+    // M3U columns were deployed), which otherwise misroutes M3U through Xtream.
+    const isM3U = credentials.type === "m3u" || (!!credentials.url && !credentials.host);
+    if (isM3U) {
+      this.api = m3uApi;
+      m3uApi.setCredentials(credentials.url);
+    } else {
+      this.api = iptvApi;
       iptvApi.setCredentials(credentials.host, credentials.username, credentials.password);
     }
   }
@@ -36,71 +54,77 @@ class ContentService {
   // ── Live TV ──────────────────────────────────────────────────────────────
 
   async getLiveCategories() {
-    const raw = await iptvApi.getLiveCategories();
+    const raw = await this.api.getLiveCategories();
     return this._normalizeCached(raw, normalizeCategory);
   }
 
   async getLiveChannels(categoryId) {
     const raw = categoryId
-      ? await iptvApi.getLiveStreamsByCategory(categoryId)
-      : await iptvApi.getLiveStreams();
+      ? await this.api.getLiveStreamsByCategory(categoryId)
+      : await this.api.getLiveStreams();
     return this._normalizeCached(raw, normalizeChannel);
   }
 
   getShortEpg(streamId, limit = 2) {
-    return iptvApi.getShortEpg(streamId, limit);
+    return this.api.getShortEpg(streamId, limit);
   }
 
   // ── Movies ───────────────────────────────────────────────────────────────
 
   async getMovieCategories() {
-    const raw = await iptvApi.getVODCategories();
+    const raw = await this.api.getVODCategories();
     return this._normalizeCached(raw, normalizeCategory);
   }
 
   async getMoviesByCategory(categoryId) {
-    const raw = await iptvApi.getVODStreams(categoryId);
+    const raw = await this.api.getVODStreams(categoryId);
     return this._normalizeCached(raw, normalizeMovie);
   }
 
   async getAllMovies() {
-    const raw = await iptvApi.getAllVODStreamsRobust();
+    const raw = await this.api.getAllVODStreamsRobust();
     return this._normalizeCached(raw, normalizeMovie);
   }
 
   /** Raw VOD info ({ info: {...}, movie_data: {...} }) for views that render the
    *  provider's native shape directly (e.g. the TV detail screen). */
   getMovieInfoRaw(movieId) {
-    return iptvApi.getVODInfo(movieId);
+    return this.api.getVODInfo(movieId);
+  }
+
+  /** Raw series info ({ info, episodes, seasons? }) for the detail/season views,
+   *  routed through the active source so M3U series resolve too. */
+  getSeriesInfoRaw(seriesId) {
+    return this.api.getSeriesInfo(seriesId);
   }
 
   buildMovieUrl(movieId, containerExtension = "mp4") {
-    return iptvApi.buildStreamUrl("movie", movieId, containerExtension);
+    return this.api.buildStreamUrl("movie", movieId, containerExtension);
   }
 
   // ── Series ───────────────────────────────────────────────────────────────
 
   async getSeriesCategories() {
-    const raw = await iptvApi.getSeriesCategories();
+    const raw = await this.api.getSeriesCategories();
     return this._normalizeCached(raw, normalizeCategory);
   }
 
   async getSeriesByCategory(categoryId) {
-    const raw = await iptvApi.getSeries(categoryId);
+    const raw = await this.api.getSeries(categoryId);
     return this._normalizeCached(raw, normalizeSeries);
   }
 
   async getAllSeries() {
-    const raw = await iptvApi.getAllSeriesRobust();
+    const raw = await this.api.getAllSeriesRobust();
     return this._normalizeCached(raw, normalizeSeries);
   }
 
   buildEpisodeUrl(episodeId, containerExtension = "mkv") {
-    return iptvApi.buildStreamUrl("series", episodeId, containerExtension);
+    return this.api.buildStreamUrl("series", episodeId, containerExtension);
   }
 
   buildLiveUrl(streamId, extension = "ts") {
-    return iptvApi.buildStreamUrl("live", streamId, extension);
+    return this.api.buildStreamUrl("live", streamId, extension);
   }
 }
 

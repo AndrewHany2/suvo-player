@@ -9,6 +9,7 @@ import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import PosterCard from "../presentation/components/PosterCard.web";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
 import StatePanel from "../ui/StatePanel";
+import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
 import "../styles/tvl.css";
@@ -27,7 +28,7 @@ const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 export default function MoviesScreenTV({ navigation, route }) {
-  const { loading, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie, shelves, handleShelfVisible, handleLoadMore } = useMovies({ navigation });
+  const { loading, loaded, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie, shelves, handleShelfVisible, handleLoadMore } = useMovies({ navigation });
   const { isInMyList, addToMyList, removeFromMyList, watchHistory, currentVideo, tvUseShelves } = useApp();
   const { register } = useTVInput();
   // When shelves own the browse view, VirtualShelves.tv registers its own D-pad
@@ -570,7 +571,9 @@ export default function MoviesScreenTV({ navigation, route }) {
       <div className="tvl-screen">
         <div className="tvl-topbar"><span className="tvl-topbar-title">Movies</span></div>
         {shelves.length === 0
-          ? <div className="tvl-center"><div className="tvl-spinner" /><p>Loading movies…</p></div>
+          ? (loaded
+              ? <StatePanel mode="empty" {...emptyContentProps("movies")} />
+              : <div className="tvl-center"><div className="tvl-spinner" /><p>Loading movies…</p></div>)
           : (
             <VirtualShelvesTV
               shelves={shelves}

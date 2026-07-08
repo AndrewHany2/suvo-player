@@ -6,7 +6,7 @@ import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
 import { colors } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
+import { contentService } from "../domain/services/ContentService";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -40,7 +40,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
 
   useEffect(() => {
     setInfo(null);
-    iptvApi.getVODInfo(streamId).then(setInfo).catch(() => setInfo({}));
+    contentService.getMovieInfoRaw(streamId).then(setInfo).catch(() => setInfo({}));
   }, [streamId]);
 
   const isLoading = info === null;
@@ -66,7 +66,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
   }, [resumeTime, isLoading]);
 
   const handlePlay = (startTime) => {
-    const url = iptvApi.buildStreamUrl("movie", streamId, item.container_extension || "mp4");
+    const url = contentService.buildMovieUrl(streamId, item.container_extension || "mp4");
     onPlay({ type: "movies", streamId, name, url, cover, startTime });
   };
 

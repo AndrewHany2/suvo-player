@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
+import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
 import { isMacCommand } from "../platform/adapters/input/keys";
@@ -16,8 +16,23 @@ const KEY_RIGHT = 39;
 const KEY_ENTER = 13;
 const KEY_BACK  = new Set([27, 461, 10009, 8, 91]);
 
-const FORM_INPUTS = 4; // first 4 fieldFocus indices are text inputs
-const FORM_TOTAL  = 6; // + cancel(4) + save(5)
+// Text-input fields for a source type. Focus index 0 is the type toggle; the
+// inputs follow (indices 1..N); then Cancel and Save. Deriving the field set
+// here keeps the M3U/Xtream difference — and all the d-pad index math — in one
+// place instead of hardcoded constants.
+const inputFieldsFor = (type) =>
+  type === "m3u"
+    ? [
+        { key: "nickname", label: "Nickname (optional)", placeholder: "My playlist", type: "text" },
+        { key: "url", label: "Playlist URL *", placeholder: "http://host/get.php?…  or  .m3u / .m3u8", type: "text", autoCapitalize: "none", autoCorrect: "off" },
+      ]
+    : [
+        { key: "nickname", label: "Nickname (optional)", placeholder: "My account", type: "text" },
+        { key: "host", label: "Host *", placeholder: "server.example.com:8080", type: "text", autoCapitalize: "none", autoCorrect: "off" },
+        { key: "username", label: "Username *", placeholder: "username", type: "text", autoCapitalize: "none", autoCorrect: "off" },
+        { key: "password", label: "Password *", placeholder: "password", type: "password" },
+      ];
+const TOGGLE_IDX = 0;
 
 export default function AccountsScreenTV({ navigation }) {
   const { users, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser, setChannels, tvUseShelves, setTvUseShelves } = useApp();
@@ -32,8 +47,22 @@ export default function AccountsScreenTV({ navigation }) {
   const [error,        setError]        = useState("");
   const [editId,       setEditId]       = useState(null);
   const [delId,        setDelId]        = useState(null);
-  const [form,         setForm]         = useState({ nickname: "", host: "", username: "", password: "" });
+  const [form,         setForm]         = useState({ type: "xtream", nickname: "", host: "", username: "", password: "", url: "" });
   const [showPwd,      setShowPwd]      = useState(false);
+
+  // Focusable model + values the (once-bound, frozen) key listener reads via
+  // refs so type-driven field changes and the latest form values are always
+  // seen — the captured render-0 closure cannot see later render scope.
+  const inputFields = inputFieldsFor(form.type);
+  const CANCEL_IDX  = inputFields.length + 1;
+  const SAVE_IDX    = inputFields.length + 2;
+  const FORM_TOTAL  = inputFields.length + 3;
+  const modelRef    = useRef(null);
+  modelRef.current  = { inputFields, cancelIdx: CANCEL_IDX, saveIdx: SAVE_IDX, total: FORM_TOTAL };
+  const formRef     = useRef(form);
+  formRef.current   = form;
+  const editIdRef   = useRef(null);
+  editIdRef.current = editId;
 
   const focusRef      = useRef(0);
   const colRef        = useRef(0);
@@ -48,7 +77,10 @@ export default function AccountsScreenTV({ navigation }) {
   const hostRef     = useRef(null);
   const usernameRef = useRef(null);
   const passwordRef = useRef(null);
-  const inputRefs   = [nicknameRef, hostRef, usernameRef, passwordRef];
+  const urlRef      = useRef(null);
+  // Stable ref per field key (all keys always present so the frozen key
+  // listener can focus whichever inputs the current type renders).
+  const refByKey    = { nickname: nicknameRef, host: hostRef, username: usernameRef, password: passwordRef, url: urlRef };
 
   // "add" row, one row per account, then a trailing settings row (TV layout toggle).
   const rows = ["add", ...users.map((u) => u.id), "settings_shelves"];
@@ -146,34 +178,37 @@ export default function AccountsScreenTV({ navigation }) {
     else connectUser(row);
   };
 
+  // Switch source type, remapping the field set. Clamp the focused index into
+  // the new (possibly shorter) model so an M3U form can't leave focus past Save.
+  const setFormType = (t) => {
+    setForm((f) => (f.type === t ? f : { ...f, type: t }));
+    const nextTotal = inputFieldsFor(t).length + 3;
+    if (fieldFocRef.current > nextTotal - 1) { fieldFocRef.current = nextTotal - 1; setFieldFocus(nextTotal - 1); }
+  };
+
   // ── Form keys ──────────────────────────────────────────────────────────────
+  // Reads the focusable model + form values via refs (modelRef/formRef) because
+  // the keydown listener is bound once and can't see later render scope.
   const handleFormKey = (k, e) => {
     const fi = fieldFocRef.current;
+    const { inputFields: ifs, cancelIdx, saveIdx, total } = modelRef.current;
+    const setFi = (n) => { fieldFocRef.current = n; setFieldFocus(n); };
     switch (k) {
-      case KEY_UP: {
-        e.preventDefault();
-        const prev = Math.max(0, fi - 1);
-        fieldFocRef.current = prev; setFieldFocus(prev);
+      case KEY_UP:   e.preventDefault(); setFi(Math.max(0, fi - 1)); break;
+      case KEY_DOWN: e.preventDefault(); setFi(Math.min(total - 1, fi + 1)); break;
+      case KEY_LEFT:
+        if (fi === TOGGLE_IDX) { e.preventDefault(); setFormType("xtream"); }
+        else if (fi === saveIdx) { e.preventDefault(); setFi(cancelIdx); }
         break;
-      }
-      case KEY_DOWN: {
-        e.preventDefault();
-        const next = Math.min(FORM_TOTAL - 1, fi + 1);
-        fieldFocRef.current = next; setFieldFocus(next);
+      case KEY_RIGHT:
+        if (fi === TOGGLE_IDX) { e.preventDefault(); setFormType("m3u"); }
+        else if (fi === cancelIdx) { e.preventDefault(); setFi(saveIdx); }
         break;
-      }
-      case KEY_LEFT: {
-        if (fi >= FORM_INPUTS) { e.preventDefault(); const p = Math.max(FORM_INPUTS, fi - 1); fieldFocRef.current = p; setFieldFocus(p); }
-        break;
-      }
-      case KEY_RIGHT: {
-        if (fi >= FORM_INPUTS) { e.preventDefault(); const n = Math.min(FORM_TOTAL - 1, fi + 1); fieldFocRef.current = n; setFieldFocus(n); }
-        break;
-      }
       case KEY_ENTER: {
         e.preventDefault();
-        if (fi < FORM_INPUTS) inputRefs[fi].current?.focus(); // open virtual keyboard
-        else if (fi === FORM_INPUTS) setView("list");           // Cancel
+        if (fi === TOGGLE_IDX) setFormType(formRef.current.type === "m3u" ? "xtream" : "m3u");
+        else if (fi >= 1 && fi <= ifs.length) refByKey[ifs[fi - 1].key].current?.focus(); // open virtual keyboard
+        else if (fi === cancelIdx) setView("list");             // Cancel
         else saveForm();                                        // Save
         break;
       }
@@ -207,23 +242,29 @@ export default function AccountsScreenTV({ navigation }) {
   }, [view]);
 
   const openAddForm = () => {
-    setForm({ nickname: "", host: "", username: "", password: "" });
+    setForm({ type: "xtream", nickname: "", host: "", username: "", password: "", url: "" });
     setShowPwd(false);
     setEditId(null); setError(""); setView("form");
   };
 
   const openEditForm = (user) => {
-    setForm({ nickname: user.nickname || "", host: user.host, username: user.username, password: user.password });
+    setForm({
+      type: user.type === "m3u" ? "m3u" : "xtream",
+      nickname: user.nickname || "", host: user.host || "", username: user.username || "",
+      password: user.password || "", url: user.url || "",
+    });
     setShowPwd(false);
     setEditId(user.id); setError(""); setView("form");
   };
 
   const saveForm = async () => {
-    if (!form.host || !form.username || !form.password) { setError("Host, Username and Password are required."); return; }
+    const f = formRef.current;
+    const missing = f.type === "m3u" ? !f.url : (!f.host || !f.username || !f.password);
+    if (missing) { setError(f.type === "m3u" ? "Playlist URL is required." : "Host, Username and Password are required."); return; }
     setLoading(true); setError("");
     try {
-      if (editId) await updateUser(editId, form);
-      else await addUser(form);
+      if (editIdRef.current) await updateUser(editIdRef.current, f);
+      else await addUser(f);
       setView("list");
     } catch (err) {
       setError(err.message || "Failed to save");
@@ -234,14 +275,15 @@ export default function AccountsScreenTV({ navigation }) {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
     // Switching the active user is all that's needed: setActiveUserId drives the
-    // AppContext effect that swaps iptvApi credentials, and each screen's data
-    // hook (e.g. useLiveTV) reloads its own categories keyed on activeUserId.
+    // AppContext effect that reconfigures contentService (Xtream or M3U by the
+    // account's type), and each screen's data hook (e.g. useLiveTV) reloads its
+    // own categories keyed on activeUserId.
     // We deliberately do NOT fetch the whole live catalog here — the TV screens
     // never consume the context `channels`, and dumping a multi-MB array into
     // state forces a blocking JSON.stringify to webOS localStorage that made the
     // app crawl after every account switch.
     setActiveUserId(userId); saveUsers();
-    iptvApi.setCredentials(user.host, user.username, user.password);
+    contentService.configure(user);
     setChannels([]);
     navigation.goBack?.();
   };
@@ -284,13 +326,6 @@ export default function AccountsScreenTV({ navigation }) {
 
   // ── Form view ─────────────────────────────────────────────────────────────
   if (view === "form") {
-    const fields = [
-      { key: "nickname", label: "Nickname (optional)", placeholder: "My account",                 type: "text",     ref: nicknameRef },
-      { key: "host",     label: "Host *",               placeholder: "server.example.com:8080", type: "text",     ref: hostRef,     autoCapitalize: "none", autoCorrect: "off" },
-      { key: "username", label: "Username *",            placeholder: "username",                type: "text",     ref: usernameRef, autoCapitalize: "none", autoCorrect: "off" },
-      { key: "password", label: "Password *",            placeholder: "password",                type: "password", ref: passwordRef },
-    ];
-
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar">
@@ -300,51 +335,75 @@ export default function AccountsScreenTV({ navigation }) {
         <div className="tvl-form">
           {error && <div className="tvl-acc-error"><Icon name="warning" size={iconSizes.sm} color={colors.danger} /><span>{error}</span></div>}
 
-          {fields.map((f, i) => (
-            <div
-              key={f.key}
-              role="none"
-              className={fieldFocus === i ? "tvl-field tvl-field--on" : "tvl-field"}
-              onClick={() => { fieldFocRef.current = i; setFieldFocus(i); f.ref.current?.focus(); }}
-            >
-              <label>{f.label}</label>
-              <div style={{ position: "relative" }}>
-                <input
-                  ref={f.ref}
-                  type={f.type === "password" && showPwd ? "text" : f.type}
-                  placeholder={f.placeholder}
-                  value={form[f.key]}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                  onBlur={() => { fieldFocRef.current = i; setFieldFocus(i); }}
+          <div
+            role="none"
+            className={fieldFocus === TOGGLE_IDX ? "tvl-field tvl-field--on" : "tvl-field"}
+            onClick={() => { fieldFocRef.current = TOGGLE_IDX; setFieldFocus(TOGGLE_IDX); }}
+          >
+            <label>Source type</label>
+            <div className="tvl-seg">
+              {[{ key: "xtream", label: "Xtream login" }, { key: "m3u", label: "M3U playlist" }].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  className={form.type === opt.key ? "tvl-btn tvl-btn--on" : "tvl-btn tvl-btn-ghost"}
+                  onClick={(e) => { e.stopPropagation(); setFormType(opt.key); }}
                   disabled={loading}
-                  autoCapitalize={f.autoCapitalize}
-                  autoCorrect={f.autoCorrect}
-                  style={f.type === "password" ? { paddingRight: 48 } : undefined}
-                />
-                {f.type === "password" && (
-                  <button
-                    type="button"
-                    className="tvl-pwd-eye"
-                    aria-label={showPwd ? "Hide password" : "Show password"}
-                    onClick={(e) => { e.stopPropagation(); setShowPwd((s) => !s); }}
-                  >
-                    <Icon name={showPwd ? "eye-off" : "eye"} size={iconSizes.md} color={colors.muted} />
-                  </button>
-                )}
-              </div>
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+
+          {inputFields.map((f, i) => {
+            const idx = i + 1; // index 0 is the type toggle
+            return (
+              <div
+                key={f.key}
+                role="none"
+                className={fieldFocus === idx ? "tvl-field tvl-field--on" : "tvl-field"}
+                onClick={() => { fieldFocRef.current = idx; setFieldFocus(idx); refByKey[f.key].current?.focus(); }}
+              >
+                <label>{f.label}</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    ref={refByKey[f.key]}
+                    type={f.type === "password" && showPwd ? "text" : f.type}
+                    placeholder={f.placeholder}
+                    value={form[f.key]}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                    onBlur={() => { fieldFocRef.current = idx; setFieldFocus(idx); }}
+                    disabled={loading}
+                    autoCapitalize={f.autoCapitalize}
+                    autoCorrect={f.autoCorrect}
+                    style={f.type === "password" ? { paddingRight: 48 } : undefined}
+                  />
+                  {f.type === "password" && (
+                    <button
+                      type="button"
+                      className="tvl-pwd-eye"
+                      aria-label={showPwd ? "Hide password" : "Show password"}
+                      onClick={(e) => { e.stopPropagation(); setShowPwd((s) => !s); }}
+                    >
+                      <Icon name={showPwd ? "eye-off" : "eye"} size={iconSizes.md} color={colors.muted} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
 
           <div className="tvl-form-actions">
             <button
-              className={fieldFocus === 4 ? "tvl-btn tvl-btn-ghost tvl-btn--on" : "tvl-btn tvl-btn-ghost"}
+              className={fieldFocus === CANCEL_IDX ? "tvl-btn tvl-btn-ghost tvl-btn--on" : "tvl-btn tvl-btn-ghost"}
               onClick={() => setView("list")}
               disabled={loading}
             >
               Cancel
             </button>
             <button
-              className={fieldFocus === 5 ? "tvl-btn tvl-btn--on" : "tvl-btn"}
+              className={fieldFocus === SAVE_IDX ? "tvl-btn tvl-btn--on" : "tvl-btn"}
               onClick={saveForm}
               disabled={loading}
             >
@@ -385,8 +444,8 @@ export default function AccountsScreenTV({ navigation }) {
                 onClick={() => connectUser(user.id)}
               >
                 <div className="tvl-acc-info">
-                  <div className="tvl-acc-name">{user.nickname || `${user.username}@${user.host}`}</div>
-                  <div className="tvl-acc-host">{user.host}</div>
+                  <div className="tvl-acc-name">{user.nickname || (user.type === "m3u" ? "M3U playlist" : `${user.username}@${user.host}`)}</div>
+                  <div className="tvl-acc-host">{user.type === "m3u" ? user.url : user.host}</div>
                   {activeUserId === user.id && <div className="tvl-acc-badge"><Icon name="check" size={iconSizes.sm} color={colors.accent2} /><span>Active</span></div>}
                 </div>
                 <div className="tvl-acc-actions">

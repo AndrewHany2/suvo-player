@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import storage from '../utils/storage';
-import iptvApi from '../services/iptvApi';
+import { contentService } from '../domain/services/ContentService';
 import {
   fetchRemoteHistory, upsertHistoryEntry, deleteHistoryEntry, mergeHistories,
   fetchFavorites, upsertFavorite, deleteFavorite,
@@ -484,7 +484,7 @@ export const AppProvider = ({ children }) => {
         setUsers(accounts);
         const user = accounts.find((u) => u.id === savedActiveId) || accounts[0];
         setActiveUserId(user.id);
-        iptvApi.setCredentials(user.host, user.username, user.password);
+        contentService.configure(user);
         if (!applied) loadSavedChannels();
         applied = true;
       };
@@ -500,7 +500,19 @@ export const AppProvider = ({ children }) => {
       if (isSupabaseConfigured()) {
         try {
           const remote = await fetchIptvAccounts(activeProfileId);
-          if (!cancelled && remote.length > 0) applyAccounts(remote);
+          if (!cancelled && remote.length > 0) {
+            // Merge remote OVER the cached row of the same id so fields the
+            // backend doesn't return (e.g. `type`/`url` before the M3U columns
+            // are deployed) are preserved from the local cache instead of being
+            // clobbered to undefined — which would misroute an M3U account
+            // through the Xtream fetch path.
+            const cachedById = new Map((cached?.users || []).map((u) => [u.id, u]));
+            const merged = remote.map((r) => {
+              const local = cachedById.get(r.id);
+              return local ? { ...local, ...r, type: r.type ?? local.type, url: r.url ?? local.url } : r;
+            });
+            applyAccounts(merged);
+          }
         } catch { /**/ }
       }
 
@@ -512,7 +524,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (!activeUserId) return;
     const user = users.find((u) => u.id === activeUserId);
-    if (user) iptvApi.setCredentials(user.host, user.username, user.password);
+    if (user) contentService.configure(user);
     storage.getItem(usersKey).then((saved) => {
       const parsed = saved ? JSON.parse(saved) : {};
       storage.setItem(usersKey, JSON.stringify({ ...parsed, activeUserId }));

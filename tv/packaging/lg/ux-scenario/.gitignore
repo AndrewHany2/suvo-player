@@ -1,0 +1,4 @@
+img/
+*.pdf
+slide-*.jpg
+node_modules/

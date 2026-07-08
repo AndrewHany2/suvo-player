@@ -3,6 +3,7 @@ import { FlatList, RefreshControl, useWindowDimensions } from "react-native";
 import { YStack, XStack, Text, Input, Spinner } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
+import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
 import { useSeries } from "../domain/hooks/useSeries";
 import { useTVNavigation } from "../hooks/useTVNavigation";
@@ -162,7 +163,7 @@ export default function SeriesScreen({ navigation }) {
             onLoadMore={handleLoadMore}
           />
         )}
-        ListEmptyComponent={<StatePanel mode="empty" icon="tv" title="No series found" message="We couldn't find any series for this account." />}
+        ListEmptyComponent={<StatePanel mode="empty" {...emptyContentProps("series")} />}
         windowSize={5} maxToRenderPerBatch={3} initialNumToRender={3} removeClippedSubviews
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} colors={[colors.accent]} />}
       />

@@ -70,10 +70,12 @@ Deno.serve(async (req) => {
         return json(
           (data ?? []).map((r: any) => ({
             id: r.id,
+            type: r.type || "xtream",
             nickname: r.nickname || "",
             host: r.host,
             username: r.username,
             password: r.password,
+            url: r.url || "",
           })),
         );
       }
@@ -82,10 +84,12 @@ Deno.serve(async (req) => {
           .insert({
             user_id: userId,
             profile_id: payload.profileId,
+            type: payload.type || "xtream",
             nickname: payload.nickname || null,
-            host: payload.host,
-            username: payload.username,
-            password: payload.password,
+            host: payload.host || null,
+            username: payload.username || null,
+            password: payload.password || null,
+            url: payload.url || null,
           })
           .select("id")
           .single();
@@ -94,10 +98,12 @@ Deno.serve(async (req) => {
       case "iptv.update": {
         await db("iptv_accounts")
           .update({
+            type: payload.type || "xtream",
             nickname: payload.nickname || null,
-            host: payload.host,
-            username: payload.username,
-            password: payload.password,
+            host: payload.host || null,
+            username: payload.username || null,
+            password: payload.password || null,
+            url: payload.url || null,
           })
           .eq("id", payload.id)
           .eq("user_id", userId);

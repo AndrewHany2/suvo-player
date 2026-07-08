@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Hls from "hls.js";
 import { useApp } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
+import { contentService } from "../domain/services/ContentService";
 import { createHlsDriver } from "./drivers/hlsDriver";
 import { useResilientPlayback } from "./useResilientPlayback";
 import { usePlayerPreferences } from "./usePlayerPreferences";
@@ -760,8 +761,7 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     const next = getNextEpisode();
     if (!next) return;
     const { episode, seasonNum } = next;
-    const url = iptvApi.buildStreamUrl(
-      "series",
+    const url = contentService.buildEpisodeUrl(
       episode.id,
       episode.container_extension || "mp4",
     );
@@ -936,7 +936,7 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     (ch) => {
       if (!ch) return;
       const sid = ch.stream_id ?? ch.id;
-      const url = ch.url || iptvApi.buildStreamUrl("live", sid, ch.stream_type || "ts");
+      const url = ch.url || contentService.buildLiveUrl(sid, ch.stream_type || "ts");
       playVideo({ type: "live", streamId: sid, name: ch.name, url });
       storage.setItem(LAST_CHANNEL_KEY, String(sid)).catch(() => {});
     },

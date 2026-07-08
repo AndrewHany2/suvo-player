@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useApp } from "../../context/AppContext";
 import { useContentService } from "./useContentService";
 import tmdbApi from "../../services/tmdbApi";
-import iptvApi from "../../services/iptvApi";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 import { isLowEndDevice } from "../../utils/deviceTier";
 import { isAuthError } from "../../utils/authError";
@@ -38,6 +37,9 @@ export function useSeries({ navigation } = {}) {
   const { playVideo } = useApp();
 
   const [loading, setLoading] = useState(false);
+  // See useMovies: distinguishes "still loading" from "loaded but zero shelves"
+  // (M3U live-only) so screens don't sit on a stuck spinner.
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [shelves, setShelves] = useState([]);
   const [categoryPage, setCategoryPage] = useState(null); // { catId, name, items }
@@ -144,6 +146,7 @@ export function useSeries({ navigation } = {}) {
       setError(true);
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, [activeUser, contentService, schedulePrefetch]);
 
@@ -322,7 +325,7 @@ export function useSeries({ navigation } = {}) {
   }, [contentService]);
 
   /** Raw provider series info ({ info, seasons, episodes }) for the TV detail view. */
-  const fetchSeriesInfo = useCallback((seriesId) => iptvApi.getSeriesInfo(seriesId), []);
+  const fetchSeriesInfo = useCallback((seriesId) => contentService.getSeriesInfoRaw(seriesId), [contentService]);
 
   /** Build a series episode stream url (used by the TV detail play/continue path).
    *  Delegates without overriding ContentService's default extension. */
@@ -345,7 +348,7 @@ export function useSeries({ navigation } = {}) {
 
   return {
     // status
-    loading, error, reload: load, activeUserId,
+    loading, loaded, error, reload: load, activeUserId,
     // discover + shelves (native/web)
     discoverItems, shelves, handleShelfVisible, handleLoadMore,
     // category drill-in
