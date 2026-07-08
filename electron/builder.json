@@ -10,7 +10,8 @@
     "dist/**",
     "electron/main.js",
     "electron/preload.js",
-    "electron/vlcInvocation.js"
+    "electron/vlcInvocation.js",
+    "!node_modules/**/*"
   ],
   "directories": {
     "buildResources": "electron/assets",
