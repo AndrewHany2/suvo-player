@@ -1,6 +1,6 @@
 {
   "appId": "com.andrew1h1.iptvplayer",
-  "productName": "Lumen IPTV Player",
+  "productName": "Lumen Player",
   "asar": true,
   "afterPack": "electron/afterPack.js",
   "extraMetadata": {
