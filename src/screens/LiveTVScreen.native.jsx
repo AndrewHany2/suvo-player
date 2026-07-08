@@ -198,8 +198,8 @@ export default function LiveTVScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="tv"
-        title="No IPTV Account"
-        message='Tap "Accounts" to add your IPTV service'
+        title="No account"
+        message='Tap "Accounts" to add your media service'
         cta={() => navigation.navigate("Accounts")}
         ctaLabel="Add Account"
       />

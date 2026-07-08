@@ -572,7 +572,7 @@ export default function LiveTVScreen({ navigation }) {
         mode="error"
         icon="tv"
         title="Couldn't load channels"
-        message="Check your connection or IPTV account and try again"
+        message="Check your connection or account and try again"
         onRetry={loadChannels}
       />
     );
@@ -583,8 +583,8 @@ export default function LiveTVScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="tv"
-        title="No IPTV Account"
-        message='Tap "Accounts" to add your IPTV service'
+        title="No account"
+        message='Tap "Accounts" to add your media service'
         cta={() => navigation.navigate("Accounts")}
         ctaLabel="Add Account"
       />

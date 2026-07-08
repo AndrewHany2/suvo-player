@@ -483,7 +483,7 @@ export default function HistoryScreenTV({ navigation }) {
         <StatePanel
           mode="empty"
           icon="tv"
-          title="No IPTV Account"
+          title="No account"
           message="Add an account to start watching"
           cta={() => navigation.navigate("Accounts")}
           ctaLabel="Add Account"

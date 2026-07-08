@@ -82,7 +82,7 @@ function MainTabs() {
       headerTitleStyle: { fontWeight: "700", fontSize: 22, letterSpacing: -0.4 },
       headerRight: () => <HeaderRight />,
     }}>
-      <Tab.Screen name="LiveTV"  component={LiveTVScreen}  options={{ title: "Live TV", tabBarIcon: ({ color }) => <Icon name="tv" size={20} color={color} /> }} />
+      <Tab.Screen name="LiveTV"  component={LiveTVScreen}  options={{ title: "Live", tabBarIcon: ({ color }) => <Icon name="tv" size={20} color={color} /> }} />
       <Tab.Screen name="Movies"  component={MoviesScreen}  options={{ title: "Movies",  tabBarIcon: ({ color }) => <Icon name="film" size={20} color={color} /> }} />
       <Tab.Screen name="Series"  component={SeriesScreen}  options={{ title: "Series",  tabBarIcon: ({ color }) => <Icon name="series" size={20} color={color} /> }} />
       <Tab.Screen name="History" component={HistoryScreen} options={{ title: "History", tabBarIcon: ({ color }) => <Icon name="history" size={20} color={color} /> }} />
@@ -110,7 +110,7 @@ export default function AppNavigator() {
       <Stack.Navigator screenOptions={{ freezeOnBlur: true, headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="Main"        component={MainTabs}         options={{ headerShown: false }} />
         <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
-        <Stack.Screen name="Accounts"    component={AccountsScreen}   options={{ title: "IPTV Accounts", presentation: "modal", headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text }} />
+        <Stack.Screen name="Accounts"    component={AccountsScreen}   options={{ title: "Accounts", presentation: "modal", headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

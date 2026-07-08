@@ -354,8 +354,8 @@ export default function LiveTVScreenTV({ navigation }) {
         <StatePanel
           mode="empty"
           icon="tv"
-          title="No IPTV Account"
-          message='Open "Accounts" to add your IPTV service'
+          title="No account"
+          message='Open "Accounts" to add your media service'
           cta={() => navigation.navigate("Accounts")}
           ctaLabel="Add Account"
         />
@@ -443,7 +443,7 @@ export default function LiveTVScreenTV({ navigation }) {
   return (
     <div className="tvl-screen">
       <div className="tvl-topbar">
-        <span className="tvl-topbar-title">Live TV</span>
+        <span className="tvl-topbar-title">Live</span>
       </div>
       <div className="tvl-scroll">
         <div className={catZone === "search" && !navActive ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>

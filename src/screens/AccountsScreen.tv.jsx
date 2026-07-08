@@ -285,7 +285,7 @@ export default function AccountsScreenTV({ navigation }) {
   // ── Form view ─────────────────────────────────────────────────────────────
   if (view === "form") {
     const fields = [
-      { key: "nickname", label: "Nickname (optional)", placeholder: "My IPTV",                 type: "text",     ref: nicknameRef },
+      { key: "nickname", label: "Nickname (optional)", placeholder: "My account",                 type: "text",     ref: nicknameRef },
       { key: "host",     label: "Host *",               placeholder: "server.example.com:8080", type: "text",     ref: hostRef,     autoCapitalize: "none", autoCorrect: "off" },
       { key: "username", label: "Username *",            placeholder: "username",                type: "text",     ref: usernameRef, autoCapitalize: "none", autoCorrect: "off" },
       { key: "password", label: "Password *",            placeholder: "password",                type: "password", ref: passwordRef },
@@ -370,7 +370,7 @@ export default function AccountsScreenTV({ navigation }) {
             onClick={openAddForm}
           >
             <Icon name="plus" size={iconSizes.md} color={colors.danger} />
-            <span>Add IPTV Account</span>
+            <span>Add account</span>
           </button>
 
           {users.map((user, i) => {

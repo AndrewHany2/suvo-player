@@ -188,7 +188,7 @@ export default function AuthScreen() {
             textAlign="center"
             marginBottom={ss(4)}
           >
-            IPTV Player
+            Lumen Player
           </Text>
           <Text
             fontSize={ss(14)}

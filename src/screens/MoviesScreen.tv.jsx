@@ -396,8 +396,8 @@ export default function MoviesScreenTV({ navigation, route }) {
         <StatePanel
           mode="empty"
           icon="film"
-          title="No IPTV Account"
-          message="Add your IPTV service from Settings"
+          title="No account"
+          message="Add your media service from Settings"
           cta={() => navigation.navigate("Accounts")}
           ctaLabel="Add Account"
         />

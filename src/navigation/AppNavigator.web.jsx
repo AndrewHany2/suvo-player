@@ -127,7 +127,7 @@ if (typeof document !== "undefined") {
 
 const NAV_ITEMS = [
   { id: "home", label: "Home" },
-  { id: "live", label: "Live TV" },
+  { id: "live", label: "Live" },
   { id: "movies", label: "Movies" },
   { id: "series", label: "Series" },
 ];

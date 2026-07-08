@@ -144,7 +144,7 @@ export default function AccountsScreen({ navigation }) {
           </Text>
 
           <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Nickname (optional)</Text>
-          <Input placeholder="e.g., My IPTV Service" placeholderTextColor={colors.faint} value={formData.nickname} onChangeText={(v) => setFormData({ ...formData, nickname: v })} disabled={loading} {...inputStyle} />
+          <Input placeholder="e.g., My account" placeholderTextColor={colors.faint} value={formData.nickname} onChangeText={(v) => setFormData({ ...formData, nickname: v })} disabled={loading} {...inputStyle} />
 
           <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Server / Host *</Text>
           <Input placeholder="s1.example.com:8080" placeholderTextColor={colors.faint} value={formData.host} onChangeText={(v) => setFormData({ ...formData, host: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
@@ -186,7 +186,7 @@ export default function AccountsScreen({ navigation }) {
 
       <YStack margin={ss(16)}>
         <Button variant="primary" icon="plus" disabled={loading} onPress={handleAddNew}>
-          Add IPTV Account
+          Add account
         </Button>
       </YStack>
 
@@ -200,10 +200,10 @@ export default function AccountsScreen({ navigation }) {
         <StatePanel
           mode="empty"
           icon="tv"
-          title="No IPTV Accounts"
-          message='Tap "Add IPTV Account" to add your first IPTV service'
+          title="No accounts"
+          message='Tap "Add account" to add your first media service'
           cta={handleAddNew}
-          ctaLabel="Add IPTV Account"
+          ctaLabel="Add account"
         />
       ) : (
         <FlatList

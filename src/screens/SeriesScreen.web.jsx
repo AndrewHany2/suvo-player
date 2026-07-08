@@ -443,7 +443,7 @@ export default function SeriesScreen({ navigation }) {
       <StatePanel
         mode="error"
         title="Couldn't load series"
-        message="Check your connection or IPTV account and try again"
+        message="Check your connection or account and try again"
         onRetry={reload}
         retryLabel="Retry"
       />
@@ -455,8 +455,8 @@ export default function SeriesScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="tv"
-        title="No IPTV Account"
-        message="Add your IPTV service from Settings"
+        title="No account"
+        message="Add your media service from Settings"
         cta={() => navigation.navigate("Accounts")}
         ctaLabel="Add Account"
       />

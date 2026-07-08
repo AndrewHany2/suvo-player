@@ -741,8 +741,8 @@ export default function SeriesScreenTV({ navigation, route }) {
         <StatePanel
           mode="empty"
           icon="tv"
-          title="No IPTV Account"
-          message="Add your IPTV service from Settings"
+          title="No account"
+          message="Add your media service from Settings"
           cta={() => navigation.navigate("Accounts")}
           ctaLabel="Add Account"
         />
