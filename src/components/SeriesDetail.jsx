@@ -7,6 +7,7 @@ import { colors } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
+import DownloadButton from "../downloads/DownloadButton.jsx";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -133,6 +134,17 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
                 <Text color={colors.text} fontSize={14} numberOfLines={1}>{ep.title || "Untitled"}</Text>
                 {!!ep.info?.duration && <Text color={colors.muted} fontSize={12} marginTop={2}>{ep.info.duration}</Text>}
               </YStack>
+              <DownloadButton
+                item={{
+                  kind: "episode",
+                  seriesId,
+                  season: section.seasonNum,
+                  episode: getEpisodeNumber(ep),
+                  episodeStreamId: ep.id,
+                  title: ep.title || `S${section.seasonNum}E${getEpisodeNumber(ep)}`,
+                  ext: ep.container_extension || "mp4",
+                }}
+              />
               <Text color={colors.accent} fontSize={16}>▶</Text>
             </XStack>
           )}

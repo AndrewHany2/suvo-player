@@ -7,6 +7,7 @@ import { colors } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
+import DownloadButton from "../downloads/DownloadButton.jsx";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -142,6 +143,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
                 <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
               </YStack>
             </XStack>
+            <DownloadButton item={{ kind: "movie", streamId, title: name, poster: cover, ext: item.container_extension || "mp4" }} />
           </YStack>
         </YStack>
       </YStack>

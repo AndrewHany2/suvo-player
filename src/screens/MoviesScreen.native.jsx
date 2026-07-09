@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FlatList, useWindowDimensions } from "react-native";
 import { YStack, XStack, Text, Input, Spinner } from "../ui/primitives";
 import { useMovies } from "../domain/hooks/useMovies";
+import { useDownloads } from "../downloads/useDownloads.jsx";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import PosterCard from "../presentation/components/PosterCard.native";
@@ -89,6 +90,12 @@ export default function MoviesScreen({ navigation }) {
     selectedMovie, selectMovie, clearSelectedMovie, playVideoObject,
   } = useMovies({ navigation });
 
+  const { items: downloads } = useDownloads();
+  const [showDownloaded, setShowDownloaded] = useState(false);
+  const downloadedMovies = downloads
+    .filter((r) => r.kind === "movie")
+    .map((r) => ({ stream_id: r.id, name: r.title, stream_icon: r.poster, __download: r }));
+
   const vcfg = getShelfConfig("native");
 
   const { focusedRow, focusedCol } = useTVNavigation({
@@ -142,6 +149,17 @@ export default function MoviesScreen({ navigation }) {
               <Icon name="chevron-right" size={14} color={colors.accent} />
             </XStack>
           ))}
+          <XStack
+            alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
+            backgroundColor={accentAlpha(0.08)} borderWidth={1} borderColor={accentAlpha(0.28)}
+            borderRadius={999} onPress={() => setShowDownloaded(true)}
+          >
+            <Text color={colors.muted} fontSize={13} fontWeight="700">⬇</Text>
+            <Text color={colors.text} fontSize={12} fontWeight="600">Downloaded</Text>
+            {downloadedMovies.length > 0 && (
+              <Text color={colors.accent} fontSize={12} fontWeight="700">{downloadedMovies.length}</Text>
+            )}
+          </XStack>
         </XStack>
       </YStack>
     </YStack>
@@ -192,6 +210,22 @@ export default function MoviesScreen({ navigation }) {
             item={selectedMovie}
             onBack={clearSelectedMovie}
             onPlay={(videoObj) => { playVideoObject(videoObj); clearSelectedMovie(); }}
+          />
+        </YStack>
+      )}
+      {showDownloaded && (
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+          <CategoryPage
+            name="Downloaded"
+            items={downloadedMovies}
+            onBack={() => setShowDownloaded(false)}
+            onPlay={(it) => {
+              const rec = it.__download;
+              if (!rec) return selectMovie(it);
+              // Play straight from the local file — no network needed.
+              playVideoObject({ type: "movies", streamId: rec.id, name: rec.title, url: rec.localPath, cover: rec.poster, startTime: 0 });
+              setShowDownloaded(false);
+            }}
           />
         </YStack>
       )}
