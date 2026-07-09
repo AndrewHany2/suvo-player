@@ -39,7 +39,8 @@
     },
     "plugins": [
       "expo-video",
-      "expo-font"
+      "expo-font",
+      "@kesha-antonov/react-native-background-downloader"
     ],
     "extra": {
       "eas": {
