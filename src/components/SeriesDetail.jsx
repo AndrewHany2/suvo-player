@@ -8,6 +8,8 @@ import { useApp } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
 import DownloadButton from "../downloads/DownloadButton.jsx";
+import { useDownloads } from "../downloads/useDownloads.jsx";
+import { makeId } from "../downloads/downloadStore.js";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -35,6 +37,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
   const [episodes, setEpisodes] = useState({});
   const [showEpisodes, setShowEpisodes] = useState(false);
 
+  const { byId } = useDownloads();
   const seriesId = item.seriesId ?? item.id ?? item.series_id;
   const seriesName = item.seriesName || item.name;
   const cover = item.cover || null;
@@ -85,7 +88,11 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
 
   const handleEpisodePress = (ep, seasonNum) => {
     const epNum = getEpisodeNumber(ep);
-    const url = contentService.buildEpisodeUrl(ep.id, ep.container_extension || "mp4");
+    // Play from the local file if this episode is downloaded (works offline).
+    const rec = byId[makeId({ kind: "episode", seriesId, season: seasonNum, episode: epNum })];
+    const url = rec?.status === "done"
+      ? rec.localPath
+      : contentService.buildEpisodeUrl(ep.id, ep.container_extension || "mp4");
     onPlayEpisode({
       type: "series", streamId: ep.id, seriesId, seriesName,
       name: `${seriesName} — S${String(seasonNum).padStart(2, "0")}E${String(epNum).padStart(2, "0")}`,

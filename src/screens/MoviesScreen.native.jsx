@@ -3,6 +3,7 @@ import { FlatList, useWindowDimensions } from "react-native";
 import { YStack, XStack, Text, Input, Spinner } from "../ui/primitives";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useDownloads } from "../downloads/useDownloads.jsx";
+import { useIsOnline } from "../downloads/useIsOnline.js";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import PosterCard from "../presentation/components/PosterCard.native";
@@ -91,10 +92,14 @@ export default function MoviesScreen({ navigation }) {
   } = useMovies({ navigation });
 
   const { items: downloads } = useDownloads();
+  const online = useIsOnline();
   const [showDownloaded, setShowDownloaded] = useState(false);
   const downloadedMovies = downloads
     .filter((r) => r.kind === "movie")
     .map((r) => ({ stream_id: r.id, name: r.title, stream_icon: r.poster, __download: r }));
+
+  // When the device goes offline, auto-surface downloads (the only playable content).
+  useEffect(() => { if (!online) setShowDownloaded(true); }, [online]);
 
   const vcfg = getShelfConfig("native");
 
@@ -167,6 +172,11 @@ export default function MoviesScreen({ navigation }) {
 
   return (
     <YStack flex={1} backgroundColor={colors.bg}>
+      {!online && (
+        <YStack paddingVertical={8} paddingHorizontal={16} backgroundColor={colors.surface2} borderBottomWidth={1} borderBottomColor={colors.border}>
+          <Text color={colors.muted} fontSize={13} fontWeight="600">You're offline — showing your downloads.</Text>
+        </YStack>
+      )}
       <FlatList
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 80 }}
