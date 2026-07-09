@@ -30,74 +30,82 @@ Pure CRUD + state transitions over AsyncStorage. The single source of truth for 
 **Interfaces:**
 - Consumes: `src/utils/storage.js` (default export = AsyncStorage).
 - Produces:
-  - `makeId(item)` → string. `item` = `{ kind:'movie'|'episode', streamId?, seriesId?, season?, episode? }`. Returns `movie:<streamId>` or `ep:<seriesId>:<season>:<episode>`.
-  - `async loadAll()` → `Record<string, DownloadRecord>` (empty object if none).
-  - `async getAll()` → `DownloadRecord[]` (array form, stable order by `createdAt`).
-  - `async get(id)` → `DownloadRecord | null`.
-  - `async put(record)` → `DownloadRecord` (writes/overwrites, stamps `updatedAt`).
-  - `async patch(id, fields)` → `DownloadRecord | null` (shallow-merge, stamps `updatedAt`).
-  - `async remove(id)` → `void`.
+  - `makeId(item)` → string (standalone pure export). `item` = `{ kind:'movie'|'episode', streamId?, seriesId?, season?, episode? }`. Returns `movie:<streamId>` or `ep:<seriesId>:<season>:<episode>`.
+  - `createDownloadStore(storage)` → store object bound to an injected async storage backend (`{ getItem, setItem, removeItem }`). The store object exposes:
+    - `async loadAll()` → `Record<string, DownloadRecord>` (empty object if none).
+    - `async getAll()` → `DownloadRecord[]` (array form, stable order by `createdAt`).
+    - `async get(id)` → `DownloadRecord | null`.
+    - `async put(record)` → `DownloadRecord` (writes/overwrites, stamps `updatedAt`).
+    - `async patch(id, fields)` → `DownloadRecord | null` (shallow-merge, stamps `updatedAt`).
+    - `async remove(id)` → `void`.
+  - `downloadStore` → the app singleton = `createDownloadStore(AsyncStorage)`. This is what `useDownloads` (Task 4) imports.
   - `DownloadRecord` shape: `{ id, kind, title, poster, seriesId, season, episode, remoteUrl, localPath, ext, bytesTotal, bytesDone, status, error, createdAt, updatedAt }`. `status` ∈ `'queued'|'downloading'|'paused'|'done'|'error'`.
 - Storage key constant: `STORAGE_KEY = 'suvo.downloads.v1'` (whole collection stored as one JSON blob).
+
+> **Test infrastructure (controller amendment):** This repo runs `node --test`
+> on ESM `.js` files (auto-detected on Node 20.19+); every existing test uses
+> `import { test } from 'node:test'`. There is **no** module mocking —
+> dependencies are injected (see `useResilientPlayback`/`expoVideoDriver` tests).
+> A `require.cache` shim CANNOT intercept an ESM `import` (proven), and the real
+> AsyncStorage has no node backend. Therefore `downloadStore` exposes a
+> `createDownloadStore(storage)` **factory** (storage injected → testable with an
+> in-memory fake) plus a real singleton `downloadStore` bound to AsyncStorage for
+> the app. `makeId` stays a standalone pure export.
 
 - [ ] **Step 1: Write the failing test**
 
 ```js
 // src/downloads/downloadStore.test.js
-const test = require('node:test');
-const assert = require('node:assert');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { makeId, createDownloadStore } from './downloadStore.js';
 
-// In-memory AsyncStorage mock installed before requiring the module under test.
-const mem = new Map();
-require.cache[require.resolve('../utils/storage.js')] = {
-  id: require.resolve('../utils/storage.js'),
-  loaded: true,
-  exports: {
+// In-memory AsyncStorage fake (same 3-method surface downloadStore uses).
+function memStorage() {
+  const mem = new Map();
+  return {
     getItem: async (k) => (mem.has(k) ? mem.get(k) : null),
     setItem: async (k, v) => { mem.set(k, v); },
     removeItem: async (k) => { mem.delete(k); },
-  },
-};
-
-const store = require('./downloadStore.js');
-
-test.beforeEach(() => mem.clear());
+  };
+}
 
 test('makeId builds stable movie and episode ids', () => {
-  assert.strictEqual(store.makeId({ kind: 'movie', streamId: 42 }), 'movie:42');
-  assert.strictEqual(
-    store.makeId({ kind: 'episode', seriesId: 7, season: 2, episode: 5 }),
-    'ep:7:2:5',
-  );
+  assert.equal(makeId({ kind: 'movie', streamId: 42 }), 'movie:42');
+  assert.equal(makeId({ kind: 'episode', seriesId: 7, season: 2, episode: 5 }), 'ep:7:2:5');
 });
 
 test('put then get round-trips and stamps updatedAt', async () => {
+  const store = createDownloadStore(memStorage());
   const rec = await store.put({ id: 'movie:1', kind: 'movie', title: 'A', status: 'queued', createdAt: 1 });
-  assert.strictEqual(rec.id, 'movie:1');
-  assert.ok(typeof rec.updatedAt === 'number');
+  assert.equal(rec.id, 'movie:1');
+  assert.equal(typeof rec.updatedAt, 'number');
   const got = await store.get('movie:1');
-  assert.strictEqual(got.title, 'A');
+  assert.equal(got.title, 'A');
 });
 
 test('patch shallow-merges existing record', async () => {
+  const store = createDownloadStore(memStorage());
   await store.put({ id: 'movie:1', kind: 'movie', title: 'A', status: 'queued', createdAt: 1 });
   const patched = await store.patch('movie:1', { status: 'downloading', bytesDone: 10 });
-  assert.strictEqual(patched.status, 'downloading');
-  assert.strictEqual(patched.bytesDone, 10);
-  assert.strictEqual(patched.title, 'A');
+  assert.equal(patched.status, 'downloading');
+  assert.equal(patched.bytesDone, 10);
+  assert.equal(patched.title, 'A');
 });
 
 test('patch returns null for missing id', async () => {
-  assert.strictEqual(await store.patch('nope', { status: 'done' }), null);
+  const store = createDownloadStore(memStorage());
+  assert.equal(await store.patch('nope', { status: 'done' }), null);
 });
 
 test('getAll returns array ordered by createdAt; remove deletes', async () => {
+  const store = createDownloadStore(memStorage());
   await store.put({ id: 'b', kind: 'movie', title: 'B', createdAt: 2 });
   await store.put({ id: 'a', kind: 'movie', title: 'A', createdAt: 1 });
   const all = await store.getAll();
-  assert.deepStrictEqual(all.map((r) => r.id), ['a', 'b']);
+  assert.deepEqual(all.map((r) => r.id), ['a', 'b']);
   await store.remove('a');
-  assert.strictEqual((await store.getAll()).length, 1);
+  assert.equal((await store.getAll()).length, 1);
 });
 ```
 
@@ -114,62 +122,76 @@ import AsyncStorage from '../utils/storage.js';
 
 export const STORAGE_KEY = 'suvo.downloads.v1';
 
+/** Pure, standalone — no storage needed. */
 export function makeId(item) {
   if (item.kind === 'movie') return `movie:${item.streamId}`;
   return `ep:${item.seriesId}:${item.season}:${item.episode}`;
 }
 
-export async function loadAll() {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
+/**
+ * Build a metadata store over an injected async storage backend exposing
+ * getItem/setItem/removeItem (AsyncStorage in the app; an in-memory fake in
+ * tests). The whole collection is one JSON blob under STORAGE_KEY.
+ */
+export function createDownloadStore(storage) {
+  async function loadAll() {
+    const raw = await storage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
   }
+
+  async function saveAll(map) {
+    await storage.setItem(STORAGE_KEY, JSON.stringify(map));
+  }
+
+  return {
+    loadAll,
+    async getAll() {
+      const map = await loadAll();
+      return Object.values(map).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    },
+    async get(id) {
+      const map = await loadAll();
+      return map[id] || null;
+    },
+    async put(record) {
+      const map = await loadAll();
+      const now = Date.now();
+      const next = { createdAt: now, ...map[record.id], ...record, updatedAt: now };
+      map[record.id] = next;
+      await saveAll(map);
+      return next;
+    },
+    async patch(id, fields) {
+      const map = await loadAll();
+      if (!map[id]) return null;
+      const next = { ...map[id], ...fields, updatedAt: Date.now() };
+      map[id] = next;
+      await saveAll(map);
+      return next;
+    },
+    async remove(id) {
+      const map = await loadAll();
+      delete map[id];
+      await saveAll(map);
+    },
+  };
 }
 
-async function saveAll(map) {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-}
-
-export async function getAll() {
-  const map = await loadAll();
-  return Object.values(map).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-}
-
-export async function get(id) {
-  const map = await loadAll();
-  return map[id] || null;
-}
-
-export async function put(record) {
-  const map = await loadAll();
-  const now = Date.now();
-  const next = { createdAt: now, ...map[record.id], ...record, updatedAt: now };
-  map[record.id] = next;
-  await saveAll(map);
-  return next;
-}
-
-export async function patch(id, fields) {
-  const map = await loadAll();
-  if (!map[id]) return null;
-  const next = { ...map[id], ...fields, updatedAt: Date.now() };
-  map[id] = next;
-  await saveAll(map);
-  return next;
-}
-
-export async function remove(id) {
-  const map = await loadAll();
-  delete map[id];
-  await saveAll(map);
-}
+/** The app-wide singleton bound to real AsyncStorage. */
+export const downloadStore = createDownloadStore(AsyncStorage);
 ```
 
-Note: `put` uses `Date.now()`; the test passes explicit `createdAt` and only asserts `updatedAt` is a number, so this is deterministic enough. Keep `createdAt` spread-precedence so an existing record's `createdAt` is preserved on overwrite.
+Notes: `put` uses `Date.now()`; the test passes explicit `createdAt` and only
+asserts `updatedAt` is a number, so this is deterministic enough. Keep
+`createdAt` spread-precedence so an existing record's `createdAt` is preserved on
+overwrite. Importing this module under node loads AsyncStorage (the singleton
+closes over it without calling any method), so the ESM test imports cleanly.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -204,37 +226,37 @@ Builds the Xtream remote file URL and the local target path for a content item. 
 
 ```js
 // src/downloads/downloadUri.test.js
-const test = require('node:test');
-const assert = require('node:assert');
-const { remoteUrlFor, localPathFor, DEFAULT_EXT } = require('./downloadUri.js');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { remoteUrlFor, localPathFor, DEFAULT_EXT } from './downloadUri.js';
 
 const api = {
   buildStreamUrl: (type, id, ext) => `http://host/${type}/u/p/${id}.${ext}`,
 };
 
 test('remoteUrlFor builds movie url', () => {
-  assert.strictEqual(
+  assert.equal(
     remoteUrlFor(api, { kind: 'movie', streamId: 42, ext: 'mkv' }),
     'http://host/movie/u/p/42.mkv',
   );
 });
 
 test('remoteUrlFor builds episode url from episodeStreamId', () => {
-  assert.strictEqual(
+  assert.equal(
     remoteUrlFor(api, { kind: 'episode', episodeStreamId: 99, ext: 'mp4' }),
     'http://host/series/u/p/99.mp4',
   );
 });
 
 test('localPathFor sanitizes id and joins under downloads dir', () => {
-  assert.strictEqual(
+  assert.equal(
     localPathFor('ep:7:2:5', 'mp4', 'file:///docs/'),
     'file:///docs/downloads/ep_7_2_5.mp4',
   );
 });
 
 test('DEFAULT_EXT is mp4', () => {
-  assert.strictEqual(DEFAULT_EXT, 'mp4');
+  assert.equal(DEFAULT_EXT, 'mp4');
 });
 ```
 
@@ -297,23 +319,23 @@ Define the engine-agnostic contract (JSDoc typedefs) all callers use, plus a fak
 
 ```js
 // src/downloads/fakeDownloadManager.test.js
-const test = require('node:test');
-const assert = require('node:assert');
-const { createFakeDownloadManager } = require('./fakeDownloadManager.js');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createFakeDownloadManager } from './fakeDownloadManager.js';
 
 test('fake records starts and forwards emitted events to subscribers', () => {
   const mgr = createFakeDownloadManager();
   const events = [];
   const unsub = mgr.subscribe((e) => events.push(e));
   mgr.start({ id: 'movie:1', url: 'http://x/1.mp4', localPath: '/d/1.mp4' });
-  assert.deepStrictEqual(mgr.started, ['movie:1']);
+  assert.deepEqual(mgr.started, ['movie:1']);
   mgr.emit({ id: 'movie:1', type: 'progress', bytesDone: 5, bytesTotal: 10 });
   mgr.emit({ id: 'movie:1', type: 'done' });
-  assert.strictEqual(events.length, 2);
-  assert.strictEqual(events[1].type, 'done');
+  assert.equal(events.length, 2);
+  assert.equal(events[1].type, 'done');
   unsub();
   mgr.emit({ id: 'movie:1', type: 'progress' });
-  assert.strictEqual(events.length, 2); // no delivery after unsubscribe
+  assert.equal(events.length, 2); // no delivery after unsubscribe
 });
 
 test('fake freeBytes resolves a large number', async () => {
@@ -390,72 +412,83 @@ git commit -m "feat(downloads): DownloadManager contract + test fake"
 
 ---
 
-### Task 4: `useDownloads` hook + context
+### Task 4: event reducer (`downloadReducer`) + `useDownloads` hook/provider
 
-React host that binds a `DownloadManager` to `downloadStore`: reduces manager events into persisted records and exposes actions. Its state logic is what the tests exercise (against the fake); the native manager is injected.
+React host that binds a `DownloadManager` to the `downloadStore` singleton:
+reduces manager events into persisted records and exposes actions. The pure
+event reducer is what the tests exercise; the provider is JSX.
+
+> **Structure (controller amendment):** JSX may not live in a `.js` file that a
+> `node --test` file imports — node cannot parse JSX (repo convention: JSX is
+> `.jsx`-only, and no provider is unit-tested here). So the pure reducer lives in
+> its own `downloadReducer.js` (tested), and the provider/hook live in
+> `useDownloads.jsx` (JSX, not unit-tested — verified on-device in Task 10).
+> Consumers import the hook from `./useDownloads.jsx`.
 
 **Files:**
-- Create: `src/downloads/useDownloads.js`
-- Test: `src/downloads/useDownloads.test.js`
+- Create: `src/downloads/downloadReducer.js` (pure `applyEvent`)
+- Test: `src/downloads/downloadReducer.test.js`
+- Create: `src/downloads/useDownloads.jsx` (provider + hook, JSX, no unit test)
 
 **Interfaces:**
-- Consumes: `downloadStore` (Task 1: `makeId,get,getAll,put,patch,remove`), `downloadUri` (Task 2: `remoteUrlFor,localPathFor`), a `DownloadManager` (Task 3 contract).
+- Consumes: `downloadStore` singleton + `makeId` (Task 1), `downloadUri` (Task 2: `remoteUrlFor,localPathFor`), a `DownloadManager` (Task 3 contract).
 - Produces:
-  - `applyEvent(records, event)` — **pure** reducer, exported for testing: given the current `Record<id,DownloadRecord>` map and a `DownloadEvent`, returns the next map (progress → update `bytesDone`/`bytesTotal`/`status:'downloading'`; done → `status:'done'`, `bytesDone=bytesTotal`; error → `status:'error'`, `error` set). Unknown id → returns map unchanged.
-  - `DownloadsProvider({ manager, api, documentDirectory, children })` — React context provider.
+  - `applyEvent(records, event)` (from `downloadReducer.js`) — **pure** reducer, exported for testing: given the current `Record<id,DownloadRecord>` map and a `DownloadEvent`, returns the next map (progress → update `bytesDone`/`bytesTotal`/`status:'downloading'`; done → `status:'done'`, `bytesDone=bytesTotal`; error → `status:'error'`, `error` set). Unknown id → returns map unchanged (same reference).
+  - `DownloadsProvider({ manager, api, documentDirectory, children })` (from `useDownloads.jsx`) — React context provider.
   - `useDownloads()` → `{ items, byId, start(item), pause(id), resume(id), cancel(id), remove(id), isDownloaded(id) }`.
-  - `start(item)`: compute `id=makeId(item)`; if a record exists with status `done`/`downloading` → no-op; free-space pre-flight via `manager.freeBytes()` (skip enforcement when `bytesTotal` unknown); write `queued` record via `downloadStore.put`; call `manager.start({id,url,localPath})`.
+  - `start(item)`: compute `id=makeId(item)`; if a record exists with status `done`/`downloading` → no-op; write `queued` record via `downloadStore.put`; call `manager.start({id,url,localPath})`.
 
 - [ ] **Step 1: Write the failing test** (reducer only — pure, no React renderer needed)
 
 ```js
-// src/downloads/useDownloads.test.js
-const test = require('node:test');
-const assert = require('node:assert');
-const { applyEvent } = require('./useDownloads.js');
+// src/downloads/downloadReducer.test.js
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { applyEvent } from './downloadReducer.js';
 
 const base = { 'movie:1': { id: 'movie:1', status: 'queued', bytesDone: 0, bytesTotal: 0 } };
 
 test('progress event updates bytes and marks downloading', () => {
   const next = applyEvent(base, { id: 'movie:1', type: 'progress', bytesDone: 3, bytesTotal: 10 });
-  assert.strictEqual(next['movie:1'].status, 'downloading');
-  assert.strictEqual(next['movie:1'].bytesDone, 3);
-  assert.strictEqual(next['movie:1'].bytesTotal, 10);
+  assert.equal(next['movie:1'].status, 'downloading');
+  assert.equal(next['movie:1'].bytesDone, 3);
+  assert.equal(next['movie:1'].bytesTotal, 10);
 });
 
 test('done event marks done and fills bytesDone', () => {
   const withTotal = { 'movie:1': { ...base['movie:1'], bytesTotal: 10 } };
   const next = applyEvent(withTotal, { id: 'movie:1', type: 'done' });
-  assert.strictEqual(next['movie:1'].status, 'done');
-  assert.strictEqual(next['movie:1'].bytesDone, 10);
+  assert.equal(next['movie:1'].status, 'done');
+  assert.equal(next['movie:1'].bytesDone, 10);
 });
 
 test('error event marks error with message', () => {
   const next = applyEvent(base, { id: 'movie:1', type: 'error', error: 'boom' });
-  assert.strictEqual(next['movie:1'].status, 'error');
-  assert.strictEqual(next['movie:1'].error, 'boom');
+  assert.equal(next['movie:1'].status, 'error');
+  assert.equal(next['movie:1'].error, 'boom');
 });
 
 test('unknown id leaves map unchanged (same reference)', () => {
   const next = applyEvent(base, { id: 'ghost', type: 'progress', bytesDone: 1 });
-  assert.strictEqual(next, base);
+  assert.equal(next, base);
 });
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node --test src/downloads/useDownloads.test.js`
+Run: `node --test src/downloads/downloadReducer.test.js`
 Expected: FAIL — cannot find module / `applyEvent` undefined.
 
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **Step 3: Write the pure reducer**
 
 ```js
-// src/downloads/useDownloads.js
-import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
-import * as storeApi from './downloadStore.js';
-import { remoteUrlFor, localPathFor } from './downloadUri.js';
-
-/** Pure reducer over the id→record map. Exported for tests. */
+// src/downloads/downloadReducer.js
+/**
+ * Pure reducer over the id→record map. No React, no I/O — exported for tests
+ * and consumed by the provider in useDownloads.jsx.
+ * @param {Record<string, any>} records
+ * @param {import('./DownloadManager.js').DownloadEvent} event
+ */
 export function applyEvent(records, event) {
   const cur = records[event.id];
   if (!cur) return records;
@@ -476,6 +509,21 @@ export function applyEvent(records, event) {
   }
   return { ...records, [event.id]: updated };
 }
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `node --test src/downloads/downloadReducer.test.js`
+Expected: PASS (4 tests).
+
+- [ ] **Step 5: Write the provider + hook (JSX, not unit-tested)**
+
+```jsx
+// src/downloads/useDownloads.jsx
+import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
+import { downloadStore, makeId } from './downloadStore.js';
+import { remoteUrlFor, localPathFor } from './downloadUri.js';
+import { applyEvent } from './downloadReducer.js';
 
 const DownloadsContext = createContext(null);
 
@@ -488,7 +536,7 @@ export function DownloadsProvider({ manager, api, documentDirectory, children })
   useEffect(() => {
     let alive = true;
     (async () => {
-      const map = await storeApi.loadAll();
+      const map = await downloadStore.loadAll();
       if (alive) setById(map);
       await manager.reattach();
     })();
@@ -500,7 +548,7 @@ export function DownloadsProvider({ manager, api, documentDirectory, children })
     const unsub = manager.subscribe((event) => {
       setById((prev) => {
         const next = applyEvent(prev, event);
-        if (next !== prev && next[event.id]) storeApi.put(next[event.id]);
+        if (next !== prev && next[event.id]) downloadStore.put(next[event.id]);
         return next;
       });
     });
@@ -508,7 +556,7 @@ export function DownloadsProvider({ manager, api, documentDirectory, children })
   }, [manager]);
 
   const start = useCallback(async (item) => {
-    const id = storeApi.makeId(item);
+    const id = makeId(item);
     const existing = byIdRef.current[id];
     if (existing && (existing.status === 'done' || existing.status === 'downloading')) return;
     const url = remoteUrlFor(api, item);
@@ -519,7 +567,7 @@ export function DownloadsProvider({ manager, api, documentDirectory, children })
       remoteUrl: url, localPath, ext: item.ext || 'mp4',
       bytesTotal: 0, bytesDone: 0, status: 'queued', createdAt: Date.now(),
     };
-    const saved = await storeApi.put(record);
+    const saved = await downloadStore.put(record);
     setById((prev) => ({ ...prev, [id]: saved }));
     manager.start({ id, url, localPath });
   }, [api, documentDirectory, manager]);
@@ -528,7 +576,7 @@ export function DownloadsProvider({ manager, api, documentDirectory, children })
   const resume = useCallback((id) => manager.resume(id), [manager]);
   const cancel = useCallback(async (id) => {
     manager.cancel(id);
-    await storeApi.remove(id);
+    await downloadStore.remove(id);
     setById((prev) => { const n = { ...prev }; delete n[id]; return n; });
   }, [manager]);
   const remove = cancel;
@@ -549,16 +597,16 @@ export function useDownloads() {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 6: Verify lint + full suite**
 
-Run: `node --test src/downloads/useDownloads.test.js`
-Expected: PASS (4 tests).
+Run: `npm run lint && npm test`
+Expected: lint clean; `downloadReducer.test.js` passes (4 tests) with the rest of the suite. (The provider JSX is exercised on-device in Task 10.)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/downloads/useDownloads.js src/downloads/useDownloads.test.js
-git commit -m "feat(downloads): useDownloads hook + context with pure event reducer"
+git add src/downloads/downloadReducer.js src/downloads/downloadReducer.test.js src/downloads/useDownloads.jsx
+git commit -m "feat(downloads): pure event reducer + useDownloads provider/hook"
 ```
 
 ---
@@ -669,18 +717,18 @@ Small hook reusing the lazy-NetInfo pattern already in `useResilientPlayback.js:
 
 ```js
 // src/downloads/useIsOnline.test.js
-const test = require('node:test');
-const assert = require('node:assert');
-const { deriveOnline } = require('./useIsOnline.js');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { deriveOnline } from './useIsOnline.js';
 
 test('online when neither flag is explicitly false', () => {
-  assert.strictEqual(deriveOnline({ isConnected: true, isInternetReachable: true }), true);
-  assert.strictEqual(deriveOnline({}), true); // unknown → assume online
+  assert.equal(deriveOnline({ isConnected: true, isInternetReachable: true }), true);
+  assert.equal(deriveOnline({}), true); // unknown → assume online
 });
 
 test('offline when connected is false or internet unreachable', () => {
-  assert.strictEqual(deriveOnline({ isConnected: false }), false);
-  assert.strictEqual(deriveOnline({ isConnected: true, isInternetReachable: false }), false);
+  assert.equal(deriveOnline({ isConnected: false }), false);
+  assert.equal(deriveOnline({ isConnected: true, isInternetReachable: false }), false);
 });
 ```
 
@@ -761,7 +809,7 @@ Expected: identifies the native root component (e.g. `AppNavigator.native.jsx` o
 // src/downloads/DownloadButton.jsx
 import React, { useCallback } from 'react';
 import { Pressable, Text, ActivityIndicator, Alert, StyleSheet } from 'react-native';
-import { useDownloads } from './useDownloads.js';
+import { useDownloads } from './useDownloads.jsx';
 import { makeId } from './downloadStore.js';
 
 export default function DownloadButton({ item }) {
@@ -894,7 +942,7 @@ useEffect(() => { if (!online) setShowDownloaded(true); }, [online]);
 
 At the native playback launch (where the stream URL is currently computed), branch:
 ```jsx
-import { useDownloads } from '../downloads/useDownloads.js';
+import { useDownloads } from '../downloads/useDownloads.jsx';
 import { makeId } from '../downloads/downloadStore.js';
 const { byId } = useDownloads();
 const rec = byId[makeId(item)];
