@@ -101,7 +101,12 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
   };
 
   const handleContinue = () => {
-    const url = historyEntry.url || contentService.buildEpisodeUrl(historyEntry.streamId, "mp4");
+    // Prefer the local file when this episode is downloaded (works offline);
+    // otherwise the saved remote URL, then a freshly-built one.
+    const rec = byId[makeId({ kind: "episode", seriesId, season: historyEntry.seasonNum, episode: historyEntry.episodeNum })];
+    const url = rec?.status === "done"
+      ? rec.localPath
+      : (historyEntry.url || contentService.buildEpisodeUrl(historyEntry.streamId, "mp4"));
     onPlayEpisode({ ...historyEntry, url, startTime: historyEntry.currentTime || 0 });
   };
 
