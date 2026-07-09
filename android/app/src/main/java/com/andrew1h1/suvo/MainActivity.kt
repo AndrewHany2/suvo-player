@@ -1,4 +1,4 @@
-package com.andrew1h1.lumenplayer
+package com.andrew1h1.suvo
 
 import android.os.Build
 import android.os.Bundle

@@ -133,7 +133,7 @@ function Shelf({
           cursor="pointer"
           onPress={() => onTitlePress?.(catId, title)}
           pressStyle={{ opacity: 0.8 }}
-          {...{ className: "lumen-shelf-title-btn" }}
+          {...{ className: "suvo-shelf-title-btn" }}
         >
           <Text
             color={colors.text}
@@ -157,8 +157,8 @@ function Shelf({
           <Spinner size="small" color={colors.accent} />
         </YStack>
       ) : (
-        <div style={{ position: "relative" }} className="lumen-shelf-rail">
-          <button className="lumen-shelf-nav" onClick={() => scrollBy(-800)} aria-label="Scroll left">
+        <div style={{ position: "relative" }} className="suvo-shelf-rail">
+          <button className="suvo-shelf-nav" onClick={() => scrollBy(-800)} aria-label="Scroll left">
             <span style={{ display: "inline-block", transform: "rotate(180deg)" }}>
               <Icon name="chevron-right" size={ss(22)} color={colors.text} />
             </span>
@@ -207,7 +207,7 @@ function Shelf({
             )}
           </div>
           <button
-            className="lumen-shelf-nav right"
+            className="suvo-shelf-nav right"
             onClick={() => scrollBy(800)}
             aria-label="Scroll right"
           >

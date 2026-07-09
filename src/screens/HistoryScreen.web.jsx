@@ -99,7 +99,7 @@ function MyListCard({ item, onPress, onRemove }) {
       cursor="pointer"
       onPress={onPress}
       pressStyle={{ opacity: 0.8 }}
-      {...{ className: "lumen-poster" }}
+      {...{ className: "suvo-poster" }}
     >
       <YStack
         width={ss(200)}
@@ -110,7 +110,7 @@ function MyListCard({ item, onPress, onRemove }) {
         position="relative"
         borderWidth={1}
         borderColor={colors.border}
-        {...{ className: "lumen-poster-box" }}
+        {...{ className: "suvo-poster-box" }}
       >
         {poster ? (
           <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
@@ -205,7 +205,7 @@ function CWCard({ item, onPress, onRemove }) {
       cursor="pointer"
       onPress={onPress}
       pressStyle={{ opacity: 0.85 }}
-      {...{ className: "lumen-cw-card" }}
+      {...{ className: "suvo-cw-card" }}
     >
       <YStack
         width={ss(320)}
@@ -216,7 +216,7 @@ function CWCard({ item, onPress, onRemove }) {
         position="relative"
         borderWidth={1}
         borderColor={colors.border}
-        {...{ className: "lumen-poster-box" }}
+        {...{ className: "suvo-poster-box" }}
       >
         {bg ? (
           <Image source={{ uri: bg }} style={FILL} resizeMode="cover" />
@@ -259,7 +259,7 @@ function CWCard({ item, onPress, onRemove }) {
         >
           <Icon name="close" size={ss(11)} color={colors.text} />
         </YStack>
-        <div className="lumen-cw-play">
+        <div className="suvo-cw-play">
           <Icon name="play" size={ss(28)} color={colors.text} />
         </div>
         <YStack
@@ -399,9 +399,9 @@ export default function HistoryScreen({ navigation }) {
           >
             My List
           </Text>
-          <div style={{ position: "relative" }} className="lumen-shelf-rail">
+          <div style={{ position: "relative" }} className="suvo-shelf-rail">
             <button
-              className="lumen-shelf-nav"
+              className="suvo-shelf-nav"
               onClick={() => fav$.scrollBy(-800)}
               aria-label="Scroll left"
             >
@@ -434,7 +434,7 @@ export default function HistoryScreen({ navigation }) {
               ))}
             </div>
             <button
-              className="lumen-shelf-nav right"
+              className="suvo-shelf-nav right"
               onClick={() => fav$.scrollBy(800)}
               aria-label="Scroll right"
             >
@@ -457,9 +457,9 @@ export default function HistoryScreen({ navigation }) {
           >
             Continue Watching
           </Text>
-          <div style={{ position: "relative" }} className="lumen-shelf-rail">
+          <div style={{ position: "relative" }} className="suvo-shelf-rail">
             <button
-              className="lumen-shelf-nav"
+              className="suvo-shelf-nav"
               onClick={() => cw$.scrollBy(-800)}
               aria-label="Scroll left"
             >
@@ -492,7 +492,7 @@ export default function HistoryScreen({ navigation }) {
               ))}
             </div>
             <button
-              className="lumen-shelf-nav right"
+              className="suvo-shelf-nav right"
               onClick={() => cw$.scrollBy(800)}
               aria-label="Scroll right"
             >

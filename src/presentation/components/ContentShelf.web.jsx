@@ -103,7 +103,7 @@ export default function ContentShelf({
     <div style={{ paddingTop: ss(28), paddingBottom: ss(8) }}>
       <div ref={sentinelRef} style={{ height: 0 }} />
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", paddingLeft: ss(48), paddingRight: ss(48), marginBottom: ss(14) }}>
-        <div className="lumen-shelf-title-btn" style={{ display: "flex", alignItems: "center", gap: ss(4), cursor: "pointer" }} onClick={() => onTitlePress?.()}>
+        <div className="suvo-shelf-title-btn" style={{ display: "flex", alignItems: "center", gap: ss(4), cursor: "pointer" }} onClick={() => onTitlePress?.()}>
           <span style={{ color: colors.text, fontSize: ss(22), fontWeight: fontWeights.bold, letterSpacing: -0.3, fontFamily: fonts.display }}>
             {title}
           </span>
@@ -123,14 +123,14 @@ export default function ContentShelf({
           ))}
         </div>
       ) : (
-        <div style={{ position: "relative" }} className="lumen-shelf-rail">
+        <div style={{ position: "relative" }} className="suvo-shelf-rail">
           {!isTV() && (
             <>
               <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: ss(48), zIndex: 3, pointerEvents: "none", background: `linear-gradient(to right, ${colors.bg}, transparent)` }} />
               <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: ss(48), zIndex: 3, pointerEvents: "none", background: `linear-gradient(to left, ${colors.bg}, transparent)` }} />
             </>
           )}
-          <button className="lumen-shelf-nav" onClick={() => scrollBy(-800)} aria-label="Scroll left">
+          <button className="suvo-shelf-nav" onClick={() => scrollBy(-800)} aria-label="Scroll left">
             <Icon name="chevron-right" size={ss(28)} color={colors.text} style={{ transform: "rotate(180deg)" }} />
           </button>
           <div
@@ -150,7 +150,7 @@ export default function ContentShelf({
               </div>
             )}
           </div>
-          <button className="lumen-shelf-nav right" onClick={() => scrollBy(800)} aria-label="Scroll right">
+          <button className="suvo-shelf-nav right" onClick={() => scrollBy(800)} aria-label="Scroll right">
             <Icon name="chevron-right" size={ss(28)} color={colors.text} />
           </button>
         </div>

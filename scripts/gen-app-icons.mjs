@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// Rasterize the Lumen SVG mark into every platform's PNG icon assets.
-// Source of truth: assets/lumen-mark-*.svg (equalizer bars + orb, brand gradient).
+// Rasterize the Suvo SVG mark into every platform's PNG icon assets.
+// Source of truth: assets/suvo-mark-*.svg (equalizer bars + orb, brand gradient).
 // Run: node scripts/gen-app-icons.mjs
 import sharp from 'sharp';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SVG = path.join(ROOT, 'assets', 'lumen-mark-2048.svg'); // highest-res source
+const SVG = path.join(ROOT, 'assets', 'suvo-mark-2048.svg'); // highest-res source
 const BG = '#0f0f23'; // matches app.json splash + adaptive backgroundColor
 
 const p = (...a) => path.join(ROOT, ...a);

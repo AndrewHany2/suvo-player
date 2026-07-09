@@ -4,7 +4,7 @@ dist-electron/
 release/
 *.log
 .DS_Store
-lumen-player-win32-x64
+suvo-win32-x64
 .env
 .env.local
 .claude
@@ -88,3 +88,6 @@ web-build/
 /actionlint
 tv/packaging/samsung/author-signature.xml
 tv/packaging/samsung/signature1.xml
+
+# Office temp lock files
+~$*

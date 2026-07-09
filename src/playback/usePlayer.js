@@ -34,7 +34,7 @@ import {
 import storage from "../utils/storage";
 
 /** Namespaced storage key remembering the last live channel stream_id. */
-const LAST_CHANNEL_KEY = "lumen_last_live_channel";
+const LAST_CHANNEL_KEY = "suvo_last_live_channel";
 
 export const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 export const ASPECT_RATIOS = [
@@ -129,7 +129,7 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
   const [selectedSubtitle, setSelectedSubtitle] = useState(-1);
   const [aspectRatio, setAspectRatio] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem("lumen_settings") || "{}").defaultAspect || "default";
+      return JSON.parse(localStorage.getItem("suvo_settings") || "{}").defaultAspect || "default";
     } catch { return "default"; }
   });
 
@@ -975,7 +975,7 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     let el = cueStyleElRef.current;
     if (!el) {
       el = document.createElement("style");
-      el.setAttribute("data-lumen-cue", "1");
+      el.setAttribute("data-suvo-cue", "1");
       document.head.appendChild(el);
       cueStyleElRef.current = el;
     }
@@ -1123,13 +1123,13 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     return () => clearInterval(id);
   }, [showStats]);
 
-  // Persist aspect-ratio choice to localStorage (lumen_settings.defaultAspect).
+  // Persist aspect-ratio choice to localStorage (suvo_settings.defaultAspect).
   useEffect(() => {
     try {
-      const s = JSON.parse(localStorage.getItem("lumen_settings") || "{}");
+      const s = JSON.parse(localStorage.getItem("suvo_settings") || "{}");
       if (s.defaultAspect !== aspectRatio) {
         localStorage.setItem(
-          "lumen_settings",
+          "suvo_settings",
           JSON.stringify({ ...s, defaultAspect: aspectRatio }),
         );
       }

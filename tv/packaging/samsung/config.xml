@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Samsung Tizen TV widget manifest. Mirrors the webOS appinfo.json in
-     ../lg. The package id (LumenPlayr, 10 alphanumeric chars) is bound to the
+     ../lg. The package id (SuvoPlayer, 10 alphanumeric chars) is bound to the
      signing author certificate; keep it stable so TV in-place updates work.
      Signed self-serve for Developer-Mode sideload (public distributor). -->
 <widget xmlns="http://www.w3.org/ns/widgets"
         xmlns:tizen="http://tizen.org/ns/widgets"
-        id="http://andrew1h1.com/lumenplayer"
+        id="http://andrew1h1.com/suvo"
         version="1.0.0"
         viewmodes="maximized">
-  <tizen:application id="LumenPlayr.Lumen"
-                     package="LumenPlayr"
+  <tizen:application id="SuvoPlayer.Suvo"
+                     package="SuvoPlayer"
                      required_version="6.0"/>
   <content src="index.html"/>
   <icon src="icon.png"/>
-  <name>Lumen Player</name>
+  <name>Suvo</name>
   <author>Andrew Hany</author>
   <tizen:profile name="tv"/>
   <feature name="http://tizen.org/feature/screen.size.all"/>
