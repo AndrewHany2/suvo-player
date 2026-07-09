@@ -1,4 +1,4 @@
-# Lumen Player
+# Suvo
 
 A cross-platform media player built with Expo and React Native. One codebase
 targets iOS, Android, desktop (Electron), the web, and TV (LG webOS + Samsung

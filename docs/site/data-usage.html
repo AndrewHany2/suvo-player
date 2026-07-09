@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suvo — Data Usage</title>
+<meta name="description" content="Exactly what data Suvo collects, why, where it is stored, and what it is never used for.">
+<meta name="theme-color" content="#0A0E1A">
+<link rel="icon" href="./assets/suvo-mark-512.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<a href="#main" class="skip">Skip to content</a>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="./index.html" aria-label="Suvo home"><img src="./assets/suvo-logo.svg" alt="Suvo"></a>
+    <div class="nav-links">
+      <a href="./privacy.html">Privacy</a>
+      <a href="./data-usage.html">Data Usage</a>
+      <a href="./terms.html">Terms</a>
+      <a href="./support.html">Support</a>
+    </div>
+  </div>
+</nav>
+
+<main id="main" class="doc">
+  <a class="doc-back" href="./index.html">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+    Back to Suvo
+  </a>
+
+  <div class="doc-head">
+    <h1>Data Usage</h1>
+    <p class="updated">Suvo · Last updated 8 July 2026</p>
+  </div>
+
+  <p>This page is the plain-language companion to our <a href="./privacy.html">Privacy Policy</a> — a straight answer to “what data does Suvo actually collect, and what happens to it?” It also mirrors what we declare in the Apple App Privacy and Google Play Data Safety forms.</p>
+
+  <div class="callout"><p><strong>None of your data is used for advertising, tracking, or profiling, and none of it is sold or shared with data brokers.</strong> Suvo collects only what it needs to play your playlist and, if you opt in, sync your own data across your devices.</p></div>
+
+  <h2>What Suvo collects and why</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Data</th><th>Why it’s used</th><th>Sold or shared?</th><th>Used to track you?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Playlist connection details<br><span style="color:var(--faint);font-weight:400;font-size:13px">(Xtream host/username/password, or M3U URL)</span></td>
+          <td>To fetch and play <em>your</em> playlist. Stored on device; synced to your account only if you sign in.</td>
+          <td><span class="pill no">No</span></td>
+          <td><span class="pill no">No</span></td>
+        </tr>
+        <tr>
+          <td>Account identifier<br><span style="color:var(--faint);font-weight:400;font-size:13px">(email, optional)</span></td>
+          <td>To authenticate you and enable cross-device sync. Only exists if you create an account.</td>
+          <td><span class="pill no">No</span></td>
+          <td><span class="pill no">No</span></td>
+        </tr>
+        <tr>
+          <td>Favorites, watch history &amp; resume positions</td>
+          <td>So the app remembers what you watched and where you left off.</td>
+          <td><span class="pill no">No</span></td>
+          <td><span class="pill no">No</span></td>
+        </tr>
+        <tr>
+          <td>Device bindings</td>
+          <td>A device record so your account can sync across the devices you use.</td>
+          <td><span class="pill no">No</span></td>
+          <td><span class="pill no">No</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>What Suvo does <em>not</em> collect</h2>
+  <ul>
+    <li>No advertising identifiers, and no advertising SDKs.</li>
+    <li>No location data.</li>
+    <li>No contacts, photos, or files beyond the playlist you enter.</li>
+    <li>No cross-app or cross-site tracking.</li>
+    <li>No sale or brokering of any data.</li>
+  </ul>
+
+  <h2>Where your data lives</h2>
+  <ul>
+    <li><strong>No account:</strong> everything stays on your device.</li>
+    <li><strong>Signed in:</strong> the data above is stored in our sync backend (Supabase) solely so it’s available on your other devices.</li>
+  </ul>
+
+  <h2>Streaming traffic goes to your provider</h2>
+  <p>When you press play, the app connects directly to the playlist provider <em>you</em> configured. Your streaming traffic and credentials go to that provider under their own terms and privacy policy — not through us. See <a href="./acceptable-use.html">Acceptable Use</a> for what that means for the content you load.</p>
+
+  <h2>Retention &amp; deletion</h2>
+  <p>Local data is removed when you clear it in the app or uninstall. Account data is deleted on request or when you delete your account. To request deletion, email <a href="mailto:support@suvo.tv">support@suvo.tv</a>.</p>
+
+  <h2>Questions</h2>
+  <p>Contact <a href="mailto:support@suvo.tv">support@suvo.tv</a>. For the full policy, see the <a href="./privacy.html">Privacy Policy</a>.</p>
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-legal" style="border:0;margin:0;padding:0">
+      <span>© 2026 Suvo.</span>
+      <span><a href="./privacy.html">Privacy</a> · <a href="./data-usage.html">Data Usage</a> · <a href="./terms.html">Terms</a> · <a href="./acceptable-use.html">Acceptable Use</a> · <a href="./support.html">Support</a></span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
