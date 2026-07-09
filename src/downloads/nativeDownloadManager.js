@@ -47,20 +47,34 @@ export function createNativeDownloadManager() {
 
   return {
     async start({ id, url, localPath }) {
-      await ensureDir(localPath);
-      const destination = localPath.replace('file://', '');
-      const task = wire(createDownloadTask({ id, url, destination }));
-      task.start();
+      // Callers fire-and-forget start(); surface any setup/native failure
+      // through the error channel rather than as an unhandled rejection.
+      try {
+        await ensureDir(localPath);
+        const destination = localPath.replace('file://', '');
+        const task = wire(createDownloadTask({ id, url, destination }));
+        task.start();
+      } catch (err) {
+        tasks.delete(id);
+        emit({ id, type: 'error', error: String(err?.message || err) });
+      }
     },
     pause(id) {
-      tasks.get(id)?.pause?.();
+      // pause/resume are async in the library; a native failure here is a
+      // control-op hiccup, not a download error — swallow so it can't become an
+      // unhandled rejection (state is left untouched).
+      Promise.resolve(tasks.get(id)?.pause?.()).catch(() => {});
     },
     resume(id) {
-      tasks.get(id)?.resume?.();
+      Promise.resolve(tasks.get(id)?.resume?.()).catch(() => {});
     },
     async cancel(id) {
       const t = tasks.get(id);
-      await t?.stop?.();
+      try {
+        await t?.stop?.();
+      } catch {
+        // best-effort stop; still drop the task reference below
+      }
       tasks.delete(id);
     },
     subscribe(handler) {
