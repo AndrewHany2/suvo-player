@@ -47,7 +47,7 @@
     <circle cx="512" cy="148" r="52" fill="url(#orbL)"></circle>
     <circle cx="512" cy="148" r="52" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="2"></circle>
   </g>
-  <text x="398" y="234" font-family="&#39;Poppins&#39;,system-ui,sans-serif" font-size="208" font-weight="700" fill="url(#gradL)" filter="url(#tglow)" opacity="0.45" letter-spacing="-4">Lumen</text>
-  <text x="398" y="232" font-family="&#39;Poppins&#39;,system-ui,sans-serif" font-size="208" font-weight="700" fill="url(#gradL)" letter-spacing="-4">Lumen</text>
+  <text x="398" y="234" font-family="&#39;Poppins&#39;,system-ui,sans-serif" font-size="208" font-weight="700" fill="url(#gradL)" filter="url(#tglow)" opacity="0.45" letter-spacing="-4">Suvo</text>
+  <text x="398" y="232" font-family="&#39;Poppins&#39;,system-ui,sans-serif" font-size="208" font-weight="700" fill="url(#gradL)" letter-spacing="-4">Suvo</text>
     <text x="404" y="308" font-family="&#39;JetBrains Mono&#39;,ui-monospace,monospace" font-size="34" font-weight="600" letter-spacing="15" fill="#8b8bb0">IPTV  PLAYER</text>
 </svg>
