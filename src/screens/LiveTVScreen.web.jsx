@@ -73,7 +73,7 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
           onPress(item);
         }
       }}
-      {...{ className: "lumen-live-card" }}
+      {...{ className: "suvo-live-card" }}
     >
       <XStack alignItems="center" gap={ss(10)} marginBottom={ss(10)}>
         {item.logo ? (
@@ -134,7 +134,7 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
             {inFav ? "♥" : "♡"}
           </Text>
         </TouchableOpacity>
-        <span className="lumen-live-dot">LIVE</span>
+        <span className="suvo-live-dot">LIVE</span>
       </XStack>
       <Text
         color={colors.muted}
@@ -307,9 +307,9 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
           <Spinner size="small" color={colors.accent} />
         </YStack>
       ) : (
-        <div style={{ position: "relative" }} className="lumen-shelf-rail">
+        <div style={{ position: "relative" }} className="suvo-shelf-rail">
           <button
-            className="lumen-shelf-nav"
+            className="suvo-shelf-nav"
             onClick={() => scrollBy(-800)}
             aria-label="Scroll left"
           >
@@ -345,7 +345,7 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
             })}
           </div>
           <button
-            className="lumen-shelf-nav right"
+            className="suvo-shelf-nav right"
             onClick={() => scrollBy(800)}
             aria-label="Scroll right"
           >

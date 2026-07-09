@@ -41,7 +41,7 @@ function createWindow() {
       webSecurity: false,
     },
     backgroundColor: "#0A0E1A",
-    title: "Lumen Player",
+    title: "Suvo",
   });
 
   mainWindow.maximize();

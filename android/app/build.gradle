@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.andrew1h1.lumenplayer'
+    namespace 'com.andrew1h1.suvo'
     defaultConfig {
-        applicationId 'com.andrew1h1.lumenplayer'
+        applicationId 'com.andrew1h1.suvo'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

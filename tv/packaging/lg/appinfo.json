@@ -1,10 +1,10 @@
 {
-  "id": "com.andrew1h1.lumenplayer",
+  "id": "com.andrew1h1.suvo",
   "version": "1.0.0",
   "vendor": "Andrew Hany",
   "type": "web",
   "main": "index.html",
-  "title": "Lumen Player",
+  "title": "Suvo",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "bgImage": "bgImage.png",

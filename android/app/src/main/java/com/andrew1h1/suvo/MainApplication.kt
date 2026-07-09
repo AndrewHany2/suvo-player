@@ -1,4 +1,4 @@
-package com.andrew1h1.lumenplayer
+package com.andrew1h1.suvo
 
 import android.app.Application
 import android.content.res.Configuration

@@ -16,14 +16,14 @@ import { isTV } from "../../utils/isTV";
  * ONLY on focus/hover, never at rest — resting state is a subtle 1px border.
  *  - Focus (isFocused, TV/keyboard): instant cyan ring. On web it also gets the
  *    GLOW_WEB box-shadow; on TV there is NO shadow (old Chromium strips it).
- *  - Hover (web only): the cyan ring comes from the global `.lumen-poster-card`
+ *  - Hover (web only): the cyan ring comes from the global `.suvo-poster-card`
  *    :hover rule in AppNavigator; the matching soft glow is injected once below
  *    (web-only, gated on !isTV()) so it can't shift layout like a transform.
  */
 const tv = isTV();
 
 // One-time inject the hover glow (web only). The hover RING already lives in the
-// global `.lumen-poster-card:hover` rule (AppNavigator); this adds the matching
+// global `.suvo-poster-card:hover` rule (AppNavigator); this adds the matching
 // soft cyan box-shadow on the inner poster box. TV strips shadows, so skip it.
 let hoverGlowInjected = false;
 function ensureHoverGlowRule() {
@@ -33,7 +33,7 @@ function ensureHoverGlowRule() {
   // Hover = same weight as focus: a clear 2px cyan border + soft glow on the
   // poster image (box-sizing:border-box, so the 2px border doesn't shift layout).
   el.textContent =
-    "body:not(.keyboard-nav) .lumen-poster-card:hover .lumen-poster-box{box-shadow:" +
+    "body:not(.keyboard-nav) .suvo-poster-card:hover .suvo-poster-box{box-shadow:" +
     GLOW_WEB +
     ";border-color:" +
     focusRing.color +
@@ -71,7 +71,7 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
 
   return (
     <div
-      className="lumen-poster-card"
+      className="suvo-poster-card"
       onClick={() => onPress?.(item)}
       // Real button semantics so keyboard/AT users can reach and fire the card.
       role="button"
@@ -94,7 +94,7 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
       }}
     >
       <div
-        className="lumen-poster-box"
+        className="suvo-poster-box"
         style={{
           width,
           height: posterH,

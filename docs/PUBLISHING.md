@@ -1,4 +1,4 @@
-# Publishing Lumen Player to Every Store
+# Publishing Suvo to Every Store
 
 One Expo/react-native-web codebase ships to six targets (iOS, Android, Web,
 Electron desktop, LG webOS TV, Samsung Tizen TV). Today the release pipeline
@@ -7,8 +7,8 @@ unsigned desktop binaries, an unsigned iOS simulator build, a debug-signed
 Android APK, a sideload `.ipk`, and a zipped web bundle — all pushed to a GitHub
 Release. This doc takes each target from "artifact" to "published in its store."
 
-Identity is already consistent everywhere (**Lumen Player**, bundle/package
-`com.andrew1h1.lumenplayer`, v1.0.0, EAS project `c07f74d9-…`, Apple Team
+Identity is already consistent everywhere (**Suvo**, bundle/package
+`com.andrew1h1.suvo`, v1.0.0, EAS project `c07f74d9-…`, Apple Team
 `3S4ND6Q8K2`). No developer accounts exist yet, so account signup is part of
 this plan. Desktop ships as **direct signed downloads** (Developer ID +
 notarization on macOS, Authenticode on Windows) — not via Mac App Store /
@@ -65,7 +65,7 @@ Uses Expo Application Services end-to-end; `ios/` is gitignored and regenerated
 by prebuild, so all signing is EAS-managed — no local Xcode signing needed.
 
 1. In App Store Connect, **create the app record** for
-   `com.andrew1h1.lumenplayer`, note its `ascAppId`.
+   `com.andrew1h1.suvo`, note its `ascAppId`.
 2. Generate an **App Store Connect API key** (`.p8` + key ID + issuer ID) for
    non-interactive submits. Store as EAS secret / `EXPO_TOKEN`-adjacent; never commit.
 3. Wire `eas.json` → `submit.production` with `ascAppId` + `ascApiKeyPath`/key
@@ -137,7 +137,7 @@ Gatekeeper/SmartScreen stop blocking. No store submission.
    and inject the signing secrets per-OS; add the macOS notarize creds.
 5. Optional: add `electron-updater` + a `publish` provider (GitHub) for
    auto-updates — currently `--publish never`.
-6. Cleanup: the `electron/main.js` window title now reads "Lumen Player";
+6. Cleanup: the `electron/main.js` window title now reads "Suvo";
    remove any stale `electron/release/*IPTV Player*.dmg` artifacts left over
    from before the rename.
 
@@ -151,7 +151,7 @@ Gatekeeper/SmartScreen stop blocking. No store submission.
 Build path already works (`ares-package` → `.ipk`, produced in CI).
 
 1. In **LG Seller Lounge**, register as a seller, create the app for
-   `com.andrew1h1.lumenplayer`.
+   `com.andrew1h1.suvo`.
 2. Prepare store metadata + screenshots + icons (have 80×80/130×130; add store
    sizes) + age rating + supported countries.
 3. Produce the release `.ipk` (CI `tv` job already does; or `npm run deploy:lg`
@@ -174,8 +174,8 @@ certificate**.
    certificate**; create an author + distributor certificate **profile** in
    Tizen Studio (`profiles.xml`) using it.
 2. Re-package the `.wgt` signed with the Samsung distributor profile:
-   `tizen package -t wgt` under the new profile (keep `package="LumenPlayr"` /
-   app id `LumenPlayr.Lumen` stable so in-place updates work — noted in
+   `tizen package -t wgt` under the new profile (keep `package="SuvoPlayer"` /
+   app id `SuvoPlayer.Suvo` stable so in-place updates work — noted in
    `config.xml`).
 3. Add larger store icons (only 80×80 exists) + screenshots + metadata.
 4. Upload the `.wgt` to Seller Portal, pass Samsung TV app verification, submit.
@@ -219,7 +219,7 @@ Extend `release.yml` so a `v*` tag can *submit*, not just build:
 - **Web**: deployed URL loads, deep links fall back to `index.html`, playback works.
 - **Desktop**: on a clean mac, the notarized `.dmg` opens **without** the
   "unidentified developer" Gatekeeper block (`spctl -a -vvv` passes); Windows
-  `.exe` installs without a SmartScreen block; verify window title reads "Lumen Player".
+  `.exe` installs without a SmartScreen block; verify window title reads "Suvo".
 - **LG**: `.ipk` passes Seller Lounge upload validation; sideload-installs and
   launches on a real webOS TV (`npm run deploy:lg`).
 - **Samsung**: `.wgt` signed with the Samsung distributor profile installs on a

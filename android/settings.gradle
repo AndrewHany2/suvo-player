@@ -31,7 +31,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'Lumen Player'
+rootProject.name = 'Suvo'
 
 expoAutolinking.useExpoVersionCatalog()
 

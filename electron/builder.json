@@ -1,6 +1,6 @@
 {
-  "appId": "com.andrew1h1.lumenplayer",
-  "productName": "Lumen Player",
+  "appId": "com.andrew1h1.suvo",
+  "productName": "Suvo",
   "asar": true,
   "afterPack": "electron/afterPack.js",
   "extraMetadata": {
@@ -43,6 +43,6 @@
   },
   "linux": {
     "target": "AppImage",
-    "executableName": "lumen-player"
+    "executableName": "suvo"
   }
 }

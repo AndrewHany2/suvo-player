@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="400" viewBox="0 0 1080 400" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="400" viewBox="0 0 1120 400" fill="none">
   <defs>
     
-    <linearGradient id="gradL" x1="60" y1="120" x2="960" y2="300" gradientUnits="userSpaceOnUse">
+    <linearGradient id="gradL" x1="60" y1="120" x2="1000" y2="300" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#4f7dff"></stop>
       <stop offset="0.5" stop-color="#7b6bf6"></stop>
       <stop offset="1" stop-color="#9d5cff"></stop>
@@ -47,6 +47,7 @@
     <circle cx="512" cy="148" r="52" fill="url(#orbL)"></circle>
     <circle cx="512" cy="148" r="52" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="2"></circle>
   </g>
-  <text x="398" y="264" font-family="&#39;Poppins&#39;,system-ui,sans-serif" font-size="208" font-weight="700" fill="url(#gradL)" filter="url(#tglow)" opacity="0.45" letter-spacing="-4">Lumen</text>
-  <text x="398" y="262" font-family="&#39;Poppins&#39;,system-ui,sans-serif" font-size="208" font-weight="700" fill="url(#gradL)" letter-spacing="-4">Lumen</text>
+  <text x="398" y="234" font-family="&#39;Poppins&#39;,system-ui,sans-serif" font-size="208" font-weight="700" fill="url(#gradL)" filter="url(#tglow)" opacity="0.45" letter-spacing="-4">Suvo</text>
+  <text x="398" y="232" font-family="&#39;Poppins&#39;,system-ui,sans-serif" font-size="208" font-weight="700" fill="url(#gradL)" letter-spacing="-4">Suvo</text>
+    <text x="404" y="308" font-family="&#39;JetBrains Mono&#39;,ui-monospace,monospace" font-size="34" font-weight="600" letter-spacing="15" fill="#8b8bb0">IPTV  PLAYER</text>
 </svg>

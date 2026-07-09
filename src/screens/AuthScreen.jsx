@@ -188,7 +188,7 @@ export default function AuthScreen() {
             textAlign="center"
             marginBottom={ss(4)}
           >
-            Lumen Player
+            Suvo
           </Text>
           <Text
             fontSize={ss(14)}

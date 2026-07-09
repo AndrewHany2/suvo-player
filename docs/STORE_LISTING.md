@@ -1,4 +1,4 @@
-# Lumen Player — Store Listing Copy
+# Suvo — Store Listing Copy
 
 Reference for filling out App Store Connect / Google Play Console / LG Seller
 Lounge / Samsung Seller Portal. The app is a **generic media player** that plays
@@ -6,16 +6,16 @@ a playlist the user supplies. It bundles **no content**. Keep every listing
 framed that way — see the policy note in `docs/PUBLISHING.md`.
 
 ## Name & subtitle
-- **Name:** Lumen Player
+- **Name:** Suvo
 - **Subtitle / short description:** "Play your own media playlists"
 
 ## Description (paste-ready)
-> Lumen Player is a fast, resilient media player for the playlists you already
-> own. Point it at your own Xtream Codes or M3U playlist and Lumen organizes
+> Suvo is a fast, resilient media player for the playlists you already
+> own. Point it at your own Xtream Codes or M3U playlist and Suvo organizes
 > your media into Live, Movies, and Series, remembers where you left off, and
 > keeps your favorites and history in sync across your devices.
 >
-> Lumen Player includes no content and provides no channels, streams, or media
+> Suvo includes no content and provides no channels, streams, or media
 > of its own — you bring your own playlist. Features: resilient playback that
 > recovers from network hiccups, resume/watch-history, favorites, artwork and
 > metadata for movies and series, and a 10-foot TV interface for LG webOS and
@@ -24,13 +24,13 @@ framed that way — see the policy note in `docs/PUBLISHING.md`.
 ## LG webOS Content Store (Seller Lounge) — paste-ready
 
 Seller Lounge → App Registration → App Information. App ID must match
-`appinfo.json`: `com.andrew1h1.lumenplayer`. Keep the generic-player framing.
+`appinfo.json`: `com.andrew1h1.suvo`. Keep the generic-player framing.
 
-- **App Title:** Lumen Player
+- **App Title:** Suvo
 - **App Description** (paste into the description field):
 
-> Lumen Player is a fast, resilient media player for the playlists you already
-> own. Point it at your own Xtream Codes or M3U playlist and Lumen organizes your
+> Suvo is a fast, resilient media player for the playlists you already
+> own. Point it at your own Xtream Codes or M3U playlist and Suvo organizes your
 > media into Live, Movies, and Series, remembers where you left off, and keeps
 > your favorites and history in sync across your devices.
 >
@@ -39,7 +39,7 @@ Seller Lounge → App Registration → App Information. App ID must match
 > and playback that automatically recovers from network hiccups so you spend less
 > time buffering.
 >
-> Lumen Player includes no content and provides no channels, streams, or media of
+> Suvo includes no content and provides no channels, streams, or media of
 > its own — you bring your own playlist. It neither hosts nor supplies any media.
 
 ## Keywords (safe set)
@@ -58,7 +58,7 @@ free", any broadcaster/channel names.
 - Use the demo account (below) so screenshots contain only sample content.
 
 ## Reviewer notes (App Review / Play Console)
-> Lumen Player is a media player. It ships with no content. To review playback,
+> Suvo is a media player. It ships with no content. To review playback,
 > use this demo account / sample playlist: <ADD DEMO CREDENTIALS OR SAMPLE M3U
 > URL BEFORE SUBMITTING>. The user supplies their own playlist; the app neither
 > hosts nor provides any media.

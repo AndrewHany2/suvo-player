@@ -37,10 +37,10 @@ import { go as historyGo, resolveBack } from "./tabHistory";
 // (not var()) because old webOS Chromium can't be assumed to support custom
 // properties — kept in sync manually with tokens.js.
 if (typeof document !== "undefined") {
-  let style = document.getElementById("lumen-global");
+  let style = document.getElementById("suvo-global");
   if (!style) {
     style = document.createElement("style");
-    style.id = "lumen-global";
+    style.id = "suvo-global";
     document.head.appendChild(style);
   }
   style.textContent = `
@@ -49,7 +49,7 @@ if (typeof document !== "undefined") {
     /* translateZ(0) in both frames GPU-composites the rotation so it keeps
        spinning smoothly on webOS even while the main thread is busy (e.g. big
        catalog parse) instead of freezing. */
-    @keyframes lumen-spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }
+    @keyframes suvo-spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }
     #root, #app, [data-reactroot] { height: 100%; }
     .aurora-grad-bg { background: linear-gradient(100deg, #6C5CE7, #22D3EE) !important; }
     * { scrollbar-width: thin; scrollbar-color: #28324E transparent; }
@@ -61,64 +61,64 @@ if (typeof document !== "undefined") {
       border-color: #22D3EE !important;
       box-shadow: 0 0 0 ${ss(3)}px rgba(34,211,238,0.18) !important;
     }
-    .lumen-topnav { position: sticky !important; top: 0 !important; z-index: 30 !important; }
-    .lumen-poster {
+    .suvo-topnav { position: sticky !important; top: 0 !important; z-index: 30 !important; }
+    .suvo-poster {
       transition: box-shadow 0.2s ease, border-color 0.2s ease;
       cursor: pointer !important;
     }
     /* Unified Aurora hover language (matches PosterCard.web): cyan ring + soft
-       glow on the inner .lumen-poster-box ONLY (the image, never the title), no
+       glow on the inner .suvo-poster-box ONLY (the image, never the title), no
        scale. The outer card must NOT clip overflow or the glow gets cropped. */
-    body:not(.keyboard-nav) .lumen-poster:hover .lumen-poster-box,
-    body:not(.keyboard-nav) .lumen-cw-card:hover .lumen-poster-box {
+    body:not(.keyboard-nav) .suvo-poster:hover .suvo-poster-box,
+    body:not(.keyboard-nav) .suvo-cw-card:hover .suvo-poster-box {
       box-shadow: 0 0 0 2px #22D3EE, 0 0 24px 2px rgba(34,211,238,0.55);
       border-color: #22D3EE; z-index: 2;
     }
-    .lumen-live-card { transition: border-color 0.15s ease, background-color 0.15s ease; cursor: pointer !important; }
-    body:not(.keyboard-nav) .lumen-live-card:hover { border-color: #6C5CE7 !important; background-color: #1B2236 !important; }
-    body:not(.keyboard-nav) .lumen-icon-btn:hover { background: rgba(255,255,255,0.10) !important; }
-    body:not(.keyboard-nav) .lumen-avatar:hover { border-color: #6C5CE7 !important; }
-    .lumen-shelf-nav {
+    .suvo-live-card { transition: border-color 0.15s ease, background-color 0.15s ease; cursor: pointer !important; }
+    body:not(.keyboard-nav) .suvo-live-card:hover { border-color: #6C5CE7 !important; background-color: #1B2236 !important; }
+    body:not(.keyboard-nav) .suvo-icon-btn:hover { background: rgba(255,255,255,0.10) !important; }
+    body:not(.keyboard-nav) .suvo-avatar:hover { border-color: #6C5CE7 !important; }
+    .suvo-shelf-nav {
       opacity: 0; transition: opacity 0.15s;
       position: absolute; top: 0; bottom: 0; z-index: 4;
       display: flex; align-items: center;
       background: linear-gradient(to right, rgba(10, 14, 26,0.95), rgba(10, 14, 26,0));
       border: none; cursor: pointer; color: #fff; font-size: ${ss(28)}px; padding: 0 ${ss(14)}px; width: ${ss(56)}px;
     }
-    .lumen-shelf-nav.right { background: linear-gradient(to left, rgba(10, 14, 26,0.95), rgba(10, 14, 26,0)); right: 0; left: auto; justify-content: flex-end; }
-    body:not(.keyboard-nav) .lumen-shelf-rail:hover .lumen-shelf-nav { opacity: 1; }
-    @keyframes lumen-blink { 50% { opacity: 0.25; } }
-    .lumen-live-dot {
+    .suvo-shelf-nav.right { background: linear-gradient(to left, rgba(10, 14, 26,0.95), rgba(10, 14, 26,0)); right: 0; left: auto; justify-content: flex-end; }
+    body:not(.keyboard-nav) .suvo-shelf-rail:hover .suvo-shelf-nav { opacity: 1; }
+    @keyframes suvo-blink { 50% { opacity: 0.25; } }
+    .suvo-live-dot {
       display: inline-flex; align-items: center; gap: ${ss(5)}px;
       font-size: ${ss(10)}px; font-weight: 700; color: #6C5CE7; letter-spacing: 0.08em;
     }
-    .lumen-live-dot::before {
+    .suvo-live-dot::before {
       content: ''; width: ${ss(6)}px; height: ${ss(6)}px; border-radius: 50%;
-      background: #6C5CE7; animation: lumen-blink 1.6s ease-in-out infinite; flex-shrink: 0;
+      background: #6C5CE7; animation: suvo-blink 1.6s ease-in-out infinite; flex-shrink: 0;
     }
-    .lumen-cw-card {
+    .suvo-cw-card {
       border-radius: ${ss(8)}px; transition: box-shadow 0.2s ease, border-color 0.2s ease;
       cursor: pointer !important; position: relative !important;
     }
-    .lumen-cw-play {
+    .suvo-cw-play {
       position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.15s ease;
       font-size: ${ss(38)}px; color: #fff; pointer-events: none; z-index: 5;
     }
-    body:not(.keyboard-nav) .lumen-cw-card:hover .lumen-cw-play { opacity: 1; }
-    .lumen-shelf-title-btn { cursor: pointer !important; }
-    body:not(.keyboard-nav) .lumen-shelf-title-btn:hover span, body:not(.keyboard-nav) .lumen-shelf-title-btn:hover div { opacity: 0.8; }
-    .lumen-load-cta { cursor: pointer !important; transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease; }
-    body:not(.keyboard-nav) .lumen-load-cta:hover { background: rgba(108, 92, 231,0.12) !important; border-color: rgba(108, 92, 231,0.45) !important; transform: translateY(-1px); }
+    body:not(.keyboard-nav) .suvo-cw-card:hover .suvo-cw-play { opacity: 1; }
+    .suvo-shelf-title-btn { cursor: pointer !important; }
+    body:not(.keyboard-nav) .suvo-shelf-title-btn:hover span, body:not(.keyboard-nav) .suvo-shelf-title-btn:hover div { opacity: 0.8; }
+    .suvo-load-cta { cursor: pointer !important; transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease; }
+    body:not(.keyboard-nav) .suvo-load-cta:hover { background: rgba(108, 92, 231,0.12) !important; border-color: rgba(108, 92, 231,0.45) !important; transform: translateY(-1px); }
     ${
       globalThis.__TV__
         ? `
       *, *::before, *::after { transition: none !important; animation: none !important; will-change: auto !important; }
-      .lumen-poster:hover .lumen-poster-box, .lumen-cw-card:hover .lumen-poster-box { box-shadow: none !important; border-color: #28324E !important; }
-      .lumen-live-card:hover { border-color: #28324E !important; background-color: #1B2236 !important; }
-      .lumen-load-cta:hover { transform: none !important; }
-      .lumen-shelf-rail { contain: layout style; }
-      .lumen-live-dot::before { animation: none !important; opacity: 1; }
+      .suvo-poster:hover .suvo-poster-box, .suvo-cw-card:hover .suvo-poster-box { box-shadow: none !important; border-color: #28324E !important; }
+      .suvo-live-card:hover { border-color: #28324E !important; background-color: #1B2236 !important; }
+      .suvo-load-cta:hover { transform: none !important; }
+      .suvo-shelf-rail { contain: layout style; }
+      .suvo-live-dot::before { animation: none !important; opacity: 1; }
     `
         : ""
     }
@@ -253,7 +253,7 @@ function TopNav({
       backgroundColor="rgba(10, 14, 26,0.97)"
       borderBottomWidth={1}
       borderBottomColor={colors.border}
-      {...{ className: "lumen-topnav" }}
+      {...{ className: "suvo-topnav" }}
     >
       <XStack
         alignItems="center"
@@ -269,7 +269,7 @@ function TopNav({
           fontWeight="700"
           letterSpacing={-0.5}
         >
-          Lumen
+          Suvo
         </Text>
       </XStack>
 
@@ -299,7 +299,7 @@ function TopNav({
           backgroundColor={accountsFocused ? accentAlpha(0.18) : "transparent"}
           borderWidth={2}
           borderColor={accountsFocused ? colors.accent2 : "transparent"}
-          {...{ className: "lumen-icon-btn" }}
+          {...{ className: "suvo-icon-btn" }}
         >
           <Icon name="signal" size={S.iconFont} color={colors.text} />
         </YStack>
@@ -315,7 +315,7 @@ function TopNav({
           backgroundColor={settingsFocused ? accentAlpha(0.18) : "transparent"}
           borderWidth={2}
           borderColor={settingsFocused ? colors.accent2 : "transparent"}
-          {...{ className: "lumen-icon-btn" }}
+          {...{ className: "suvo-icon-btn" }}
         >
           <Icon name="settings" size={S.iconFont} color={colors.text} />
         </YStack>
@@ -331,7 +331,7 @@ function TopNav({
           cursor="pointer"
           onPress={onSwitchProfile}
           pressStyle={{ opacity: 0.8 }}
-          {...{ className: "lumen-avatar" }}
+          {...{ className: "suvo-avatar" }}
         >
           <Text fontSize={S.avatarFont}>{activeProfile?.avatar || "👤"}</Text>
         </YStack>
@@ -622,7 +622,7 @@ export default function AppNavigator() {
   // screen. The 8s authLoading ceiling lives in AppContext.
   const splash = (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0A0E1A" }}>
-      <div style={{ width: 48, height: 48, border: "4px solid #28324E", borderTopColor: "#6C5CE7", borderRadius: "50%", animation: "lumen-spin 0.8s linear infinite", willChange: "transform" }} />
+      <div style={{ width: 48, height: 48, border: "4px solid #28324E", borderTopColor: "#6C5CE7", borderRadius: "50%", animation: "suvo-spin 0.8s linear infinite", willChange: "transform" }} />
     </div>
   );
   if (gate === "config-error") return <ConfigErrorScreen />;

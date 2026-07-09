@@ -35,8 +35,8 @@ for src, (dst, l, t, r, b) in CROPS.items():
     print("cropped", dst, Image.open(os.path.join(OUT, dst)).size)
 
 # Brand art used on the cover / closing slides.
-for src, dst in [("lumen-logo-tagline.png", "lumen-logo-tagline.png"),
-                 ("lumen-mark-1024.png", "lumen-mark.png")]:
+for src, dst in [("suvo-logo-tagline.png", "suvo-logo-tagline.png"),
+                 ("suvo-mark-1024.png", "suvo-mark.png")]:
     shutil.copy(os.path.join(ASSETS, src), os.path.join(OUT, dst))
     print("copied", dst)
 

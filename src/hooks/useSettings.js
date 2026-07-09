@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 
-const KEY = "lumen_settings";
+const KEY = "suvo_settings";
 const DEFAULTS = { autoplay: true, defaultAspect: "default" };
 
 function load() {

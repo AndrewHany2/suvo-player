@@ -1,6 +1,6 @@
-// Builds the LG UX Scenario Document deck for Lumen Player.
+// Builds the LG UX Scenario Document deck for Suvo.
 // Prereqs:  python3 prep-images.py  (fills ./img)  +  npm i pptxgenjs
-// Run:      node build.js           (writes ./Lumen_Player_UX_Scenario.pptx)
+// Run:      node build.js           (writes ./Suvo_Player_UX_Scenario.pptx)
 const path = require("path");
 const pptxgen = require("pptxgenjs");
 const IMG = path.join(__dirname, "img") + path.sep;
@@ -9,8 +9,8 @@ const p = new pptxgen();
 p.layout = "LAYOUT_WIDE"; // 13.333 x 7.5
 const W = 13.333, H = 7.5;
 p.author = "Andrew Hany";
-p.company = "Lumen Player";
-p.title = "Lumen Player — UX Scenario Document";
+p.company = "Suvo";
+p.title = "Suvo — UX Scenario Document";
 
 // ---- palette ----
 const BG    = "0F1320";
@@ -36,7 +36,7 @@ const mkSoft   = () => ({ type: "outer", color: "9AA6BC", blur: 10, offset: 3, a
 function pageNo(slide, n) {
   slide.addText(String(n).padStart(2, "0"), { x: W - 1.1, y: H - 0.55, w: 0.7, h: 0.35,
     align: "right", fontFace: BF, fontSize: 10, color: MUTE, margin: 0 });
-  slide.addText("Lumen Player · UX Scenario Document", { x: 0.6, y: H - 0.55, w: 6, h: 0.35,
+  slide.addText("Suvo · UX Scenario Document", { x: 0.6, y: H - 0.55, w: 6, h: 0.35,
     align: "left", fontFace: BF, fontSize: 9, color: MUTE, margin: 0 });
 }
 
@@ -97,9 +97,9 @@ function imgFrame(slide, ix, iy, iw, ih) {
   slide.addShape(p.shapes.ROUNDED_RECTANGLE, { x: ix - 0.07, y: iy - 0.07, w: iw + 0.14, h: ih + 0.14,
     rectRadius: 0.09, fill: { color: BG }, line: { color: SURF2, width: 1 }, shadow: mkShadow() });
 }
-// real top navigation bar used by the wireframe screens: Lumen · Home/Live/Movies/Series · icons
+// real top navigation bar used by the wireframe screens: Suvo · Home/Live/Movies/Series · icons
 function topNav(slide, ix, iy, iw, active) {
-  slide.addText("Lumen", { x: ix + 0.35, y: iy + 0.26, w: 1.3, h: 0.34, fontFace: HF, fontSize: 14, bold: true, color: INDIGO, margin: 0 });
+  slide.addText("Suvo", { x: ix + 0.35, y: iy + 0.26, w: 1.3, h: 0.34, fontFace: HF, fontSize: 14, bold: true, color: INDIGO, margin: 0 });
   const tabs = ["Home", "Live", "Movies", "Series"], tx = ix + 2.05;
   tabs.forEach((t, i) => {
     const x = tx + i * 0.82;
@@ -123,12 +123,12 @@ function searchBar(slide, x, y, w, label) {
   s.background = { color: BG };
   s.addShape(p.shapes.RECTANGLE, { x: 0, y: 0, w: W, h: 0.14, fill: { color: INDIGO } });
   s.addShape(p.shapes.RECTANGLE, { x: 0, y: 0.14, w: W, h: 0.05, fill: { color: CYAN } });
-  s.addImage({ path: IMG + "lumen-logo-tagline.png", x: 1.1, y: 1.55, w: 4.6, h: 1.645, altText: "Lumen Player logo" });
+  s.addImage({ path: IMG + "suvo-logo-tagline.png", x: 1.1, y: 1.55, w: 4.6, h: 1.645, altText: "Suvo logo" });
   s.addText("UX Scenario Document", { x: 1.1, y: 3.5, w: 9, h: 0.8, fontFace: HF, fontSize: 40, bold: true, color: "FFFFFF", margin: 0 });
   s.addText("Application walkthrough for LG Content Store QA review", { x: 1.12, y: 4.35, w: 9, h: 0.4, fontFace: BF, fontSize: 15, color: CYAN, margin: 0 });
   const mx = 8.15, mw = 4.0;
   s.addShape(p.shapes.ROUNDED_RECTANGLE, { x: mx, y: 1.55, w: mw, h: 3.05, rectRadius: 0.1, fill: { color: SURF }, line: { color: SURF2, width: 1 }, shadow: mkShadow() });
-  const meta = [["App Title", "Lumen Player"], ["App ID", "com.andrew1h1.lumenplayer"], ["App Ver.", "1.0.0"], ["App Developer", "Andrew Hany"], ["Submission Date", "2026-07-08"]];
+  const meta = [["App Title", "Suvo"], ["App ID", "com.andrew1h1.suvo"], ["App Ver.", "1.0.0"], ["App Developer", "Andrew Hany"], ["Submission Date", "2026-07-08"]];
   meta.forEach((r, i) => {
     const ry = 1.8 + i * 0.56;
     s.addText(r[0].toUpperCase(), { x: mx + 0.3, y: ry, w: mw - 0.6, h: 0.22, fontFace: BF, fontSize: 9, bold: true, color: CYAN, charSpacing: 1, margin: 0 });
@@ -170,7 +170,7 @@ function searchBar(slide, x, y, w, label) {
   header(s, 1, "Basic Information", "Application identity and content policy at a glance");
   // left info table
   const rows = [
-    ["App Title", "Lumen Player"], ["App ID", "com.andrew1h1.lumenplayer"], ["Version", "1.0.0"],
+    ["App Title", "Suvo"], ["App ID", "com.andrew1h1.suvo"], ["Version", "1.0.0"],
     ["Developer / Vendor", "Andrew Hany"], ["Category", "Video · Media Player"], ["App Type", "webOS web application (HTML/JS)"],
     ["Permissions", "internet, network.state"], ["Languages", "English (UI)"], ["DRM / Hardware", "None required"],
   ];
@@ -187,7 +187,7 @@ function searchBar(slide, x, y, w, label) {
   const rx = 6.85, rw = 5.75;
   s.addShape(p.shapes.ROUNDED_RECTANGLE, { x: rx, y: ly, w: rw, h: 2.15, rectRadius: 0.08, fill: { color: CARD }, line: { color: BORD, width: 1 }, shadow: mkSoft() });
   s.addText("What the app does", { x: rx + 0.3, y: ly + 0.16, w: rw - 0.6, h: 0.35, fontFace: HF, fontSize: 14, bold: true, color: INK, margin: 0 });
-  s.addText("Lumen Player is a media player for the playlist the user already owns. The user points it at their own playlist source; the app organises that media into Live, Movies and Series sections, remembers playback position, and keeps favourites and history in sync across the user's devices — with a 10-foot D-pad interface built for the remote. It ships with no content of its own: it hosts, bundles and supplies no channels, streams or media.",
+  s.addText("Suvo is a media player for the playlist the user already owns. The user points it at their own playlist source; the app organises that media into Live, Movies and Series sections, remembers playback position, and keeps favourites and history in sync across the user's devices — with a 10-foot D-pad interface built for the remote. It ships with no content of its own: it hosts, bundles and supplies no channels, streams or media.",
     { x: rx + 0.3, y: ly + 0.54, w: rw - 0.6, h: 1.5, fontFace: BF, fontSize: 11.5, color: INK, margin: 0, lineSpacingMultiple: 1.04, valign: "top" });
   // right column: content policy card
   const cy = ly + 2.35, ch = lh - 2.35;
@@ -244,7 +244,7 @@ function searchBar(slide, x, y, w, label) {
   header(s, 3, "Page Description — Guideline", "How to read the page walk-throughs that follow");
   const ix = 0.9, iy = 2.0, iw = 4.6, ih = 3.9;
   screenFrame(s, ix, iy, iw, ih);
-  s.addText("Lumen Player", { x: ix + 0.3, y: iy + 0.25, w: 2, h: 0.3, fontFace: HF, fontSize: 12, bold: true, color: "FFFFFF", margin: 0 });
+  s.addText("Suvo", { x: ix + 0.3, y: iy + 0.25, w: 2, h: 0.3, fontFace: HF, fontSize: 12, bold: true, color: "FFFFFF", margin: 0 });
   s.addShape(p.shapes.OVAL, { x: ix + iw - 0.6, y: iy + 0.25, w: 0.3, h: 0.3, fill: { color: SURF2 } });
   poster(s, ix + 0.3, iy + 0.85, iw - 0.6, 1.1, false);
   poster(s, ix + 0.3, iy + 2.15, 1.15, 1.45, true);
@@ -288,7 +288,7 @@ function searchBar(slide, x, y, w, label) {
     { n: 4, t: "Sign In", d: "authenticates and continues to profile selection." },
     { n: 5, t: "Register", d: "switches to the create-account screen." },
   ], 0.7);
-  s.addText("The account is a free Lumen Player account used only to sync favourites, history and profiles across the user's devices. It is not a content subscription.",
+  s.addText("The account is a free Suvo account used only to sync favourites, history and profiles across the user's devices. It is not a content subscription.",
     { x: 6.0, y: 5.75, w: 6.4, h: 0.9, fontFace: BF, fontSize: 11.5, italic: true, color: MUTE, margin: 0, lineSpacingMultiple: 1.04, valign: "top" });
   pageNo(s, 6);
 }
@@ -354,7 +354,7 @@ function searchBar(slide, x, y, w, label) {
   s.addText([
     { text: "•  Either the test account (ID/PW) or an access/activation flow is required to test the app; the account above is provided.", options: { breakLine: true } },
     { text: "•  A single account may be signed in on multiple devices at once — no per-device limit — so one test account is sufficient for QA.", options: { breakLine: true } },
-    { text: "•  Lumen Player ships with no media. To exercise playback, add the sample playlist under Settings › Accounts.", options: { breakLine: true } },
+    { text: "•  Suvo ships with no media. To exercise playback, add the sample playlist under Settings › Accounts.", options: { breakLine: true } },
     { text: "•  The application hosts and supplies no content; all media shown during testing originates from the sample playlist the reviewer loads.", options: {} },
   ], { x: 1.0, y: 5.46, w: 11.4, h: 1.05, fontFace: BF, fontSize: 11, color: INK, margin: 0, lineSpacingMultiple: 1.1, valign: "top" });
   pageNo(s, 8);
@@ -513,7 +513,7 @@ function searchBar(slide, x, y, w, label) {
     { n: 3, t: "Edit / Delete", d: "update or remove a saved playlist." },
     { n: 4, t: "TV Layout", d: "toggle how Movies & Series browse (shelves / grid)." },
   ], 0.72);
-  s.addText("Reviewers enter the sample playlist from the Test Accounts page here. Lumen Player stores and supplies no playlists of its own.",
+  s.addText("Reviewers enter the sample playlist from the Test Accounts page here. Suvo stores and supplies no playlists of its own.",
     { x: 8.1, y: 5.5, w: W - 8.1 - 0.6, h: 0.9, fontFace: BF, fontSize: 10.5, italic: true, color: MUTE, margin: 0, lineSpacingMultiple: 1.03, valign: "top" });
   pageNo(s, 13);
 }
@@ -564,9 +564,9 @@ function naSlide(num, title, sub, body, page) {
   pageNo(s, page);
 }
 naSlide(7, "Paid Content", "In-app purchase and payment methods",
-  "Lumen Player contains no paid content and offers no in-app purchases, subscriptions, or payment flows. There are no credit-card, voucher-code, or SMS payment methods to test.", 13);
+  "Suvo contains no paid content and offers no in-app purchases, subscriptions, or payment flows. There are no credit-card, voucher-code, or SMS payment methods to test.", 13);
 naSlide(8, "In-App Ad", "Advertising placements (banner / video)",
-  "Lumen Player displays no advertising of any kind — no banner ads and no video ads. There are no ad placements, locations, or ad-network integrations to describe.", 14);
+  "Suvo displays no advertising of any kind — no banner ads and no video ads. There are no ad placements, locations, or ad-network integrations to describe.", 14);
 
 // ============================================================ SLIDE 15 — CLOSING
 {
@@ -574,10 +574,10 @@ naSlide(8, "In-App Ad", "Advertising placements (banner / video)",
   s.background = { color: BG };
   s.addShape(p.shapes.RECTANGLE, { x: 0, y: H - 0.19, w: W, h: 0.05, fill: { color: CYAN } });
   s.addShape(p.shapes.RECTANGLE, { x: 0, y: H - 0.14, w: W, h: 0.14, fill: { color: INDIGO } });
-  s.addImage({ path: IMG + "lumen-mark.png", x: W / 2 - 0.85, y: 1.9, w: 1.7, h: 1.7, altText: "Lumen Player mark" });
-  s.addText("Thank you for reviewing Lumen Player", { x: 1, y: 3.85, w: W - 2, h: 0.6, align: "center", fontFace: HF, fontSize: 26, bold: true, color: "FFFFFF", margin: 0 });
+  s.addImage({ path: IMG + "suvo-mark.png", x: W / 2 - 0.85, y: 1.9, w: 1.7, h: 1.7, altText: "Suvo mark" });
+  s.addText("Thank you for reviewing Suvo", { x: 1, y: 3.85, w: W - 2, h: 0.6, align: "center", fontFace: HF, fontSize: 26, bold: true, color: "FFFFFF", margin: 0 });
   s.addText("A generic media player for the playlists you already own — it bundles, hosts and supplies no content.", { x: 1, y: 4.5, w: W - 2, h: 0.5, align: "center", fontFace: BF, fontSize: 13, color: CYAN, margin: 0 });
-  s.addText("com.andrew1h1.lumenplayer   ·   v1.0.0   ·   Andrew Hany", { x: 1, y: 5.2, w: W - 2, h: 0.4, align: "center", fontFace: BF, fontSize: 12, color: "8894AC", margin: 0 });
+  s.addText("com.andrew1h1.suvo   ·   v1.0.0   ·   Andrew Hany", { x: 1, y: 5.2, w: W - 2, h: 0.4, align: "center", fontFace: BF, fontSize: 12, color: "8894AC", margin: 0 });
 }
 
-p.writeFile({ fileName: path.join(__dirname, "..", "Lumen_Player_UX_Scenario.pptx") }).then((f) => console.log("WROTE", f)).catch((e) => { console.error("ERR", e); process.exit(1); });
+p.writeFile({ fileName: path.join(__dirname, "..", "Suvo_Player_UX_Scenario.pptx") }).then((f) => console.log("WROTE", f)).catch((e) => { console.error("ERR", e); process.exit(1); });

@@ -62,7 +62,7 @@ export default function DiscoverPills({ items, focusedCol = -1, onSelect }) {
               boxShadow: focused && !tv ? GLOW_WEB : "none",
               transition: tv ? undefined : `border-color ${motion.fast}ms ${easing}, box-shadow ${motion.base}ms ${easing}`,
             }}
-            {...{ className: "lumen-load-cta" }}
+            {...{ className: "suvo-load-cta" }}
           >
             <Icon name={iconFor(pill.id)} size={ss(tv ? 22 : 16)} color={colors.accent2} />
             <Text color={colors.text} fontSize={ss(tv ? 18 : 13)} fontWeight={fontWeights.medium} fontFamily={fonts.body} letterSpacing={0.1}>{pill.label}</Text>
