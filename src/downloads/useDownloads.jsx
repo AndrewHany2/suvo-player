@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { downloadStore, makeId } from './downloadStore.js';
 import { remoteUrlFor, localPathFor } from './downloadUri.js';
 import { applyEvent } from './downloadReducer.js';
@@ -15,20 +15,26 @@ export function DownloadsProvider({ manager, api, documentDirectory, children })
     let alive = true;
     (async () => {
       const map = await downloadStore.loadAll();
-      if (alive) setById(map);
+      if (!alive) return;
+      setById(map);
+      byIdRef.current = map;
       await manager.reattach();
     })();
     return () => { alive = false; };
   }, [manager]);
 
-  // Fold manager events into state + persist.
+  // Fold manager events into state + persist. We reduce against byIdRef (updated
+  // synchronously here so back-to-back events in one tick compose correctly),
+  // then apply state and persistence as pure single-invocation steps — no side
+  // effect inside the setState updater.
   useEffect(() => {
     const unsub = manager.subscribe((event) => {
-      setById((prev) => {
-        const next = applyEvent(prev, event);
-        if (next !== prev && next[event.id]) downloadStore.put(next[event.id]);
-        return next;
-      });
+      const prev = byIdRef.current;
+      const next = applyEvent(prev, event);
+      if (next === prev || !next[event.id]) return;
+      byIdRef.current = next;
+      setById(next);
+      downloadStore.put(next[event.id]);
     });
     return unsub;
   }, [manager]);
