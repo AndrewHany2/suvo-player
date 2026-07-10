@@ -1,6 +1,16 @@
 export const DEFAULT_EXT = 'mp4';
 
-export function remoteUrlFor(api, item) {
+/**
+ * Build the remote stream URL to download for `item`.
+ *
+ * `source` is the active ContentService (whose `.api` is the live Xtream or M3U
+ * backend, swapped per account in configure()) — or, for tests, a raw api. We
+ * resolve `.api` HERE, at download time, not when the provider mounts, so an
+ * M3U account downloads from its playlist URL instead of a stale Xtream URL
+ * built from whichever credentials iptvApi last held.
+ */
+export function remoteUrlFor(source, item) {
+  const api = source?.api ?? source;
   const ext = item.ext || DEFAULT_EXT;
   if (item.kind === 'movie') return api.buildStreamUrl('movie', item.streamId, ext);
   return api.buildStreamUrl('series', item.episodeStreamId, ext);

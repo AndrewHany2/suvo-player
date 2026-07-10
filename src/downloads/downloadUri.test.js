@@ -26,6 +26,23 @@ test('remoteUrlFor builds episode url from episodeStreamId', () => {
   );
 });
 
+test('remoteUrlFor resolves a ContentService.api at call time (M3U vs Xtream)', () => {
+  // A ContentService-shaped source whose active backend can be swapped, exactly
+  // like configure() does when the account type changes.
+  const source = { api: { buildStreamUrl: (type, id, ext) => `m3u://${type}/${id}.${ext}` } };
+  assert.equal(
+    remoteUrlFor(source, { kind: 'movie', streamId: 7, ext: 'mp4' }),
+    'm3u://movie/7.mp4',
+  );
+  // Swapping the backend must be reflected on the NEXT call — proving the url is
+  // built from the live .api, not a value captured when the provider mounted.
+  source.api = { buildStreamUrl: (type, id) => `xtream://${type}/${id}` };
+  assert.equal(
+    remoteUrlFor(source, { kind: 'episode', episodeStreamId: 9 }),
+    'xtream://series/9',
+  );
+});
+
 test('localPathFor sanitizes id and joins under downloads dir', () => {
   assert.equal(
     localPathFor('ep:7:2:5', 'mp4', 'file:///docs/'),

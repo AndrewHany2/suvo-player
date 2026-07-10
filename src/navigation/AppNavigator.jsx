@@ -9,7 +9,7 @@ import Icon from "../ui/Icon";
 import { colors, accentAlpha } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { useAppGate } from "./useAppGate";
-import iptvApi from "../services/iptvApi";
+import contentService from "../domain/services/ContentService";
 import { createNativeDownloadManager, documentDirectory } from "../downloads/nativeDownloadManager.js";
 import { DownloadsProvider } from "../downloads/useDownloads.jsx";
 
@@ -114,7 +114,7 @@ export default function AppNavigator() {
   if (gate === "profiles") return <ProfilesScreen />;
 
   return (
-    <DownloadsProvider manager={manager} api={iptvApi} documentDirectory={documentDirectory}>
+    <DownloadsProvider manager={manager} api={contentService} documentDirectory={documentDirectory}>
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ freezeOnBlur: true, headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text, contentStyle: { backgroundColor: colors.bg } }}>
           <Stack.Screen name="Main"        component={MainTabs}         options={{ headerShown: false }} />
