@@ -14,6 +14,7 @@ import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
 import storage from "../utils/storage";
 import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
+import { findNextEpisode } from "../playback/episodeNav";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
 import { useDeviceIntegrity } from "../security/useDeviceIntegrity";
 
@@ -368,15 +369,7 @@ export default function VideoPlayerScreen({ navigation }) {
     }
   }, [player, prefsLoaded, prefs.subtitleTrack, subtitleTracks]);
 
-  const getNextEpisode = useCallback(() => {
-    if (!currentVideo || currentVideo.type !== "series" || !currentVideo.seriesSeasons) return null;
-    const allEpisodes = Object.keys(currentVideo.seriesSeasons).map(Number).sort((a, b) => a - b)
-      .flatMap((sNum) => [...(currentVideo.seriesSeasons[String(sNum)] || [])].sort((a, b) => Number(a.episode_num) - Number(b.episode_num)).map((ep) => ({ ...ep, seasonNum: String(sNum) })));
-    const currentIdx = allEpisodes.findIndex((ep) => String(ep.id) === String(currentVideo.streamId));
-    if (currentIdx === -1 || currentIdx >= allEpisodes.length - 1) return null;
-    const next = allEpisodes[currentIdx + 1];
-    return { episode: next, seasonNum: next.seasonNum };
-  }, [currentVideo]);
+  const getNextEpisode = useCallback(() => findNextEpisode(currentVideo), [currentVideo]);
 
   const handleNextEpisode = useCallback(() => {
     const next = getNextEpisode();

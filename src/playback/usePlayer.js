@@ -14,6 +14,7 @@ import {
   clampOffset,
 } from "./subtitleStyle";
 import { nextChannel, prevChannel, fetchNowNext } from "./liveExtras";
+import { findNextEpisode } from "./episodeNav";
 import {
   DEFAULT_VIDEO_ADJUST,
   normalizeAdjust,
@@ -734,28 +735,7 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
   }, [currentVideo, updateWatchProgress, flushProgress]);
 
   // ── Next-episode auto-advance ───────────────────────────────────────────────
-  const getNextEpisode = useCallback(() => {
-    if (
-      !currentVideo ||
-      currentVideo.type !== "series" ||
-      !currentVideo.seriesSeasons
-    )
-      return null;
-    const all = Object.keys(currentVideo.seriesSeasons)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .flatMap((s) =>
-        [...(currentVideo.seriesSeasons[String(s)] || [])]
-          .sort((a, b) => Number(a.episode_num) - Number(b.episode_num))
-          .map((ep) => ({ ...ep, seasonNum: String(s) })),
-      );
-    const idx = all.findIndex(
-      (ep) => String(ep.id) === String(currentVideo.streamId),
-    );
-    if (idx < 0 || idx >= all.length - 1) return null;
-    const next = all[idx + 1];
-    return { episode: next, seasonNum: next.seasonNum };
-  }, [currentVideo]);
+  const getNextEpisode = useCallback(() => findNextEpisode(currentVideo), [currentVideo]);
 
   const handleNextEpisode = useCallback(() => {
     const next = getNextEpisode();
