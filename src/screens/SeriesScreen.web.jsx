@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
@@ -15,17 +15,11 @@ import { getShelfConfig } from "../presentation/virtualization/shelfConfig.js";
 // ponytail: match Movies shelf card size — same source (ContentShelf.web uses this too)
 const SHELF_CARD_W = getShelfConfig("web").posterWidth;
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
+import { useCategoryGridNav } from "../hooks/useCategoryGridNav";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 
 // Caps the browse content width on ultrawide monitors (centered via margin auto).
 const MAX_W = 1700;
-
-// True while a text field owns focus, so the grid's global keydown handler can
-// bow out and let the search box receive its own keystrokes.
-function isTextInputFocused() {
-  const el = document.activeElement;
-  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-}
 
 /* ─── Shelf ─── */
 function Shelf({
@@ -237,109 +231,7 @@ function CategoryPage({
   loadingMore,
 }) {
   const { searchQuery: search, setSearchQuery: setSearch } = useApp();
-  // Start with NOTHING focused so the grid has no resting D-nav selection on
-  // desktop — mouse users get hover only. The first arrow key brings the
-  // keyboard cursor in (see the idx < 0 guard in the keydown handler).
-  const [focusedIdx, setFocusedIdx] = useState(-1);
-  const focusedIdxRef = useRef(-1);
-  const navHasFocusRef = useRef(false);
-  // Column count is owned by VirtualGrid (derived from container width) and
-  // mirrored here so the D-pad handler's up/down row math stays correct.
-  const numColsRef = useRef(6);
-  const filteredRef = useRef(null);
-  const onPressRef = useRef(onPress);
-  const onBackRef = useRef(onBack);
-  useEffect(() => {
-    onPressRef.current = onPress;
-  }, [onPress]);
-  useEffect(() => {
-    onBackRef.current = onBack;
-  }, [onBack]);
-
-  const filtered = items
-    ? search.trim()
-      ? items.filter((i) =>
-          i.name?.toLowerCase().includes(search.toLowerCase()),
-        )
-      : items
-    : null;
-  filteredRef.current = filtered;
-
-  useEffect(() => {
-    setFocusedIdx(-1);
-    focusedIdxRef.current = -1;
-  }, [search]);
-
-  useEffect(() => {
-    const onNavFocus = () => {
-      navHasFocusRef.current = true;
-    };
-    const onNavBlur = () => {
-      navHasFocusRef.current = false;
-    };
-    globalThis.addEventListener("tv-nav-focus", onNavFocus);
-    globalThis.addEventListener("tv-nav-blur", onNavBlur);
-    return () => {
-      globalThis.removeEventListener("tv-nav-focus", onNavFocus);
-      globalThis.removeEventListener("tv-nav-blur", onNavBlur);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (navHasFocusRef.current) return;
-      // Don't hijack keys while a text field is focused — otherwise typing in
-      // the "Search titles…" box moves the poster cursor, Enter plays a poster,
-      // and Escape exits the page. Let the input handle its own keystrokes.
-      if (isTextInputFocused()) return;
-      // Focus roams the FULL filtered list — VirtualGrid keeps the focused row
-      // mounted and scrolled into view even when it's outside the window.
-      const list = filteredRef.current;
-      if (!list?.length) return;
-      const idx = focusedIdxRef.current;
-      const numCols = numColsRef.current;
-      // Nothing focused yet (resting desktop state): the first arrow key just
-      // brings the cursor onto the first card rather than moving from it.
-      if (idx < 0 && (e.keyCode >= 37 && e.keyCode <= 40)) {
-        e.preventDefault();
-        focusedIdxRef.current = 0;
-        setFocusedIdx(0);
-        return;
-      }
-      if (e.key === "ArrowRight" || e.keyCode === 39) {
-        e.preventDefault();
-        const next = Math.min(idx + 1, list.length - 1);
-        focusedIdxRef.current = next;
-        setFocusedIdx(next);
-      } else if (e.key === "ArrowLeft" || e.keyCode === 37) {
-        e.preventDefault();
-        const prev = Math.max(idx - 1, 0);
-        focusedIdxRef.current = prev;
-        setFocusedIdx(prev);
-      } else if (e.key === "ArrowDown" || e.keyCode === 40) {
-        e.preventDefault();
-        const next = Math.min(idx + numCols, list.length - 1);
-        focusedIdxRef.current = next;
-        setFocusedIdx(next);
-      } else if (e.key === "ArrowUp" || e.keyCode === 38) {
-        e.preventDefault();
-        if (idx >= numCols) {
-          const prev = idx - numCols;
-          focusedIdxRef.current = prev;
-          setFocusedIdx(prev);
-        } else {
-          globalThis.dispatchEvent(new CustomEvent("tv-nav-focus"));
-        }
-      } else if (e.key === "Enter" || e.keyCode === 13) {
-        const item = list[idx];
-        if (item) onPressRef.current(item);
-      } else if (e.key === "Escape" || e.keyCode === 27) {
-        onBackRef.current();
-      }
-    };
-    globalThis.addEventListener("keydown", handler);
-    return () => globalThis.removeEventListener("keydown", handler);
-  }, []);
+  const { filtered, focusedIdx, onColsChange } = useCategoryGridNav({ items, search, onSelect: onPress, onBack });
 
   const CARD_W = ss(240);
   const GAP = ss(12);
@@ -414,7 +306,7 @@ function CategoryPage({
             focusIndex={focusedIdx}
             paddingH={ss(96)}
             paddingV={ss(32)}
-            onColsChange={(c) => { numColsRef.current = c; }}
+            onColsChange={onColsChange}
             onEndReached={onEndReached}
             footer={loadingMore ? (
               <YStack alignItems="center" paddingVertical={ss(24)}>
