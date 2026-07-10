@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { FlatList, RefreshControl, useWindowDimensions } from "react-native";
-import { YStack, XStack, Text, Input, Spinner } from "../ui/primitives";
+import { FlatList, RefreshControl } from "react-native";
+import { YStack, XStack, Text } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
@@ -10,63 +10,7 @@ import { useDownloads } from "../downloads/useDownloads.jsx";
 import { useIsOnline } from "../downloads/useIsOnline.js";
 import SeriesDetail from "../components/SeriesDetail";
 import ContentShelf from "../presentation/components/ContentShelf.native";
-import PosterCard from "../presentation/components/PosterCard.native";
-import { posterGrid, GRID_TARGET_W } from "../utils/posterLayout";
-
-const GRID_PAGE = 40;
-const GRID_OUTER = 16; // equal left/right screen margin
-const GRID_GAP = 12; // gap between posters (columns and rows)
-
-/* ─── Category Page ─── */
-function CategoryPage({ name, items, onBack, onPress, onLoadMore, hasRemote, loadingMore }) {
-  const [displayCount, setDisplayCount] = useState(GRID_PAGE);
-  const [search, setSearch] = useState("");
-  const { width: winW } = useWindowDimensions();
-  // Column count is DERIVED from the screen width (Electron's density model):
-  // ~3 across on a phone, more on a tablet, posters sized to fill the row.
-  const { cols, cardW } = posterGrid(winW - GRID_OUTER * 2, { target: GRID_TARGET_W, gap: GRID_GAP });
-  const filtered = items ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items) : null;
-  const displayed = filtered ? filtered.slice(0, displayCount) : null;
-  const hasLocalMore = filtered && displayCount < filtered.length;
-  const hasMore = hasLocalMore || hasRemote;
-  useEffect(() => { setDisplayCount(GRID_PAGE); }, [search]);
-
-  return (
-    <YStack flex={1} backgroundColor={colors.bg}>
-      <XStack alignItems="center" gap={12} paddingHorizontal={16} paddingTop={16} paddingBottom={10} borderBottomWidth={1} borderBottomColor={colors.border}>
-        <XStack alignItems="center" gap={8} paddingVertical={8} paddingHorizontal={12} backgroundColor={colors.surface2} borderRadius={8} cursor="pointer" onPress={onBack} pressStyle={{ opacity: 0.8 }}>
-          <Icon name="back" size={16} color={colors.accent} />
-          <Text color={colors.accent} fontSize={14} fontWeight={fontWeights.medium}>Back</Text>
-        </XStack>
-        <Text color={colors.text} fontFamily={fonts.display} fontSize={18} fontWeight={fontWeights.bold} flex={1} numberOfLines={1}>{name}</Text>
-        {filtered != null && (
-          <YStack backgroundColor="rgba(255,255,255,0.07)" borderRadius={20} paddingHorizontal={10} paddingVertical={4}>
-            <Text color={colors.muted} fontSize={12} fontWeight="600">{filtered.length.toLocaleString()}</Text>
-          </YStack>
-        )}
-      </XStack>
-      <Input margin={12} placeholder="Search titles..." placeholderTextColor="#555" value={search} onChangeText={setSearch} backgroundColor={colors.surface2} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={10} fontSize={14} borderWidth={1} borderColor={colors.border} />
-      {!displayed ? (
-        <YStack flex={1} justifyContent="center" alignItems="center"><Spinner size="large" color={colors.accent} /></YStack>
-      ) : (
-        <FlatList
-          key={`grid-${cols}`}
-          style={{ flex: 1 }}
-          data={displayed}
-          keyExtractor={(item) => String(item.series_id)}
-          numColumns={cols}
-          contentContainerStyle={{ paddingHorizontal: GRID_OUTER, paddingVertical: 12 }}
-          columnWrapperStyle={{ gap: GRID_GAP, marginBottom: GRID_GAP }}
-          renderItem={({ item }) => <PosterCard item={item} onPress={onPress} width={cardW} />}
-          onEndReached={() => { if (hasLocalMore) setDisplayCount((c) => Math.min(c + GRID_PAGE, filtered.length)); else if (hasRemote && !loadingMore && onLoadMore) onLoadMore(); }}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={(hasMore || loadingMore) ? <YStack alignItems="center" paddingVertical={20}><Spinner size="small" color={colors.accent} /></YStack> : null}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-    </YStack>
-  );
-}
+import CategoryGridPage from "../presentation/components/CategoryGridPage.native";
 
 /* ─── Screen ─── */
 export default function SeriesScreen({ navigation }) {
@@ -191,10 +135,11 @@ export default function SeriesScreen({ navigation }) {
       />
       {categoryPage && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
-          <CategoryPage
+          <CategoryGridPage
             name={categoryPage.name} items={categoryPage.items}
+            keyField="series_id"
             onBack={closeCategory}
-            onPress={selectSeries}
+            onSelect={selectSeries}
             hasRemote={isTopRatedCategory && topRatedHasMore} loadingMore={isTopRatedCategory && topRatedLoadingMore}
             onLoadMore={isTopRatedCategory ? handleTopRatedMore : undefined}
           />
@@ -211,11 +156,12 @@ export default function SeriesScreen({ navigation }) {
       )}
       {showDownloaded && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
-          <CategoryPage
+          <CategoryGridPage
             name="Downloaded"
             items={downloadedEpisodes}
+            keyField="stream_id"
             onBack={() => setShowDownloaded(false)}
-            onPress={(it) => {
+            onSelect={(it) => {
               const rec = it.__download;
               if (!rec) return;
               // Play straight from the local file — no network needed.
