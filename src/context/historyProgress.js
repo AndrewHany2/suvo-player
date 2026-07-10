@@ -162,3 +162,23 @@ export function mergeHistories(local, remote) {
     .sort((a, b) => new Date(b.watchedAt) - new Date(a.watchedAt))
     .slice(0, MAX_HISTORY);
 }
+
+/**
+ * PURE: merge local + remote favorites by `id`, newest-wins by `addedAt`,
+ * sorted newest-first. No cap — the favorites list is user-curated and small.
+ *
+ * @param {Object[]} local
+ * @param {Object[]} remote
+ * @returns {Object[]}
+ */
+export function mergeFavorites(local, remote) {
+  const map = new Map();
+  for (const item of local) map.set(item.id, item);
+  for (const item of remote) {
+    const existing = map.get(item.id);
+    if (!existing || new Date(item.addedAt) > new Date(existing.addedAt))
+      map.set(item.id, item);
+  }
+  return Array.from(map.values())
+    .sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
+}

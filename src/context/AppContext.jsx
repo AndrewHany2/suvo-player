@@ -12,7 +12,7 @@ import {
   updateIptvAccount as supabaseUpdateIptvAccount,
   deleteIptvAccount as supabaseDeleteIptvAccount,
 } from '../services/supabase';
-import { normalizeHistoryItem, upsertHistoryItem, applyProgress } from './historyProgress';
+import { normalizeHistoryItem, upsertHistoryItem, applyProgress, mergeFavorites } from './historyProgress';
 import { pickLibraryBase } from './libraryBase';
 import { getDeviceSignature } from '../security/deviceSignature';
 import { setDeviceId } from '../services/deviceHeader';
@@ -302,19 +302,6 @@ export const AppProvider = ({ children }) => {
 
   const isInMyList = useCallback((type, streamId) =>
     myListRef.current.some((m) => m.id === myListId(type, streamId)), []);
-
-  // Merge favorites by id, keeping the most-recent addedAt for shared ids.
-  const mergeFavorites = (local, remote) => {
-    const map = new Map();
-    for (const item of local) map.set(item.id, item);
-    for (const item of remote) {
-      const existing = map.get(item.id);
-      if (!existing || new Date(item.addedAt) > new Date(existing.addedAt))
-        map.set(item.id, item);
-    }
-    return Array.from(map.values())
-      .sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt));
-  };
 
   // Fetch remote history/favorites for a userKey, merge with local (which is
   // authoritative for local-only / locally-newer entries), then re-upsert the

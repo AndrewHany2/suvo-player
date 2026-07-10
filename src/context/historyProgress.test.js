@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   MAX_HISTORY,
+  mergeFavorites,
   normalizeHistoryItem,
   normalizeType,
   isDifferentTitle,
@@ -148,4 +149,25 @@ test("mergeHistories: sorts newest-first and caps to MAX_HISTORY", () => {
   // newest-first
   for (let i = 1; i < merged.length; i++)
     assert.ok(new Date(merged[i - 1].watchedAt) >= new Date(merged[i].watchedAt));
+});
+
+test("mergeFavorites: newer addedAt wins for a shared id", () => {
+  const local = [{ id: "a", addedAt: "2026-01-01T00:00:00Z" }];
+  const remote = [{ id: "a", addedAt: "2026-02-01T00:00:00Z" }];
+  const out = mergeFavorites(local, remote);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].addedAt, "2026-02-01T00:00:00Z");
+});
+
+test("mergeFavorites: local wins when it is the newer of a shared id", () => {
+  const local = [{ id: "a", addedAt: "2026-03-01T00:00:00Z" }];
+  const remote = [{ id: "a", addedAt: "2026-02-01T00:00:00Z" }];
+  assert.equal(mergeFavorites(local, remote)[0].addedAt, "2026-03-01T00:00:00Z");
+});
+
+test("mergeFavorites: unions distinct ids, sorted newest-first, no cap", () => {
+  const local = [{ id: "a", addedAt: "2026-01-01T00:00:00Z" }];
+  const remote = [{ id: "b", addedAt: "2026-05-01T00:00:00Z" }, { id: "c", addedAt: "2026-03-01T00:00:00Z" }];
+  const out = mergeFavorites(local, remote);
+  assert.deepEqual(out.map((x) => x.id), ["b", "c", "a"]);
 });
