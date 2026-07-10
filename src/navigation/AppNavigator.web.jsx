@@ -45,6 +45,17 @@ if (typeof document !== "undefined") {
   }
   style.textContent = `
     *, *::before, *::after { box-sizing: border-box; }
+    /* Respect the OS "reduce motion" setting: near-zero (not none, so end
+       states still apply) durations + a single iteration kill the infinite
+       spinner/blink and all hover transitions for motion-sensitive users. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
     html, body { margin: 0; padding: 0; height: 100%; background: #0A0E1A; color: #EAF0FF; font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif; }
     /* translateZ(0) in both frames GPU-composites the rotation so it keeps
        spinning smoothly on webOS even while the main thread is busy (e.g. big

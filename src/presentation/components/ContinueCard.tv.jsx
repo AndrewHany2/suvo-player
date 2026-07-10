@@ -1,6 +1,7 @@
 import { memo, useState } from "react";
 import { colors, focusRing, overlay, radii, fonts, fontWeights } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
+import { formatEpisodeLabel } from "../../utils/formatEpisodeLabel";
 import Icon from "../../ui/Icon";
 
 /**
@@ -31,7 +32,7 @@ const formatTimeLeft = (currentTime, duration) => {
 
 const getEpLabel = (item) => {
   if (item.type === "series" && item.seasonNum && item.episodeNum)
-    return `S${item.seasonNum} · E${String(item.episodeNum).padStart(2, "0")}`;
+    return formatEpisodeLabel(item.seasonNum, item.episodeNum);
   return null;
 };
 

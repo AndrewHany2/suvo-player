@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { Image, View } from "react-native";
 import { YStack, Text, ScrollView } from "../ui/primitives";
 import { colors, fonts, fontWeights, overlay, radii } from "../ui/tokens";
+import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
 import { useHistory } from "../domain/hooks/useHistory";
@@ -83,7 +84,7 @@ const formatTimeLeft = (currentTime, duration) => {
 
 const getEpLabel = (item) => {
   if (item.type === "series" && item.seasonNum && item.episodeNum)
-    return `S${item.seasonNum} · E${String(item.episodeNum).padStart(2, "0")}`;
+    return formatEpisodeLabel(item.seasonNum, item.episodeNum);
   return null;
 };
 

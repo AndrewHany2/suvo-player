@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Alert, View } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
 import { LinearGradient } from "expo-linear-gradient";
 import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
 import { colors, fonts, fontWeights, overlay, radii } from "../ui/tokens";
@@ -25,7 +26,7 @@ const formatTimeLeft = (currentTime, duration) => {
 
 const getEpLabel = (item) => {
   if (item.type === "series" && item.seasonNum && item.episodeNum)
-    return `S${item.seasonNum} · E${String(item.episodeNum).padStart(2, "0")}`;
+    return formatEpisodeLabel(item.seasonNum, item.episodeNum);
   return null;
 };
 

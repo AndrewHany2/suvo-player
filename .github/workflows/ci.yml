@@ -27,3 +27,19 @@ jobs:
       # --test-coverage-* threshold flags (added in Node 22). Revisit as a hard
       # gate when the runtime moves to 22+.
       - run: npm run test:coverage
+
+  # Smoke-build the web + TV bundles so a broken metro .web→.tv swap regex, a
+  # patch-index transpile failure, or an obfuscation error is caught on the PR
+  # instead of only at release (the release workflow runs on tags). Both targets
+  # are pure JS — no native (Android/iOS/Electron) toolchain required.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      - run: npm run build:tv
