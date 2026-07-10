@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { FlatList, useWindowDimensions } from "react-native";
 import { YStack, XStack, Text, Input, Spinner } from "../ui/primitives";
 import { useMovies } from "../domain/hooks/useMovies";
-import { useTVNavigation } from "../hooks/useTVNavigation";
+import { useDownloads } from "../downloads/useDownloads.jsx";
+import { useIsOnline } from "../downloads/useIsOnline.js";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import PosterCard from "../presentation/components/PosterCard.native";
 import MovieDetail from "../components/MovieDetail";
@@ -89,12 +90,17 @@ export default function MoviesScreen({ navigation }) {
     selectedMovie, selectMovie, clearSelectedMovie, playVideoObject,
   } = useMovies({ navigation });
 
-  const vcfg = getShelfConfig("native");
+  const { items: downloads } = useDownloads();
+  const online = useIsOnline();
+  const [showDownloaded, setShowDownloaded] = useState(false);
+  const downloadedMovies = downloads
+    .filter((r) => r.kind === "movie")
+    .map((r) => ({ stream_id: r.id, name: r.title, stream_icon: r.poster, __download: r }));
 
-  const { focusedRow, focusedCol } = useTVNavigation({
-    active: !categoryPage && !selectedMovie,
-    rows: [{ items: discoverItems, onSelect: (i) => openCategory(discoverItems[i].id, discoverItems[i].label) }],
-  });
+  // When the device goes offline, auto-surface downloads (the only playable content).
+  useEffect(() => { if (!online) setShowDownloaded(true); }, [online]);
+
+  const vcfg = getShelfConfig("native");
 
   if (loading) {
     return <StatePanel mode="loading" title="Loading movies..." />;
@@ -134,14 +140,26 @@ export default function MoviesScreen({ navigation }) {
             <XStack
               key={pill.id} alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
               backgroundColor={accentAlpha(0.08)} borderWidth={1}
-              borderColor={focusedRow === 0 && focusedCol === idx ? colors.accent2 : accentAlpha(0.28)}
-              borderRadius={999} onPress={() => openCategory(pill.id, pill.label)}
+              borderColor={accentAlpha(0.28)}
+              borderRadius={999} cursor="pointer" onPress={() => openCategory(pill.id, pill.label)}
+              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent }}
             >
               <Icon name={pill.id === "all" ? "film" : "star"} size={14} color={colors.muted} />
               <Text color={colors.text} fontSize={12} fontWeight="600">{pill.label}</Text>
               <Icon name="chevron-right" size={14} color={colors.accent} />
             </XStack>
           ))}
+          <XStack
+            alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
+            backgroundColor={accentAlpha(0.08)} borderWidth={1} borderColor={accentAlpha(0.28)}
+            borderRadius={999} onPress={() => setShowDownloaded(true)}
+          >
+            <Text color={colors.muted} fontSize={13} fontWeight="700">⬇</Text>
+            <Text color={colors.text} fontSize={12} fontWeight="600">Downloaded</Text>
+            {downloadedMovies.length > 0 && (
+              <Text color={colors.accent} fontSize={12} fontWeight="700">{downloadedMovies.length}</Text>
+            )}
+          </XStack>
         </XStack>
       </YStack>
     </YStack>
@@ -149,6 +167,11 @@ export default function MoviesScreen({ navigation }) {
 
   return (
     <YStack flex={1} backgroundColor={colors.bg}>
+      {!online && (
+        <YStack paddingVertical={8} paddingHorizontal={16} backgroundColor={colors.surface2} borderBottomWidth={1} borderBottomColor={colors.border}>
+          <Text color={colors.muted} fontSize={13} fontWeight="600">You're offline — showing your downloads.</Text>
+        </YStack>
+      )}
       <FlatList
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 80 }}
@@ -192,6 +215,22 @@ export default function MoviesScreen({ navigation }) {
             item={selectedMovie}
             onBack={clearSelectedMovie}
             onPlay={(videoObj) => { playVideoObject(videoObj); clearSelectedMovie(); }}
+          />
+        </YStack>
+      )}
+      {showDownloaded && (
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+          <CategoryPage
+            name="Downloaded"
+            items={downloadedMovies}
+            onBack={() => setShowDownloaded(false)}
+            onPlay={(it) => {
+              const rec = it.__download;
+              if (!rec) return selectMovie(it);
+              // Play straight from the local file — no network needed.
+              playVideoObject({ type: "movies", streamId: rec.id, name: rec.title, url: rec.localPath, cover: rec.poster, startTime: 0 });
+              setShowDownloaded(false);
+            }}
           />
         </YStack>
       )}

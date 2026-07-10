@@ -230,8 +230,11 @@ function CategoryPage({
   loadingMore,
 }) {
   const { searchQuery: search, setSearchQuery: setSearch } = useApp();
-  const [focusedIdx, setFocusedIdx] = useState(0);
-  const focusedIdxRef = useRef(0);
+  // Start with NOTHING focused so the grid has no resting D-nav selection on
+  // desktop — mouse users get hover only. The first arrow key brings the
+  // keyboard cursor in (see the idx < 0 guard in the keydown handler).
+  const [focusedIdx, setFocusedIdx] = useState(-1);
+  const focusedIdxRef = useRef(-1);
   const navHasFocusRef = useRef(false);
   // Column count is owned by VirtualGrid (derived from container width) and
   // mirrored here so the D-pad handler's up/down row math stays correct.
@@ -256,8 +259,8 @@ function CategoryPage({
   filteredRef.current = filtered;
 
   useEffect(() => {
-    setFocusedIdx(0);
-    focusedIdxRef.current = 0;
+    setFocusedIdx(-1);
+    focusedIdxRef.current = -1;
   }, [search]);
 
   useEffect(() => {
@@ -284,6 +287,14 @@ function CategoryPage({
       if (!list?.length) return;
       const idx = focusedIdxRef.current;
       const numCols = numColsRef.current;
+      // Nothing focused yet (resting desktop state): the first arrow key just
+      // brings the cursor onto the first card rather than moving from it.
+      if (idx < 0 && (e.keyCode >= 37 && e.keyCode <= 40)) {
+        e.preventDefault();
+        focusedIdxRef.current = 0;
+        setFocusedIdx(0);
+        return;
+      }
       if (e.key === "ArrowRight" || e.keyCode === 39) {
         e.preventDefault();
         const next = Math.min(idx + 1, list.length - 1);

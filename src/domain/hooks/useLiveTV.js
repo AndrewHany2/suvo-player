@@ -104,7 +104,12 @@ export function useLiveTV({ navigation } = {}) {
    */
   const getFlatChannels = useCallback(async (catId) => {
     const items = await getChannels(catId);
-    return (items || []).map((ch) => toFlatChannel(ch, contentService.buildLiveUrl));
+    // Wrap buildLiveUrl in an arrow so it's invoked as a method on
+    // contentService — passing the bare reference detaches `this`, and the
+    // method reaches the backend via `this.api` (m3u OR Xtream), so an unbound
+    // call throws "Cannot read properties of undefined (reading 'api')".
+    return (items || []).map((ch) =>
+      toFlatChannel(ch, (streamId, ext) => contentService.buildLiveUrl(streamId, ext)));
   }, [getChannels, contentService]);
 
   // ── Short EPG "now" title ───────────────────────────────────────────────────

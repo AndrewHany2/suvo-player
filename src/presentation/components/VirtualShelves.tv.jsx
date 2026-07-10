@@ -65,6 +65,17 @@ export function VirtualShelvesTV({
   onSeeAll,
   renderCard,
   showHero = true,
+  // Optional per-shelf row height (design px). Lets a shelf render a
+  // shorter/taller card than the default portrait poster row (e.g. Home's
+  // landscape Continue-Watching shelf). Absent → every row is ROW_HEIGHT, so
+  // the Movies/Series behaviour is byte-for-byte unchanged.
+  rowHeightForShelf,
+  // Optional per-shelf card width (design px). Widens a shelf's cards beyond the
+  // default portrait poster (Home's landscape Continue-Watching row). The window
+  // COUNT stays global (dims.cols) — only this rail's cell + spacer STRIDE
+  // change, which keeps its scroll geometry internally consistent. Absent →
+  // every card is CARD_W, so Movies/Series are unchanged.
+  cardWidthForShelf,
   onUpAtTop,
   onBack,
   renderHero,
@@ -89,6 +100,20 @@ export function VirtualShelvesTV({
   const CARD_GAP = ss(CARD_GAP_D);
   const STRIDE = CARD_W + CARD_GAP;
   const ROW_HEIGHT = ss(ROW_HEIGHT_D);
+  // Scaled height of one shelf row. Defaults to the portrait ROW_HEIGHT; a shelf
+  // may override it (Home's landscape Continue-Watching row is shorter). Kept as
+  // a function so the cumulative offsets below stay exact with mixed heights.
+  const rowH = (idx) => {
+    const d = rowHeightForShelf?.(shelves[idx]);
+    return d ? ss(d) : ROW_HEIGHT;
+  };
+  // Top of shelf `idx` = summed heights of every row before it. Reduces to
+  // idx * ROW_HEIGHT when all rows are the default height (Movies/Series).
+  const rowOffset = (idx) => {
+    let sum = 0;
+    for (let i = 0; i < idx; i++) sum += rowH(i);
+    return sum;
+  };
   const containerRef = useRef(null);
   const railRefs = useRef({}); // shelfId -> rail DOM node
   const focusedCardRef = useRef(null); // DOM node of the currently focused card
@@ -326,7 +351,7 @@ export function VirtualShelvesTV({
     const railsTop = railsRef.current?.offsetTop ?? ss(heroH);
     if (el)
       el.scrollTop =
-        focus.shelfAnchor <= 0 ? 0 : railsTop + focus.shelfAnchor * ROW_HEIGHT;
+        focus.shelfAnchor <= 0 ? 0 : railsTop + rowOffset(focus.shelfAnchor);
 
     const focusedId = shelves[focus.shelf]?.id;
     const rail = railRefs.current[focusedId];
@@ -536,7 +561,7 @@ export function VirtualShelvesTV({
         {/* Top spacer stands in for the shelves skipped above the window, so
             railsRef.offsetTop and scrollTop = railsTop + shelfAnchor*ROW_HEIGHT
             stay exact. */}
-        <div style={{ height: fetchWin.start * ROW_HEIGHT }} />
+        <div style={{ height: rowOffset(fetchWin.start) }} />
         {shelves.slice(fetchWin.start, fetchWin.end).map((shelf, i) => {
           const shelfIdx = fetchWin.start + i;
           const isFocusedShelf = shelfIdx === focus.shelf;
@@ -544,6 +569,13 @@ export function VirtualShelvesTV({
           // from FOCUS via scrollAnchor — the focused rail follows live focus.col,
           // idle rails use their remembered column — never from a scroll read.
           const full = Array.isArray(shelf.items) ? shelf.items : [];
+          // Per-rail card width/stride (defaults to the portrait CARD_W). Cells
+          // and the leading/trailing spacers below all use these so this rail's
+          // scroll geometry (and focusedCardRef.offsetLeft) stays exact.
+          const railCardW = cardWidthForShelf?.(shelf)
+            ? ss(cardWidthForShelf(shelf))
+            : CARD_W;
+          const railStride = railCardW + CARD_GAP;
           // items null/undefined = still fetching this rail's category. Show a
           // row of skeleton posters in place of the (empty) windowed cards.
           const loading = !Array.isArray(shelf.items);
@@ -598,7 +630,7 @@ export function VirtualShelvesTV({
           return (
             <div
               key={shelf.id}
-              style={{ height: ROW_HEIGHT, contain: "layout style paint" }}
+              style={{ height: rowH(shelfIdx), contain: "layout style paint" }}
             >
               <div
                 className={onSeeAll ? "tvl-shelf-title-btn" : undefined}
@@ -658,9 +690,9 @@ export function VirtualShelvesTV({
                       (_, i) => (
                         <div
                           key={`sk${i}`}
-                          style={{ flex: `0 0 ${CARD_W}px` }}
+                          style={{ flex: `0 0 ${railCardW}px` }}
                         >
-                          <SkeletonPoster width={CARD_W} />
+                          <SkeletonPoster width={railCardW} />
                         </div>
                       ),
                     )}
@@ -668,7 +700,7 @@ export function VirtualShelvesTV({
                       window. Cards render at STRIDE (CARD_W + gap), so the spacer
                       must be sized in STRIDE — NOT cfg.posterWidth — to keep the
                       rail's scroll geometry and focusedCardRef.offsetLeft exact. */}
-                  {!loading && <div style={{ flex: `0 0 ${w.leadingCount * STRIDE}px` }} />}
+                  {!loading && <div style={{ flex: `0 0 ${w.leadingCount * railStride}px` }} />}
                   {winItems.map((item, i) => {
                     const realCol = w.start + i; // absolute column index
                     // The logically-focused card (keeps the scroll ref so the rail
@@ -688,13 +720,13 @@ export function VirtualShelvesTV({
                       <div
                         key={realCol}
                         ref={isFocusCol ? focusedCardRef : null}
-                        style={{ flex: `0 0 ${CARD_W}px` }}
+                        style={{ flex: `0 0 ${railCardW}px` }}
                       >
-                        {renderCard(item, showRing, CARD_W)}
+                        {renderCard(item, showRing, railCardW, shelf)}
                       </div>
                     );
                   })}
-                  <div style={{ flex: `0 0 ${w.trailingCount * STRIDE}px` }} />
+                  <div style={{ flex: `0 0 ${w.trailingCount * railStride}px` }} />
                 </div>
                 <span
                   className="tvl-shelf-chev tvl-shelf-chev--left"

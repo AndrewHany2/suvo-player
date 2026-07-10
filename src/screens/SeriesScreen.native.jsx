@@ -6,7 +6,8 @@ import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
 import { useSeries } from "../domain/hooks/useSeries";
-import { useTVNavigation } from "../hooks/useTVNavigation";
+import { useDownloads } from "../downloads/useDownloads.jsx";
+import { useIsOnline } from "../downloads/useIsOnline.js";
 import SeriesDetail from "../components/SeriesDetail";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import PosterCard from "../presentation/components/PosterCard.native";
@@ -76,17 +77,22 @@ export default function SeriesScreen({ navigation }) {
     selectedSeries, selectSeries, clearSelectedSeries, playVideoObject,
   } = useSeries({ navigation });
 
+  const { items: downloads } = useDownloads();
+  const online = useIsOnline();
+  const [showDownloaded, setShowDownloaded] = useState(false);
+  const downloadedEpisodes = downloads
+    .filter((r) => r.kind === "episode")
+    .map((r) => ({ stream_id: r.id, name: r.title, stream_icon: r.poster, __download: r }));
+
+  // When the device goes offline, auto-surface downloads (the only playable content).
+  useEffect(() => { if (!online) setShowDownloaded(true); }, [online]);
+
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try { await reload(); } finally { setRefreshing(false); }
   };
-
-  const { focusedRow, focusedCol } = useTVNavigation({
-    active: !categoryPage && !selectedSeries,
-    rows: [{ items: discoverItems, onSelect: (i) => openCategory(discoverItems[i].id, discoverItems[i].label) }],
-  });
 
   if (loading) {
     return <StatePanel mode="loading" title="Loading series..." />;
@@ -127,17 +133,28 @@ export default function SeriesScreen({ navigation }) {
               key={pill.id}
               alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
               backgroundColor="rgba(108, 92, 231,0.08)" borderWidth={1}
-              borderColor={focusedRow === 0 && focusedCol === idx ? colors.accent2 : "rgba(108, 92, 231,0.28)"}
+              borderColor="rgba(108, 92, 231,0.28)"
               borderRadius={999} cursor="pointer"
               onPress={() => openCategory(pill.id, pill.label)}
               pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent }} animation="quick"
-              scale={focusedRow === 0 && focusedCol === idx ? 1.05 : 1}
             >
               <Icon name={pill.id === "all" ? "tv" : "star"} size={16} color={colors.accent2} />
               <Text color={colors.text} fontSize={12} fontWeight={fontWeights.medium}>{pill.label}</Text>
               <Icon name="chevron-right" size={16} color={colors.accent} />
             </XStack>
           ))}
+          <XStack
+            alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
+            backgroundColor="rgba(108, 92, 231,0.08)" borderWidth={1} borderColor="rgba(108, 92, 231,0.28)"
+            borderRadius={999} cursor="pointer" onPress={() => setShowDownloaded(true)}
+            pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent }} animation="quick"
+          >
+            <Text color={colors.accent2} fontSize={13} fontWeight={fontWeights.bold}>⬇</Text>
+            <Text color={colors.text} fontSize={12} fontWeight={fontWeights.medium}>Downloaded</Text>
+            {downloadedEpisodes.length > 0 && (
+              <Text color={colors.accent} fontSize={12} fontWeight={fontWeights.bold}>{downloadedEpisodes.length}</Text>
+            )}
+          </XStack>
         </XStack>
       </YStack>
     </YStack>
@@ -145,6 +162,11 @@ export default function SeriesScreen({ navigation }) {
 
   return (
     <YStack flex={1} backgroundColor={colors.bg}>
+      {!online && (
+        <YStack paddingVertical={8} paddingHorizontal={16} backgroundColor={colors.surface2} borderBottomWidth={1} borderBottomColor={colors.border}>
+          <Text color={colors.muted} fontSize={13} fontWeight="600">You're offline — showing your downloads.</Text>
+        </YStack>
+      )}
       <FlatList
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 80 }}
@@ -184,6 +206,22 @@ export default function SeriesScreen({ navigation }) {
             item={selectedSeries}
             onBack={clearSelectedSeries}
             onPlayEpisode={(videoObj) => { playVideoObject(videoObj); clearSelectedSeries(); }}
+          />
+        </YStack>
+      )}
+      {showDownloaded && (
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+          <CategoryPage
+            name="Downloaded"
+            items={downloadedEpisodes}
+            onBack={() => setShowDownloaded(false)}
+            onPress={(it) => {
+              const rec = it.__download;
+              if (!rec) return;
+              // Play straight from the local file — no network needed.
+              playVideoObject({ type: "series", streamId: rec.id, seriesId: rec.seriesId, name: rec.title, url: rec.localPath, cover: rec.poster, seasonNum: rec.season, episodeNum: rec.episode, startTime: 0 });
+              setShowDownloaded(false);
+            }}
           />
         </YStack>
       )}

@@ -32,14 +32,19 @@ function ensureHoverGlowRule() {
   const el = document.createElement("style");
   // Hover = same weight as focus: a clear 2px cyan border + soft glow on the
   // poster image (box-sizing:border-box, so the 2px border doesn't shift layout).
+  // !important is REQUIRED: the poster box carries INLINE `box-shadow:none` and
+  // an inline `border` for the resting/focus state, and a stylesheet :hover rule
+  // can't override inline styles without it (this is why hover glow was missing
+  // on Movies/Series posters while Home's Tamagui posters — no inline shadow —
+  // hovered fine).
   el.textContent =
     "body:not(.keyboard-nav) .suvo-poster-card:hover .suvo-poster-box{box-shadow:" +
     GLOW_WEB +
-    ";border-color:" +
+    " !important;border-color:" +
     focusRing.color +
-    ";border-width:" +
+    " !important;border-width:" +
     focusRing.width +
-    "px}";
+    "px !important}";
   document.head.appendChild(el);
 }
 

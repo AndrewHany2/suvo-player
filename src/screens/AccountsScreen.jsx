@@ -9,6 +9,12 @@ import PasswordInput from "../ui/PasswordInput";
 import StatePanel from "../ui/StatePanel";
 import { useApp } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
+import DownloadsStorageLine from "../downloads/DownloadsStorageLine.jsx";
+
+// Downloads live only on iOS/Android; the DownloadsProvider is mounted at the
+// native root, so the storage line must not render on web (this screen has no
+// .web variant and is shared with the web build).
+const IS_NATIVE = Platform.OS === "ios" || Platform.OS === "android";
 
 const EMPTY_FORM = { type: "xtream", nickname: "", host: "", username: "", password: "", url: "" };
 
@@ -229,6 +235,8 @@ export default function AccountsScreen({ navigation }) {
           Add account
         </Button>
       </YStack>
+
+      {IS_NATIVE && <DownloadsStorageLine />}
 
       {loading && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={10} pointerEvents="none">

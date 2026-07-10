@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -8,6 +9,9 @@ import Icon from "../ui/Icon";
 import { colors, accentAlpha } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { useAppGate } from "./useAppGate";
+import iptvApi from "../services/iptvApi";
+import { createNativeDownloadManager, documentDirectory } from "../downloads/nativeDownloadManager.js";
+import { DownloadsProvider } from "../downloads/useDownloads.jsx";
 
 import AuthScreen from "../screens/AuthScreen";
 import ConfigErrorScreen from "../screens/ConfigErrorScreen";
@@ -92,6 +96,10 @@ function MainTabs() {
 
 export default function AppNavigator() {
   const gate = useAppGate();
+  // Native-only download manager, memoized once per app lifetime. Declared
+  // unconditionally (before the gate's early returns) to satisfy the
+  // rules-of-hooks — hooks must run on every render regardless of gate state.
+  const manager = useMemo(() => createNativeDownloadManager(), []);
   // Neutral boot splash while the session/device resolves — auth-agnostic spinner
   // only, never an optimistic skeleton. The 8s authLoading ceiling lives in AppContext.
   const splash = (
@@ -106,12 +114,14 @@ export default function AppNavigator() {
   if (gate === "profiles") return <ProfilesScreen />;
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ freezeOnBlur: true, headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text, contentStyle: { backgroundColor: colors.bg } }}>
-        <Stack.Screen name="Main"        component={MainTabs}         options={{ headerShown: false }} />
-        <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
-        <Stack.Screen name="Accounts"    component={AccountsScreen}   options={{ title: "Accounts", presentation: "modal", headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text }} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <DownloadsProvider manager={manager} api={iptvApi} documentDirectory={documentDirectory}>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ freezeOnBlur: true, headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text, contentStyle: { backgroundColor: colors.bg } }}>
+          <Stack.Screen name="Main"        component={MainTabs}         options={{ headerShown: false }} />
+          <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
+          <Stack.Screen name="Accounts"    component={AccountsScreen}   options={{ title: "Accounts", presentation: "modal", headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text }} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </DownloadsProvider>
   );
 }

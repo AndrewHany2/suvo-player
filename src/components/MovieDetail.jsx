@@ -7,6 +7,9 @@ import { colors } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import { useApp } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
+import DownloadButton from "../downloads/DownloadButton.jsx";
+import { useDownloads } from "../downloads/useDownloads.jsx";
+import { makeId } from "../downloads/downloadStore.js";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -23,6 +26,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
   const insets = useSafeAreaInsets();
   const [info, setInfo] = useState(null);
 
+  const { byId } = useDownloads();
   const streamId = item.stream_id ?? item.streamId;
   const name = item.name;
   const cover = item.stream_icon || item.cover || item.movie_image || null;
@@ -66,7 +70,12 @@ export default function MovieDetail({ item, onBack, onPlay }) {
   }, [resumeTime, isLoading]);
 
   const handlePlay = (startTime) => {
-    const url = contentService.buildMovieUrl(streamId, item.container_extension || "mp4");
+    // Play from the local file if this movie is downloaded (works offline);
+    // otherwise stream from the remote URL.
+    const rec = byId[makeId({ kind: "movie", streamId })];
+    const url = rec?.status === "done"
+      ? rec.localPath
+      : contentService.buildMovieUrl(streamId, item.container_extension || "mp4");
     onPlay({ type: "movies", streamId, name, url, cover, startTime });
   };
 
@@ -142,6 +151,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
                 <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
               </YStack>
             </XStack>
+            <DownloadButton item={{ kind: "movie", streamId, title: name, poster: cover, ext: item.container_extension || "mp4" }} />
           </YStack>
         </YStack>
       </YStack>
