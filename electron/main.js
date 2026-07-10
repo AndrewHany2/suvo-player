@@ -16,6 +16,17 @@ const { execFile } = require("child_process");
 const os = require("os");
 const { buildVlcInvocation } = require("./vlcInvocation.js");
 
+// The only origins our own renderer is ever served from: the packaged app://
+// scheme, and the Expo dev server in development. Everything else is untrusted.
+const ALLOWED_ORIGINS = ["app://localhost", "http://localhost:3001"];
+
+// Gate every IPC handler on the sender's origin so a stray/injected frame (or a
+// page navigated away from our origin) can't reach the file/dialog/VLC bridge.
+function isTrustedSender(event) {
+  const url = event.senderFrame?.url || "";
+  return ALLOWED_ORIGINS.some((o) => url.startsWith(o));
+}
+
 // Must be called before app.whenReady — registers app:// as a secure standard scheme
 // so root-relative paths in the expo build (/_expo/...) resolve within the scheme
 // instead of resolving to file:///C:/_expo/... (filesystem root)
@@ -38,6 +49,11 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
+      // NOTE: kept off because the renderer fetches cross-origin http(s) IPTV
+      // streams directly; removing it needs a main-process fetch proxy (or a
+      // scoped CORS rewrite) and Electron+real-stream verification. The nav
+      // guards + IPC origin-gate below are the defense-in-depth that don't
+      // require that rework.
       webSecurity: false,
     },
     backgroundColor: "#0A0E1A",
@@ -45,6 +61,13 @@ function createWindow() {
   });
 
   mainWindow.maximize();
+
+  // Lock the renderer down (defense-in-depth even with contextIsolation on):
+  // deny all popups, and block navigating the main frame away from our origin.
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!ALLOWED_ORIGINS.some((o) => url.startsWith(o))) event.preventDefault();
+  });
 
   if (isDev) {
     // Hide Expo's Fast Refresh badge (the flashing lightning-bolt in the
@@ -109,7 +132,8 @@ app.on("activate", () => {
 });
 
 // IPC Handlers
-ipcMain.handle("select-playlist", async () => {
+ipcMain.handle("select-playlist", async (event) => {
+  if (!isTrustedSender(event)) return { success: false, error: "Untrusted sender" };
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openFile"],
     filters: [
@@ -129,7 +153,8 @@ ipcMain.handle("select-playlist", async () => {
   return { success: false, error: "No file selected" };
 });
 
-ipcMain.handle("save-playlist", async (_event, content) => {
+ipcMain.handle("save-playlist", async (event, content) => {
+  if (!isTrustedSender(event)) return { success: false, error: "Untrusted sender" };
   const result = await dialog.showSaveDialog(mainWindow, {
     filters: [
       { name: "M3U Playlist", extensions: ["m3u"] },
@@ -148,7 +173,8 @@ ipcMain.handle("save-playlist", async (_event, content) => {
   return { success: false, error: "Save canceled" };
 });
 
-ipcMain.handle("open-in-vlc", async (_event, streamUrl, options = {}) => {
+ipcMain.handle("open-in-vlc", async (event, streamUrl, options = {}) => {
+  if (!isTrustedSender(event)) return { success: false, error: "Untrusted sender" };
   // Untrusted streamUrl/name — build an argv array and spawn without a shell.
   // buildVlcInvocation validates the URL (http/https only) and returns null on
   // anything unsafe, so a crafted stream name/URL cannot inject a command.
