@@ -166,12 +166,13 @@ export default function MoviesScreen({ navigation }) {
               {shelves.slice(vWin.start, vWin.end).map((shelf) => (
                 <div key={shelf.id} style={{ height: rowStride, overflow: "visible" }}>
                   <ContentShelf
+                    id={shelf.id}
                     title={shelf.name} count={shelf.totalCount} items={shelf.items}
                     hasMore={shelf.hasMore} loadingMore={shelf.loadingMore} manual={false}
-                    onVisible={() => handleShelfVisible(shelf.id)}
+                    onVisible={handleShelfVisible}
                     onPress={selectMovie}
-                    onTitlePress={() => openCategory(shelf.id, shelf.name)}
-                    onLoadMore={() => handleLoadMore(shelf.id)}
+                    onTitlePress={openCategory}
+                    onLoadMore={handleLoadMore}
                   />
                 </div>
               ))}

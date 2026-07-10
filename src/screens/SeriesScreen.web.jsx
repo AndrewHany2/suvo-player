@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
@@ -22,7 +22,7 @@ import DiscoverPills from "../presentation/components/DiscoverPills.web";
 const MAX_W = 1700;
 
 /* ─── Shelf ─── */
-function Shelf({
+function ShelfBase({
   catId,
   title,
   items,
@@ -219,6 +219,12 @@ function Shelf({
     </YStack>
   );
 }
+
+// Memoized: Series renders every shelf unconditionally (no window), so without
+// this a single shelf's items arriving would re-render all of them. Callers pass
+// stable handlers (id flows back through the callback args), so memo skips the
+// shelves that didn't change.
+const Shelf = memo(ShelfBase);
 
 /* ─── Category Page ─── */
 function CategoryPage({

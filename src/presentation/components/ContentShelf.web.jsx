@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { ss } from "../../utils/scaleSize";
 import { useShelfWindow } from "../virtualization/useShelfWindow.js";
 import { getShelfConfig } from "../virtualization/shelfConfig.js";
@@ -16,8 +16,8 @@ import { isTV } from "../../utils/isTV";
  * On TV the shelf model isn't used (TV screens render grids), so this targets
  * the desktop/web experience.
  */
-export default function ContentShelf({
-  title, count, items, hasMore, loadingMore, manual,
+function ContentShelf({
+  id, title, count, items, hasMore, loadingMore, manual,
   onVisible, onPress, onTitlePress, onLoadMore, renderItem,
 }) {
   const sentinelRef = useRef(null);
@@ -50,13 +50,13 @@ export default function ContentShelf({
   useEffect(() => {
     if (items !== null || manual) return;
     const el = sentinelRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") { onVisible?.(); return; }
+    if (!el || typeof IntersectionObserver === "undefined") { onVisible?.(id); return; }
     const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) { obs.disconnect(); onVisible?.(); }
+      if (entry.isIntersecting) { obs.disconnect(); onVisible?.(id); }
     }, { rootMargin: "300px 0px" });
     obs.observe(el);
     return () => obs.disconnect();
-  }, [items, onVisible, manual]);
+  }, [id, items, onVisible, manual]);
 
   // Re-attach drag handlers once the shelf transitions from loading to loaded.
   const itemsLoaded = items !== null;
@@ -106,11 +106,11 @@ export default function ContentShelf({
         <div
           className="suvo-shelf-title-btn"
           style={{ display: "flex", alignItems: "center", gap: ss(4), cursor: onTitlePress ? "pointer" : "default" }}
-          onClick={onTitlePress ? () => onTitlePress() : undefined}
+          onClick={onTitlePress ? () => onTitlePress(id, title) : undefined}
           role={onTitlePress ? "button" : undefined}
           tabIndex={onTitlePress ? 0 : undefined}
           aria-label={onTitlePress ? `See all ${title}` : undefined}
-          onKeyDown={onTitlePress ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTitlePress(); } } : undefined}
+          onKeyDown={onTitlePress ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTitlePress(id, title); } } : undefined}
         >
           <span style={{ color: colors.text, fontSize: ss(22), fontWeight: fontWeights.bold, letterSpacing: -0.3, fontFamily: fonts.display }}>
             {title}
@@ -166,3 +166,10 @@ export default function ContentShelf({
     </div>
   );
 }
+
+// Memoized so a parent re-render (e.g. Movies' ~60/sec scroll-anchor updates, or
+// another shelf's items arriving) doesn't re-render every mounted shelf — only the
+// one whose props actually changed. Effective because callers pass STABLE handlers
+// (the shelf id flows back through the callback args) and per-shelf objects keep a
+// stable identity across unrelated setShelves() maps.
+export default memo(ContentShelf);
