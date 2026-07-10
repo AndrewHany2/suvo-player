@@ -74,8 +74,17 @@ if (typeof document !== "undefined") {
       box-shadow: 0 0 0 2px #22D3EE, 0 0 24px 2px rgba(34,211,238,0.55);
       border-color: #22D3EE; z-index: 2;
     }
-    .suvo-live-card { transition: border-color 0.15s ease, background-color 0.15s ease; cursor: pointer !important; }
-    body:not(.keyboard-nav) .suvo-live-card:hover { border-color: #6C5CE7 !important; background-color: #1B2236 !important; }
+    .suvo-live-card { transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.2s ease; cursor: pointer !important; }
+    /* Same Aurora hover language as posters: cyan ring + soft glow. The ring is
+       the element's own BORDER (border-box → no layout shift, never clipped by a
+       scroll rail's overflow), NOT an outset box-shadow, which would get cropped
+       top/bottom. The box-shadow is only the soft ambient glow. !important beats
+       the card's inline Tamagui border/background. */
+    body:not(.keyboard-nav) .suvo-live-card:hover { border-color: #22D3EE !important; border-width: 2px !important; box-shadow: 0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55) !important; }
+    /* Discover category pills — cyan ring + glow on hover, matching posters.
+       !important overrides the pill's inline box-shadow:none / border resting style. */
+    .suvo-discover-pill { transition: border-color 0.15s ease, box-shadow 0.2s ease; cursor: pointer !important; }
+    body:not(.keyboard-nav) .suvo-discover-pill:hover { border-color: #22D3EE !important; box-shadow: 0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55) !important; }
     body:not(.keyboard-nav) .suvo-icon-btn:hover { background: rgba(255,255,255,0.10) !important; }
     body:not(.keyboard-nav) .suvo-avatar:hover { border-color: #6C5CE7 !important; }
     .suvo-shelf-nav {
@@ -115,7 +124,8 @@ if (typeof document !== "undefined") {
         ? `
       *, *::before, *::after { transition: none !important; animation: none !important; will-change: auto !important; }
       .suvo-poster:hover .suvo-poster-box, .suvo-cw-card:hover .suvo-poster-box { box-shadow: none !important; border-color: #28324E !important; }
-      .suvo-live-card:hover { border-color: #28324E !important; background-color: #1B2236 !important; }
+      .suvo-live-card:hover { border-color: #28324E !important; background-color: #1B2236 !important; box-shadow: none !important; }
+      .suvo-discover-pill:hover { box-shadow: none !important; border-color: #28324E !important; }
       .suvo-load-cta:hover { transform: none !important; }
       .suvo-shelf-rail { contain: layout style; }
       .suvo-live-dot::before { animation: none !important; opacity: 1; }

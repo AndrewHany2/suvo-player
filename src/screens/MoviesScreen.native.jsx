@@ -4,7 +4,6 @@ import { YStack, XStack, Text, Input, Spinner } from "../ui/primitives";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useDownloads } from "../downloads/useDownloads.jsx";
 import { useIsOnline } from "../downloads/useIsOnline.js";
-import { useTVNavigation } from "../hooks/useTVNavigation";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import PosterCard from "../presentation/components/PosterCard.native";
 import MovieDetail from "../components/MovieDetail";
@@ -103,11 +102,6 @@ export default function MoviesScreen({ navigation }) {
 
   const vcfg = getShelfConfig("native");
 
-  const { focusedRow, focusedCol } = useTVNavigation({
-    active: !categoryPage && !selectedMovie,
-    rows: [{ items: discoverItems, onSelect: (i) => openCategory(discoverItems[i].id, discoverItems[i].label) }],
-  });
-
   if (loading) {
     return <StatePanel mode="loading" title="Loading movies..." />;
   }
@@ -146,8 +140,9 @@ export default function MoviesScreen({ navigation }) {
             <XStack
               key={pill.id} alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
               backgroundColor={accentAlpha(0.08)} borderWidth={1}
-              borderColor={focusedRow === 0 && focusedCol === idx ? colors.accent2 : accentAlpha(0.28)}
-              borderRadius={999} onPress={() => openCategory(pill.id, pill.label)}
+              borderColor={accentAlpha(0.28)}
+              borderRadius={999} cursor="pointer" onPress={() => openCategory(pill.id, pill.label)}
+              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent }}
             >
               <Icon name={pill.id === "all" ? "film" : "star"} size={14} color={colors.muted} />
               <Text color={colors.text} fontSize={12} fontWeight="600">{pill.label}</Text>

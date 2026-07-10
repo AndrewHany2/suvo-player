@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
 import Icon from "../ui/Icon";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
+import ContinueCardTV from "../presentation/components/ContinueCard.tv";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import StatePanel from "../ui/StatePanel";
 import { colors } from "../ui/tokens";
@@ -25,6 +26,13 @@ const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 // reusing the canonical .tvl-card poster card from the Movies/Series grids.
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
+
+// Continue-Watching card geometry (design px; VirtualShelvesTV scales via ss()).
+// Width matches the portrait poster (VirtualShelvesTV's POSTER_W = 340), which
+// is tuned for ~5 cards per rail view — so the landscape cards show 5-up too.
+// Row height = header + the card's 16:9 thumb + the title/episode/time-left block.
+const CW_CARD_W = 340;
+const CW_ROW_H = 40 + Math.round((CW_CARD_W * 9) / 16) + 120;
 
 export default function HistoryScreenTV({ navigation }) {
   const {
@@ -76,7 +84,7 @@ export default function HistoryScreenTV({ navigation }) {
   // see-all disabled; it owns rail rendering, windowing and D-pad within the list.
   const shelves = [
     { id: "favorites", name: "Favorites", items: favItems },
-    { id: "history", name: "Watch History", items: histItems },
+    { id: "history", name: "Continue Watching", items: histItems },
   ].filter((s) => s.items.length > 0);
   // When there are no shelves, VirtualShelvesTV isn't mounted, so the raw key
   // handler still owns up→navbar / Back in the empty state.
@@ -752,9 +760,19 @@ export default function HistoryScreenTV({ navigation }) {
         onSelect={openItem}
         onUpAtTop={focusNav}
         onBack={() => navigation.goBack?.()}
-        renderCard={(item, isFocused, cardW) => (
-          <PosterCardWeb item={item} isFocused={isFocused} width={cardW} onPress={openItem} />
-        )}
+        // Continue Watching renders electron-style landscape cards: wider than a
+        // portrait poster (matches Electron's ~1.6× backdrop) and a shorter row
+        // (design px; VirtualShelvesTV scales both). Row = header + 16:9 thumb +
+        // title/episode/time-left.
+        cardWidthForShelf={(shelf) => (shelf?.id === "history" ? CW_CARD_W : null)}
+        rowHeightForShelf={(shelf) => (shelf?.id === "history" ? CW_ROW_H : null)}
+        renderCard={(item, isFocused, cardW, shelf) =>
+          shelf?.id === "history" ? (
+            <ContinueCardTV item={item} isFocused={isFocused} width={cardW} onPress={openItem} />
+          ) : (
+            <PosterCardWeb item={item} isFocused={isFocused} width={cardW} onPress={openItem} />
+          )
+        }
       />
     </div>
   );

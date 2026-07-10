@@ -30,7 +30,10 @@ export default function DiscoverPills({ items, focusedCol = -1, onSelect }) {
   return (
     <XStack gap={ss(tv ? 14 : 10)} flexWrap="wrap">
       {items.map((pill, idx) => {
-        const focused = focusedCol === idx;
+        // Only TV (remote nav) shows a persistent focus ring on a pill. On
+        // desktop there's a pointer, so the pill stays neutral until hover —
+        // matching the Home screen's hover-only interaction language.
+        const focused = tv && focusedCol === idx;
         return (
           <XStack
             key={pill.id}
@@ -59,10 +62,12 @@ export default function DiscoverPills({ items, focusedCol = -1, onSelect }) {
               ...(tv ? null : { boxShadow: GLOW_WEB }),
             }}
             style={{
-              boxShadow: focused && !tv ? GLOW_WEB : "none",
+              // Glow is a hover-only affordance now (see hoverStyle); the
+              // focus ring on TV is a plain border with no shadow.
+              boxShadow: "none",
               transition: tv ? undefined : `border-color ${motion.fast}ms ${easing}, box-shadow ${motion.base}ms ${easing}`,
             }}
-            {...{ className: "suvo-load-cta" }}
+            {...{ className: "suvo-discover-pill" }}
           >
             <Icon name={iconFor(pill.id)} size={ss(tv ? 22 : 16)} color={colors.accent2} />
             <Text color={colors.text} fontSize={ss(tv ? 18 : 13)} fontWeight={fontWeights.medium} fontFamily={fonts.body} letterSpacing={0.1}>{pill.label}</Text>

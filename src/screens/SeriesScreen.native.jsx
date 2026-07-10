@@ -8,7 +8,6 @@ import Icon from "../ui/Icon";
 import { useSeries } from "../domain/hooks/useSeries";
 import { useDownloads } from "../downloads/useDownloads.jsx";
 import { useIsOnline } from "../downloads/useIsOnline.js";
-import { useTVNavigation } from "../hooks/useTVNavigation";
 import SeriesDetail from "../components/SeriesDetail";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import PosterCard from "../presentation/components/PosterCard.native";
@@ -95,11 +94,6 @@ export default function SeriesScreen({ navigation }) {
     try { await reload(); } finally { setRefreshing(false); }
   };
 
-  const { focusedRow, focusedCol } = useTVNavigation({
-    active: !categoryPage && !selectedSeries,
-    rows: [{ items: discoverItems, onSelect: (i) => openCategory(discoverItems[i].id, discoverItems[i].label) }],
-  });
-
   if (loading) {
     return <StatePanel mode="loading" title="Loading series..." />;
   }
@@ -139,11 +133,10 @@ export default function SeriesScreen({ navigation }) {
               key={pill.id}
               alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
               backgroundColor="rgba(108, 92, 231,0.08)" borderWidth={1}
-              borderColor={focusedRow === 0 && focusedCol === idx ? colors.accent2 : "rgba(108, 92, 231,0.28)"}
+              borderColor="rgba(108, 92, 231,0.28)"
               borderRadius={999} cursor="pointer"
               onPress={() => openCategory(pill.id, pill.label)}
               pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent }} animation="quick"
-              scale={focusedRow === 0 && focusedCol === idx ? 1.05 : 1}
             >
               <Icon name={pill.id === "all" ? "tv" : "star"} size={16} color={colors.accent2} />
               <Text color={colors.text} fontSize={12} fontWeight={fontWeights.medium}>{pill.label}</Text>

@@ -326,6 +326,14 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
               gap: ss(8),
               paddingLeft: ss(48),
               paddingRight: ss(48),
+              // overflow-x:auto clips the vertical axis too, cropping the cards'
+              // hover glow top/bottom. Pad the scroll box so the glow has room to
+              // paint, then cancel it with an equal negative margin so row layout
+              // is unchanged.
+              paddingTop: ss(20),
+              paddingBottom: ss(20),
+              marginTop: ss(-20),
+              marginBottom: ss(-20),
               scrollbarWidth: "none",
               msOverflowStyle: "none",
               cursor: "grab",
