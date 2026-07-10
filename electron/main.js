@@ -15,6 +15,7 @@ const fs = require("fs");
 const { execFile } = require("child_process");
 const os = require("os");
 const { buildVlcInvocation } = require("./vlcInvocation.js");
+const { resolveAppAssetPath } = require("./appAssetPath.js");
 
 // The only origins our own renderer is ever served from: the packaged app://
 // scheme, and the Expo dev server in development. Everything else is untrusted.
@@ -91,12 +92,11 @@ function createWindow() {
 app.whenReady().then(() => {
   const distPath = path.join(__dirname, "../dist");
 
-  // Serve built expo web assets via app:// — standard scheme parses URLs like http,
-  // so use URL.pathname to get the file path (strips scheme + host correctly)
+  // Serve built expo web assets via app://. resolveAppAssetPath enforces that the
+  // resolved file stays inside distPath (rejects encoded traversal), so this file
+  // server can never read arbitrary disk even if a crafted app:// URL reaches it.
   protocol.registerFileProtocol("app", (request, callback) => {
-    const { pathname } = new URL(request.url);
-    const filePath = pathname === "/" ? "index.html" : pathname.replace(/^\//, "");
-    callback({ path: path.join(distPath, filePath) });
+    callback(resolveAppAssetPath(distPath, request.url));
   });
 
   // Inject IPTV-compatible headers for all outgoing requests
