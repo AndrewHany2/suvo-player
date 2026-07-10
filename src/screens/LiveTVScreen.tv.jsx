@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useRef } from "react";
-import { useApp } from "../context/AppContext";
+import { usePlayback } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import StatePanel from "../ui/StatePanel";
@@ -36,7 +36,7 @@ export default function LiveTVScreenTV({ navigation }) {
     getChannels,
     playChannelTV,
   } = useLiveTV({ navigation });
-  const { currentVideo } = useApp();
+  const { currentVideo } = usePlayback();
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
 

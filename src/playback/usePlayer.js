@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Hls from "hls.js";
-import { useApp } from "../context/AppContext";
+import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
 import { createHlsDriver } from "./drivers/hlsDriver";
@@ -106,15 +106,9 @@ export function getLevelLabel(level, levels) {
  *   the shared close handler. Defaults to just invoking it.
  */
 export function usePlayer({ isTV, onSleepElapsed } = {}) {
-  const {
-    currentVideo,
-    closeVideo,
-    updateWatchProgress,
-    addToWatchHistory,
-    playVideo,
-    flushProgress,
-    channels,
-  } = useApp();
+  const { channels } = useApp();
+  const { currentVideo, closeVideo, playVideo } = usePlayback();
+  const { updateWatchProgress, addToWatchHistory, flushProgress } = useWatchHistory();
 
   const videoRef = useRef(null);
   const hlsRef = useRef(null);

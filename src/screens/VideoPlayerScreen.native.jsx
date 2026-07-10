@@ -9,7 +9,7 @@ import { colors, accentAlpha, fonts } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
-import { useApp } from "../context/AppContext";
+import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
 import storage from "../utils/storage";
@@ -68,15 +68,9 @@ function loadBrightness() {
 import { formatDuration as formatTime } from "../utils/formatDuration";
 
 export default function VideoPlayerScreen({ navigation }) {
-  const {
-    currentVideo,
-    closeVideo,
-    updateWatchProgress,
-    addToWatchHistory,
-    playVideo,
-    flushProgress,
-    channels,
-  } = useApp();
+  const { channels } = useApp();
+  const { currentVideo, closeVideo, playVideo } = usePlayback();
+  const { updateWatchProgress, addToWatchHistory, flushProgress } = useWatchHistory();
   const insets = useSafeAreaInsets();
   const progressIntervalRef = useRef(null);
   const hasAddedToHistory = useRef(false);

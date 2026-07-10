@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { View } from "react-native";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
 import { colors } from "../ui/tokens";
-import { useApp } from "../context/AppContext";
+import { useApp, useWatchHistory } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import { contentService } from "../domain/services/ContentService";
 import ProxiedImage from "./ProxiedImage";
@@ -20,7 +20,8 @@ import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 export default function MovieDetail({ item, onBack, onPlay }) {
   const { isTV } = usePlatform();
   useScale(); // re-render + recompute ss() on window resize
-  const { watchHistory, isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { watchHistory } = useWatchHistory();
   const [info, setInfo] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useApp } from "../context/AppContext";
+import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import { buildCategoryFilter, filterMovies } from "./moviesFilter.helpers";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useTVInput } from "../hooks/useTVInput";
@@ -29,7 +29,9 @@ import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 export default function MoviesScreenTV({ navigation, route }) {
   const { loading, loaded, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie, shelves, handleShelfVisible, handleLoadMore } = useMovies({ navigation });
-  const { isInMyList, addToMyList, removeFromMyList, watchHistory, currentVideo, tvUseShelves } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList, tvUseShelves } = useApp();
+  const { currentVideo } = usePlayback();
+  const { watchHistory } = useWatchHistory();
   const { register } = useTVInput();
   // When shelves own the browse view, VirtualShelves.tv registers its own D-pad
   // handler; this ref lets the screen's category-grid key routing stand down so

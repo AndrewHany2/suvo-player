@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useApp } from "../../context/AppContext";
+import { usePlayback } from "../../context/AppContext";
 import { useContentService } from "./useContentService";
 import tmdbApi from "../../services/tmdbApi";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
@@ -42,7 +42,7 @@ export const byRatingDesc = (list) =>
  */
 export function useCatalog({ navigation, logName, tmdbType, idField, discoverItems, getAll, getCategories, getByCategory }) {
   const { contentService, activeUser, activeUserId } = useContentService();
-  const { playVideo } = useApp();
+  const { playVideo } = usePlayback();
 
   const [loading, setLoading] = useState(false);
   // True once the first category load has completed (success, error, or empty),

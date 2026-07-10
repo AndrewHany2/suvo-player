@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
 import { colors } from "../ui/tokens";
 import Icon from "../ui/Icon";
-import { useApp } from "../context/AppContext";
+import { useApp, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import DownloadButton from "../downloads/DownloadButton.jsx";
 import { useDownloads } from "../downloads/useDownloads.jsx";
@@ -22,7 +22,8 @@ const GradientOverlay = memo(() => (
 import { getTrailerWatchUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 export default function MovieDetail({ item, onBack, onPlay }) {
-  const { watchHistory, isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { watchHistory } = useWatchHistory();
   const insets = useSafeAreaInsets();
   const [info, setInfo] = useState(null);
 

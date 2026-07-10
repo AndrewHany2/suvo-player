@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
 import { colors } from "../ui/tokens";
-import { useApp } from "../context/AppContext";
+import { useApp, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
 import DownloadButton from "../downloads/DownloadButton.jsx";
@@ -31,7 +31,8 @@ const getEpisodeNumber = (ep) => {
 };
 
 export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
-  const { watchHistory, isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { watchHistory } = useWatchHistory();
   const insets = useSafeAreaInsets();
   const [info, setInfo] = useState(null);
   const [episodes, setEpisodes] = useState({});

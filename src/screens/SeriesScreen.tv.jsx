@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
-import { useApp } from "../context/AppContext";
+import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import { useSeries } from "../domain/hooks/useSeries";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
@@ -41,10 +41,11 @@ export default function SeriesScreenTV({ navigation, route }) {
     shelves, handleShelfVisible, handleLoadMore,
   } = useSeries({ navigation });
   const {
-    watchHistory,
     isInMyList, addToMyList, removeFromMyList,
-    currentVideo, tvUseShelves,
+    tvUseShelves,
   } = useApp();
+  const { currentVideo } = usePlayback();
+  const { watchHistory } = useWatchHistory();
   const tvUseShelvesRef = useRef(tvUseShelves);
   useEffect(() => { tvUseShelvesRef.current = tvUseShelves; }, [tvUseShelves]);
   // "All Series" pill opens the category-grid landing over the shelves (cheap;

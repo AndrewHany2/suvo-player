@@ -18,10 +18,32 @@ import { getDeviceSignature } from '../security/deviceSignature';
 import { setDeviceId } from '../services/deviceHeader';
 
 const AppContext = createContext();
+// Playback (currentVideo + play/close) and watch history live in their OWN
+// contexts, split out of the main app value. currentVideo changes on play/close
+// and watchHistory is rewritten ~once/second by progress writes during
+// playback; keeping them in the single app value re-rendered every useApp()
+// consumer (the whole browse/nav tree) on each tick. Now only components that
+// read playback / history via the dedicated hooks below re-render on those
+// changes. The state + all logic still live in AppProvider — this is purely how
+// the value is exposed (three memoized slices, three nested providers).
+const PlaybackContext = createContext();
+const WatchHistoryContext = createContext();
 
 export const useApp = () => {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
+  return ctx;
+};
+
+export const usePlayback = () => {
+  const ctx = useContext(PlaybackContext);
+  if (!ctx) throw new Error('usePlayback must be used within AppProvider');
+  return ctx;
+};
+
+export const useWatchHistory = () => {
+  const ctx = useContext(WatchHistoryContext);
+  if (!ctx) throw new Error('useWatchHistory must be used within AppProvider');
   return ctx;
 };
 
@@ -376,8 +398,10 @@ export const AppProvider = ({ children }) => {
   }, [loadLibrary]);
 
   // ─── Video ─────────────────────────────────────────────────────────────────
-  const playVideo  = (video) => setCurrentVideo(video);
-  const closeVideo = () => setCurrentVideo(null);
+  // useCallback so the playback context value only changes when currentVideo
+  // changes (not on every provider render), keeping playback consumers stable.
+  const playVideo  = useCallback((video) => setCurrentVideo(video), []);
+  const closeVideo = useCallback(() => setCurrentVideo(null), []);
 
   // ─── Storage helpers ───────────────────────────────────────────────────────
   const loadSavedChannels = async () => {
@@ -552,10 +576,8 @@ export const AppProvider = ({ children }) => {
     channels, setChannels,
     users, setUsers, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser,
     currentSeries, setCurrentSeries,
-    watchHistory, addToWatchHistory, updateWatchProgress, removeFromWatchHistory,
-    flushProgress, refetchLibrary, isSyncing,
+    refetchLibrary, isSyncing,
     myList, addToMyList, removeFromMyList, isInMyList,
-    currentVideo, playVideo, closeVideo,
     searchQuery, setSearchQuery, isLoading, setIsLoading, error, setError,
     saveChannels, loadSavedChannels,
     tvUseShelves, setTvUseShelves,
@@ -563,13 +585,36 @@ export const AppProvider = ({ children }) => {
   }), [authUser, authLoading, profile, deviceStatus, appProfiles, activeProfileId, activeProfile,
     tvUseShelves,
     channels,
-    users, activeUserId, watchHistory, isSyncing, myList, currentVideo,
+    users, activeUserId, isSyncing, myList,
     searchQuery, isLoading, error,
     signIn, signUp, signOut, switchProfile, addProfile, updateProfile, removeProfile,
     addUser, updateUser, removeUser, saveUsers,
-    addToWatchHistory, updateWatchProgress, removeFromWatchHistory,
-    flushProgress, refetchLibrary,
+    refetchLibrary,
     addToMyList, removeFromMyList, isInMyList]);
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  // Playback slice — changes only on play/close (currentVideo); playVideo/
+  // closeVideo are stable (useCallback), so browse/nav trees reading only `value`
+  // don't re-render when a video opens or closes.
+  const playbackValue = useMemo(
+    () => ({ currentVideo, playVideo, closeVideo }),
+    [currentVideo, playVideo, closeVideo],
+  );
+
+  // Watch-history slice — watchHistory is rewritten ~once/second by progress
+  // writes during playback, so isolating it here keeps that churn off every
+  // other consumer. The functions are stable (useCallback).
+  const historyValue = useMemo(
+    () => ({ watchHistory, addToWatchHistory, updateWatchProgress, removeFromWatchHistory, flushProgress }),
+    [watchHistory, addToWatchHistory, updateWatchProgress, removeFromWatchHistory, flushProgress],
+  );
+
+  return (
+    <AppContext.Provider value={value}>
+      <PlaybackContext.Provider value={playbackValue}>
+        <WatchHistoryContext.Provider value={historyValue}>
+          {children}
+        </WatchHistoryContext.Provider>
+      </PlaybackContext.Provider>
+    </AppContext.Provider>
+  );
 };

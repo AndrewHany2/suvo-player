@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useApp } from "../../context/AppContext";
+import { usePlayback } from "../../context/AppContext";
 import { useContentService } from "./useContentService";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 import { epgNowTitle, toFlatChannel } from "./useLiveTV.helpers";
@@ -28,7 +28,7 @@ const CHANNELS_CACHE_MAX = isLowEndDevice() ? 6 : 12;
 
 export function useLiveTV({ navigation } = {}) {
   const { contentService, activeUser, activeUserId } = useContentService();
-  const { playVideo } = useApp();
+  const { playVideo } = usePlayback();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);

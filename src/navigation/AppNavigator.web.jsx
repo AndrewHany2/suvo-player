@@ -3,7 +3,7 @@ import { YStack, XStack, Text } from "../ui/primitives";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import { colors, accentAlpha, fonts } from "../ui/tokens";
-import { useApp } from "../context/AppContext";
+import { useApp, usePlayback } from "../context/AppContext";
 import { useAppGate } from "./useAppGate";
 import { ss } from "../utils/scaleSize";
 import { isMacCommand } from "../platform/adapters/input/keys";
@@ -365,10 +365,10 @@ export default function AppNavigator() {
   const { isTV } = usePlatform();
   const {
     activeProfile,
-    currentVideo,
     switchProfile,
     setSearchQuery,
   } = useApp();
+  const { currentVideo } = usePlayback();
   const gate = useAppGate();
   const [activeTab, setActiveTab] = useState("live");
   const [showAccounts, setShowAccounts] = useState(false);

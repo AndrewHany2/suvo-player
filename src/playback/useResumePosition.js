@@ -11,7 +11,7 @@
  * affordance to the player. The pure helpers are re-exported for convenience.
  */
 import { useRef, useState, useCallback } from "react";
-import { useApp } from "../context/AppContext";
+import { useWatchHistory } from "../context/AppContext";
 import { decideResume, resolveChoice, findHistoryEntry } from "./resumeDecision.js";
 
 export {
@@ -25,7 +25,7 @@ export {
 /**
  * Hook: resolve resume state for the given video against persisted history.
  *
- * @param {Object|null} currentVideo - The video about to play (useApp().currentVideo shape).
+ * @param {Object|null} currentVideo - The video about to play (usePlayback().currentVideo shape).
  * @returns {import('./resumeDecision.js').ResumeDecision & {
  *   decided: boolean,
  *   choice: ('resume'|'startOver'|null),
@@ -35,7 +35,7 @@ export {
  *   seconds the player should pass as `startTime` to useResilientPlayback.
  */
 export function useResumePosition(currentVideo) {
-  const { watchHistory } = useApp();
+  const { watchHistory } = useWatchHistory();
   const [choice, setChoice] = useState(/** @type {'resume'|'startOver'|null} */ (null));
 
   const isLive = currentVideo?.type === "live";

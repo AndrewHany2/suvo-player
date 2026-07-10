@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../context/AppContext";
+import { useApp, usePlayback } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
 import Icon from "../ui/Icon";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
@@ -41,8 +41,8 @@ export default function HistoryScreenTV({ navigation }) {
     removeFromMyList,
     addToMyList,
     isInMyList,
-    currentVideo,
   } = useApp();
+  const { currentVideo } = usePlayback();
   // History list data, playback + url builders / info fetchers (routed through
   // ContentService/iptvApi inside the hook — the screen no longer imports either).
   // useHistory also keeps ContentService credentials in sync via useContentService.

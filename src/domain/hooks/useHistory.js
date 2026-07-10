@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { useApp } from "../../context/AppContext";
+import { useApp, usePlayback, useWatchHistory } from "../../context/AppContext";
 import { useContentService } from "./useContentService";
 import { splitHistory } from "./historyGroups";
 
@@ -24,7 +24,9 @@ import { splitHistory } from "./historyGroups";
  */
 export function useHistory({ navigation } = {}) {
   const { contentService } = useContentService();
-  const { watchHistory, myList, removeFromWatchHistory, removeFromMyList, playVideo } = useApp();
+  const { myList, removeFromMyList } = useApp();
+  const { playVideo } = usePlayback();
+  const { watchHistory, removeFromWatchHistory } = useWatchHistory();
 
   const { watched: watchedHistory } = useMemo(() => splitHistory(watchHistory), [watchHistory]);
 
