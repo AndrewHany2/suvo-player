@@ -16,5 +16,6 @@
  * @property {(handler:(e:DownloadEvent)=>void)=>()=>void} subscribe
  * @property {()=>Promise<void>} reattach
  * @property {()=>Promise<number>} freeBytes
+ * @property {(uri:string)=>Promise<boolean>} exists
  */
 export {};

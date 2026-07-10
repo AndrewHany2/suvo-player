@@ -21,3 +21,8 @@ test('fake freeBytes resolves a large number', async () => {
   const mgr = createFakeDownloadManager();
   assert.ok((await mgr.freeBytes()) > 1e9);
 });
+
+test('fake exists resolves true (files always present in the fake)', async () => {
+  const mgr = createFakeDownloadManager();
+  assert.equal(await mgr.exists('file:///d/1.mp4'), true);
+});

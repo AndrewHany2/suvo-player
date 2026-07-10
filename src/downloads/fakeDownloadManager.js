@@ -13,6 +13,7 @@ export function createFakeDownloadManager() {
     },
     async reattach() {},
     async freeBytes() { return 64 * 1e9; },
+    async exists() { return true; },
     // test helper
     emit(event) { handlers.forEach((h) => h(event)); },
   };

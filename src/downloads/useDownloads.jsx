@@ -1,6 +1,6 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { downloadStore, makeId } from './downloadStore.js';
-import { remoteUrlFor, localPathFor } from './downloadUri.js';
+import { remoteUrlFor, localPathFor, normalizeLocalPaths } from './downloadUri.js';
 import { applyEvent } from './downloadReducer.js';
 
 const DownloadsContext = createContext(null);
@@ -14,14 +14,33 @@ export function DownloadsProvider({ manager, api, documentDirectory, children })
   useEffect(() => {
     let alive = true;
     (async () => {
-      const map = await downloadStore.loadAll();
+      const stored = await downloadStore.loadAll();
+      // Re-derive every localPath against the CURRENT documentDirectory: the
+      // persisted absolute path is from whatever iOS container existed at
+      // download time and goes stale on reinstall/OS-update/dev-rebuild (a new
+      // container UUID), which is why a downloaded item fails to open.
+      const map = normalizeLocalPaths(stored, documentDirectory);
+      // Drop completed downloads whose file is actually gone so playback falls
+      // back to streaming and the UI offers a re-download. Conservative: treat a
+      // failed existence check as "present" so a transient error never nukes a
+      // record.
+      await Promise.all(
+        Object.values(map).map(async (rec) => {
+          if (rec.status !== 'done' || !rec.localPath || !manager.exists) return;
+          const present = await manager.exists(rec.localPath).catch(() => true);
+          if (!present) {
+            delete map[rec.id];
+            downloadStore.remove(rec.id);
+          }
+        }),
+      );
       if (!alive) return;
       setById(map);
       byIdRef.current = map;
       await manager.reattach();
     })();
     return () => { alive = false; };
-  }, [manager]);
+  }, [manager, documentDirectory]);
 
   // Fold a single event into state + persist. We reduce against byIdRef (updated
   // synchronously here so back-to-back events in one tick compose correctly),

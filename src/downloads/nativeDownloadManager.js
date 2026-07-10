@@ -88,5 +88,9 @@ export function createNativeDownloadManager() {
     async freeBytes() {
       return FileSystem.getFreeDiskStorageAsync();
     },
+    async exists(uri) {
+      const info = await FileSystem.getInfoAsync(uri);
+      return !!info?.exists;
+    },
   };
 }
