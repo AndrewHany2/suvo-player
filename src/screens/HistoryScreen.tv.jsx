@@ -28,10 +28,10 @@ const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 // Continue-Watching card geometry (design px; VirtualShelvesTV scales via ss()).
-// Width matches the portrait poster (VirtualShelvesTV's POSTER_W = 340), which
-// is tuned for ~5 cards per rail view — so the landscape cards show 5-up too.
+// The portrait poster (POSTER_W = 340) is tuned for ~5 cards per rail view; at
+// ~5/4× that width the landscape cards show 4-up instead.
 // Row height = header + the card's 16:9 thumb + the title/episode/time-left block.
-const CW_CARD_W = 340;
+const CW_CARD_W = 425;
 const CW_ROW_H = 40 + Math.round((CW_CARD_W * 9) / 16) + 120;
 
 export default function HistoryScreenTV({ navigation }) {
