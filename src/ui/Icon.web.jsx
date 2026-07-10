@@ -24,6 +24,8 @@ const PATHS = {
   play: <path d="M8 5v14l11-7z" fill="currentColor" stroke="none" />,
   // Plus / add.
   plus: <path d="M12 5v14M5 12h14" />,
+  // Download: down-arrow into a tray/baseline.
+  download: <path d="M12 3v11M8 10l4 4 4-4M5 20h14" />,
   // Back / arrow-left.
   back: <path d="M19 12H5M12 19l-7-7 7-7" />,
   // Chevron pointing right.

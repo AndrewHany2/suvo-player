@@ -23,21 +23,21 @@ export function DownloadsProvider({ manager, api, documentDirectory, children })
     return () => { alive = false; };
   }, [manager]);
 
-  // Fold manager events into state + persist. We reduce against byIdRef (updated
+  // Fold a single event into state + persist. We reduce against byIdRef (updated
   // synchronously here so back-to-back events in one tick compose correctly),
   // then apply state and persistence as pure single-invocation steps — no side
-  // effect inside the setState updater.
-  useEffect(() => {
-    const unsub = manager.subscribe((event) => {
-      const prev = byIdRef.current;
-      const next = applyEvent(prev, event);
-      if (next === prev || !next[event.id]) return;
-      byIdRef.current = next;
-      setById(next);
-      downloadStore.put(next[event.id]);
-    });
-    return unsub;
-  }, [manager]);
+  // effect inside the setState updater. Shared by the manager subscription and
+  // the optimistic pause/resume controls below.
+  const commit = useCallback((event) => {
+    const prev = byIdRef.current;
+    const next = applyEvent(prev, event);
+    if (next === prev || !next[event.id]) return;
+    byIdRef.current = next;
+    setById(next);
+    downloadStore.put(next[event.id]);
+  }, []);
+
+  useEffect(() => manager.subscribe(commit), [manager, commit]);
 
   const start = useCallback(async (item) => {
     const id = makeId(item);
@@ -56,8 +56,11 @@ export function DownloadsProvider({ manager, api, documentDirectory, children })
     manager.start({ id, url, localPath });
   }, [api, documentDirectory, manager]);
 
-  const pause = useCallback((id) => manager.pause(id), [manager]);
-  const resume = useCallback((id) => manager.resume(id), [manager]);
+  // The native library's pause/resume don't emit events, so optimistically fold
+  // a paused/resumed event ourselves — that's what flips the button UI and makes
+  // the resume path reachable (the reducer guards illegal transitions).
+  const pause = useCallback((id) => { manager.pause(id); commit({ id, type: 'paused' }); }, [manager, commit]);
+  const resume = useCallback((id) => { manager.resume(id); commit({ id, type: 'resumed' }); }, [manager, commit]);
   const cancel = useCallback(async (id) => {
     manager.cancel(id);
     await downloadStore.remove(id);

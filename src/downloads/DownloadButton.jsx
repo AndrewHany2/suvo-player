@@ -3,9 +3,12 @@
 // actions to the DownloadsProvider (see ./useDownloads.jsx). Native-only —
 // nothing here should be imported by web/TV code.
 import React, { useCallback } from 'react';
-import { Pressable, Text, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import Icon from '../ui/Icon';
+import { colors } from '../ui/tokens';
 import { useDownloads } from './useDownloads.jsx';
 import { makeId } from './downloadStore.js';
+import ProgressRing from './ProgressRing.jsx';
 
 export default function DownloadButton({ item }) {
   const { byId, start, pause, resume, remove } = useDownloads();
@@ -28,21 +31,38 @@ export default function DownloadButton({ item }) {
     return undefined;
   }, [status, id, item, start, pause, resume, remove]);
 
+  // Icon + a11y label per state. queued has no distinct icon → spinner below.
+  let icon = 'download';
+  let color = colors.text;
   let label = 'Download';
-  if (status === 'queued') label = 'Queued…';
-  else if (status === 'downloading') label = pct != null ? `${pct}%` : 'Downloading…';
-  else if (status === 'paused') label = 'Resume';
-  else if (status === 'done') label = 'Downloaded ✓';
-  else if (status === 'error') label = 'Retry';
+  if (status === 'queued') { label = 'Queued, tap to pause'; }
+  else if (status === 'downloading') { icon = 'pause'; color = colors.accent; label = pct != null ? `Downloading ${pct}%, tap to pause` : 'Downloading, tap to pause'; }
+  else if (status === 'paused') { icon = 'play'; color = colors.accent; label = pct != null ? `Paused ${pct}%, tap to resume` : 'Paused, tap to resume'; }
+  else if (status === 'done') { icon = 'check'; color = colors.success; label = 'Downloaded, tap to remove'; }
+  else if (status === 'error') { color = colors.danger; label = 'Download failed, tap to retry'; }
+
+  let control;
+  if ((status === 'downloading' || status === 'paused') && pct != null) {
+    // Downloading shows a pause affordance; paused freezes the ring with a resume
+    // (play) affordance inside.
+    control = (
+      <ProgressRing radius={15} borderWidth={3} percent={pct} color={colors.accent} trackColor={colors.border} maskColor={colors.bg}>
+        <Icon name={status === 'paused' ? 'play' : 'pause'} size={14} color={colors.accent} />
+      </ProgressRing>
+    );
+  } else if (status === 'queued' || status === 'downloading') {
+    control = <ActivityIndicator size="small" color={colors.accent} />;
+  } else {
+    control = <Icon name={icon} size={22} color={color} />;
+  }
 
   return (
-    <Pressable onPress={onPress} style={styles.btn} accessibilityRole="button" accessibilityLabel={label}>
-      {status === 'downloading' && pct == null ? <ActivityIndicator /> : <Text style={styles.txt}>{label}</Text>}
+    <Pressable onPress={onPress} style={styles.btn} hitSlop={8} accessibilityRole="button" accessibilityLabel={label}>
+      {control}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  btn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.12)' },
-  txt: { color: '#fff', fontWeight: '600' },
+  btn: { padding: 6, alignItems: 'center', justifyContent: 'center' },
 });

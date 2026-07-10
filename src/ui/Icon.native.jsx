@@ -76,6 +76,46 @@ function Chevron({ size, color, rotate }) {
   );
 }
 
+// Download: a vertical shaft with a downward arrowhead, sitting on a short
+// tray/baseline — mirrors the web `download` path.
+function DownloadShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 11));
+  const shaftH = size * 0.32;
+  const head = size * 0.3;
+  const trayW = size * 0.62;
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ alignItems: "center", marginBottom: size * 0.16 }}>
+        <View style={{ width: t, height: shaftH, backgroundColor: color, borderRadius: t / 2 }} />
+        <View
+          style={{
+            width: head,
+            height: head,
+            borderRightWidth: t,
+            borderBottomWidth: t,
+            borderColor: color,
+            transform: [{ rotate: "45deg" }],
+            marginTop: -head * 0.62,
+          }}
+        />
+      </View>
+      <View style={{ position: "absolute", bottom: size * 0.15, width: trayW, height: t, backgroundColor: color, borderRadius: t / 2 }} />
+    </View>
+  );
+}
+
+// Pause: two vertical bars.
+function PauseShape({ size, color }) {
+  const barW = Math.max(2, size * 0.16);
+  const barH = size * 0.6;
+  return (
+    <View style={{ width: size, height: size, flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: barW, height: barH, backgroundColor: color, borderRadius: barW / 2, marginHorizontal: size * 0.08 }} />
+      <View style={{ width: barW, height: barH, backgroundColor: color, borderRadius: barW / 2, marginHorizontal: size * 0.08 }} />
+    </View>
+  );
+}
+
 // A plus / cross: two crossed bars centred in the box.
 function Plus({ size, color }) {
   const t = Math.max(2, size / 9);
@@ -476,6 +516,10 @@ function Icon({ name, size = 20, color = colors.text, ...rest }) {
       return <View {...rest}><PlayTriangle size={size} color={color} /></View>;
     case "plus":
       return <View {...rest}><Plus size={size} color={color} /></View>;
+    case "download":
+      return <View {...rest}><DownloadShape size={size} color={color} /></View>;
+    case "pause":
+      return <View {...rest}><PauseShape size={size} color={color} /></View>;
     case "chevron-right":
       return <View {...rest}><Chevron size={size} color={color} rotate={45} /></View>;
     case "back":

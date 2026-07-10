@@ -1,7 +1,7 @@
 /**
  * @typedef {Object} DownloadEvent
  * @property {string} id
- * @property {'progress'|'done'|'error'} type
+ * @property {'progress'|'paused'|'resumed'|'done'|'error'} type
  * @property {number} [bytesDone]
  * @property {number} [bytesTotal]
  * @property {string} [error]
