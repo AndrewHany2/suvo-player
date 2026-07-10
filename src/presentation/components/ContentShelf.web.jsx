@@ -103,7 +103,15 @@ export default function ContentShelf({
     <div style={{ paddingTop: ss(28), paddingBottom: ss(8) }}>
       <div ref={sentinelRef} style={{ height: 0 }} />
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", paddingLeft: ss(48), paddingRight: ss(48), marginBottom: ss(14) }}>
-        <div className="suvo-shelf-title-btn" style={{ display: "flex", alignItems: "center", gap: ss(4), cursor: "pointer" }} onClick={() => onTitlePress?.()}>
+        <div
+          className="suvo-shelf-title-btn"
+          style={{ display: "flex", alignItems: "center", gap: ss(4), cursor: onTitlePress ? "pointer" : "default" }}
+          onClick={onTitlePress ? () => onTitlePress() : undefined}
+          role={onTitlePress ? "button" : undefined}
+          tabIndex={onTitlePress ? 0 : undefined}
+          aria-label={onTitlePress ? `See all ${title}` : undefined}
+          onKeyDown={onTitlePress ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTitlePress(); } } : undefined}
+        >
           <span style={{ color: colors.text, fontSize: ss(22), fontWeight: fontWeights.bold, letterSpacing: -0.3, fontFamily: fonts.display }}>
             {title}
           </span>

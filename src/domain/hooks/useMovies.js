@@ -51,7 +51,6 @@ export function useMovies({ navigation } = {}) {
   // surface the error panel instead of fanning out hundreds of doomed requests.
   const authFailedRef = useRef(false);
   const allShuffledRef = useRef([]);
-  const topRatedRef = useRef([]);
   const prefetchRef = useRef({ topRated: null });
   const topRatedCursorRef = useRef(null);
   // Synchronous re-entrancy lock — set before the first await so a burst of
@@ -126,7 +125,6 @@ export function useMovies({ navigation } = {}) {
     loadedRef.current.clear();
     authFailedRef.current = false;
     allShuffledRef.current = [];
-    topRatedRef.current = [];
     prefetchRef.current = { topRated: null };
     itemsCacheRef.current.clear();
     openAbortRef.current?.abort();
@@ -175,7 +173,6 @@ export function useMovies({ navigation } = {}) {
       } else if (catId === "top_rated") {
         // Real categories never use this id; fall back to rating sort.
         all = byRatingDesc(await contentService.getAllMovies());
-        topRatedRef.current = all;
       } else {
         all = await contentService.getMoviesByCategory(catId);
         // Cache the full array (warms the drill-in cache); the render window

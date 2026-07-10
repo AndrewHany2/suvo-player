@@ -161,7 +161,11 @@ export default function MoviesScreen({ navigation }) {
 
   useScale(); // re-render + recompute ss() on window resize
 
-  const [scrollTop, setScrollTop] = useState(0);
+  // The visible shelf-row index (NOT raw scroll px). Storing the quantized row
+  // means setState is a no-op — React bails on an equal value — until the
+  // viewport crosses into a new row, instead of re-rendering the whole screen
+  // ~60×/sec while scrolling. Mirrors ContentShelf.web's firstVisible.
+  const [vAnchor, setVAnchor] = useState(0);
   const scrollRef = useRef(null);
   const listRef = useRef(null);
 
@@ -180,7 +184,6 @@ export default function MoviesScreen({ navigation }) {
   const viewportH = scrollRef.current?.clientHeight || (typeof window !== "undefined" ? window.innerHeight : 900);
   const listTop = listRef.current?.offsetTop || 0;
   const rowsVisible = Math.max(1, Math.ceil(viewportH / rowStride));
-  const vAnchor = Math.max(0, Math.floor((scrollTop - listTop) / rowStride));
   const vWin = useShelfWindow({
     anchor: vAnchor, total: shelves.length,
     viewportCount: rowsVisible, overscan: vcfg.vOverscan, stride: rowStride,
@@ -219,7 +222,7 @@ export default function MoviesScreen({ navigation }) {
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
       <ScrollView
         ref={scrollRef}
-        onScroll={(e) => setScrollTop(e.nativeEvent.contentOffset.y)}
+        onScroll={(e) => setVAnchor(Math.max(0, Math.floor((e.nativeEvent.contentOffset.y - listTop) / rowStride)))}
         flex={1} minHeight={0} contentContainerStyle={{ paddingBottom: ss(80) }}
       >
         <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
