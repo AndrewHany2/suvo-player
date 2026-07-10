@@ -20,6 +20,13 @@ import DiscoverPills from "../presentation/components/DiscoverPills.web";
 // Caps the browse content width on ultrawide monitors (centered via margin auto).
 const MAX_W = 1700;
 
+// True while a text field owns focus, so the grid's global keydown handler can
+// bow out and let the search box receive its own keystrokes.
+function isTextInputFocused() {
+  const el = document.activeElement;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+}
+
 /* ─── Shelf ─── */
 function Shelf({
   catId,
@@ -281,6 +288,10 @@ function CategoryPage({
   useEffect(() => {
     const handler = (e) => {
       if (navHasFocusRef.current) return;
+      // Don't hijack keys while a text field is focused — otherwise typing in
+      // the "Search titles…" box moves the poster cursor, Enter plays a poster,
+      // and Escape exits the page. Let the input handle its own keystrokes.
+      if (isTextInputFocused()) return;
       // Focus roams the FULL filtered list — VirtualGrid keeps the focused row
       // mounted and scrolled into view even when it's outside the window.
       const list = filteredRef.current;

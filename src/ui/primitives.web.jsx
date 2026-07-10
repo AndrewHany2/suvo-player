@@ -110,12 +110,14 @@ function ensureSpinKeyframes() {
   document.head.appendChild(el);
 }
 
-export const Spinner = forwardRef(function Spinner({ size = "small", color = colors.accent, ...rest }, ref) {
+export const Spinner = forwardRef(function Spinner({ size = "small", color = colors.accent, role = "progressbar", "aria-label": ariaLabel = "Loading", ...rest }, ref) {
   ensureSpinKeyframes();
   const d = size === "large" ? 36 : 20;
   return (
     <div
       ref={ref}
+      role={role}
+      aria-label={ariaLabel}
       style={{
         width: d, height: d, borderRadius: "50%",
         // Track ring = faint accent wash; the moving arc is the full accent.

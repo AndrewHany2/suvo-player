@@ -55,7 +55,11 @@ export default function StatePanel({
 
   if (mode === "loading") {
     return (
-      <YStack {...shell}>
+      // role=status + polite live region → screen readers announce the loading
+      // title/message when it appears without stealing focus. (RN maps these
+      // ARIA props to accessibilityRole/accessibilityLiveRegion.)
+      <YStack {...shell} role="status" aria-live="polite">
+
         <Spinner size="large" color={colors.accent} />
         {title ? <Text {...mutedText} marginTop={ss(8)}>{title}</Text> : null}
         {message ? <Text {...mutedText}>{message}</Text> : null}
@@ -65,7 +69,9 @@ export default function StatePanel({
 
   if (mode === "error") {
     return (
-      <YStack {...shell}>
+      // role=alert → assertive announcement so an error interrupts and is read out.
+      <YStack {...shell} role="alert">
+
         <Icon name="warning" size={ss(iconSizes.lg)} color={colors.danger} />
         {title ? (
           <Text

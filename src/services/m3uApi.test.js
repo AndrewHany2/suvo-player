@@ -101,6 +101,17 @@ test("throws a readable error on HTTP failure", async () => {
   await assert.rejects(() => api.getLiveStreams(), /404/);
 });
 
+test("rejects on timeout even if fetch never settles", async (t) => {
+  // Mock setTimeout so the 30s deadline fires on demand instead of in real time.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  globalThis.fetch = () => new Promise(() => {}); // hangs forever, never resolves
+  const api = new M3UApi();
+  api.setCredentials("http://pl/hang.m3u");
+  const assertion = assert.rejects(() => api.getLiveStreams(), /timed out/);
+  t.mock.timers.tick(30 * 1000);
+  await assertion;
+});
+
 test("plain playlist with no path kinds → all live", async () => {
   stub(["#EXTM3U", "#EXTINF:-1,Chan 1", "http://h/1", "#EXTINF:-1,Chan 2", "http://h/2"].join("\n"));
   const api = new M3UApi();

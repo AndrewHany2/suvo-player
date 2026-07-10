@@ -65,11 +65,25 @@ export class M3UApi {
 
   async _fetchText(url) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+    let timer;
+    // Hard deadline that rejects on its OWN — not only by aborting the request.
+    // Some React Native fetch engines don't reject a hung request when its
+    // AbortController fires, so relying on abort alone lets a stalled/huge
+    // playlist pin a screen's spinner open forever. Racing the timer guarantees
+    // settlement. (Mirrors the deadline race in iptvApi's fetchJson.)
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error(`Playlist fetch timed out after ${FETCH_TIMEOUT}ms`));
+      }, FETCH_TIMEOUT);
+    });
     try {
-      const res = await globalThis.fetch(url, { signal: controller.signal });
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      return await res.text();
+      const request = (async () => {
+        const res = await globalThis.fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return await res.text();
+      })();
+      return await Promise.race([request, deadline]);
     } finally {
       clearTimeout(timer);
     }
