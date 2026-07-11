@@ -46,6 +46,62 @@ const CAP_TO_MAX_HEIGHT = {
 };
 
 /**
+ * Construct + configure an hls.js instance and wire the track/menu listeners.
+ *
+ * This lives in the driver so hls.js's constructor AND its `Hls.Events` constants
+ * stay inside the engine boundary — the host (usePlayer) supplies plain callbacks
+ * and never imports hls.js. The host still owns the instance lifecycle (it holds
+ * the ref, destroys on reload); this only centralizes the hls.js-specific parts.
+ *
+ * @param {object} opts
+ * @param {boolean} [opts.isTV] - Select the memory-frugal TV config.
+ * @param {(levels: any[]) => void} [opts.onManifestParsed]
+ * @param {(tracks: any[], activeId: number) => void} [opts.onAudioTracksUpdated]
+ * @param {(id: number) => void} [opts.onAudioTrackSwitched]
+ * @param {(tracks: any[]) => void} [opts.onSubtitleTracksUpdated]
+ * @param {(id: number) => void} [opts.onSubtitleTrackSwitch]
+ * @returns {import('hls.js').default}
+ */
+export function createHlsInstance({
+  isTV,
+  onManifestParsed,
+  onAudioTracksUpdated,
+  onAudioTrackSwitched,
+  onSubtitleTracksUpdated,
+  onSubtitleTrackSwitch,
+} = {}) {
+  // TVs (esp. webOS) have far less memory/CPU headroom — keep buffers small and
+  // cap the rendered level to the player size so we don't OOM or stall.
+  // enableWorker stays on; note: some older webOS builds break with workers,
+  // disable there if playback fails to start.
+  const hls = new Hls(
+    isTV
+      ? {
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 30,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 30,
+          maxBufferSize: 30 * 1000 * 1000,
+          capLevelToPlayerSize: true,
+        }
+      : {
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 90,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+        },
+  );
+  hls.on(Hls.Events.MANIFEST_PARSED, () => onManifestParsed?.(hls.levels));
+  hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => onAudioTracksUpdated?.([...hls.audioTracks], hls.audioTrack));
+  hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_e, d) => onAudioTrackSwitched?.(d.id));
+  hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, () => onSubtitleTracksUpdated?.([...hls.subtitleTracks]));
+  hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (_e, d) => onSubtitleTrackSwitch?.(d.id));
+  return hls;
+}
+
+/**
  * Build a PlayerDriver around an hls.js instance + a <video> element.
  *
  * The hls instance is owned by the host (the screen creates/destroys it across

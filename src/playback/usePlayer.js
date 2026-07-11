@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import Hls from "hls.js";
 import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
-import { createHlsDriver } from "./drivers/hlsDriver";
+import { createHlsDriver, createHlsInstance } from "./drivers/hlsDriver";
 import { useResilientPlayback } from "./useResilientPlayback";
 import { usePlayerPreferences } from "./usePlayerPreferences";
 import { useResumePosition } from "./useResumePosition";
@@ -226,42 +225,22 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
-      // TVs (esp. webOS) have far less memory/CPU headroom — keep buffers small
-      // and cap the rendered level to the player size so we don't OOM or stall.
-      // enableWorker stays on; note: some older webOS builds break with workers,
-      // disable there if playback fails to start.
-      const hls = new Hls(
-        isTV
-          ? {
-              enableWorker: true,
-              lowLatencyMode: false,
-              backBufferLength: 30,
-              maxBufferLength: 30,
-              maxMaxBufferLength: 30,
-              maxBufferSize: 30 * 1000 * 1000,
-              capLevelToPlayerSize: true,
-            }
-          : {
-              enableWorker: true,
-              lowLatencyMode: false,
-              backBufferLength: 90,
-              maxBufferLength: 30,
-              maxMaxBufferLength: 60,
-            },
-      );
-      hlsRef.current = hls;
-      hls.on(Hls.Events.MANIFEST_PARSED, () => setQualityLevels(hls.levels));
-      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
-        setAudioTracks([...hls.audioTracks]);
-        setSelectedAudio(Math.max(0, hls.audioTrack));
+      // Construction + listener wiring lives in the driver (createHlsInstance) so
+      // hls.js's constructor and Events stay inside the engine boundary; here we
+      // just own the instance lifecycle (the ref + destroy-on-reload) and map the
+      // engine's track events onto React state.
+      const hls = createHlsInstance({
+        isTV,
+        onManifestParsed: (levels) => setQualityLevels(levels),
+        onAudioTracksUpdated: (tracks, activeId) => {
+          setAudioTracks(tracks);
+          setSelectedAudio(Math.max(0, activeId));
+        },
+        onAudioTrackSwitched: (id) => setSelectedAudio(id),
+        onSubtitleTracksUpdated: (tracks) => setSubtitleTracks(tracks),
+        onSubtitleTrackSwitch: (id) => setSelectedSubtitle(id),
       });
-      hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_e, d) => setSelectedAudio(d.id));
-      hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, () =>
-        setSubtitleTracks([...hls.subtitleTracks]),
-      );
-      hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (_e, d) =>
-        setSelectedSubtitle(d.id),
-      );
+      hlsRef.current = hls;
       return hls;
     },
     [isTV],
