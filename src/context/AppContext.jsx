@@ -87,7 +87,6 @@ export const AppProvider = ({ children }) => {
   // does not clobber the in-flight debounce of another stream.
   const progressSyncTimers = useRef(new Map());
   const pendingProgressEntries = useRef(new Map());
-  const localPersistTimer = useRef(null);
 
   // ─── My List (watch later) ───────────────────────────────────────────────────
   const [myList, setMyList] = useState([]);
@@ -223,11 +222,6 @@ export const AppProvider = ({ children }) => {
   // normalize/dedupe/upsert/apply-progress live in the pure historyProgress
   // module so addToWatchHistory and updateWatchProgress agree on the
   // (type, streamId) key and share one create-if-missing chokepoint.
-  const persistHistory = (key, history) => {
-    if (!key) return;
-    storage.setItem('iptv_history_' + key, JSON.stringify(history));
-  };
-
   const addToWatchHistory = useCallback((rawItem) => {
     const item = normalizeHistoryItem(rawItem);
     const now = new Date().toISOString();
@@ -235,14 +229,12 @@ export const AppProvider = ({ children }) => {
     // currentTime = startTime||0, so upsertHistoryItem preserves prior progress.
     const { history: newHistory, entry } = upsertHistoryItem(watchHistoryRef.current, item, now);
     setWatchHistory(newHistory);
-    persistHistory(userKey, newHistory);
     if (userKey) upsertHistoryEntry(userKey, entry);
   }, [userKey]);
 
   const removeFromWatchHistory = useCallback((id) => {
     const newHistory = watchHistoryRef.current.filter((item) => item.id !== id);
     setWatchHistory(newHistory);
-    persistHistory(userKey, newHistory);
     if (userKey) deleteHistoryEntry(userKey, id);
   }, [userKey]);
 
@@ -255,9 +247,7 @@ export const AppProvider = ({ children }) => {
     progressSyncTimers.current.clear();
     const pending = pendingProgressEntries.current;
     pendingProgressEntries.current = new Map();
-    clearTimeout(localPersistTimer.current);
     if (!key) return;
-    persistHistory(key, watchHistoryRef.current);
     for (const entry of pending.values()) upsertHistoryEntry(key, entry);
   }, []);
 
@@ -290,10 +280,6 @@ export const AppProvider = ({ children }) => {
         if (e) upsertHistoryEntry(userKey, e);
       }, 5000));
     }
-    // Debounce local persistence so a hard kill keeps resume without writing
-    // storage on every progress tick.
-    clearTimeout(localPersistTimer.current);
-    localPersistTimer.current = setTimeout(() => persistHistory(userKey, watchHistoryRef.current), 5000);
   }, [userKey]);
 
   // ─── My List (watch later) ───────────────────────────────────────────────────
@@ -330,53 +316,45 @@ export const AppProvider = ({ children }) => {
   // while a failed fetch or the no-Supabase path falls back to local.
   const loadLibrary = useCallback(async (key) => {
     if (!key) return;
-    // Hydrate local first so we never blind-replace with a thinner remote set.
-    let localHistory = [];
+    // Watch history is Supabase-only: no local read/write, server is the sole
+    // source. Purge any legacy local history so stale (possibly resurrected)
+    // entries never linger on disk. Favorites still keep a local cache.
+    storage.removeItem('iptv_history_' + key);
     let localFavorites = [];
-    try {
-      const rawH = await storage.getItem('iptv_history_' + key);
-      if (rawH) localHistory = JSON.parse(rawH);
-    } catch { /**/ }
     try {
       const rawF = await storage.getItem(`iptv_mylist_${key}`);
       if (rawF) localFavorites = JSON.parse(rawF);
     } catch { /**/ }
-    // Prefer in-memory state if it is already richer than what is on disk, but
-    // only when it belongs to this same key — otherwise it holds the previous
-    // profile's data and must be ignored so profiles stay separate.
+    // Prefer in-memory favorites if richer than disk, but only for this same key
+    // — otherwise it holds the previous profile's data and must be ignored.
     const sameKey = libraryKeyRef.current === key;
-    const baseHistory = pickLibraryBase({
-      sameKey, inMemory: watchHistoryRef.current, onDisk: localHistory,
-    });
     const baseFavorites = pickLibraryBase({
       sameKey, inMemory: myListRef.current, onDisk: localFavorites,
     });
     libraryKeyRef.current = key;
 
     if (!isSupabaseConfigured()) {
-      setWatchHistory(baseHistory);
+      setWatchHistory([]); // no local history source when Supabase is off
       setMyList(baseFavorites);
       return;
     }
 
     setIsSyncing(true);
     try {
-      // Server is authoritative: a successful fetch REPLACES the local list so
-      // deletions made on another device propagate (a union merge could never
-      // drop a locally-present entry, which let deleted items resurrect). Each
-      // fetch is guarded independently — a failure keeps that list's local copy
-      // rather than wiping it while offline.
+      // Server is authoritative: a successful fetch REPLACES the list so
+      // deletions made on another device propagate. On a failed fetch, history
+      // falls back to current in-memory state (never a local store) and
+      // favorites fall back to their local cache. Fetches guarded independently.
       const [historyRes, favoritesRes] = await Promise.all([
         fetchRemoteHistory(key).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
         fetchFavorites(key).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
       ]);
 
       const nextHistory = resolveAuthoritative({
-        localBase: baseHistory, remote: historyRes.data, fetchOk: historyRes.ok,
+        localBase: watchHistoryRef.current, remote: historyRes.data, fetchOk: historyRes.ok,
         tsField: 'watchedAt', cap: MAX_HISTORY,
       });
       setWatchHistory(nextHistory);
-      persistHistory(key, nextHistory);
 
       const nextFavorites = resolveAuthoritative({
         localBase: baseFavorites, remote: favoritesRes.data, fetchOk: favoritesRes.ok,
