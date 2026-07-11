@@ -99,9 +99,18 @@ export function useDownloadsController({ manager, api, documentDirectory, store 
   const remove = cancel;
   const isDownloaded = useCallback((id) => byIdRef.current[id]?.status === 'done', []);
 
+  // Free bytes on the device's download volume. Passthrough to the manager
+  // (which knows the platform's filesystem); resolves null when the manager
+  // can't report it (e.g. web/Electron, where there's no local download store)
+  // so callers can just hide the figure.
+  const freeBytes = useCallback(
+    () => (manager.freeBytes ? manager.freeBytes() : Promise.resolve(null)),
+    [manager],
+  );
+
   return {
     byId,
     items: Object.values(byId).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
-    start, pause, resume, cancel, remove, isDownloaded,
+    start, pause, resume, cancel, remove, isDownloaded, freeBytes,
   };
 }

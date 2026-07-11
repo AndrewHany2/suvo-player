@@ -216,6 +216,24 @@ test("a manager progress+done event folds through commit into state and store", 
   assert.equal((await store.get("movie:7")).status, "done", "done state persisted");
 });
 
+test("freeBytes() passes through to the manager", async () => {
+  const store = createDownloadStore(memStorage());
+  const manager = makeManager();
+  manager.freeBytes = async () => 12345;
+  const h = renderController({ manager, api, documentDirectory: DIR, store });
+  await h.settle();
+  assert.equal(await h.value.freeBytes(), 12345);
+});
+
+test("freeBytes() resolves null when the manager can't report it", async () => {
+  const store = createDownloadStore(memStorage());
+  const manager = makeManager();
+  delete manager.freeBytes;
+  const h = renderController({ manager, api, documentDirectory: DIR, store });
+  await h.settle();
+  assert.equal(await h.value.freeBytes(), null);
+});
+
 test("cancel() removes the record from state and store", async () => {
   const store = createDownloadStore(memStorage());
   const manager = makeManager();

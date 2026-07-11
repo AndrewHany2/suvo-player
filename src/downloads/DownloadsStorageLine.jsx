@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { XStack, YStack, Text } from "../ui/primitives";
 import { colors, fonts, fontWeights, radii } from "../ui/tokens";
 import { formatBytes } from "../utils/formatBytes.js";
@@ -7,9 +8,17 @@ import { useDownloads } from "./useDownloads.jsx";
 // device and how much space they use. Native-only — mount it inside the
 // DownloadsProvider tree (it calls useDownloads()).
 export default function DownloadsStorageLine() {
-  const { items } = useDownloads();
+  const { items, freeBytes } = useDownloads();
   const done = items.filter((r) => r.status === "done");
   const total = done.reduce((sum, r) => sum + (r.bytesDone || 0), 0);
+
+  // Free device space, if the platform can report it (null on web/Electron).
+  const [free, setFree] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    freeBytes?.().then((b) => { if (alive) setFree(b); }).catch(() => {});
+    return () => { alive = false; };
+  }, [freeBytes, done.length]);
 
   if (done.length === 0) return null;
 
@@ -25,6 +34,7 @@ export default function DownloadsStorageLine() {
         </Text>
         <Text color={colors.muted} fontFamily={fonts.body} fontSize={12} marginTop={1}>
           {done.length} {done.length === 1 ? "title" : "titles"} on this device
+          {typeof free === "number" ? ` · ${formatBytes(free)} free` : ""}
         </Text>
       </YStack>
       <Text color={colors.accent2} fontFamily={fonts.body} fontSize={13} fontWeight={fontWeights.bold}>
