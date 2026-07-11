@@ -12,7 +12,7 @@ import {
   clampOffset,
 } from "./subtitleStyle";
 import { nextChannel, prevChannel, fetchNowNext } from "./liveExtras";
-import { findNextEpisode } from "./episodeNav";
+import { findNextEpisode, buildNextEpisodeVideo } from "./episodeNav";
 import {
   DEFAULT_VIDEO_ADJUST,
   normalizeAdjust,
@@ -702,26 +702,12 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
   const getNextEpisode = useCallback(() => findNextEpisode(currentVideo), [currentVideo]);
 
   const handleNextEpisode = useCallback(() => {
-    const next = getNextEpisode();
-    if (!next) return;
-    const { episode, seasonNum } = next;
-    const url = contentService.buildEpisodeUrl(
-      episode.id,
-      episode.container_extension || "mp4",
+    const video = buildNextEpisodeVideo(
+      getNextEpisode(),
+      currentVideo,
+      (id, ext) => contentService.buildEpisodeUrl(id, ext),
     );
-    const ep = String(episode.episode_num).padStart(2, "0");
-    const sn = String(seasonNum).padStart(2, "0");
-    playVideo({
-      type: "series",
-      streamId: String(episode.id),
-      seriesId: currentVideo.seriesId,
-      seriesName: currentVideo.seriesName,
-      name: `${currentVideo.seriesName} - S${sn}E${ep}`,
-      url,
-      seasonNum,
-      episodeNum: episode.episode_num,
-      seriesSeasons: currentVideo.seriesSeasons,
-    });
+    if (video) playVideo(video);
   }, [getNextEpisode, currentVideo, playVideo]);
 
   // Auto-advance to the next episode when playback ends (series only).

@@ -14,7 +14,7 @@ import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
 import storage from "../utils/storage";
 import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
-import { findNextEpisode } from "../playback/episodeNav";
+import { findNextEpisode, buildNextEpisodeVideo } from "../playback/episodeNav";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
 import { useDeviceIntegrity } from "../security/useDeviceIntegrity";
 
@@ -366,13 +366,12 @@ export default function VideoPlayerScreen({ navigation }) {
   const getNextEpisode = useCallback(() => findNextEpisode(currentVideo), [currentVideo]);
 
   const handleNextEpisode = useCallback(() => {
-    const next = getNextEpisode();
-    if (!next) return;
-    const { episode, seasonNum } = next;
-    const streamUrl = contentService.buildEpisodeUrl(episode.id, episode.container_extension || "mp4");
-    const epNum = String(episode.episode_num).padStart(2, "0");
-    const sNum = String(seasonNum).padStart(2, "0");
-    playVideo({ type: "series", streamId: episode.id, seriesId: currentVideo.seriesId, seriesName: currentVideo.seriesName, name: `${currentVideo.seriesName} - S${sNum}E${epNum}`, url: streamUrl, seasonNum, episodeNum: episode.episode_num, seriesSeasons: currentVideo.seriesSeasons });
+    const video = buildNextEpisodeVideo(
+      getNextEpisode(),
+      currentVideo,
+      (id, ext) => contentService.buildEpisodeUrl(id, ext),
+    );
+    if (video) playVideo(video);
   }, [getNextEpisode, currentVideo, playVideo]);
 
   useEffect(() => {

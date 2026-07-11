@@ -31,3 +31,36 @@ export function findNextEpisode(currentVideo) {
   const next = all[idx + 1];
   return { episode: next, seasonNum: next.seasonNum };
 }
+
+/**
+ * Build the playVideo() payload for advancing to `next` (a findNextEpisode
+ * result), shared by the web and native players so the next-episode video object
+ * — its id/name/season formatting — can't drift between them.
+ *
+ * `buildUrl` is injected — `(episodeId, containerExtension) => string`, e.g.
+ * `(id, ext) => contentService.buildEpisodeUrl(id, ext)` — so this module stays
+ * pure (no ContentService import) and unit-testable.
+ *
+ * @param {{ episode: {id:any, episode_num:any, container_extension?:string}, seasonNum: string }|null} next
+ * @param {{ seriesId?:any, seriesName?:string, seriesSeasons?:object }|null} currentVideo
+ * @param {(episodeId:any, containerExtension:string) => string} buildUrl
+ * @returns {object|null} the playVideo payload, or null when there's nothing to advance to
+ */
+export function buildNextEpisodeVideo(next, currentVideo, buildUrl) {
+  if (!next || !currentVideo) return null;
+  const { episode, seasonNum } = next;
+  const url = buildUrl(episode.id, episode.container_extension || "mp4");
+  const ep = String(episode.episode_num).padStart(2, "0");
+  const sn = String(seasonNum).padStart(2, "0");
+  return {
+    type: "series",
+    streamId: String(episode.id),
+    seriesId: currentVideo.seriesId,
+    seriesName: currentVideo.seriesName,
+    name: `${currentVideo.seriesName} - S${sn}E${ep}`,
+    url,
+    seasonNum,
+    episodeNum: episode.episode_num,
+    seriesSeasons: currentVideo.seriesSeasons,
+  };
+}
