@@ -171,6 +171,24 @@ export function mergeHistories(local, remote) {
  * @param {Object[]} remote
  * @returns {Object[]}
  */
+/**
+ * PURE: server-authoritative resolution. When a remote fetch SUCCEEDS
+ * (`fetchOk` true and `remote` is an array), the remote list REPLACES local so
+ * that deletions made on another device propagate — the union in
+ * mergeHistories/mergeFavorites could never drop a locally-present entry, which
+ * let deleted items resurrect. A failed fetch (offline / server error) returns
+ * `localBase` untouched so we never wipe the list. Result is sorted newest-first
+ * by `tsField` and bounded by `cap` (omit for favorites — no cap).
+ *
+ * @param {{ localBase: Object[], remote: unknown, fetchOk: boolean, tsField: string, cap?: number }} params
+ * @returns {Object[]}
+ */
+export function resolveAuthoritative({ localBase, remote, fetchOk, tsField, cap = Infinity }) {
+  if (!fetchOk || !Array.isArray(remote)) return localBase;
+  const sorted = [...remote].sort((a, b) => new Date(b[tsField]) - new Date(a[tsField]));
+  return Number.isFinite(cap) ? sorted.slice(0, cap) : sorted;
+}
+
 export function mergeFavorites(local, remote) {
   const map = new Map();
   for (const item of local) map.set(item.id, item);

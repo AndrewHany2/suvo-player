@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, useMemo, useCal
 import storage from '../utils/storage';
 import { contentService } from '../domain/services/ContentService';
 import {
-  fetchRemoteHistory, upsertHistoryEntry, deleteHistoryEntry, mergeHistories,
+  fetchRemoteHistory, upsertHistoryEntry, deleteHistoryEntry,
   fetchFavorites, upsertFavorite, deleteFavorite,
   isSupabaseConfigured, getSession, claimDevice,
   signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut,
@@ -12,7 +12,7 @@ import {
   updateIptvAccount as supabaseUpdateIptvAccount,
   deleteIptvAccount as supabaseDeleteIptvAccount,
 } from '../services/supabase';
-import { normalizeHistoryItem, upsertHistoryItem, applyProgress, mergeFavorites } from './historyProgress';
+import { normalizeHistoryItem, upsertHistoryItem, applyProgress, resolveAuthoritative, MAX_HISTORY } from './historyProgress';
 import { pickLibraryBase } from './libraryBase';
 import { getDeviceSignature } from '../security/deviceSignature';
 import { setDeviceId } from '../services/deviceHeader';
@@ -325,9 +325,9 @@ export const AppProvider = ({ children }) => {
   const isInMyList = useCallback((type, streamId) =>
     myListRef.current.some((m) => m.id === myListId(type, streamId)), []);
 
-  // Fetch remote history/favorites for a userKey, merge with local (which is
-  // authoritative for local-only / locally-newer entries), then re-upsert the
-  // entries remote is missing or stale on so the server catches up.
+  // Fetch remote history/favorites for a userKey. The server is authoritative:
+  // a successful fetch replaces the local list (so cross-device deletes stick),
+  // while a failed fetch or the no-Supabase path falls back to local.
   const loadLibrary = useCallback(async (key) => {
     if (!key) return;
     // Hydrate local first so we never blind-replace with a thinner remote set.
@@ -361,31 +361,29 @@ export const AppProvider = ({ children }) => {
 
     setIsSyncing(true);
     try {
-      const [remoteHistory, remoteFavorites] = await Promise.all([
-        fetchRemoteHistory(key),
-        fetchFavorites(key),
+      // Server is authoritative: a successful fetch REPLACES the local list so
+      // deletions made on another device propagate (a union merge could never
+      // drop a locally-present entry, which let deleted items resurrect). Each
+      // fetch is guarded independently — a failure keeps that list's local copy
+      // rather than wiping it while offline.
+      const [historyRes, favoritesRes] = await Promise.all([
+        fetchRemoteHistory(key).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
+        fetchFavorites(key).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
       ]);
 
-      const mergedHistory = mergeHistories(baseHistory, remoteHistory);
-      setWatchHistory(mergedHistory);
-      persistHistory(key, mergedHistory);
-      // Re-upsert entries that are local-only or locally-newer so remote catches up.
-      const remoteById = new Map(remoteHistory.map((e) => [e.id, e]));
-      for (const entry of mergedHistory) {
-        const r = remoteById.get(entry.id);
-        if (!r || new Date(entry.watchedAt) > new Date(r.watchedAt))
-          upsertHistoryEntry(key, entry);
-      }
+      const nextHistory = resolveAuthoritative({
+        localBase: baseHistory, remote: historyRes.data, fetchOk: historyRes.ok,
+        tsField: 'watchedAt', cap: MAX_HISTORY,
+      });
+      setWatchHistory(nextHistory);
+      persistHistory(key, nextHistory);
 
-      const mergedFavorites = mergeFavorites(baseFavorites, remoteFavorites);
-      setMyList(mergedFavorites);
-      storage.setItem(`iptv_mylist_${key}`, JSON.stringify(mergedFavorites));
-      const remoteFavById = new Map(remoteFavorites.map((e) => [e.id, e]));
-      for (const entry of mergedFavorites) {
-        const r = remoteFavById.get(entry.id);
-        if (!r || new Date(entry.addedAt) > new Date(r.addedAt))
-          upsertFavorite(key, entry);
-      }
+      const nextFavorites = resolveAuthoritative({
+        localBase: baseFavorites, remote: favoritesRes.data, fetchOk: favoritesRes.ok,
+        tsField: 'addedAt',
+      });
+      setMyList(nextFavorites);
+      storage.setItem(`iptv_mylist_${key}`, JSON.stringify(nextFavorites));
     } finally {
       setIsSyncing(false);
     }
@@ -555,7 +553,7 @@ export const AppProvider = ({ children }) => {
 
   // Library (watch history + favorites) load, keyed on userKey (NOT
   // activeProfileId) so the fetch target always matches the write target.
-  // Hydrates local first, merges remote, and re-upserts local-newer entries.
+  // Hydrates local first, then a successful remote fetch replaces it.
   useEffect(() => {
     if (!userKey || deviceStatus !== 'ok') { libraryKeyRef.current = null; setWatchHistory([]); setMyList([]); return; }
     // Switching profiles: drop the previous profile's lists immediately so they

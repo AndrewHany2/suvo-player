@@ -10,6 +10,7 @@ import {
   upsertHistoryItem,
   applyProgress,
   mergeHistories,
+  resolveAuthoritative,
 } from "./historyProgress.js";
 
 // ─── normalizeHistoryItem / normalizeType ───────────────────────────────────
@@ -170,4 +171,47 @@ test("mergeFavorites: unions distinct ids, sorted newest-first, no cap", () => {
   const remote = [{ id: "b", addedAt: "2026-05-01T00:00:00Z" }, { id: "c", addedAt: "2026-03-01T00:00:00Z" }];
   const out = mergeFavorites(local, remote);
   assert.deepEqual(out.map((x) => x.id), ["b", "c", "a"]);
+});
+
+// ─── resolveAuthoritative ────────────────────────────────────────────────────
+
+test("resolveAuthoritative: successful fetch replaces local so a remote-side delete propagates", () => {
+  const localBase = [
+    { id: "a", watchedAt: "2026-01-02T00:00:00Z" },
+    { id: "b", watchedAt: "2026-01-01T00:00:00Z" }, // deleted on another device
+  ];
+  const remote = [{ id: "a", watchedAt: "2026-01-02T00:00:00Z" }];
+  const out = resolveAuthoritative({ localBase, remote, fetchOk: true, tsField: "watchedAt" });
+  assert.deepEqual(out.map((x) => x.id), ["a"]); // "b" is gone
+});
+
+test("resolveAuthoritative: failed fetch keeps local base (never wipe offline)", () => {
+  const localBase = [{ id: "a", watchedAt: "2026-01-01T00:00:00Z" }];
+  const out = resolveAuthoritative({ localBase, remote: null, fetchOk: false, tsField: "watchedAt" });
+  assert.strictEqual(out, localBase);
+});
+
+test("resolveAuthoritative: non-array remote keeps local base even when fetchOk", () => {
+  const localBase = [{ id: "a", watchedAt: "2026-01-01T00:00:00Z" }];
+  const out = resolveAuthoritative({ localBase, remote: undefined, fetchOk: true, tsField: "watchedAt" });
+  assert.strictEqual(out, localBase);
+});
+
+test("resolveAuthoritative: sorts remote newest-first and caps history to MAX_HISTORY", () => {
+  const remote = Array.from({ length: MAX_HISTORY + 5 }, (_, i) => ({
+    id: `r${i}`, watchedAt: new Date(2026, 0, 1, 0, i).toISOString(),
+  }));
+  const out = resolveAuthoritative({ localBase: [], remote, fetchOk: true, tsField: "watchedAt", cap: MAX_HISTORY });
+  assert.equal(out.length, MAX_HISTORY);
+  for (let i = 1; i < out.length; i++)
+    assert.ok(new Date(out[i - 1].watchedAt) >= new Date(out[i].watchedAt));
+});
+
+test("resolveAuthoritative: favorites sort by addedAt with no cap", () => {
+  const remote = [
+    { id: "a", addedAt: "2026-01-01T00:00:00Z" },
+    { id: "b", addedAt: "2026-05-01T00:00:00Z" },
+  ];
+  const out = resolveAuthoritative({ localBase: [], remote, fetchOk: true, tsField: "addedAt" });
+  assert.deepEqual(out.map((x) => x.id), ["b", "a"]);
 });
