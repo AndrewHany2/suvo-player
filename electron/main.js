@@ -55,6 +55,21 @@ function createWindow() {
       // scoped CORS rewrite) and Electron+real-stream verification. The nav
       // guards + IPC origin-gate below are the defense-in-depth that don't
       // require that rework.
+      //
+      // A companion CSP is likewise deferred (runtime-gated): to avoid breaking
+      // the app it must allow, at minimum —
+      //   connect-src / media-src / img-src : http: https: blob: data:
+      //       (arbitrary USER-configured IPTV stream origins + TMDB artwork —
+      //        the set isn't known ahead of time, so these can't be narrowed)
+      //   frame-src : https://www.youtube.com https://www.youtube-nocookie.com
+      //       (trailer embeds in MovieDetail/SeriesDetail + the TV screens)
+      //   script-src / worker-src : must include blob:
+      //       (hls.js runs with enableWorker:true → spins a blob: Web Worker;
+      //        omit and playback silently fails)
+      //   style-src : 'unsafe-inline'  (react-native-web injects inline styles)
+      // Any omission white-screens the app or kills playback/trailers — none of
+      // which is catchable without launching a packaged Electron build against
+      // real streams, so it stays out until that verification is possible.
       webSecurity: false,
     },
     backgroundColor: "#0A0E1A",
