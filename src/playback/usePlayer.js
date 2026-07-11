@@ -9,7 +9,6 @@ import { useResumePosition } from "./useResumePosition";
 import { useSleepTimer } from "./useSleepTimer";
 import {
   DEFAULT_SUBTITLE_STYLE,
-  toCssTextTrackStyle,
   clampOffset,
 } from "./subtitleStyle";
 import { nextChannel, prevChannel, fetchNowNext } from "./liveExtras";
@@ -20,17 +19,18 @@ import {
   buildVideoFilter,
 } from "./videoAdjust";
 import {
-  isPipSupported,
-  enterPip,
   exitPip,
   isPipActive,
-  isWebCastAvailable,
-  isRemotePlaybackSupported,
-  promptRemotePlayback,
   setMediaSessionMetadata,
   setMediaSessionHandlers,
   setMediaSessionPosition,
 } from "./mediaCapabilities";
+import {
+  usePictureInPicture,
+  useWebVideoControls,
+  useSubtitleRendering,
+  useVideoStats,
+} from "./playerFeatures";
 import storage from "../utils/storage";
 
 /** Namespaced storage key remembering the last live channel stream_id. */
@@ -175,19 +175,11 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
   const subtitleOffsetMs = clampOffset(Number(prefs.subtitleOffsetMs) || 0);
   const audioOffsetMs = clampOffset(Number(prefs.audioOffsetMs) || 0);
 
-  // Stats overlay toggle + gathered stats snapshot.
+  // Stats overlay toggle (the gathered snapshot lives in useVideoStats).
   const [showStats, setShowStats] = useState(false);
-  const [stats, setStats] = useState({});
 
-  // PiP / cast capability + active flags.
-  const [pipActive, setPipActive] = useState(false);
-  // Web custom-controls state: our own volume/mute mirror.
-  const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
   const openMenuRef = useRef(null);
   const pausedRef = useRef(false);
-  const pipSupported = isPipSupported(videoRef.current);
-  const castSupported = isWebCastAvailable(videoRef.current);
 
   // EPG now/next for live.
   const [nowNext, setNowNext] = useState({ now: null, next: null });
@@ -375,7 +367,6 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     setIsBuffering(false);
     setHasFrozenFrame(false);
     setShowStats(false);
-    setStats({});
     setNowNext({ now: null, next: null });
 
     if (currentVideo.type !== "live") {
@@ -816,66 +807,11 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     }
   }, [setPref, subtitleStyle]);
 
-  // ── PiP / Cast ──────────────────────────────────────────────────────────────
-  const handleTogglePip = useCallback(async () => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (isPipActive(video)) {
-      await exitPip();
-    } else {
-      await enterPip(video);
-    }
-    setPipActive(isPipActive(video));
-  }, []);
-
-  const handleCast = useCallback(async () => {
-    const video = videoRef.current;
-    if (video && isRemotePlaybackSupported(video)) {
-      await promptRemotePlayback(video);
-    }
-    // If only the Cast SDK is present (no Remote Playback), there's nothing we
-    // can prompt without the framework UI; the button still surfaces presence.
-  }, []);
-
-  // ── Web custom controls (native <video controls> is disabled on web) ─────────
-  const togglePlayWeb = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (v.paused) v.play(); else v.pause();
-  }, []);
-
-  const seekWebToClientX = useCallback((clientX, el) => {
-    const v = videoRef.current;
-    if (!v || !el || !(tvDuration > 0)) return;
-    const rect = el.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    try { v.currentTime = ratio * tvDuration; } catch { /* not seekable yet */ }
-  }, [tvDuration]);
-
-  const applyVolumeWeb = useCallback((vol) => {
-    const v = videoRef.current;
-    const nv = Math.max(0, Math.min(1, vol));
-    if (v) { v.volume = nv; v.muted = nv === 0; }
-    setVolume(nv);
-    setMuted(nv === 0);
-  }, []);
-
-  const toggleMuteWeb = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
-    setMuted(v.muted);
-  }, []);
-
-  // Keep the volume slider/mute icon in sync with the element (covers the
-  // keyboard ↑/↓ volume shortcuts, which set video.volume directly).
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return undefined;
-    const onVol = () => { setVolume(v.volume); setMuted(v.muted); };
-    v.addEventListener("volumechange", onVol);
-    return () => v.removeEventListener("volumechange", onVol);
-  }, [currentVideo?.url]);
+  // ── PiP / Cast + web custom controls (extracted to playerFeatures) ───────────
+  const { pipActive, pipSupported, castSupported, handleTogglePip, handleCast } =
+    usePictureInPicture({ videoRef, sourceKey: currentVideo?.url });
+  const { volume, muted, togglePlayWeb, seekWebToClientX, applyVolumeWeb, toggleMuteWeb } =
+    useWebVideoControls({ videoRef, duration: tvDuration, sourceKey: currentVideo?.url });
 
   // ── Live: channel list + zap ────────────────────────────────────────────────
   // Live channels in stable order, restricted to entries that carry a stream_id
@@ -919,72 +855,15 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     return () => { cancelled = true; };
   }, [isLive, currentVideo?.streamId]);
 
-  // ── Subtitle styling: inject a scoped ::cue rule from the remembered style ───
-  // DOM ::cue properties aren't settable inline, so we drive them off a one-off
-  // <style> element kept in sync with the subtitle-style preference.
-  const cueStyleElRef = useRef(/** @type {HTMLStyleElement|null} */ (null));
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    let el = cueStyleElRef.current;
-    if (!el) {
-      el = document.createElement("style");
-      el.setAttribute("data-suvo-cue", "1");
-      document.head.appendChild(el);
-      cueStyleElRef.current = el;
-    }
-    const css = toCssTextTrackStyle(subtitleStyle);
-    el.textContent =
-      `video::cue{` +
-      `color:${css.color};` +
-      `background-color:${css.backgroundColor};` +
-      `font-size:${css.fontSize};` +
-      `text-shadow:${css.textShadow};` +
-      `}`;
-    return undefined;
-  }, [subtitleStyle]);
-
-  useEffect(() => {
-    return () => {
-      const el = cueStyleElRef.current;
-      if (el && el.parentNode) el.parentNode.removeChild(el);
-      cueStyleElRef.current = null;
-    };
-  }, []);
-
-  // ── Subtitle delay offset: shift active text-track cue timings ───────────────
-  // We can't ask hls.js to re-time cues, but we can nudge the rendered cue
-  // start/end on the active TextTrack. Re-applied whenever the offset or the
-  // selected subtitle changes. NOTE: audioOffsetMs is persisted and surfaced in
-  // the UI, but neither the HTML <video> element nor hls.js exposes an a/v sync
-  // delay we can drive on the web, so audio offset is a no-op here (documented).
-  const appliedSubOffsetRef = useRef(0);
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !video.textTracks) return undefined;
-    const deltaSec = (subtitleOffsetMs - appliedSubOffsetRef.current) / 1000;
-    if (deltaSec === 0) return undefined;
-
-    const shiftActive = () => {
-      for (let i = 0; i < video.textTracks.length; i++) {
-        const tt = video.textTracks[i];
-        if (tt.mode === "disabled") continue;
-        const cues = tt.cues;
-        if (!cues) continue;
-        for (let c = 0; c < cues.length; c++) {
-          const cue = cues[c];
-          // Clamp to non-negative; a cue can't start before 0.
-          cue.startTime = Math.max(0, cue.startTime + deltaSec);
-          cue.endTime = Math.max(cue.startTime, cue.endTime + deltaSec);
-        }
-      }
-    };
-    shiftActive();
-    appliedSubOffsetRef.current = subtitleOffsetMs;
-    return undefined;
-  }, [subtitleOffsetMs, selectedSubtitle, subtitleTracks]);
-
-  // Reset the applied-offset baseline when the source changes.
-  useEffect(() => { appliedSubOffsetRef.current = 0; }, [currentVideo?.url]);
+  // ── Subtitle rendering: ::cue styling + delay offset (extracted) ─────────────
+  useSubtitleRendering({
+    videoRef,
+    subtitleStyle,
+    subtitleOffsetMs,
+    selectedSubtitle,
+    subtitleTracks,
+    sourceKey: currentVideo?.url,
+  });
 
   // ── MediaSession metadata + action handlers (OS media controls/lockscreen) ──
   useEffect(() => {
@@ -1014,67 +893,8 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     };
   }, [currentVideo, isLive, handleChannelUp, handleChannelDown]);
 
-  // Keep pipActive in sync with the browser (covers native exit from the PiP
-  // window's own controls).
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return undefined;
-    const onEnter = () => setPipActive(true);
-    const onLeave = () => setPipActive(false);
-    video.addEventListener("enterpictureinpicture", onEnter);
-    video.addEventListener("leavepictureinpicture", onLeave);
-    return () => {
-      video.removeEventListener("enterpictureinpicture", onEnter);
-      video.removeEventListener("leavepictureinpicture", onLeave);
-    };
-  }, [currentVideo?.url]);
-
-  // ── Stats gathering (only while the overlay is shown) ───────────────────────
-  useEffect(() => {
-    if (!showStats) return undefined;
-    const collect = () => {
-      const video = videoRef.current;
-      const hls = hlsRef.current;
-      if (!video) return;
-      let resolution;
-      if (video.videoWidth && video.videoHeight) {
-        resolution = `${video.videoWidth}x${video.videoHeight}`;
-      }
-      let levelLabel;
-      let bitrateKbps;
-      if (hls && Array.isArray(hls.levels) && hls.currentLevel >= 0) {
-        const lvl = hls.levels[hls.currentLevel];
-        if (lvl) {
-          levelLabel = lvl.height ? `${lvl.height}p` : `${Math.round((lvl.bitrate || 0) / 1000)}k`;
-          if (lvl.bitrate) bitrateKbps = Math.round(lvl.bitrate / 1000);
-        }
-      } else if (hls && hls.autoLevelEnabled) {
-        levelLabel = "auto";
-      }
-      let bufferSec;
-      try {
-        const b = video.buffered;
-        if (b && b.length) bufferSec = Math.max(0, b.end(b.length - 1) - video.currentTime);
-      } catch { /* ignore */ }
-      let droppedFrames;
-      let fps;
-      try {
-        if (typeof video.getVideoPlaybackQuality === "function") {
-          const q = video.getVideoPlaybackQuality();
-          droppedFrames = q.droppedVideoFrames;
-        }
-      } catch { /* ignore */ }
-      let connectionType;
-      try {
-        const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-        if (conn && conn.effectiveType) connectionType = conn.effectiveType;
-      } catch { /* ignore */ }
-      setStats({ resolution, levelLabel, bitrateKbps, bufferSec, droppedFrames, fps, connectionType });
-    };
-    collect();
-    const id = setInterval(collect, 1000);
-    return () => clearInterval(id);
-  }, [showStats]);
+  // ── Stats overlay gathering (extracted to useVideoStats) ─────────────────────
+  const stats = useVideoStats({ showStats, videoRef, hlsRef });
 
   // Persist aspect-ratio choice to localStorage (suvo_settings.defaultAspect).
   useEffect(() => {
