@@ -15,6 +15,13 @@ const UNCATEGORIZED = "Uncategorized";
 // Abort a playlist fetch that hasn't responded in this long so a hung/huge URL
 // fails fast instead of pinning a screen's spinner open.
 const FETCH_TIMEOUT = 30 * 1000;
+// Present a mainstream browser identity so playlist hosts behind Cloudflare (or
+// similar) bot protection don't answer React Native's default `okhttp/…`
+// User-Agent with a 404/403 while the same URL works in TiviMate/VLC. Forbidden
+// (and silently dropped) on web/Electron, so it only takes effect on native —
+// where the default UA was getting blocked. Mirrors iptvApi's USER_AGENT.
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 // djb2 — small, deterministic, filename-safe. Used to derive a stable series id
 // from the series name so the same show maps to the same id across reloads.
@@ -79,7 +86,7 @@ export class M3UApi {
     });
     try {
       const request = (async () => {
-        const res = await globalThis.fetch(url, { signal: controller.signal });
+        const res = await globalThis.fetch(url, { signal: controller.signal, headers: { 'User-Agent': USER_AGENT } });
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return await res.text();
       })();

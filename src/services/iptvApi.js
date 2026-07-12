@@ -56,6 +56,18 @@ const PERSIST_DEBOUNCE = 2 * 1000;
 const persistStorageKey = (ns) => `iptvcache_${ns}`;
 const bulkStorageKey = (ns, key) => `iptvcache_${ns}_${key}`;
 
+// Identify as a mainstream desktop browser on every provider request. Some
+// panels sit behind Cloudflare (or similar) bot protection that scores the
+// caller and answers an unrecognized client — React Native's default
+// `okhttp/…` User-Agent, or a bare `curl` — with a hard 404/403, while the same
+// credentials work in TiviMate/Smarters/VLC because those send a recognized
+// player UA. Sending a normal browser UA clears that check. NOTE: on web/
+// Electron `User-Agent` is a forbidden fetch header and is silently dropped by
+// the browser (which already sends its own real UA), so this only takes effect
+// on native — which is exactly where the default UA was getting blocked.
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
 // Run `tasks` (array of () => Promise) with at most `limit` in flight at once.
 // Preserves result order. Used to bound the per-category fan-out so we don't
 // open hundreds of sockets at once on large libraries.
@@ -310,7 +322,7 @@ export class IPTVApi {
       const request = (async () => {
         const response = await globalThis.fetch(url, {
           method: 'GET',
-          headers: { Accept: 'application/json, text/plain, */*' },
+          headers: { Accept: 'application/json, text/plain, */*', 'User-Agent': USER_AGENT },
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);

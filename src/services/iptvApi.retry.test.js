@@ -103,6 +103,26 @@ describe("IPTVApi fetch — bounded retry on transient failure", () => {
   });
 });
 
+describe("IPTVApi fetch — request headers", () => {
+  let realFetch;
+  beforeEach(() => { realFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  // Some panels behind Cloudflare-style bot protection answer the RN default
+  // `okhttp/…` UA with a hard 404 while a recognized player/browser UA is let
+  // through — so every provider request must carry a browser User-Agent.
+  test("sends a browser User-Agent so bot-protected panels don't 404", async () => {
+    let sentHeaders;
+    globalThis.fetch = async (_url, { headers }) => {
+      sentHeaders = headers;
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: 1 }) };
+    };
+    const api = new IPTVApi();
+    await api.fetch("http://x/player_api.php");
+    assert.match(sentHeaders["User-Agent"], /Mozilla\/5\.0/);
+  });
+});
+
 describe("IPTVApi fetch — non-JSON provider body", () => {
   let realFetch;
   beforeEach(() => { realFetch = globalThis.fetch; });
