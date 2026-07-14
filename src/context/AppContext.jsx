@@ -351,6 +351,9 @@ export const AppProvider = ({ children }) => {
     if (!key || !accountKey) return;
     // Watch history is Supabase-only: purge any legacy local history on disk.
     storage.removeItem('iptv_history_' + key);
+    // Purge the pre-feature per-profile favorites cache (superseded by the
+    // per-account key below) so it can't linger as stale, cross-account data.
+    storage.removeItem(`iptv_mylist_${key}`);
     let localFavorites = [];
     try {
       const rawF = await storage.getItem(`iptv_mylist_${key}_${accountKey}`);
