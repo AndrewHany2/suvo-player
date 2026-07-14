@@ -190,13 +190,13 @@ export async function deleteIptvAccount(accountId) {
 // historyProgress module; re-export so existing importers keep working.
 export { MAX_HISTORY, mergeHistories } from "../context/historyProgress.js";
 
-export async function fetchRemoteHistory(userKey) {
-  return invokeData("history.fetch", { userKey });
+export async function fetchRemoteHistory(userKey, accountKey) {
+  return invokeData("history.fetch", { userKey, accountKey });
 }
 
-export async function upsertHistoryEntry(userKey, entry) {
+export async function upsertHistoryEntry(userKey, accountKey, entry) {
   try {
-    await invokeData("history.upsert", { userKey, entry });
+    await invokeData("history.upsert", { userKey, accountKey, entry });
     return { ok: true };
   } catch (error) {
     // Best-effort remote sync — local history is the source of truth. Warn
@@ -206,9 +206,9 @@ export async function upsertHistoryEntry(userKey, entry) {
   }
 }
 
-export async function deleteHistoryEntry(userKey, entryId) {
+export async function deleteHistoryEntry(userKey, accountKey, entryId) {
   try {
-    await invokeData("history.delete", { userKey, entryId });
+    await invokeData("history.delete", { userKey, accountKey, entryId });
     return { ok: true };
   } catch (error) {
     console.error("[Supabase] deleteHistoryEntry:", error.message);
@@ -218,13 +218,13 @@ export async function deleteHistoryEntry(userKey, entryId) {
 
 // ─── Favorites ────────────────────────────────────────────────────────────────
 
-export async function fetchFavorites(userKey) {
-  return invokeData("favorites.fetch", { userKey });
+export async function fetchFavorites(userKey, accountKey) {
+  return invokeData("favorites.fetch", { userKey, accountKey });
 }
 
-export async function upsertFavorite(userKey, entry) {
+export async function upsertFavorite(userKey, accountKey, entry) {
   try {
-    await invokeData("favorites.upsert", { userKey, entry });
+    await invokeData("favorites.upsert", { userKey, accountKey, entry });
     return { ok: true };
   } catch (error) {
     console.error("[Supabase] upsertFavorite:", error.message);
@@ -232,9 +232,9 @@ export async function upsertFavorite(userKey, entry) {
   }
 }
 
-export async function deleteFavorite(userKey, entryId) {
+export async function deleteFavorite(userKey, accountKey, entryId) {
   try {
-    await invokeData("favorites.delete", { userKey, entryId });
+    await invokeData("favorites.delete", { userKey, accountKey, entryId });
     return { ok: true };
   } catch (error) {
     console.error("[Supabase] deleteFavorite:", error.message);
