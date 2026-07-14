@@ -8,6 +8,7 @@ import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
 import { colors, fonts, fontWeights, overlay, radii } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
+import { useApp } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import MovieDetail from "../components/MovieDetail";
@@ -104,6 +105,7 @@ function CWCard({ item, onPress, onRemove, focused }) {
 
 /* ── Screen ── */
 export default function HistoryScreen({ navigation }) {
+  const { activeUserId } = useApp();
   const { watchedHistory, removeFromWatchHistory, playLive, playVideoObject, myList, removeFromMyList } = useHistory({ navigation });
   const insets = useSafeAreaInsets();
   const [currentDetail, setCurrentDetail] = useState(null);
@@ -130,6 +132,19 @@ export default function HistoryScreen({ navigation }) {
   const historyRowIdx = watchedHistory.length > 0 ? (myList.length > 0 ? 1 : 0) : -1;
 
   const { focusedRow, focusedCol } = useTVNavigation({ active: !currentDetail, rows: tvRows });
+
+  if (!activeUserId) {
+    return (
+      <StatePanel
+        mode="empty"
+        icon="tv"
+        title="No account connected"
+        message="Connect an IPTV account to save favorites and watch history."
+        cta={() => navigation.navigate("Accounts")}
+        ctaLabel="Connect account"
+      />
+    );
+  }
 
   if (currentDetail?.type === "movies") return <MovieDetail item={currentDetail} onBack={closeDetail} onPlay={handlePlay} />;
   if (currentDetail?.type === "series") return <SeriesDetail item={currentDetail} onBack={closeDetail} onPlayEpisode={handlePlay} />;

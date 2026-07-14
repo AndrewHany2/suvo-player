@@ -29,7 +29,7 @@ const getEpisodeNumber = (ep) => {
 export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
   const { isTV } = usePlatform();
   useScale(); // re-render + recompute ss() on window resize
-  const { isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList, activeUserId } = useApp();
   const { watchHistory } = useWatchHistory();
   const [info, setInfo] = useState(null);
   const [episodes, setEpisodes] = useState({});
@@ -496,25 +496,27 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
                 </XStack>
               </YStack>
             )}
-            <YStack
-              backgroundColor={
-                inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"
-              }
-              paddingHorizontal={ss(isTV ? 36 : 22)}
-              paddingVertical={buttonPadV}
-              borderRadius={ss(isTV ? 12 : 8)}
-              borderWidth={isTV ? 2 : 1}
-              borderColor={inFav ? colors.accent : colors.border}
-              cursor="pointer"
-              onPress={toggleFav}
-              pressStyle={{ opacity: 0.8 }}
-              hoverStyle={{ borderColor: colors.accent }}
-              animation="quick"
-            >
-              <Text color={colors.text} fontSize={buttonTextSize} fontWeight="600">
-                {inFav ? "♥  Saved" : "♡  Add to Favorites"}
-              </Text>
-            </YStack>
+            {activeUserId ? (
+              <YStack
+                backgroundColor={
+                  inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"
+                }
+                paddingHorizontal={ss(isTV ? 36 : 22)}
+                paddingVertical={buttonPadV}
+                borderRadius={ss(isTV ? 12 : 8)}
+                borderWidth={isTV ? 2 : 1}
+                borderColor={inFav ? colors.accent : colors.border}
+                cursor="pointer"
+                onPress={toggleFav}
+                pressStyle={{ opacity: 0.8 }}
+                hoverStyle={{ borderColor: colors.accent }}
+                animation="quick"
+              >
+                <Text color={colors.text} fontSize={buttonTextSize} fontWeight="600">
+                  {inFav ? "♥  Saved" : "♡  Add to Favorites"}
+                </Text>
+              </YStack>
+            ) : null}
           </XStack>
         </YStack>
       </YStack>

@@ -5,6 +5,7 @@ import { colors, fonts, fontWeights, overlay, radii } from "../ui/tokens";
 import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
+import { useApp } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
 import { ss, useScale } from "../utils/scaleSize";
 import MovieDetail from "../components/MovieDetail.web";
@@ -318,6 +319,7 @@ function CWCard({ item, onPress, onRemove }) {
 }
 
 export default function HistoryScreen({ navigation }) {
+  const { activeUserId } = useApp();
   const {
     watchedHistory,
     removeFromWatchHistory,
@@ -351,6 +353,19 @@ export default function HistoryScreen({ navigation }) {
     playVideoObject(videoObj);
     setCurrentDetail(null);
   };
+
+  if (!activeUserId) {
+    return (
+      <StatePanel
+        mode="empty"
+        icon="tv"
+        title="No account connected"
+        message="Connect an IPTV account to save favorites and watch history."
+        cta={() => navigation.navigate("Accounts")}
+        ctaLabel="Connect account"
+      />
+    );
+  }
 
   if (currentDetail?.type === "movies")
     return (

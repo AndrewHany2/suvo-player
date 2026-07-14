@@ -31,7 +31,7 @@ const getEpisodeNumber = (ep) => {
 };
 
 export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
-  const { isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList, activeUserId } = useApp();
   const { watchHistory } = useWatchHistory();
   const insets = useSafeAreaInsets();
   const [info, setInfo] = useState(null);
@@ -235,23 +235,25 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
                   </XStack>
                 </YStack>
               )}
-              <YStack
-                flex={1}
-                backgroundColor={inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"}
-                minHeight={36}
-                alignItems="center"
-                justifyContent="center"
-                borderRadius={8}
-                borderWidth={1}
-                borderColor={inFav ? colors.accent : colors.border}
-                cursor="pointer"
-                onPress={toggleFav}
-                pressStyle={{ opacity: 0.8 }}
-                hoverStyle={{ borderColor: colors.accent }}
-                animation="quick"
-              >
-                <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
-              </YStack>
+              {activeUserId ? (
+                <YStack
+                  flex={1}
+                  backgroundColor={inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"}
+                  minHeight={36}
+                  alignItems="center"
+                  justifyContent="center"
+                  borderRadius={8}
+                  borderWidth={1}
+                  borderColor={inFav ? colors.accent : colors.border}
+                  cursor="pointer"
+                  onPress={toggleFav}
+                  pressStyle={{ opacity: 0.8 }}
+                  hoverStyle={{ borderColor: colors.accent }}
+                  animation="quick"
+                >
+                  <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
+                </YStack>
+              ) : null}
             </XStack>
           </YStack>
         </YStack>
