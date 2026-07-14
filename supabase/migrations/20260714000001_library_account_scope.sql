@@ -31,7 +31,7 @@ begin
   end loop;
 
   for r in
-    select i.indexrelid::regclass::text as idx, t.relname as tbl
+    select i.relname as idx
     from pg_index x
     join pg_class i on i.oid = x.indexrelid
     join pg_class t on t.oid = x.indrelid
@@ -39,13 +39,14 @@ begin
     where n.nspname = 'public'
       and t.relname in ('watch_history', 'favorites')
       and x.indisunique
+      and not exists (select 1 from pg_constraint c where c.conindid = x.indexrelid)
       and (
         select array_agg(a.attname order by a.attname)
         from unnest(x.indkey) k
         join pg_attribute a on a.attrelid = t.oid and a.attnum = k
       ) = array['entry_id','user_key']
   loop
-    execute format('drop index if exists public.%I', split_part(r.idx, '.', 2));
+    execute format('drop index if exists public.%I', r.idx);
   end loop;
 end $$;
 
