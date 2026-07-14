@@ -13,6 +13,7 @@ import {
   deleteIptvAccount as supabaseDeleteIptvAccount,
 } from '../services/supabase';
 import { normalizeHistoryItem, upsertHistoryItem, applyProgress, resolveAuthoritative, MAX_HISTORY } from './historyProgress';
+import { accountKeyOf } from './accountScope';
 import { pickLibraryBase } from './libraryBase';
 import { getDeviceSignature } from '../security/deviceSignature';
 import { setDeviceId } from '../services/deviceHeader';
@@ -117,6 +118,20 @@ export const AppProvider = ({ children }) => {
   // current value without being captured stale.
   const userKeyRef = useRef(userKey);
   userKeyRef.current = userKey;
+
+  // The active IPTV account (within the profile). The library (watch history +
+  // favorites) is partitioned per account via accountKeyOf(activeAccount): the
+  // server scopes each row by that account_key and the local favorites cache key
+  // embeds it. No active account ⇒ null key ⇒ nothing loads or saves.
+  const activeAccount = useMemo(
+    () => users.find((u) => u.id === activeUserId) ?? null,
+    [users, activeUserId],
+  );
+  const activeAccountId = useMemo(() => accountKeyOf(activeAccount), [activeAccount]);
+  // Mirror into a ref so the debounced/deferred progress flush scopes the write
+  // to the account that was active when it was scheduled.
+  const activeAccountRef = useRef(activeAccount);
+  activeAccountRef.current = activeAccount;
 
   const activeProfile = useMemo(
     () => appProfiles.find((p) => p.id === activeProfileId) ?? null,
@@ -223,19 +238,22 @@ export const AppProvider = ({ children }) => {
   // module so addToWatchHistory and updateWatchProgress agree on the
   // (type, streamId) key and share one create-if-missing chokepoint.
   const addToWatchHistory = useCallback((rawItem) => {
+    const accountKey = accountKeyOf(activeAccountRef.current);
+    if (!accountKey) return; // require a connected IPTV account
     const item = normalizeHistoryItem(rawItem);
     const now = new Date().toISOString();
     // Re-opening a watched title must NOT reset its saved position: opens carry
     // currentTime = startTime||0, so upsertHistoryItem preserves prior progress.
     const { history: newHistory, entry } = upsertHistoryItem(watchHistoryRef.current, item, now);
     setWatchHistory(newHistory);
-    if (userKey) upsertHistoryEntry(userKey, entry);
+    if (userKey) upsertHistoryEntry(userKey, accountKey, entry);
   }, [userKey]);
 
   const removeFromWatchHistory = useCallback((id) => {
+    const accountKey = accountKeyOf(activeAccountRef.current);
     const newHistory = watchHistoryRef.current.filter((item) => item.id !== id);
     setWatchHistory(newHistory);
-    if (userKey) deleteHistoryEntry(userKey, id);
+    if (userKey && accountKey) deleteHistoryEntry(userKey, accountKey, id);
   }, [userKey]);
 
   // Synchronously upsert all pending progress entries and clear their timers.
@@ -243,15 +261,18 @@ export const AppProvider = ({ children }) => {
   // exported for the player to call on background/foreground transitions.
   const flushProgress = useCallback(() => {
     const key = userKeyRef.current;
+    const accountKey = accountKeyOf(activeAccountRef.current);
     for (const timer of progressSyncTimers.current.values()) clearTimeout(timer);
     progressSyncTimers.current.clear();
     const pending = pendingProgressEntries.current;
     pendingProgressEntries.current = new Map();
-    if (!key) return;
-    for (const entry of pending.values()) upsertHistoryEntry(key, entry);
+    if (!key || !accountKey) return;
+    for (const entry of pending.values()) upsertHistoryEntry(key, accountKey, entry);
   }, []);
 
   const updateWatchProgress = useCallback((streamId, type, currentTime, duration) => {
+    const accountKey = accountKeyOf(activeAccountRef.current);
+    if (!accountKey) return; // require a connected IPTV account
     // Upsert semantics: a progress event with no matching row creates the entry
     // so resume data emitted before/without addToWatchHistory is never lost.
     const { history: updated, entry } = applyProgress(
@@ -269,7 +290,7 @@ export const AppProvider = ({ children }) => {
         progressSyncTimers.current.delete(k);
         const pendingEntry = pendingProgressEntries.current.get(k);
         pendingProgressEntries.current.delete(k);
-        if (pendingEntry) upsertHistoryEntry(userKey, pendingEntry);
+        if (pendingEntry) upsertHistoryEntry(userKey, accountKey, pendingEntry);
       }
       pendingProgressEntries.current.set(timerKey, entry);
       clearTimeout(progressSyncTimers.current.get(timerKey));
@@ -277,100 +298,100 @@ export const AppProvider = ({ children }) => {
         const e = pendingProgressEntries.current.get(timerKey);
         progressSyncTimers.current.delete(timerKey);
         pendingProgressEntries.current.delete(timerKey);
-        if (e) upsertHistoryEntry(userKey, e);
+        if (e) upsertHistoryEntry(userKey, accountKey, e);
       }, 5000));
     }
   }, [userKey]);
 
   // ─── My List (watch later) ───────────────────────────────────────────────────
+  // Favorites are partitioned per IPTV account by account_key server-side and by
+  // the local storage key, so the entry id no longer embeds the account.
   const myListId = (type, streamId) => `mylist_${type}_${streamId}`;
+  const isSameFav = (m, type, streamId) =>
+    m.type === type && String(m.streamId) === String(streamId);
+  const favStorageKey = (key, accountKey) => `iptv_mylist_${key}_${accountKey}`;
 
   const addToMyList = useCallback((item) => {
+    const accountKey = accountKeyOf(activeAccountRef.current);
+    if (!accountKey) return; // require a connected IPTV account
     const streamId = item.streamId ?? item.stream_id ?? item.seriesId ?? item.id;
-    const id = myListId(item.type, streamId);
     const prev = myListRef.current;
-    if (prev.some((m) => m.id === id)) return;
-    const entry = { ...item, streamId, id, addedAt: new Date().toISOString() };
+    if (prev.some((m) => isSameFav(m, item.type, streamId))) return;
+    const entry = { ...item, streamId, id: myListId(item.type, streamId), addedAt: new Date().toISOString() };
     const updated = [entry, ...prev];
     setMyList(updated);
     if (userKey) {
-      storage.setItem(`iptv_mylist_${userKey}`, JSON.stringify(updated));
-      upsertFavorite(userKey, entry);
+      storage.setItem(favStorageKey(userKey, accountKey), JSON.stringify(updated));
+      upsertFavorite(userKey, accountKey, entry);
     }
   }, [userKey]);
 
-  const removeFromMyList = useCallback((id) => {
-    const updated = myListRef.current.filter((m) => m.id !== id);
+  // Accepts either a stored row id (History tab passes `item.id`) or the logical
+  // key `mylist_${type}_${streamId}` (detail/browse screens reconstruct it).
+  const removeFromMyList = useCallback((idArg) => {
+    const accountKey = accountKeyOf(activeAccountRef.current);
+    const target = myListRef.current.find((m) => m.id === idArg);
+    const removeId = target ? target.id : idArg;
+    const updated = myListRef.current.filter((m) => m.id !== removeId);
     setMyList(updated);
-    if (userKey) {
-      storage.setItem(`iptv_mylist_${userKey}`, JSON.stringify(updated));
-      deleteFavorite(userKey, id);
+    if (userKey && accountKey) {
+      storage.setItem(favStorageKey(userKey, accountKey), JSON.stringify(updated));
+      deleteFavorite(userKey, accountKey, removeId);
     }
   }, [userKey]);
 
   const isInMyList = useCallback((type, streamId) =>
-    myListRef.current.some((m) => m.id === myListId(type, streamId)), []);
+    myListRef.current.some((m) => isSameFav(m, type, streamId)),
+    []);
 
   // Fetch remote history/favorites for a userKey. The server is authoritative:
   // a successful fetch replaces the local list (so cross-device deletes stick),
   // while a failed fetch or the no-Supabase path falls back to local.
-  const loadLibrary = useCallback(async (key) => {
-    if (!key) return;
-    // Watch history is Supabase-only: no local read/write, server is the sole
-    // source. Purge any legacy local history so stale (possibly resurrected)
-    // entries never linger on disk. Favorites still keep a local cache.
+  const loadLibrary = useCallback(async (key, accountKey) => {
+    if (!key || !accountKey) return;
+    // Watch history is Supabase-only: purge any legacy local history on disk.
     storage.removeItem('iptv_history_' + key);
     let localFavorites = [];
     try {
-      const rawF = await storage.getItem(`iptv_mylist_${key}`);
+      const rawF = await storage.getItem(`iptv_mylist_${key}_${accountKey}`);
       if (rawF) localFavorites = JSON.parse(rawF);
     } catch { /**/ }
-    // Prefer in-memory favorites if richer than disk, but only for this same key
-    // — otherwise it holds the previous profile's data and must be ignored.
-    const sameKey = libraryKeyRef.current === key;
+    const sameKey = libraryKeyRef.current === `${key}_${accountKey}`;
     const baseFavorites = pickLibraryBase({
       sameKey, inMemory: myListRef.current, onDisk: localFavorites,
     });
-    libraryKeyRef.current = key;
+    libraryKeyRef.current = `${key}_${accountKey}`;
 
     if (!isSupabaseConfigured()) {
-      setWatchHistory([]); // no local history source when Supabase is off
+      setWatchHistory([]);
       setMyList(baseFavorites);
       return;
     }
 
     setIsSyncing(true);
     try {
-      // Server is authoritative: a successful fetch REPLACES the list so
-      // deletions made on another device propagate. On a failed fetch, history
-      // falls back to current in-memory state (never a local store) and
-      // favorites fall back to their local cache. Fetches guarded independently.
       const [historyRes, favoritesRes] = await Promise.all([
-        fetchRemoteHistory(key).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
-        fetchFavorites(key).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
+        fetchRemoteHistory(key, accountKey).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
+        fetchFavorites(key, accountKey).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
       ]);
-
       const nextHistory = resolveAuthoritative({
         localBase: watchHistoryRef.current, remote: historyRes.data, fetchOk: historyRes.ok,
         tsField: 'watchedAt', cap: MAX_HISTORY,
       });
       setWatchHistory(nextHistory);
-
       const nextFavorites = resolveAuthoritative({
         localBase: baseFavorites, remote: favoritesRes.data, fetchOk: favoritesRes.ok,
         tsField: 'addedAt',
       });
       setMyList(nextFavorites);
-      storage.setItem(`iptv_mylist_${key}`, JSON.stringify(nextFavorites));
+      storage.setItem(`iptv_mylist_${key}_${accountKey}`, JSON.stringify(nextFavorites));
     } finally {
       setIsSyncing(false);
     }
   }, []);
 
-  // Re-run the library fetch/merge for the current userKey (player calls this
-  // on app foreground so remote edits made elsewhere are pulled in).
   const refetchLibrary = useCallback(() => {
-    loadLibrary(userKeyRef.current);
+    loadLibrary(userKeyRef.current, accountKeyOf(activeAccountRef.current));
   }, [loadLibrary]);
 
   // ─── Video ─────────────────────────────────────────────────────────────────
@@ -551,6 +572,7 @@ export const AppProvider = ({ children }) => {
     appProfiles, activeProfileId, activeProfile, switchProfile, addProfile, updateProfile, removeProfile,
     channels, setChannels,
     users, setUsers, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser,
+    activeAccountId,
     currentSeries, setCurrentSeries,
     refetchLibrary, isSyncing,
     myList, addToMyList, removeFromMyList, isInMyList,
@@ -562,6 +584,7 @@ export const AppProvider = ({ children }) => {
     tvUseShelves,
     channels,
     users, activeUserId, isSyncing, myList,
+    activeAccountId,
     searchQuery, isLoading, error,
     signIn, signUp, signOut, switchProfile, addProfile, updateProfile, removeProfile,
     addUser, updateUser, removeUser, saveUsers,
