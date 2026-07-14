@@ -118,6 +118,7 @@ Deno.serve(async (req) => {
         const { data } = await db("watch_history")
           .select("entry")
           .eq("user_key", payload.userKey)
+          .eq("account_key", payload.accountKey ?? "")
           .order("watched_at", { ascending: false })
           .limit(MAX_HISTORY);
         return json((data ?? []).map((r: any) => r.entry));
@@ -127,11 +128,12 @@ Deno.serve(async (req) => {
         await db("watch_history").upsert(
           {
             user_key: payload.userKey,
+            account_key: payload.accountKey ?? "",
             entry_id: payload.entry.id,
             entry: payload.entry,
             watched_at: payload.entry.watchedAt,
           },
-          { onConflict: "user_key,entry_id" },
+          { onConflict: "user_key,account_key,entry_id" },
         );
         return json({ ok: true });
       }
@@ -140,6 +142,7 @@ Deno.serve(async (req) => {
         await db("watch_history")
           .delete()
           .eq("user_key", payload.userKey)
+          .eq("account_key", payload.accountKey ?? "")
           .eq("entry_id", payload.entryId);
         return json({ ok: true });
       }
@@ -148,6 +151,7 @@ Deno.serve(async (req) => {
         const { data } = await db("favorites")
           .select("entry")
           .eq("user_key", payload.userKey)
+          .eq("account_key", payload.accountKey ?? "")
           .order("added_at", { ascending: false });
         return json((data ?? []).map((r: any) => r.entry));
       }
@@ -156,11 +160,12 @@ Deno.serve(async (req) => {
         await db("favorites").upsert(
           {
             user_key: payload.userKey,
+            account_key: payload.accountKey ?? "",
             entry_id: payload.entry.id,
             entry: payload.entry,
             added_at: payload.entry.addedAt,
           },
-          { onConflict: "user_key,entry_id" },
+          { onConflict: "user_key,account_key,entry_id" },
         );
         return json({ ok: true });
       }
@@ -169,6 +174,7 @@ Deno.serve(async (req) => {
         await db("favorites")
           .delete()
           .eq("user_key", payload.userKey)
+          .eq("account_key", payload.accountKey ?? "")
           .eq("entry_id", payload.entryId);
         return json({ ok: true });
       }
