@@ -550,17 +550,21 @@ export const AppProvider = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channels]);
 
-  // Library (watch history + favorites) load, keyed on userKey (NOT
-  // activeProfileId) so the fetch target always matches the write target.
-  // Hydrates local first, then a successful remote fetch replaces it.
+  // Library (watch history + favorites) load, keyed on (userKey, activeAccountId)
+  // so the fetch target always matches the write target and it reloads when the
+  // active IPTV account switches. No active account ⇒ empty library and no fetch
+  // (favorites/history require a connected IPTV account).
   useEffect(() => {
-    if (!userKey || deviceStatus !== 'ok') { libraryKeyRef.current = null; setWatchHistory([]); setMyList([]); return; }
-    // Switching profiles: drop the previous profile's lists immediately so they
-    // never flash (or get merged) under the new profile while remote loads.
-    if (libraryKeyRef.current !== userKey) { setWatchHistory([]); setMyList([]); }
-    loadLibrary(userKey);
+    const libKey = userKey && activeAccountId ? `${userKey}_${activeAccountId}` : null;
+    if (!libKey || deviceStatus !== 'ok') {
+      libraryKeyRef.current = null; setWatchHistory([]); setMyList([]); return;
+    }
+    // Switching profile/account: drop the previous lists immediately so they
+    // never flash (or get merged) under the new key while remote loads.
+    if (libraryKeyRef.current !== libKey) { setWatchHistory([]); setMyList([]); }
+    loadLibrary(userKey, activeAccountId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userKey, deviceStatus]);
+  }, [userKey, activeAccountId, deviceStatus]);
 
   // Flush any pending progress writes when the provider unmounts so we never
   // lose the last few seconds of watch position on app teardown.
