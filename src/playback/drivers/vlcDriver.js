@@ -58,6 +58,7 @@ export function createVlcDriver(handle) {
   let pendingStartSec = 0; // >0 means "seek here once we know duration"
   let didSeek = false;
   let paused = false; // gates the stall watchdog (a paused stream is not a stall)
+  let started = false; // true once real playback progress/'playing' has arrived
 
   // Registered subscribers (single each is enough for useResilientPlayback).
   let statusCb = null;
@@ -82,6 +83,7 @@ export function createVlcDriver(handle) {
     lastPositionSec = 0;
     lastDurationSec = NaN;
     paused = false;
+    started = false;
     handle.setSource({ uri, initOptions });
     handle.setPaused(false);
   }
@@ -148,8 +150,9 @@ export function createVlcDriver(handle) {
         fired = false;
         return;
       }
-      // Flat position while paused is NOT a stall — refresh timers and skip.
-      if (paused) {
+      // Flat position while paused or before playback starts is NOT a stall —
+      // refresh timers and skip.
+      if (paused || !started) {
         lastAdvance = now;
         lastTime = t;
         return;
@@ -182,6 +185,7 @@ export function createVlcDriver(handle) {
     const dms = e && typeof e.duration === 'number' ? e.duration : null;
     if (ms != null) lastPositionSec = ms / 1000;
     if (dms != null && dms > 0) lastDurationSec = dms / 1000;
+    started = true;
     if (progressCb) progressCb(currentTime());
     if (statusCb) statusCb({ state: 'playing' });
   }
@@ -200,6 +204,7 @@ export function createVlcDriver(handle) {
       }
     }
     paused = false;
+    started = true;
     if (statusCb) statusCb({ state: 'playing' });
   }
 

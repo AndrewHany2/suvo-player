@@ -192,9 +192,10 @@ export default function VlcPlayerScreen({ navigation }) {
     }
     flushProgress();
     clearInterval(progressIntervalRef.current);
-    // closeVideo() nulls currentVideo; the dispatcher owns popping the route.
+    setPaused(true);
     closeVideo();
-  }, [currentVideo, updateWatchProgress, flushProgress, closeVideo]);
+    navigation.goBack();
+  }, [currentVideo, updateWatchProgress, flushProgress, closeVideo, navigation]);
 
   // Resume choice.
   const handleResume = useCallback(() => {
@@ -242,6 +243,12 @@ export default function VlcPlayerScreen({ navigation }) {
     });
     resetControlsTimer();
   }, [resetControlsTimer]);
+
+  // Pop when the video is cleared externally (profile switch / sign-out). handleClose
+  // already pops explicitly; guard on canGoBack() so we never double-pop.
+  useEffect(() => {
+    if (!currentVideo && navigation.canGoBack?.()) navigation.goBack();
+  }, [currentVideo, navigation]);
 
   const deviceCompromised = useDeviceIntegrity();
 

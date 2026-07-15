@@ -141,3 +141,20 @@ test('onStall fires when position is flat while playing', () => {
     mock.timers.reset();
   }
 });
+
+test('onStall does not fire before playback starts (initial buffering)', () => {
+  mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  try {
+    const h = makeHandle();
+    const { driver } = createVlcDriver(h);
+    let stalls = 0;
+    const un = driver.onStall(() => { stalls++; });
+    driver.load({ uri: 'http://h/x.mkv' }, { isLive: false, startTime: 0 });
+    // No onPlaying / onProgress yet: position sits flat at 0 during buffering.
+    mock.timers.tick(10000); // > 6s threshold
+    assert.equal(stalls, 0);
+    un();
+  } finally {
+    mock.timers.reset();
+  }
+});

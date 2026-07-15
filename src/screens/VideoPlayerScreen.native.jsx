@@ -17,7 +17,7 @@ export default function VideoPlayerScreen(props) {
   const lastUseVlcRef = useRef(false);
 
   const useVlc = currentVideo
-    ? needsVlcEngine(currentVideo.url, Platform.OS)
+    ? currentVideo.type !== "live" && needsVlcEngine(currentVideo.url, Platform.OS)
     : lastUseVlcRef.current;
   lastUseVlcRef.current = useVlc;
 
