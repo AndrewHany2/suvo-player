@@ -40,7 +40,8 @@
     "plugins": [
       "expo-video",
       "expo-font",
-      "@kesha-antonov/react-native-background-downloader"
+      "@kesha-antonov/react-native-background-downloader",
+      "react-native-vlc-media-player"
     ],
     "extra": {
       "eas": {
