@@ -367,6 +367,7 @@ export default function AppNavigator() {
     activeProfile,
     switchProfile,
     setSearchQuery,
+    refetchLibrary,
   } = useApp();
   const { currentVideo } = usePlayback();
   const gate = useAppGate();
@@ -415,6 +416,11 @@ export default function AppNavigator() {
   };
 
   const goToTab = (tab) => {
+    // Landing on any tab refetches the library so history/favorites stay fresh
+    // regardless of which page the user opens (web/TV screens remount per tab,
+    // but the library only reloads on account/device change without this).
+    // refetchLibrary no-ops until a loadable, device-gated context exists.
+    refetchLibrary();
     setActiveTab((prev) => {
       const next = historyGo({ activeTab: prev, stack: tabHistoryRef.current }, tab);
       tabHistoryRef.current = next.stack;

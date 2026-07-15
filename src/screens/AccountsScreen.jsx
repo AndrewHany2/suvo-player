@@ -16,6 +16,30 @@ import DownloadsStorageLine from "../downloads/DownloadsStorageLine.jsx";
 // .web variant and is shared with the web build).
 const IS_NATIVE = Platform.OS === "ios" || Platform.OS === "android";
 
+// react-native-web's Alert is a no-op stub (Alert.alert = () => {}), so on
+// web/Electron/TV the OS Alert never renders and its button callbacks never
+// fire — delete, sign-out, and the connect prompt would all do nothing. Fall
+// back to the browser dialogs there (same idiom as useHistory's confirm/notify).
+const confirmDialog = (title, message, confirmLabel, onConfirm) => {
+  if (Platform.OS === "web") {
+    if (globalThis.confirm?.(message)) onConfirm();
+  } else {
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: confirmLabel, style: "destructive", onPress: onConfirm },
+    ]);
+  }
+};
+
+const alertDialog = (title, message, onOk) => {
+  if (Platform.OS === "web") {
+    globalThis.alert?.(message);
+    onOk?.();
+  } else {
+    Alert.alert(title, message, onOk ? [{ text: "OK", onPress: onOk }] : undefined);
+  }
+};
+
 const EMPTY_FORM = { type: "xtream", nickname: "", host: "", username: "", password: "", url: "" };
 
 export default function AccountsScreen({ navigation }) {
@@ -57,11 +81,11 @@ export default function AccountsScreen({ navigation }) {
   const handleSave = async () => {
     if (isM3U) {
       if (!formData.url) {
-        Alert.alert("Missing Fields", "Please enter a playlist URL.");
+        alertDialog("Missing Fields", "Please enter a playlist URL.");
         return;
       }
     } else if (!formData.host || !formData.username || !formData.password) {
-      Alert.alert("Missing Fields", "Please fill in Host, Username, and Password.");
+      alertDialog("Missing Fields", "Please fill in Host, Username, and Password.");
       return;
     }
     setLoading(true);
@@ -78,54 +102,52 @@ export default function AccountsScreen({ navigation }) {
   };
 
   const handleDelete = (userId, nickname) => {
-    Alert.alert("Delete Account", `Delete "${nickname || "this account"}"?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          setLoading(true);
-          try { await removeUser(userId); } finally { setLoading(false); }
-        },
-      },
-    ]);
+    confirmDialog("Delete Account", `Delete "${nickname || "this account"}"?`, "Delete", async () => {
+      setLoading(true);
+      try { await removeUser(userId); } finally { setLoading(false); }
+    });
   };
 
   const handleConnect = async (userId) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
-    setActiveUserId(userId);
-    saveUsers();
     setLoading(true);
     try {
       contentService.configure(user);
-      const channelsData = await contentService.getLiveChannels();
-      const formatted = channelsData.map((ch) => ({
-        name: ch.name,
-        url: contentService.buildLiveUrl(ch.id, ch.streamType || "ts"),
-        id: ch.id,
-      }));
-      setChannels(formatted);
-      Alert.alert("Connected!", `Loaded ${formatted.length} channels from ${user.nickname || user.username}`, [{ text: "OK", onPress: () => navigation.goBack() }]);
-    } catch (err) {
-      console.error("Error loading channels:", err);
-      Alert.alert("Error", "Failed to load channels. Please check your credentials.");
+      // Cheap auth check (a few hundred bytes) instead of downloading the whole
+      // live catalog just to validate creds. Distinguishes wrong-password from
+      // expired/banned from unreachable, and doesn't switch the active account
+      // until we know it actually authenticates.
+      const result = await contentService.verifyCredentials();
+      if (!result.ok) {
+        alertDialog("Couldn't connect", result.message);
+        return;
+      }
+      // Native's live player zaps through the context channel list; web/Electron
+      // never reads it, so only pay the full stream fetch off-web. Best-effort:
+      // creds are already verified, so a hiccup here shouldn't block the connect.
+      if (Platform.OS !== "web") {
+        try {
+          const channelsData = await contentService.getLiveChannels();
+          setChannels(channelsData.map((ch) => ({
+            name: ch.name,
+            url: contentService.buildLiveUrl(ch.id, ch.streamType || "ts"),
+            id: ch.id,
+          })));
+        } catch (err) { console.warn("Zap-list prefetch failed (non-fatal):", err); }
+      }
+      setActiveUserId(userId);
+      saveUsers();
+      alertDialog("Connected!", `Connected to ${user.nickname || user.username}.`, () => navigation.goBack());
     } finally {
       setLoading(false);
     }
   };
 
   const handleSignOut = () => {
-    Alert.alert("Sign Out", "Sign out of your account?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          try { await signOut(); navigation.goBack(); } catch (err) { Alert.alert("Error", err.message); }
-        },
-      },
-    ]);
+    confirmDialog("Sign Out", "Sign out of your account?", "Sign Out", async () => {
+      try { await signOut(); navigation.goBack(); } catch (err) { alertDialog("Error", err.message); }
+    });
   };
 
   // TV / keyboard: Enter submits the form

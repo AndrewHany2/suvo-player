@@ -40,7 +40,7 @@ export function useSeries({ navigation } = {}) {
 
   return {
     // status
-    loading: cat.loading, loaded: cat.loaded, error: cat.error, reload: cat.reload, activeUserId: cat.activeUserId,
+    loading: cat.loading, loaded: cat.loaded, error: cat.error, errorMessage: cat.errorMessage, reload: cat.reload, activeUserId: cat.activeUserId,
     // discover + shelves (native/web)
     discoverItems: cat.discoverItems, shelves: cat.shelves, handleShelfVisible: cat.handleShelfVisible, handleLoadMore: cat.handleLoadMore,
     // category drill-in

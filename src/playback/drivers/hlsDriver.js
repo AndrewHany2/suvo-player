@@ -23,6 +23,29 @@
  */
 
 import Hls from 'hls.js';
+import { effectiveResponseUrl } from './hlsResponseUrl.js';
+
+/**
+ * hls.js loader that repairs an empty/relative response URL before the playlist
+ * loader reads it. On the TV (`file://` origin) webOS returns `response.url === ""`
+ * after a redirect; hls.js only falls back to the request URL when it's
+ * `undefined`, so the empty string makes it resolve relative segment URLs against
+ * the `file://` document → unfetchable `file:///…` → infinite retry → black
+ * video. Coercing the base to the http request URL keeps segments on http.
+ * Subclasses whichever loader is default at runtime (FetchLoader in the webOS
+ * browser, XhrLoader elsewhere); a no-op wherever the engine already reports a
+ * proper redirected URL (e.g. desktop). See ./hlsResponseUrl.js for the rule.
+ */
+class FileSafeLoader extends Hls.DefaultConfig.loader {
+  load(context, config, callbacks) {
+    const onSuccess = callbacks.onSuccess;
+    callbacks.onSuccess = (response, stats, ctx, networkDetails) => {
+      if (response) response.url = effectiveResponseUrl(response.url, ctx?.url);
+      onSuccess(response, stats, ctx, networkDetails);
+    };
+    super.load(context, config, callbacks);
+  }
+}
 
 /**
  * How long currentTime may stay flat (while not paused and the element believes
@@ -70,13 +93,17 @@ export function createHlsInstance({
   onSubtitleTracksUpdated,
   onSubtitleTrackSwitch,
 } = {}) {
-  // TVs (esp. webOS) have far less memory/CPU headroom — keep buffers small and
-  // cap the rendered level to the player size so we don't OOM or stall.
-  // enableWorker stays on; note: some older webOS builds break with workers,
-  // disable there if playback fails to start.
-  const hls = new Hls(
-    isTV
+  const hls = new Hls({
+    // Repair empty post-redirect response URLs so relative segments never
+    // resolve against the file:// document (webOS live-TV hang). No-op on
+    // engines that report a proper redirected URL. See FileSafeLoader above.
+    loader: FileSafeLoader,
+    ...(isTV
       ? {
+          // TVs (esp. webOS) have far less memory/CPU headroom — keep buffers
+          // small and cap the rendered level to the player size so we don't OOM
+          // or stall. enableWorker stays on; note: some older webOS builds break
+          // with workers, disable there if playback fails to start.
           enableWorker: true,
           lowLatencyMode: false,
           backBufferLength: 30,
@@ -91,8 +118,8 @@ export function createHlsInstance({
           backBufferLength: 90,
           maxBufferLength: 30,
           maxMaxBufferLength: 60,
-        },
-  );
+        }),
+  });
   hls.on(Hls.Events.MANIFEST_PARSED, () => onManifestParsed?.(hls.levels));
   hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => onAudioTracksUpdated?.([...hls.audioTracks], hls.audioTrack));
   hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_e, d) => onAudioTrackSwitched?.(d.id));
@@ -605,11 +632,19 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     };
   }
 
+  // Release the <video> element without destroying the hls.js instance (the
+  // host's ensureHls owns instance destruction). Lets a router hand the element
+  // to another engine (mpegts.js) when a source turns out not to be HLS.
+  function destroy() {
+    try { hls()?.detachMedia?.(); } catch { /* noop */ }
+  }
+
   /** @type {PlayerDriver} */
   return {
     load,
     play,
     pause,
+    destroy,
     currentTime,
     duration,
     buffered,

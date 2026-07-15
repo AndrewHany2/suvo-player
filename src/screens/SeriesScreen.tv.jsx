@@ -36,7 +36,7 @@ const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 
 export default function SeriesScreenTV({ navigation, route }) {
   const {
-    loading, loaded, error, reload, activeUserId,
+    loading, loaded, error, errorMessage, reload, activeUserId,
     categories, getCategoryItems, fetchSeriesInfo, buildEpisodeUrl, playEpisodeObject,
     shelves, handleShelfVisible, handleLoadMore,
   } = useSeries({ navigation });
@@ -737,6 +737,19 @@ export default function SeriesScreenTV({ navigation, route }) {
       </div>
     );
 
+  if (error) {
+    return (
+      <div className="tvl-screen">
+        <StatePanel
+          mode="error"
+          title="Couldn't load series"
+          message={errorMessage || "Something went wrong. Please try again."}
+          onRetry={reload}
+        />
+      </div>
+    );
+  }
+
   if (!activeUserId) {
     return (
       <div className="tvl-screen">
@@ -1079,7 +1092,7 @@ export default function SeriesScreenTV({ navigation, route }) {
           <StatePanel
             mode="error"
             title="Couldn't load series"
-            message="Something went wrong fetching the series categories."
+            message={errorMessage || "Something went wrong fetching the series categories."}
             onRetry={reload}
           />
         ) : (

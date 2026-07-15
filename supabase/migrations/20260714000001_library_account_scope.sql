@@ -25,7 +25,7 @@ begin
       and tc.table_name in ('watch_history', 'favorites')
       and tc.constraint_type = 'UNIQUE'
     group by tc.table_name, tc.constraint_name
-    having array_agg(kcu.column_name order by kcu.column_name) = array['entry_id','user_key']
+    having array_agg(kcu.column_name::text order by kcu.column_name::text) = array['entry_id','user_key']
   loop
     execute format('alter table public.%I drop constraint %I', r.table_name, r.constraint_name);
   end loop;
@@ -41,7 +41,7 @@ begin
       and x.indisunique
       and not exists (select 1 from pg_constraint c where c.conindid = x.indexrelid)
       and (
-        select array_agg(a.attname order by a.attname)
+        select array_agg(a.attname::text order by a.attname::text)
         from unnest(x.indkey) k
         join pg_attribute a on a.attrelid = t.oid and a.attnum = k
       ) = array['entry_id','user_key']

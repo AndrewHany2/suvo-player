@@ -70,8 +70,13 @@ function HeaderRight() {
 }
 
 function MainTabs() {
+  const { refetchLibrary } = useApp();
   return (
-    <Tab.Navigator screenOptions={{
+    // Refetch the library on every tab focus so history/favorites stay fresh on
+    // whichever page the user lands on (not just History) when the app is
+    // already foregrounded. refetchLibrary no-ops until a loadable, device-gated
+    // context exists, so the first cold-start focus is harmless.
+    <Tab.Navigator screenListeners={{ focus: () => refetchLibrary() }} screenOptions={{
       // Suspend (freeze) a tab's render tree while it's not focused, so the
       // inactive Movies/Series/LiveTV/History screens don't re-render in the
       // background. Backed by react-native-screens + react-freeze.

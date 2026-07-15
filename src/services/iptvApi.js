@@ -333,12 +333,34 @@ export class IPTVApi {
         // hint of what came back. Surfacing a snippet of the actual body makes
         // those provider/network responses diagnosable instead of a mystery.
         const text = await response.text();
+        let parsed;
         try {
-          return JSON.parse(text);
+          parsed = JSON.parse(text);
         } catch {
           const snippet = text.trim().slice(0, 200);
           throw new Error(`Non-JSON response from provider: ${snippet || '(empty body)'}`);
         }
+        // Some panels answer an expired/blocked account with a 200 whose BODY is
+        // an error envelope ({ error, message, status }) instead of an HTTP error
+        // status. Handing that object back as data lets it normalize to an empty
+        // list downstream and surface a bogus "nothing found" empty state instead
+        // of the real error. Detect it and throw a structured error so the
+        // existing error-panel + auth-breaker handling (isAuthError) takes over.
+        // Legitimate object responses (get_vod_info, get_series_info, user_info,
+        // get_short_epg) never carry a top-level `error` string, so this is safe.
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && typeof parsed.error === 'string' && parsed.error) {
+          const status = Number(parsed.status);
+          const hasStatus = Number.isFinite(status);
+          const detail = typeof parsed.message === 'string' && parsed.message ? ` — ${parsed.message}` : '';
+          const statusSuffix = hasStatus ? ` (status: ${status})` : '';
+          const err = new Error(`Provider error: ${parsed.error}${detail}${statusSuffix}`);
+          err.providerError = true;
+          if (hasStatus) err.status = status;
+          // Clean, human-facing reason for the UI (provider message preferred).
+          err.userMessage = (typeof parsed.message === 'string' && parsed.message.trim()) || String(parsed.error);
+          throw err;
+        }
+        return parsed;
       })();
       // Swallow a late rejection from the losing branch so a request that
       // rejects just after the deadline won't surface as an unhandled rejection.
@@ -357,6 +379,8 @@ export class IPTVApi {
   // abort (caller cancel / our timeout) and NOT a 4xx client error.
   _isTransient(e) {
     const msg = e?.message || '';
+    // A provider-level rejection (error-envelope body) won't change on retry.
+    if (e?.providerError) return false;
     if (e?.name === 'AbortError' || /aborted|timed out/i.test(msg)) return false;
     const m = msg.match(/status: (\d+)/);
     if (m) return Number(m[1]) >= 500;
@@ -497,6 +521,19 @@ export class IPTVApi {
     return this._cached(`epg_${streamId}_${limit}`, 5 * 60 * 1000, () =>
       this.fetch(this.buildUrl('get_short_epg', { stream_id: streamId, limit }))
     );
+  }
+
+  // Cheap credential/auth check. player_api.php with NO `action` returns the
+  // account envelope { user_info: { auth, status, exp_date, … }, server_info }
+  // — a few hundred bytes — which is Xtream's canonical authentication endpoint.
+  // NOT cached: auth/expiry is exactly the state a connect check wants fresh,
+  // and it must not evict the persisted category cache. buildUrl always appends
+  // `action`, so the URL is built directly here.
+  async getUserInfo() {
+    const url = new URL(`${this.baseUrl}/player_api.php`);
+    url.searchParams.append('username', this.username);
+    url.searchParams.append('password', this.password);
+    return this.fetch(url.toString());
   }
 
   buildStreamUrl(type, streamId, extension = 'ts') {

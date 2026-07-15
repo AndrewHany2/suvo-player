@@ -4,6 +4,7 @@ import { normalizeCategory } from "../models/Category";
 import { normalizeMovie } from "../models/Movie";
 import { normalizeSeries } from "../models/Series";
 import { normalizeChannel } from "../models/Channel";
+import { interpretUserInfo } from "./userInfo";
 
 class ContentService {
   // The active source backend. Xtream (`iptvApi`) by default; swapped to the
@@ -33,6 +34,24 @@ class ContentService {
     } else {
       this.api = iptvApi;
       iptvApi.setCredentials(credentials.host, credentials.username, credentials.password);
+    }
+  }
+
+  /**
+   * Cheap connect/auth check for the currently-configured account: does it
+   * authenticate WITHOUT downloading the whole live catalog? Xtream hits the
+   * actionless user_info envelope; M3U counts a successful playlist parse. Never
+   * throws — returns a verdict { ok, status?, message } so the connect UI can
+   * show a precise reason (wrong password vs expired vs provider unreachable).
+   * @returns {Promise<{ ok: boolean, status?: string, message: string, expiresAt?: number }>}
+   */
+  async verifyCredentials() {
+    try {
+      return interpretUserInfo(await this.api.getUserInfo());
+    } catch (err) {
+      // A structured provider error carries a human reason; otherwise it's a
+      // network/timeout/unreachable-host failure.
+      return { ok: false, message: err?.userMessage || "Couldn't reach the provider. Check the host and your connection." };
     }
   }
 

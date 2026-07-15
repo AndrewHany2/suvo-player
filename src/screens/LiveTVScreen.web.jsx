@@ -369,6 +369,7 @@ export default function LiveTVScreen({ navigation }) {
   const {
     loading,
     error,
+    errorMessage,
     reload: loadChannels,
     activeUserId,
     categories: baseCategories,
@@ -580,7 +581,7 @@ export default function LiveTVScreen({ navigation }) {
         mode="error"
         icon="tv"
         title="Couldn't load channels"
-        message="Check your connection or account and try again"
+        message={errorMessage || "Check your connection or account and try again"}
         onRetry={loadChannels}
       />
     );

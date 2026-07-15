@@ -16,7 +16,7 @@ import { getShelfConfig } from "../presentation/virtualization/shelfConfig.js";
 /* ─── Screen ─── */
 export default function MoviesScreen({ navigation }) {
   const {
-    loading, error, reload, activeUserId, shelves, discoverItems,
+    loading, error, errorMessage, reload, activeUserId, shelves, discoverItems,
     handleShelfVisible, handleLoadMore, openCategory, closeCategory,
     categoryPage, isTopRatedCategory, topRatedHasMore, topRatedLoadingMore, handleTopRatedMore,
     selectedMovie, selectMovie, clearSelectedMovie, playVideoObject,
@@ -56,7 +56,7 @@ export default function MoviesScreen({ navigation }) {
       <StatePanel
         mode="error"
         title="Couldn't load movies"
-        message="Check your connection and try again."
+        message={errorMessage || "Check your connection and try again."}
         onRetry={reload}
         retryLabel="Retry"
       />

@@ -7,6 +7,7 @@ import { colors } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
+import { resumePlaybackUrl } from "../playback/resumePlaybackUrl";
 import DownloadButton from "../downloads/DownloadButton.jsx";
 import { useDownloads } from "../downloads/useDownloads.jsx";
 import { makeId } from "../downloads/downloadStore.js";
@@ -76,7 +77,11 @@ export default function MovieDetail({ item, onBack, onPlay }) {
     const rec = byId[makeId({ kind: "movie", streamId })];
     const url = rec?.status === "done"
       ? rec.localPath
-      : contentService.buildMovieUrl(streamId, item.container_extension || "mp4");
+      // Replay the URL captured in history (Continue Watching) when present;
+      // only rebuild from the id for a fresh open — M3U ids drift per session.
+      : resumePlaybackUrl(item, () =>
+          contentService.buildMovieUrl(streamId, item.container_extension || "mp4"),
+        );
     onPlay({ type: "movies", streamId, name, url, cover, startTime });
   };
 

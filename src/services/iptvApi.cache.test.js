@@ -183,6 +183,41 @@ describe("IPTVApi fetch wrapper", () => {
     await assert.rejects(() => api.fetch("http://x/api"), /status: 403/);
   });
 
+  test("throws on a provider error envelope returned with HTTP 200", async () => {
+    // Some panels answer an expired/blocked account with a 200 whose BODY is an
+    // error envelope ({error, message, status}) rather than an HTTP error status.
+    // That body must not be handed back as data (it silently normalizes to an
+    // empty list and shows a bogus "nothing found" instead of the real error).
+    globalThis.fetch = async () => ({
+      ok: true, status: 200,
+      text: async () => JSON.stringify({ error: "USER_EXPIRED", message: "Your subscription has expired", status: 401 }),
+    });
+    const api = new IPTVApi();
+    await assert.rejects(() => api.fetch("http://x/api"), /USER_EXPIRED|status: 401/);
+  });
+
+  test("a provider error envelope carries its status and is not retried", async () => {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return { ok: true, status: 200, text: async () => JSON.stringify({ error: "USER_EXPIRED", status: 401 }) };
+    };
+    const api = new IPTVApi();
+    const err = await api.fetch("http://x/api").then(() => null, (e) => e);
+    assert.ok(err, "should reject");
+    assert.equal(err.status, 401, "structured status attached for isAuthError");
+    assert.equal(err.userMessage, "USER_EXPIRED", "human reason attached for the UI (falls back to error code when no message)");
+    assert.equal(calls, 1, "provider-level rejection is not transient — no retry");
+  });
+
+  test("a normal object response (e.g. vod_info) is still returned as-is", async () => {
+    // Guard against over-matching: legitimate object responses have no top-level
+    // `error` field and must pass through untouched.
+    globalThis.fetch = async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ info: {}, movie_data: { name: "X" } }) });
+    const api = new IPTVApi();
+    assert.deepEqual(await api.fetch("http://x/api"), { info: {}, movie_data: { name: "X" } });
+  });
+
   test("a caller-aborted signal aborts the request", async () => {
     // The wrapper forwards its own AbortController.signal; when the caller's
     // signal aborts, so does the request's.

@@ -82,6 +82,7 @@ export default function LiveTVScreen({ navigation }) {
   const {
     loading,
     error,
+    errorMessage,
     reload: loadChannels,
     activeUserId,
     categories: baseCategories,
@@ -211,7 +212,7 @@ export default function LiveTVScreen({ navigation }) {
       <StatePanel
         mode="error"
         title="Couldn't load channels"
-        message="Check your connection and try again."
+        message={errorMessage || "Check your connection and try again."}
         onRetry={loadChannels}
         retryLabel="Retry"
       />

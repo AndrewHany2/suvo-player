@@ -4,7 +4,7 @@ import { useContentService } from "./useContentService";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 import { epgNowTitle, toFlatChannel } from "./useLiveTV.helpers";
 import { isLowEndDevice } from "../../utils/deviceTier";
-import { isAuthError } from "../../utils/authError";
+import { isAuthError, authErrorMessage } from "../../utils/authError";
 
 // Cap the per-category channel cache so a long browsing session can't pin every
 // category's channel list in memory at once (WebOS budget is tight). Halved on
@@ -32,6 +32,8 @@ export function useLiveTV({ navigation } = {}) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  // User-facing reason for an auth/expired failure (else null → generic copy).
+  const [errorMessage, setErrorMessage] = useState(null);
   const [categories, setCategories] = useState([]);
 
   // LRU-capped catId -> normalized channel array. Shared by the shelf lazy-load
@@ -48,6 +50,7 @@ export function useLiveTV({ navigation } = {}) {
     if (!activeUser) return;
     setLoading(true);
     setError(false);
+    setErrorMessage(null);
     authFailedRef.current = false;
     channelsCacheRef.current.clear();
     setCategories([]);
@@ -58,6 +61,7 @@ export function useLiveTV({ navigation } = {}) {
     } catch (err) {
       console.error("useLiveTV.loadCategories:", err);
       setError(true);
+      setErrorMessage(authErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -93,7 +97,7 @@ export function useLiveTV({ navigation } = {}) {
       // Account-level auth failure — surface the error panel once ("if one
       // fails, all fail") and stop. The caller still gets the throw to decide
       // its own per-shelf handling.
-      if (isAuthError(err)) { authFailedRef.current = true; setError(true); }
+      if (isAuthError(err)) { authFailedRef.current = true; setError(true); setErrorMessage(authErrorMessage(err)); }
       throw err;
     }
   }, [contentService]);
@@ -151,7 +155,7 @@ export function useLiveTV({ navigation } = {}) {
 
   return {
     // status
-    loading, error, reload: loadCategories, activeUser, activeUserId,
+    loading, error, errorMessage, reload: loadCategories, activeUser, activeUserId,
     // categories + channel fetch
     categories, getChannels, getFlatChannels,
     // epg

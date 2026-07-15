@@ -30,6 +30,7 @@ export default function LiveTVScreenTV({ navigation }) {
   const {
     loading,
     error: catsFailed,
+    errorMessage,
     reload: loadCats,
     activeUserId,
     categories: cats,
@@ -463,7 +464,7 @@ export default function LiveTVScreenTV({ navigation }) {
           <StatePanel
             mode="error"
             title="Couldn't load channels"
-            message="Something went wrong fetching the channel categories."
+            message={errorMessage || "Something went wrong fetching the channel categories."}
             onRetry={loadCats}
           />
         ) : (

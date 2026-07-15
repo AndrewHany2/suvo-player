@@ -4,7 +4,7 @@ import { useContentService } from "./useContentService";
 import tmdbApi from "../../services/tmdbApi";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 import { isLowEndDevice } from "../../utils/deviceTier";
-import { isAuthError } from "../../utils/authError";
+import { isAuthError, authErrorMessage } from "../../utils/authError";
 
 // Cap the drill-in item cache so a long browsing session can't pin the item lists
 // for every category in memory at once (WebOS budget is tight). Halved on low-RAM
@@ -50,6 +50,9 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
   // (the M3U live-only case) without treating the latter as a stuck spinner.
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  // A user-facing reason when the failure is an auth/expired one (else null, so
+  // the screen falls back to its generic "check your connection" copy).
+  const [errorMessage, setErrorMessage] = useState(null);
   const [shelves, setShelves] = useState([]);
   const [categoryPage, setCategoryPage] = useState(null); // { catId, name, items }
   const [selected, setSelected] = useState(null); // raw item for detail
@@ -129,6 +132,7 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
     if (!activeUser) return;
     setLoading(true);
     setError(false);
+    setErrorMessage(null);
     loadedRef.current.clear();
     authFailedRef.current = false;
     allShuffledRef.current = [];
@@ -148,6 +152,7 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
     } catch (err) {
       console.error(`${logName}.load:`, err);
       setError(true);
+      setErrorMessage(authErrorMessage(err));
     } finally {
       setLoading(false);
       setLoaded(true);
@@ -197,6 +202,7 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
         authFailedRef.current = true;
         console.warn(`${logName}: access denied loading shelf "${catId}" — stopping`, err);
         setError(true);
+        setErrorMessage(authErrorMessage(err));
         return;
       }
       // Isolated (non-auth) failure: hide just this shelf (items:[] →
@@ -335,7 +341,7 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
 
   return {
     // status
-    loading, loaded, error, reload: load, activeUserId,
+    loading, loaded, error, errorMessage, reload: load, activeUserId,
     // discover + shelves (native/web)
     discoverItems, shelves, handleShelfVisible, handleLoadMore,
     // category drill-in

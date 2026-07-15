@@ -3,6 +3,8 @@ import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
 import { createHlsDriver, createHlsInstance } from "./drivers/hlsDriver";
+import { createMpegtsDriver } from "./drivers/mpegtsDriver";
+import { createLiveRouterDriver } from "./drivers/liveRouterDriver";
 import { useResilientPlayback } from "./useResilientPlayback";
 import { usePlayerPreferences } from "./usePlayerPreferences";
 import { useResumePosition } from "./useResumePosition";
@@ -247,11 +249,17 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
   // a valid driver and a live element. The driver is stable for the session.
   const driver = useMemo(() => {
     if (typeof window === "undefined") return null;
-    return createHlsDriver(() => videoRef.current, {
+    const getEl = () => videoRef.current;
+    const hls = createHlsDriver(getEl, {
       isTV,
       getHls: () => hlsRef.current,
       ensureHls,
     });
+    // Some Xtream providers serve live channels as a raw MPEG-TS stream (behind
+    // an .m3u8 URL) that hls.js can't play. The router probes each live source
+    // and delegates raw-TS streams to mpegts.js, real HLS + all VOD to hls.js.
+    const mpegts = createMpegtsDriver(getEl, { isTV });
+    return createLiveRouterDriver({ hls, mpegts });
   }, [isTV, ensureHls]);
 
   const source = useMemo(

@@ -224,6 +224,17 @@ export class M3UApi {
 
   // M3U carries no EPG.
   async getShortEpg() { return { epg_listings: [] }; }
+
+  // M3U has no auth endpoint — a valid account is a playlist that fetches and
+  // parses to at least one entry. Mirror the Xtream user_info envelope shape so
+  // ContentService can interpret both backends uniformly. _load() throws on a
+  // fetch/timeout error, which verifyCredentials turns into an "unreachable"
+  // verdict; a reachable-but-empty playlist reports auth 0 (nothing to play).
+  async getUserInfo() {
+    await this._load();
+    const count = (this._channels?.length || 0) + (this._movies?.length || 0) + (this._series?.length || 0);
+    return { user_info: { auth: count > 0 ? 1 : 0, status: "Active" } };
+  }
 }
 
 export default new M3UApi();

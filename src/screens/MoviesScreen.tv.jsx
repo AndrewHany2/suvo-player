@@ -28,7 +28,7 @@ const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 export default function MoviesScreenTV({ navigation, route }) {
-  const { loading, loaded, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie, shelves, handleShelfVisible, handleLoadMore } = useMovies({ navigation });
+  const { loading, loaded, error, errorMessage, reload, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie, shelves, handleShelfVisible, handleLoadMore } = useMovies({ navigation });
   const { isInMyList, addToMyList, removeFromMyList, tvUseShelves } = useApp();
   const { currentVideo } = usePlayback();
   const { watchHistory } = useWatchHistory();
@@ -391,6 +391,19 @@ export default function MoviesScreenTV({ navigation, route }) {
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
     return <div className="tvl-screen"><StatePanel mode="loading" title="Loading…" /></div>;
+  }
+
+  if (error) {
+    return (
+      <div className="tvl-screen">
+        <StatePanel
+          mode="error"
+          title="Couldn't load movies"
+          message={errorMessage || "Something went wrong. Please try again."}
+          onRetry={reload}
+        />
+      </div>
+    );
   }
 
   if (!activeUserId) {

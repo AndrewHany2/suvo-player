@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { AppState } from 'react-native';
 import storage from '../utils/storage';
 import { contentService } from '../domain/services/ContentService';
 import {
@@ -394,6 +395,11 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   const refetchLibrary = useCallback(() => {
+    // No-op unless a loadable library context is already active. libraryKeyRef
+    // is only set once the device-gated library effect has run (user + account
+    // + deviceStatus 'ok'), so this keeps every refetch trigger — foreground,
+    // tab focus, etc. — behind the same device gate as the initial load.
+    if (!libraryKeyRef.current) return;
     loadLibrary(userKeyRef.current, accountKeyOf(activeAccountRef.current));
   }, [loadLibrary]);
 
@@ -568,6 +574,23 @@ export const AppProvider = ({ children }) => {
     loadLibrary(userKey, activeAccountId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userKey, activeAccountId, deviceStatus]);
+
+  // Keep the library fresh across devices. History/favorites sync on load, not
+  // live, so a device that was backgrounded while another device wrote an entry
+  // (e.g. watch progress recorded on the desktop) would show a stale list until
+  // it happened to reload. Refetch whenever the app returns to the foreground.
+  // On web/Electron react-native-web maps AppState to document visibility, so
+  // this covers every platform from one place. The libraryKeyRef guard means we
+  // only refetch when a loadable (user + account + device-ok) context exists.
+  useEffect(() => {
+    let prev = AppState.currentState;
+    const sub = AppState.addEventListener('change', (next) => {
+      const wasHidden = prev === 'background' || prev === 'inactive';
+      prev = next;
+      if (wasHidden && next === 'active' && libraryKeyRef.current) refetchLibrary();
+    });
+    return () => sub.remove();
+  }, [refetchLibrary]);
 
   // Flush any pending progress writes when the provider unmounts so we never
   // lose the last few seconds of watch position on app teardown.

@@ -15,7 +15,7 @@ import CategoryGridPage from "../presentation/components/CategoryGridPage.native
 /* ─── Screen ─── */
 export default function SeriesScreen({ navigation }) {
   const {
-    loading, error, reload, activeUserId, shelves, discoverItems,
+    loading, error, errorMessage, reload, activeUserId, shelves, discoverItems,
     handleShelfVisible, handleLoadMore, openCategory, closeCategory,
     categoryPage, isTopRatedCategory, topRatedHasMore, topRatedLoadingMore, handleTopRatedMore,
     selectedSeries, selectSeries, clearSelectedSeries, playVideoObject,
@@ -60,7 +60,7 @@ export default function SeriesScreen({ navigation }) {
       <StatePanel
         mode="error"
         title="Couldn't load series"
-        message="Check your connection and try again."
+        message={errorMessage || "Check your connection and try again."}
         onRetry={reload}
         retryLabel="Retry"
       />
