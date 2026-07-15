@@ -1,5 +1,5 @@
 // @ts-check
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert';
 import { createVlcDriver, classifyVlcError } from './vlcDriver.js';
 import { STREAM_USER_AGENT } from './expoVideoDriver.js';
@@ -103,5 +103,41 @@ test('subscriptions return unsubscribe functions', () => {
     const un = sub(() => {});
     assert.equal(typeof un, 'function');
     assert.doesNotThrow(() => un());
+  }
+});
+
+test('onStall does not fire while paused (position flat because paused)', () => {
+  mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  try {
+    const h = makeHandle();
+    const { driver, ingest } = createVlcDriver(h);
+    let stalls = 0;
+    const un = driver.onStall(() => { stalls++; });
+    driver.load({ uri: 'http://h/x.mkv' }, { isLive: false, startTime: 0 });
+    ingest.progress({ currentTime: 5000, duration: 100000, position: 0.05 }); // pos = 5s
+    driver.pause();
+    mock.timers.tick(10000); // 10s > 6s threshold, position stays flat
+    assert.equal(stalls, 0);
+    un();
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('onStall fires when position is flat while playing', () => {
+  mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  try {
+    const h = makeHandle();
+    const { driver, ingest } = createVlcDriver(h);
+    let stalls = 0;
+    const un = driver.onStall(() => { stalls++; });
+    driver.load({ uri: 'http://h/x.mkv' }, { isLive: false, startTime: 0 });
+    ingest.progress({ currentTime: 5000, duration: 100000, position: 0.05 }); // playing, pos = 5s
+    mock.timers.tick(1000); // absorb the one-time 0→5s position advance (resets the watchdog)
+    mock.timers.tick(10000); // now flat while playing → stall
+    assert.ok(stalls >= 1);
+    un();
+  } finally {
+    mock.timers.reset();
   }
 });
