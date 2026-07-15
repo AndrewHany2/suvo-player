@@ -281,7 +281,15 @@ export default function VlcPlayerScreen({ navigation }) {
           <VLCPlayer
             ref={vlcRef}
             style={{ flex: 1 }}
-            source={vlcSource}
+            // Pass a FRESH copy every render: <VLCPlayer> mutates the source
+            // object in place (sets source.isNetwork/autoplay/initOptions in its
+            // render) and also hands the same object to the native view, which RN
+            // deep-freezes on commit in dev. Reusing our stored state object would
+            // then throw "set key `isNetwork` on a frozen object" on the next
+            // render. A throwaway object (with its own initOptions array) lets the
+            // library mutate freely; the native side diffs by uri, so this adds no
+            // reload.
+            source={{ uri: vlcSource.uri, initOptions: [...(vlcSource.initOptions || [])] }}
             paused={paused}
             resizeMode={resizeMode}
             audioTrack={selectedAudio ?? undefined}
