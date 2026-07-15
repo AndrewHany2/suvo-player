@@ -150,7 +150,9 @@ export default function VlcPlayerScreen({ navigation }) {
     clearInterval(progressIntervalRef.current);
     progressIntervalRef.current = setInterval(() => {
       const p = progressRef.current;
-      updateWatchProgress(currentVideo.streamId, currentVideo.type, p.currentTimeSec, p.durationSec || 0);
+      if (p.durationSec > 0) {
+        updateWatchProgress(currentVideo.streamId, currentVideo.type, p.currentTimeSec, p.durationSec);
+      }
     }, 10000);
     return () => clearInterval(progressIntervalRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,8 +163,8 @@ export default function VlcPlayerScreen({ navigation }) {
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "background" && state !== "inactive") return;
       const p = progressRef.current;
-      if (currentVideo && currentVideo.type !== "live") {
-        updateWatchProgress(currentVideo.streamId, currentVideo.type, p.currentTimeSec, p.durationSec || 0);
+      if (currentVideo && currentVideo.type !== "live" && p.durationSec > 0) {
+        updateWatchProgress(currentVideo.streamId, currentVideo.type, p.currentTimeSec, p.durationSec);
       }
       flushProgress();
       if (state === "background") setPaused(true);
@@ -185,8 +187,8 @@ export default function VlcPlayerScreen({ navigation }) {
 
   const handleClose = useCallback(() => {
     const p = progressRef.current;
-    if (currentVideo && currentVideo.type !== "live") {
-      updateWatchProgress(currentVideo.streamId, currentVideo.type, p.currentTimeSec, p.durationSec || 0);
+    if (currentVideo && currentVideo.type !== "live" && p.durationSec > 0) {
+      updateWatchProgress(currentVideo.streamId, currentVideo.type, p.currentTimeSec, p.durationSec);
     }
     flushProgress();
     clearInterval(progressIntervalRef.current);
