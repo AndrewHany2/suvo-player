@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Play AVPlayer-unsupported VOD containers (mkv/avi/flv/wmv/webm) on iOS by routing them to a libVLC-backed player behind the existing `PlayerDriver` contract, leaving the working `expo-video` path untouched.
+**Goal:** Play AVPlayer-unsupported VOD containers (mkv/avi/flv/wmv/webm) on iOS by routing them to a libVLC-backed player behind the existing `PlayerDriver` contract, leaving the working `expo-video` path untouched. **Also bundled (per user request): fix Android "Continue" not resuming at the saved watch time** — a `expo-video` driver seek-timing bug (Task 7), independent of the VLC work and safe to do first.
 
 **Architecture:** A pure `needsVlcEngine(url, platform)` decides routing. On iOS the native `VideoPlayerScreen` becomes a thin dispatcher that renders either the verbatim-moved `ExpoVideoPlayerScreen` (default) or a new `VlcPlayerScreen`. `VlcPlayerScreen` hosts `<VLCPlayer>` and drives it through a new `createVlcDriver` fed to the same `useResilientPlayback` host + `recoveryMachine` used by every other engine.
 
@@ -74,9 +74,9 @@ Create `src/playback/nativeEngine.test.js`:
 
 ```js
 // @ts-check
-const test = require('node:test');
-const assert = require('node:assert');
-const { containerExtension, needsVlcEngine, UNSUPPORTED_IOS_CONTAINERS } = require('./nativeEngine.js');
+import test from 'node:test';
+import assert from 'node:assert';
+import { containerExtension, needsVlcEngine, UNSUPPORTED_IOS_CONTAINERS } from './nativeEngine.js';
 
 test('containerExtension: basic and edge cases', () => {
   assert.equal(containerExtension('http://h/series/1/2/401998.mkv'), 'mkv');
@@ -165,10 +165,10 @@ function needsVlcEngine(uri, platform) {
   return UNSUPPORTED_IOS_CONTAINERS.has(containerExtension(uri));
 }
 
-module.exports = { UNSUPPORTED_IOS_CONTAINERS, containerExtension, needsVlcEngine };
+export { UNSUPPORTED_IOS_CONTAINERS, containerExtension, needsVlcEngine };
 ```
 
-> **Note on module format:** this repo's `node:test` files use CommonJS `require`. Match whatever the sibling module under test uses. If `src/playback` modules are ESM (`export function …`) with ESM tests (`import …`), write both files ESM instead — check an existing pair like `src/playback/episodeNav.js` + its test before finalizing, and keep this file and its test consistent with that style.
+> **Module format:** this repo is ESM — every `src/playback` module uses `export` and every test uses `import` (confirmed: `episodeNav.test.js`, `drivers/*.test.js`). All new files in this plan use ESM, never `require`/`module.exports`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -196,13 +196,13 @@ git commit -m "feat(playback): add nativeEngine routing (iOS mkv/avi/flv/wmv/web
 
 - [ ] **Step 1: Write the failing test**
 
-Create `src/playback/drivers/vlcInitOptions.test.js` (match module style per Task 1's note):
+Create `src/playback/drivers/vlcInitOptions.test.js`:
 
 ```js
 // @ts-check
-const test = require('node:test');
-const assert = require('node:assert');
-const { vlcInitOptions } = require('./vlcInitOptions.js');
+import test from 'node:test';
+import assert from 'node:assert';
+import { vlcInitOptions } from './vlcInitOptions.js';
 
 test('both userAgent and referer', () => {
   assert.deepEqual(
@@ -255,7 +255,7 @@ function vlcInitOptions(headers = {}) {
   return opts;
 }
 
-module.exports = { vlcInitOptions };
+export { vlcInitOptions };
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -302,10 +302,10 @@ Create `src/playback/drivers/vlcDriver.test.js`:
 
 ```js
 // @ts-check
-const test = require('node:test');
-const assert = require('node:assert');
-const { createVlcDriver, classifyVlcError } = require('./vlcDriver.js');
-const { STREAM_USER_AGENT } = require('./expoVideoDriver.js');
+import test from 'node:test';
+import assert from 'node:assert';
+import { createVlcDriver, classifyVlcError } from './vlcDriver.js';
+import { STREAM_USER_AGENT } from './expoVideoDriver.js';
 
 function makeHandle() {
   const calls = { source: [], paused: [], seek: [] };
@@ -438,8 +438,8 @@ Create `src/playback/drivers/vlcDriver.js`:
  * @typedef {import('./types.js').NormalizedError} NormalizedError
  */
 
-const { vlcInitOptions } = require('./vlcInitOptions.js');
-const { STREAM_USER_AGENT, refererForUri } = require('./expoVideoDriver.js');
+import { vlcInitOptions } from './vlcInitOptions.js';
+import { STREAM_USER_AGENT, refererForUri } from './expoVideoDriver.js';
 
 /** Progress poll interval (ms) for the stall watchdog. */
 const STALL_POLL_MS = 1000;
@@ -455,7 +455,7 @@ const STALL_THRESHOLD_MS = 6000;
  * @param {{message?: string, error?: {message?: string}}|undefined} event
  * @returns {NormalizedError}
  */
-function classifyVlcError(event) {
+export function classifyVlcError(event) {
   const message =
     (event && (event.message || (event.error && event.error.message))) || '';
   const lower = String(message).toLowerCase();
@@ -474,7 +474,7 @@ function classifyVlcError(event) {
  * @param {{ setSource: (s: any|null) => void, setPaused: (p: boolean) => void, seek: (fraction: number) => void }} handle
  * @returns {{ driver: PlayerDriver, ingest: { progress: (e:any)=>void, playing: (e:any)=>void, paused: ()=>void, stopped: ()=>void, error: (e:any)=>void } }}
  */
-function createVlcDriver(handle) {
+export function createVlcDriver(handle) {
   let lastPositionSec = 0;
   let lastDurationSec = NaN;
   let pendingStartSec = 0; // >0 means "seek here once we know duration"
@@ -654,8 +654,6 @@ function createVlcDriver(handle) {
     },
   };
 }
-
-module.exports = { createVlcDriver, classifyVlcError };
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1266,9 +1264,237 @@ If interop fails outright, stop and report — the fallback ("format not support
 
 ---
 
+## Task 7: Fix Android "Continue" not resuming at the saved watch time
+
+**Independent of the VLC work** — this is a bug in the shared `expo-video` driver and can be implemented first. Both engines are unaffected by each other.
+
+**Files:**
+- Modify: `src/playback/drivers/expoVideoDriver.js` (the `statusChange` listener ~L150-162 and `load()`'s `seekAndPlay` ~L176-193)
+- Test: `src/playback/drivers/expoVideoDriver.test.js` (extend — already ESM)
+
+**Root cause:** `load()` sets `player.currentTime = startTime` immediately after `replaceAsync()` resolves. On Android/ExoPlayer a seek issued before the media item is prepared is silently dropped, so playback starts at 0. The driver re-asserts `play()` when the player reaches `readyToPlay` but never re-applies the resume seek. iOS/AVPlayer usually honours the early seek, which is why it only reproduces on Android.
+
+**Fix:** record the resume target as `pendingSeekSec` and apply it **once** on the first `readyToPlay` (in addition to the existing best-effort early seek, which stays as a fast path). Guarded by a `resumeSeekDone` flag so a later `readyToPlay` (spurious, or after user scrubbing) never snaps back; each `load()` resets the flag, so recovery RELOADs still resume correctly.
+
+**Interfaces:**
+- Consumes: nothing new.
+- Produces: no signature change — `createExpoVideoDriver(player, opts)` behaves identically except the resume seek now lands on Android.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `src/playback/drivers/expoVideoDriver.test.js`:
+
+```js
+import { createExpoVideoDriver } from './expoVideoDriver.js';
+
+// Fake expo-video player whose currentTime setter is DROPPED until the pipeline
+// is ready — models Android/ExoPlayer's early-seek behaviour.
+function makeResumeFakePlayer() {
+  const listeners = [];
+  return {
+    _ready: false,
+    _currentTime: 0,
+    playCount: 0,
+    get currentTime() {
+      return this._currentTime;
+    },
+    set currentTime(v) {
+      if (this._ready) this._currentTime = v; // dropped when not ready
+    },
+    play() {
+      this.playCount++;
+    },
+    pause() {},
+    replaceAsync() {
+      return Promise.resolve();
+    },
+    addListener(evt, cb) {
+      listeners.push({ evt, cb });
+      return { remove() {} };
+    },
+    _emit(evt, payload) {
+      listeners.filter((l) => l.evt === evt).forEach((l) => l.cb(payload));
+    },
+  };
+}
+
+test('resume seek lands on readyToPlay when the early seek was dropped (Android)', async () => {
+  const player = makeResumeFakePlayer();
+  const driver = createExpoVideoDriver(player);
+  driver.load({ uri: 'http://h/x.mp4' }, { isLive: false, startTime: 60 });
+  await Promise.resolve();
+  await Promise.resolve(); // let replaceAsync().then(seekAndPlay) run
+  assert.equal(player.currentTime, 0); // early seek dropped (not ready)
+  player._ready = true;
+  player._emit('statusChange', { status: 'readyToPlay' });
+  assert.equal(player.currentTime, 60); // resume applied on ready
+});
+
+test('resume seek applies once — a later readyToPlay does not snap back', async () => {
+  const player = makeResumeFakePlayer();
+  player._ready = true;
+  const driver = createExpoVideoDriver(player);
+  driver.load({ uri: 'http://h/x.mp4' }, { isLive: false, startTime: 60 });
+  await Promise.resolve();
+  player._emit('statusChange', { status: 'readyToPlay' });
+  assert.equal(player.currentTime, 60);
+  player._currentTime = 90; // user scrubbed forward
+  player._emit('statusChange', { status: 'readyToPlay' }); // spurious
+  assert.equal(player.currentTime, 90); // NOT snapped back to 60
+});
+
+test('no resume seek when startTime is 0', async () => {
+  const player = makeResumeFakePlayer();
+  player._ready = true;
+  const driver = createExpoVideoDriver(player);
+  driver.load({ uri: 'http://h/x.mp4' }, { isLive: false, startTime: 0 });
+  await Promise.resolve();
+  player._emit('statusChange', { status: 'readyToPlay' });
+  assert.equal(player.currentTime, 0);
+});
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `node --test src/playback/drivers/expoVideoDriver.test.js`
+Expected: the first two new tests FAIL (`currentTime` stays 0 / early value) because the seek is not re-applied on `readyToPlay`.
+
+- [ ] **Step 3: Implement the fix**
+
+In `src/playback/drivers/expoVideoDriver.js`, replace the resume-seek state + `readyToPlay` listener. Change the declaration and listener block (currently):
+
+```js
+  let wantPlay = false;
+  try {
+    player?.addListener?.('statusChange', (payload) => {
+      if (payload?.status === 'readyToPlay' && wantPlay) {
+        try {
+          player.play();
+        } catch {
+          /* play() on a released/torn-down player throws; ignore */
+        }
+      }
+    });
+  } catch {
+    /* addListener unavailable on this build */
+  }
+```
+
+to:
+
+```js
+  let wantPlay = false;
+  // Resume target for the current source. Applied ONCE on the first readyToPlay:
+  // on Android/ExoPlayer a currentTime set right after replaceAsync resolves is
+  // dropped (media not prepared yet), so the early seek in load() alone leaves
+  // playback at 0. Re-applying here guarantees resume lands. resumeSeekDone is
+  // reset per load() so recovery RELOADs (which pass a fresh seekTo) resume too.
+  let pendingSeekSec = 0;
+  let resumeSeekDone = false;
+  try {
+    player?.addListener?.('statusChange', (payload) => {
+      if (payload?.status !== 'readyToPlay') return;
+      if (!resumeSeekDone && pendingSeekSec > 0) {
+        try {
+          player.currentTime = pendingSeekSec;
+        } catch {
+          /* seeking before metadata is ready can throw; ignore */
+        }
+        resumeSeekDone = true;
+      }
+      if (wantPlay) {
+        try {
+          player.play();
+        } catch {
+          /* play() on a released/torn-down player throws; ignore */
+        }
+      }
+    });
+  } catch {
+    /* addListener unavailable on this build */
+  }
+```
+
+Then in `load()`, set the resume target alongside `wantPlay` and reference it from `seekAndPlay`. Change (currently):
+
+```js
+    wantPlay = true;
+    // For VOD, resume at the saved position then start; live ignores startTime
+    // (the engine joins at the live edge). On the async path this runs once the
+    // source has loaded; on the sync fallback, immediately after replace().
+    const seekAndPlay = () => {
+      if (!loadOpts.isLive && typeof loadOpts.startTime === 'number' && loadOpts.startTime > 0) {
+        try {
+          player.currentTime = loadOpts.startTime;
+        } catch {
+          /* seeking before metadata is ready can throw; ignore */
+        }
+      }
+      try {
+        player.play();
+      } catch {
+        /* noop */
+      }
+    };
+```
+
+to:
+
+```js
+    wantPlay = true;
+    // Record the resume target for the readyToPlay-gated seek (see the listener
+    // above) and reset the once-guard for this load.
+    pendingSeekSec =
+      !loadOpts.isLive && typeof loadOpts.startTime === 'number' && loadOpts.startTime > 0
+        ? loadOpts.startTime
+        : 0;
+    resumeSeekDone = false;
+    // For VOD, resume at the saved position then start; live ignores startTime
+    // (the engine joins at the live edge). This early seek is a fast path for
+    // engines already prepared; Android's dropped seek is recovered on readyToPlay.
+    const seekAndPlay = () => {
+      if (pendingSeekSec > 0) {
+        try {
+          player.currentTime = pendingSeekSec;
+        } catch {
+          /* seeking before metadata is ready can throw; ignore */
+        }
+      }
+      try {
+        player.play();
+      } catch {
+        /* noop */
+      }
+    };
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `node --test src/playback/drivers/expoVideoDriver.test.js`
+Expected: PASS (existing tests + 3 new ones).
+
+- [ ] **Step 5: Full suite + lint**
+
+Run: `npm test && npm run lint`
+Expected: all PASS; no new lint errors.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/playback/drivers/expoVideoDriver.js src/playback/drivers/expoVideoDriver.test.js
+git commit -m "fix(playback): apply VOD resume seek on readyToPlay (Android Continue starting at 0)"
+```
+
+- [ ] **Step 7: On-device Android verification**
+
+On an Android dev build: play a movie/episode, watch >1 min, close, reopen via Continue Watching → confirm it resumes at (approximately) the saved position, not 0. Repeat with the in-player "Resume?" prompt path. Confirm iOS resume still works (no regression).
+
+> **Separately:** the "Expo-video has failed to bind with the playback service" toast is a *different* symptom — it comes from `showNowPlayingNotification = true` without the Android foreground-service being declared in the manifest (the `expo-video` plugin is registered with no options). It does not affect resume. If it needs addressing, the fix is a one-line app.json change (`["expo-video", { "supportsBackgroundPlayback": true, "supportsPictureInPicture": true }]` + prebuild) — deferred, not in this plan.
+
 ## Self-Review (completed during authoring)
 
-- **Spec coverage:** routing (`nativeEngine`, T1) ✓; UA/Referer init options (`vlcInitOptions`, T2) ✓; driver behind `PlayerDriver` (`vlcDriver`, T3) ✓; isolated VLC screen with reduced controls (T4) ✓; verbatim expo move + dispatcher (T5) ✓; config changes (T4) ✓; unit tests for all three pure modules ✓; on-device New-Arch gate (T6) ✓. Omitted-by-design (gestures/PiP/stats/sleep-timer) are absent from `VlcPlayerScreen` as the spec's non-goals require.
+- **Spec coverage:** routing (`nativeEngine`, T1) ✓; UA/Referer init options (`vlcInitOptions`, T2) ✓; driver behind `PlayerDriver` (`vlcDriver`, T3) ✓; isolated VLC screen with reduced controls (T4) ✓; verbatim expo move + dispatcher (T5) ✓; config changes (T4) ✓; unit tests for all three pure modules ✓; on-device New-Arch gate (T6) ✓. Omitted-by-design (gestures/PiP/stats/sleep-timer) are absent from `VlcPlayerScreen` as the spec's non-goals require. **T7** (Android resume seek) is a user-requested addition outside the original spec — bundled here, independent of the VLC path.
+- **Module format:** every new file and test uses ESM (`import`/`export`) matching the repo (`node --test` runs the ESM `src/playback/**/*.test.js` today). No `require`/`module.exports`.
 - **Placeholder scan:** every code step contains complete code; no TBD/TODO/"add error handling".
 - **Type consistency:** `handle` = `{ setSource, setPaused, seek }` and `ingest` = `{ progress, playing, paused, stopped, error }` used identically in T3 (definition + tests) and T4 (consumption). `needsVlcEngine(url, Platform.OS)` signature matches T1 and its use in T5. `createVlcDriver` returns `{ driver, ingest }` in both the test and the screen.
 - **Spec deviations** (library API): documented in the "API facts pinned during planning" section — `initType` dropped, `onBuffering`/`onLoad` not relied on for status, `onEnd`+`onEnded` both wired, seek via ref, tracks best-effort. These make the plan match the real component; the spec's intent (headers, resume, history, next-episode) is preserved.
