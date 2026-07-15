@@ -147,9 +147,25 @@ export function createExpoVideoDriver(player, opts = {}) {
   // ever starts. We track whether we WANT to be playing and re-assert play() the
   // moment the player reaches readyToPlay. Cleared by pause().
   let wantPlay = false;
+  // Resume target for the current source. Applied ONCE on the first readyToPlay:
+  // on Android/ExoPlayer a currentTime set right after replaceAsync resolves is
+  // dropped (media not prepared yet), so the early seek in load() alone leaves
+  // playback at 0. Re-applying here guarantees resume lands. resumeSeekDone is
+  // reset per load() so recovery RELOADs (which pass a fresh seekTo) resume too.
+  let pendingSeekSec = 0;
+  let resumeSeekDone = false;
   try {
     player?.addListener?.('statusChange', (payload) => {
-      if (payload?.status === 'readyToPlay' && wantPlay) {
+      if (payload?.status !== 'readyToPlay') return;
+      if (!resumeSeekDone && pendingSeekSec > 0) {
+        try {
+          player.currentTime = pendingSeekSec;
+        } catch {
+          /* seeking before metadata is ready can throw; ignore */
+        }
+        resumeSeekDone = true;
+      }
+      if (wantPlay) {
         try {
           player.play();
         } catch {
@@ -174,13 +190,20 @@ export function createExpoVideoDriver(player, opts = {}) {
     // play() once the pipeline is actually ready, in case the immediate play()
     // below is dropped (item not yet loaded on a freshly-replaced source).
     wantPlay = true;
+    // Record the resume target for the readyToPlay-gated seek (see the listener
+    // above) and reset the once-guard for this load.
+    pendingSeekSec =
+      !loadOpts.isLive && typeof loadOpts.startTime === 'number' && loadOpts.startTime > 0
+        ? loadOpts.startTime
+        : 0;
+    resumeSeekDone = false;
     // For VOD, resume at the saved position then start; live ignores startTime
-    // (the engine joins at the live edge). On the async path this runs once the
-    // source has loaded; on the sync fallback, immediately after replace().
+    // (the engine joins at the live edge). This early seek is a fast path for
+    // engines already prepared; Android's dropped seek is recovered on readyToPlay.
     const seekAndPlay = () => {
-      if (!loadOpts.isLive && typeof loadOpts.startTime === 'number' && loadOpts.startTime > 0) {
+      if (pendingSeekSec > 0) {
         try {
-          player.currentTime = loadOpts.startTime;
+          player.currentTime = pendingSeekSec;
         } catch {
           /* seeking before metadata is ready can throw; ignore */
         }

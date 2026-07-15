@@ -205,3 +205,77 @@ test('onStall: still fires exactly once when currentTime truly freezes while pla
   unsub();
   t.mock.timers.reset();
 });
+
+// ── VOD resume seek (Android/ExoPlayer early-seek drop) ──────────────────────
+//
+// Root cause: load() sets player.currentTime = startTime right after
+// replaceAsync() resolves. On Android/ExoPlayer a seek issued before the media
+// item is prepared is silently dropped, so playback starts at 0. The driver
+// re-asserts play() on readyToPlay but never re-applied the resume seek. The fix
+// records the resume target and applies it ONCE on the first readyToPlay.
+
+// Fake expo-video player whose currentTime setter is DROPPED until the pipeline
+// is ready — models Android/ExoPlayer's early-seek behaviour.
+function makeResumeFakePlayer() {
+  const listeners = [];
+  return {
+    _ready: false,
+    _currentTime: 0,
+    playCount: 0,
+    get currentTime() {
+      return this._currentTime;
+    },
+    set currentTime(v) {
+      if (this._ready) this._currentTime = v; // dropped when not ready
+    },
+    play() {
+      this.playCount++;
+    },
+    pause() {},
+    replaceAsync() {
+      return Promise.resolve();
+    },
+    addListener(evt, cb) {
+      listeners.push({ evt, cb });
+      return { remove() {} };
+    },
+    _emit(evt, payload) {
+      listeners.filter((l) => l.evt === evt).forEach((l) => l.cb(payload));
+    },
+  };
+}
+
+test('resume seek lands on readyToPlay when the early seek was dropped (Android)', async () => {
+  const player = makeResumeFakePlayer();
+  const driver = createExpoVideoDriver(player);
+  driver.load({ uri: 'http://h/x.mp4' }, { isLive: false, startTime: 60 });
+  await Promise.resolve();
+  await Promise.resolve(); // let replaceAsync().then(seekAndPlay) run
+  assert.equal(player.currentTime, 0); // early seek dropped (not ready)
+  player._ready = true;
+  player._emit('statusChange', { status: 'readyToPlay' });
+  assert.equal(player.currentTime, 60); // resume applied on ready
+});
+
+test('resume seek applies once — a later readyToPlay does not snap back', async () => {
+  const player = makeResumeFakePlayer();
+  player._ready = true;
+  const driver = createExpoVideoDriver(player);
+  driver.load({ uri: 'http://h/x.mp4' }, { isLive: false, startTime: 60 });
+  await Promise.resolve();
+  player._emit('statusChange', { status: 'readyToPlay' });
+  assert.equal(player.currentTime, 60);
+  player._currentTime = 90; // user scrubbed forward
+  player._emit('statusChange', { status: 'readyToPlay' }); // spurious
+  assert.equal(player.currentTime, 90); // NOT snapped back to 60
+});
+
+test('no resume seek when startTime is 0', async () => {
+  const player = makeResumeFakePlayer();
+  player._ready = true;
+  const driver = createExpoVideoDriver(player);
+  driver.load({ uri: 'http://h/x.mp4' }, { isLive: false, startTime: 0 });
+  await Promise.resolve();
+  player._emit('statusChange', { status: 'readyToPlay' });
+  assert.equal(player.currentTime, 0);
+});
