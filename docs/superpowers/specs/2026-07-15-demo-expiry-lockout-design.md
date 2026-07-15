@@ -234,6 +234,59 @@ No client-side code change is required for Layer B — it reuses the existing
 
 ---
 
+## Single-device / one-time use
+
+Enforces "this demo is usable one time, on one device" — a stronger property than
+the fixed-expiry date alone, and built entirely on existing infrastructure (no new
+client code beyond Layer B's migration).
+
+**Why it works — the Android device anchor.** On Android the device id is
+`Application.getAndroidId()` (the SSAID, `src/security/deviceSignature.js:18`),
+which is:
+
+- **stable per (device + app signing key)** — the same phone always yields the
+  same id for this APK;
+- **persistent across uninstall/reinstall and "clear app data"** (it is a system
+  value keyed to the signing key, not stored in app storage);
+- **distinct per physical device**; resets only on a **factory reset**.
+
+**Enforcement recipe:**
+
+1. **Create the client's Supabase account yourself** and hand over the
+   credentials — do not let the client self-register. This account is the anchor
+   for the device binding and the server kill.
+2. Leave the device limit at the **default of 1** (`DEVICE_LIMIT_DEFAULT` in the
+   `claim-device` function; per-account overrides live in `device_limits`). First
+   login binds the account to that phone's SSAID; any second device using the same
+   account is over-limit → `denied` → `device-locked`. **One device.**
+3. Because the SSAID survives reinstall/data-clear, reinstalling the same APK on
+   the same phone re-matches the existing binding (`claim_device` → `ok`) rather
+   than minting a new one — so **reinstalling cannot reset the enforcement**; the
+   server identity is unchanged.
+4. Setting `revoked_at` (Layer B) on that binding then makes the known device
+   `denied` on next launch, and it **stays denied through reinstalls** on the same
+   device. **Once killed, killed for good on that device.**
+
+Net: one account → one physical device → survives reinstall / clear-data →
+permanently revocable.
+
+**Preconditions & caveats:**
+
+- **Public sign-up must be closed for the demo** (or accepted as a hole): if the
+  client can register their own Supabase account, they get a fresh, unbound
+  account that only the build's expiry (Layer A) bounds. To cap at true one-time
+  use, disable public sign-up, or knowingly rely on Layer A for self-made
+  accounts.
+- **Factory reset** yields a new SSAID (a new "device") — an extreme, unlikely
+  step for a demo, but not blocked.
+- **Rooted / Xposed devices** can spoof the SSAID — determined-attacker territory,
+  same as the Layer A reverse-engineering caveat.
+- **Android-only property:** iOS uses `identifierForVendor`, which is wiped when
+  all of a vendor's apps are uninstalled, so the reinstall-persistence above does
+  not hold on iOS. This demo targets the Android APK, so that is fine.
+
+---
+
 ## File inventory
 
 **New:**
@@ -279,8 +332,9 @@ No client-side code change is required for Layer B — it reuses the existing
 
 - **Client layer resets on reinstall / "clear app data"** — AsyncStorage is
   wiped, so the HWM resets. A backendless client gate fundamentally can't stop
-  this. → **Layer B** covers it (device row persists server-side), provided the
-  device comes online once.
+  this. → **Layer B** covers it: the device binding persists server-side, and on
+  Android the SSAID anchor survives reinstall/data-clear (see *Single-device /
+  one-time use*), so a revoked device stays revoked once it comes online once.
 - **AsyncStorage is plaintext** — a rooted device / DevTools user can edit the
   HWM. Acceptable for a demo; `expo-secure-store` would harden it but is a
   forbidden native module.
