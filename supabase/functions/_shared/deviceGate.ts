@@ -3,6 +3,7 @@
 // automatically into deployed functions — no manual secrets needed.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { userKeyIsAuthorized } from "./authz.js";
+import { accountStatus, isActive } from "./accountStatus.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -117,4 +118,42 @@ export async function assertOwnsUserKey(
   if (!userKeyIsAuthorized(userKey, userId, appProfileOwnerId)) {
     throw new Error("FORBIDDEN");
   }
+}
+
+// Reads the caller's customer_accounts row + owning provider's suspended flag
+// and returns an accountStatus() constant. A caller with no customer_accounts
+// row (legacy / self / a provider login) is ACTIVE — not gated here.
+export async function loadAccountStatus(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+): Promise<string> {
+  const { data: acct, error } = await admin
+    .from("customer_accounts")
+    .select("suspended, expires_at, provider_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error("SERVER_ERROR");
+  if (!acct) return accountStatus(null, false, Date.now());
+
+  let providerSuspended = false;
+  if (acct.provider_id) {
+    const { data: prov, error: pErr } = await admin
+      .from("providers")
+      .select("suspended")
+      .eq("user_id", acct.provider_id)
+      .maybeSingle();
+    if (pErr) throw new Error("SERVER_ERROR");
+    providerSuspended = !!prov?.suspended;
+  }
+  return accountStatus(acct, providerSuspended, Date.now());
+}
+
+// Throws the specific status string when the account is inactive; the caller
+// maps it to a client-facing message / HTTP code.
+export async function assertAccountActive(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+): Promise<void> {
+  const status = await loadAccountStatus(admin, userId);
+  if (!isActive(status)) throw new Error(status);
 }
