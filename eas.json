@@ -26,6 +26,15 @@
         "simulator": true
       }
     },
+    "demo": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_DEMO_EXPIRES_AT": ""
+      }
+    },
     "production": {
       "autoIncrement": true
     }

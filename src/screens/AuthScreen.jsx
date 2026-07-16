@@ -16,12 +16,17 @@ import {
 } from "../ui/tokens";
 import { ss, useScale } from "../utils/scaleSize";
 import { useApp } from "../context/AppContext";
+import { demoExpiryMs } from "../config/demoExpiry";
 
 import { isTV } from "../utils/isTV";
 
 export default function AuthScreen() {
   useScale(); // re-render + recompute ss() when the scale corrects (webOS cold start)
   const { signIn, signUp } = useApp();
+  // A time-limited (demo) build is login-only: hide registration so a client
+  // can't mint a fresh, unbound account and slip past the one-device binding.
+  // Pairs with disabling public sign-up server-side (the hard lock).
+  const loginOnly = demoExpiryMs() != null;
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
@@ -292,30 +297,32 @@ export default function AuthScreen() {
             {submitLabel}
           </Button>
 
-          <XStack
-            justifyContent="center"
-            alignItems="center"
-            marginTop={ss(16)}
-          >
-            <Text
-              color={colors.muted}
-              fontFamily={fonts.body}
-              fontSize={ss(14)}
+          {!loginOnly && (
+            <XStack
+              justifyContent="center"
+              alignItems="center"
+              marginTop={ss(16)}
             >
-              {mode === "login"
-                ? "Don't have an account?"
-                : "Already have an account?"}
-            </Text>
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() =>
-                switchMode(mode === "login" ? "register" : "login")
-              }
-            >
-              {mode === "login" ? "Register" : "Sign In"}
-            </Button>
-          </XStack>
+              <Text
+                color={colors.muted}
+                fontFamily={fonts.body}
+                fontSize={ss(14)}
+              >
+                {mode === "login"
+                  ? "Don't have an account?"
+                  : "Already have an account?"}
+              </Text>
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() =>
+                  switchMode(mode === "login" ? "register" : "login")
+                }
+              >
+                {mode === "login" ? "Register" : "Sign In"}
+              </Button>
+            </XStack>
+          )}
         </YStack>
       </ScrollView>
     </KeyboardAvoidingView>

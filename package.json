@@ -11,6 +11,7 @@
     "dev:ios": "expo run:ios",
     "dev:ios:device": "expo run:ios --device",
     "dev:electron": "concurrently \"npm run web\" \"wait-on http://localhost:3001 && electron electron/main.js\"",
+    "dev:electron:demo": "EXPO_PUBLIC_DEMO_EXPIRES_AT=\"${EXPO_PUBLIC_DEMO_EXPIRES_AT:-2026-08-01T00:00:00Z}\" npm run dev:electron",
     "dev:all": "concurrently -n electron,ios,android,lg \"npm run dev:electron\" \"npm run ios\" \"npm run android\" \"npm run sim:lg\"",
     "deploy:ios": "expo run:ios --configuration Release --device",
     "build:ios:preview": "eas build --platform ios --profile preview",
@@ -31,6 +32,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "apk": "cd android && ./gradlew assembleRelease && echo \"\\nAPK → android/app/build/outputs/apk/release/app-release.apk\"",
+    "apk:demo": "rm -rf \"$TMPDIR\"/metro-* node_modules/.cache && cd android && EXPO_PUBLIC_DEMO_EXPIRES_AT=\"${EXPO_PUBLIC_DEMO_EXPIRES_AT:-2026-08-01T00:00:00Z}\" ./gradlew clean assembleRelease && echo \"\\nDEMO APK → android/app/build/outputs/apk/release/app-release.apk\"",
     "apk:install": "npm run apk && adb install -r android/app/build/outputs/apk/release/app-release.apk",
     "apk:eas": "eas build --platform android --profile preview"
   },

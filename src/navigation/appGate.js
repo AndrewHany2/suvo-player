@@ -13,25 +13,31 @@
 
 /**
  * Gate values, highest-precedence first — the order below IS the decision order.
- * @typedef {"config-error" | "loading" | "auth" | "device-locked" | "profiles" | "app"} Gate
+ * @typedef {"expired" | "config-error" | "loading" | "auth" | "device-locked" | "profiles" | "app"} Gate
  */
 
 /**
  * Pick the top-level screen from the boot-flow state. Precedence (first match
- * wins): a missing Supabase config short-circuits to the config-error screen;
- * then the neutral loading splash while the session resolves; then the auth
- * screen when signed out; then the loading splash again while the device claim
- * is pending; then the device-locked screen when the claim was denied; then the
- * profile picker until a profile is active; and finally the main app.
+ * wins): a lapsed build-time deadline locks everything first (even before
+ * config-error/loading, so a limited build can't be kept alive by starving it
+ * of config); then a missing Supabase config short-circuits to the config-error
+ * screen; then the neutral loading splash while the session resolves; then the
+ * auth screen when signed out; then the loading splash again while the device
+ * claim is pending; then the device-locked screen when the claim was denied;
+ * then the profile picker until a profile is active; and finally the main app.
  *
- * @param {{ supabaseConfigured?: boolean, authLoading?: boolean,
- *           authUser?: unknown, deviceStatus?: string,
+ * Stays pure: `demoExpired` is decided by the caller (useDemoLockout, which owns
+ * the async network-time check) and passed in — never compute time in here.
+ *
+ * @param {{ demoExpired?: boolean, supabaseConfigured?: boolean,
+ *           authLoading?: boolean, authUser?: unknown, deviceStatus?: string,
  *           activeProfileId?: unknown }} state
  * @returns {Gate}
  */
 export function resolveGate(state) {
-  const { supabaseConfigured, authLoading, authUser, deviceStatus, activeProfileId } =
+  const { demoExpired, supabaseConfigured, authLoading, authUser, deviceStatus, activeProfileId } =
     state || {};
+  if (demoExpired) return "expired";
   if (!supabaseConfigured) return "config-error";
   if (authLoading) return "loading";
   if (!authUser) return "auth";

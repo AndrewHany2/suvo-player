@@ -94,3 +94,33 @@ describe("resolveGate boot-flow scenarios", () => {
     assert.equal(resolveGate({}), "config-error");
   });
 });
+
+describe("resolveGate demo-expiry precedence", () => {
+  test("demoExpired wins over a fully-booted app", () => {
+    assert.equal(resolveGate({ ...APP, demoExpired: true }), "expired");
+  });
+
+  test("demoExpired wins over config-error (starving config can't keep it alive)", () => {
+    assert.equal(
+      resolveGate({ ...APP, demoExpired: true, supabaseConfigured: false }),
+      "expired",
+    );
+  });
+
+  test("demoExpired wins over the loading splash", () => {
+    assert.equal(
+      resolveGate({ ...APP, demoExpired: true, authLoading: true, authUser: null }),
+      "expired",
+    );
+  });
+
+  test("demoExpired wins over auth and device-locked", () => {
+    assert.equal(resolveGate({ ...APP, demoExpired: true, authUser: null }), "expired");
+    assert.equal(resolveGate({ ...APP, demoExpired: true, deviceStatus: "denied" }), "expired");
+  });
+
+  test("no regression: absent/false demoExpired resolves normally", () => {
+    assert.equal(resolveGate(APP), "app");
+    assert.equal(resolveGate({ ...APP, demoExpired: false }), "app");
+  });
+});

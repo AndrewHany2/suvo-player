@@ -6,6 +6,7 @@
  */
 import { useApp } from "../context/AppContext";
 import { isSupabaseConfigured } from "../services/supabase";
+import useDemoLockout from "../security/useDemoLockout";
 import { resolveGate } from "./appGate";
 
 export { resolveGate };
@@ -13,7 +14,11 @@ export { resolveGate };
 /** Read the live app state and resolve the current gate. */
 export function useAppGate() {
   const { authUser, authLoading, deviceStatus, activeProfileId } = useApp();
+  // Build-time deadline check (no-op on a normal build; see useDemoLockout).
+  // Called unconditionally to satisfy rules-of-hooks; 'checking' is non-blocking.
+  const { status: lockoutStatus } = useDemoLockout();
   return resolveGate({
+    demoExpired: lockoutStatus === "expired",
     supabaseConfigured: isSupabaseConfigured(),
     authLoading,
     authUser,
