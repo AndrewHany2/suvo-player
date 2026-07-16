@@ -130,6 +130,14 @@ Deno.serve(async (req) => {
       case "providers.delete": {
         const target = String(payload.userId ?? "");
         if (!target) return json({ error: "INVALID_INPUT" }, 400);
+        if (target === userId) return json({ error: "CANNOT_DELETE_SELF" }, 400);
+        // Only providers are deletable here: a super-admin's row has zero
+        // customer_accounts, so the count guard below would otherwise let this
+        // action delete a super-admin (or another super_admin) auth account.
+        const { data: targetRow, error: tErr } = await admin
+          .from("providers").select("role").eq("user_id", target).maybeSingle();
+        if (tErr) return json({ error: "SERVER_ERROR" }, 500);
+        if (!targetRow || targetRow.role !== "provider") return json({ error: "NOT_A_PROVIDER" }, 400);
         const { count } = await admin
           .from("customer_accounts")
           .select("user_id", { count: "exact", head: true })
