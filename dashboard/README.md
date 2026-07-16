@@ -25,10 +25,11 @@ Required environment variables (`.env`):
 | `VITE_SUPABASE_URL`        | Your Supabase project URL                     |
 | `VITE_SUPABASE_ANON_KEY`   | Your Supabase project's anon/public API key   |
 
-Sign-in requires an existing Supabase Auth user whose `profiles.role` is
-`reseller` or `super_admin` — the `customer` role is rejected by the app's
-auth gate. There is no admin user by default; see **One-time super-admin
-bootstrap** below.
+Sign-in requires an existing Supabase Auth user who has a row in the backend
+`providers` table with role `provider` or `super_admin` — a customer with no
+`providers` row is rejected by the app's auth gate. This is independent of
+`profiles.role`. There is no admin user by default; see **One-time
+super-admin bootstrap** below.
 
 ## Test
 
@@ -67,7 +68,7 @@ and redeploy, not just a config change.
 
 The dashboard has no way to create the first super-admin from the UI — every
 action goes through the `admin` Edge Function, which itself requires an
-existing super-admin/reseller session. The one-time SQL to promote a user to
+existing super-admin/provider session. The one-time SQL to promote a user to
 `super_admin` lives in [`supabase/README.md`](../supabase/README.md); run it
 once against your Supabase project, then sign in to the dashboard with that
 user.

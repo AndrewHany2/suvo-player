@@ -47,10 +47,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     load();
     const { data } = supabase.auth.onAuthStateChange((event) => {
-      // The explicit load() above already covers the initial session; ignoring
-      // INITIAL_SESSION avoids a duplicate `me` round-trip on every page load.
-      if (event === "INITIAL_SESSION") return;
-      load();
+      // Only a real sign-in/sign-out changes who's logged in or their role —
+      // re-run the blocking `me` load for those (and the explicit load()
+      // above already covers the initial session). TOKEN_REFRESHED fires in
+      // the background roughly hourly (and on tab refocus) via
+      // autoRefreshToken, and USER_UPDATED doesn't change the session either;
+      // reloading on those would flip `loading` back to true and blank the
+      // whole app to a full-page spinner, discarding any in-progress
+      // CreateAccount/AccountDetail form input or open modal.
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") load();
     });
     return () => data.subscription.unsubscribe();
   }, [load]);

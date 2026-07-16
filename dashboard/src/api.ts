@@ -5,6 +5,8 @@ const FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin`;
 const MESSAGES: Record<string, string> = {
   QUOTA_EXCEEDED: "Account quota reached — raise the provider's limit to add more.",
   PROVIDER_HAS_ACCOUNTS: "Delete or reassign this provider's accounts first.",
+  CANNOT_DELETE_SELF: "You can't delete your own account.",
+  NOT_A_PROVIDER: "That account can't be deleted here.",
   FORBIDDEN: "You don't have permission to do that.",
   INVALID_INPUT: "Some fields are invalid — check and try again.",
   CREATE_FAILED: "Could not create — the username/email may already exist.",

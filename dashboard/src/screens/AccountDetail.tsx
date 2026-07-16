@@ -119,7 +119,7 @@ function SubscriptionCard({
   userId: string;
   onSaved: () => Promise<void>;
 }) {
-  const [deviceLimitDraft, setDeviceLimitDraft] = useState(String(data.deviceLimit ?? 1));
+  const [deviceLimitDraft, setDeviceLimitDraft] = useState(data.deviceLimit != null ? String(data.deviceLimit) : "");
   const [noteDraft, setNoteDraft] = useState(data.note ?? "");
   const [expiryChoice, setExpiryChoice] = useState<ExpiryChoice>("1");
   const [customDate, setCustomDate] = useState("");
@@ -131,7 +131,11 @@ function SubscriptionCard({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setDeviceLimitDraft(String(data.deviceLimit ?? 1));
+    // Null means "no override — using the account default"; show that as an
+    // empty field with a "default" placeholder instead of a literal "1",
+    // consistent with the "default" text Accounts.tsx renders for the same
+    // null value in its Devices column.
+    setDeviceLimitDraft(data.deviceLimit != null ? String(data.deviceLimit) : "");
     setNoteDraft(data.note ?? "");
   }, [data.deviceLimit, data.note]);
 
@@ -159,6 +163,7 @@ function SubscriptionCard({
             type="number"
             min={1}
             step={1}
+            placeholder="default"
             value={deviceLimitDraft}
             onChange={(e) => setDeviceLimitDraft(e.target.value)}
           />
