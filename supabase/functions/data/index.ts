@@ -9,6 +9,9 @@ import {
   assertOwnsProfile,
   json,
   corsPreflight,
+  ACCOUNT_SUSPENDED,
+  ACCOUNT_EXPIRED,
+  PROVIDER_SUSPENDED,
 } from "../_shared/deviceGate.ts";
 
 const MAX_HISTORY = 20;
@@ -189,7 +192,7 @@ Deno.serve(async (req) => {
     const msg = (e as Error).message;
     if (msg === "Unauthorized") return json({ error: "Unauthorized" }, 401);
     if (msg === "DEVICE_MISMATCH") return json({ error: "DEVICE_MISMATCH" }, 403);
-    if (msg === "ACCOUNT_SUSPENDED" || msg === "ACCOUNT_EXPIRED" || msg === "PROVIDER_SUSPENDED") {
+    if (msg === ACCOUNT_SUSPENDED || msg === ACCOUNT_EXPIRED || msg === PROVIDER_SUSPENDED) {
       return json({ error: "ACCOUNT_INACTIVE", reason: msg }, 403);
     }
     if (msg === "FORBIDDEN") return json({ error: "FORBIDDEN" }, 403);

@@ -4,6 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { userKeyIsAuthorized } from "./authz.js";
 import { accountStatus, isActive } from "./accountStatus.js";
+export { ACCOUNT_SUSPENDED, ACCOUNT_EXPIRED, PROVIDER_SUSPENDED } from "./accountStatus.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",

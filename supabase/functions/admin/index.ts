@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
           if (!Number.isInteger(m) || m < 0) return json({ error: "INVALID_INPUT" }, 400);
           patch.max_accounts = m;
         }
-        if (payload.suspended != null) patch.suspended = !!payload.suspended;
+        if (payload.suspended != null) patch.suspended = payload.suspended === true;
         if (!target || Object.keys(patch).length === 0) return json({ error: "INVALID_INPUT" }, 400);
         await admin.from("providers").update(patch).eq("user_id", target).eq("role", "provider");
         await audit(admin, userId, "provider.update", target, patch);
@@ -218,7 +218,13 @@ Deno.serve(async (req) => {
           });
           if (caErr) throw caErr;
         } catch (_e) {
-          await admin.auth.admin.deleteUser(newId); // atomic: undo on any failure
+          const { error: rbErr } = await admin.auth.admin.deleteUser(newId); // atomic: undo on any failure
+          if (rbErr) {
+            console.error(
+              `admin.accounts.create rollback FAILED — orphaned auth user ${newId} needs manual deletion`,
+              rbErr,
+            );
+          }
           return json({ error: "CREATE_FAILED" }, 400);
         }
 
@@ -319,7 +325,7 @@ Deno.serve(async (req) => {
             acctPatch.expires_at = new Date(t).toISOString();
           }
         }
-        if (payload.suspended !== undefined) acctPatch.suspended = !!payload.suspended;
+        if (payload.suspended !== undefined) acctPatch.suspended = payload.suspended === true;
         if (payload.note !== undefined) acctPatch.note = payload.note ? String(payload.note) : null;
         let dl: number | undefined;
         if (payload.deviceLimit !== undefined) {
