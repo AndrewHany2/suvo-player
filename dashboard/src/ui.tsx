@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 type Tone = "ok" | "warn" | "bad";
 const TONE_CLASS: Record<Tone, string> = { ok: "badge-success", warn: "badge-warning", bad: "badge-danger" };
@@ -60,9 +60,24 @@ export function Modal({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  // Escape closes the modal from anywhere, matching standard dialog behavior.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           {title && <h3>{title}</h3>}
           <button className="modal-close" onClick={onClose} aria-label="Close">

@@ -13,6 +13,19 @@ export function expiryPreset(months: number, fromISO?: string): string {
   d.setUTCMonth(d.getUTCMonth() + months);
   return d.toISOString();
 }
+
+// Drives the expiry picker shared by CreateAccount (set) and AccountDetail
+// (renew): a set of month presets, a custom date, or "never expires".
+// `fromISO` anchors presets to a base other than "now" — e.g. renewing from
+// the account's current expiry rather than today.
+export type ExpiryChoice = "1" | "3" | "6" | "12" | "custom" | "never";
+export function computeExpiresAt(choice: ExpiryChoice, customDate: string, fromISO?: string): string | null {
+  if (choice === "never") return null;
+  if (choice === "custom") {
+    return customDate ? new Date(`${customDate}T00:00:00.000Z`).toISOString() : null;
+  }
+  return expiryPreset(Number(choice), fromISO);
+}
 export function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString() : "—";
 }

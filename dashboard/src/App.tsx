@@ -5,18 +5,9 @@ import { Button } from "./ui";
 import Login from "./screens/Login";
 import Overview from "./screens/Overview";
 import Accounts from "./screens/Accounts";
-
-// CreateAccount, AccountDetail, and Providers are later tasks (7-9 of the web
-// plan). Route to them now so navigation/links already work; this placeholder
-// stands in until each screen's own task replaces it.
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <div className="container">
-      <h1>{label}</h1>
-      <p>This screen is coming soon.</p>
-    </div>
-  );
-}
+import CreateAccount from "./screens/CreateAccount";
+import AccountDetail from "./screens/AccountDetail";
+import Providers from "./screens/Providers";
 
 export default function App() {
   return (
@@ -46,11 +37,9 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/accounts" element={<Accounts />} />
-          <Route path="/accounts/new" element={<ComingSoon label="Create account" />} />
-          <Route path="/accounts/:userId" element={<ComingSoon label="Account detail" />} />
-          {me.role === "super_admin" && (
-            <Route path="/providers" element={<ComingSoon label="Providers" />} />
-          )}
+          <Route path="/accounts/new" element={<CreateAccount />} />
+          <Route path="/accounts/:userId" element={<AccountDetail />} />
+          {me.role === "super_admin" && <Route path="/providers" element={<Providers />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

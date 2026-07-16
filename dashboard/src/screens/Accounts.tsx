@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { call, apiErrorMessage } from "../api";
 import { statusLabel, fmtDate } from "../lib/format";
 import { Badge, Table, type Column } from "../ui";
@@ -19,6 +19,11 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 export default function Accounts() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Set by the super-admin Providers screen's read-only drill-in
+  // (/accounts?providerId=…). Ignored server-side for a provider caller —
+  // they only ever see their own accounts regardless.
+  const providerId = searchParams.get("providerId") || undefined;
   const [search, setSearch] = useState("");
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +34,8 @@ export default function Accounts() {
     setLoading(true);
     setError(null);
     const timer = setTimeout(() => {
-      call<Account[]>("accounts.list", search ? { search } : {}).then(
+      const payload = { ...(search ? { search } : {}), ...(providerId ? { providerId } : {}) };
+      call<Account[]>("accounts.list", payload).then(
         (rows) => {
           if (cancelled) return;
           setAccounts(rows);
@@ -49,7 +55,7 @@ export default function Accounts() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [search]);
+  }, [search, providerId]);
 
   const columns: Column<Account>[] = [
     { key: "username", header: "Username" },
@@ -73,6 +79,11 @@ export default function Accounts() {
           + New account
         </Link>
       </div>
+      {providerId && (
+        <p className="muted">
+          Filtered to one provider's accounts. <Link to="/accounts">Clear filter</Link>
+        </p>
+      )}
       <input
         type="search"
         className="search-input"

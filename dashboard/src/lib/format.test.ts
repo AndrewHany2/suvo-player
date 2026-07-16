@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { statusLabel, expiryPreset, fmtDate } from "./format";
+import { statusLabel, expiryPreset, fmtDate, computeExpiresAt } from "./format";
 describe("format", () => {
   test("status labels", () => {
     expect(statusLabel("ACTIVE").tone).toBe("ok");
@@ -37,5 +37,18 @@ describe("format", () => {
     expect(out.length).toBeGreaterThan(0);
     // toLocaleDateString output is locale-dependent; just assert the year lands.
     expect(out).toMatch(/2026/);
+  });
+
+  test("computeExpiresAt: 'never' returns null regardless of custom date", () => {
+    expect(computeExpiresAt("never", "2030-01-01")).toBeNull();
+  });
+  test("computeExpiresAt: 'custom' with a date returns UTC-midnight ISO for that date", () => {
+    expect(computeExpiresAt("custom", "2027-05-01")).toBe("2027-05-01T00:00:00.000Z");
+  });
+  test("computeExpiresAt: 'custom' with no date returns null", () => {
+    expect(computeExpiresAt("custom", "")).toBeNull();
+  });
+  test("computeExpiresAt: a month preset delegates to expiryPreset, anchored to fromISO", () => {
+    expect(computeExpiresAt("3", "", "2026-01-15T00:00:00.000Z")).toBe(expiryPreset(3, "2026-01-15T00:00:00.000Z"));
   });
 });
