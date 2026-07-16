@@ -29,6 +29,7 @@
     },
     "android": {
       "usesCleartextTraffic": true,
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#0f0f23",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -41,7 +42,8 @@
       "expo-video",
       "expo-font",
       "@kesha-antonov/react-native-background-downloader",
-      "react-native-vlc-media-player"
+      "react-native-vlc-media-player",
+      "./plugins/withAndroidNetworkSecurity.js"
     ],
     "extra": {
       "eas": {

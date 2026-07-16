@@ -81,6 +81,31 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+/**
+ * Release signing credentials. The private keystore and its passwords are NEVER
+ * committed. Supply them one of three ways (checked in this order):
+ *   1. android/keystore.properties  (gitignored — see keystore.properties.example)
+ *   2. -P gradle properties          (e.g. ./gradlew -PstorePassword=…)
+ *   3. environment variables         (SUVO_RELEASE_* — for CI)
+ * When NONE are configured the release build falls back to the debug keystore
+ * (see buildTypes.release) so local/demo builds still succeed — but that APK is
+ * signed with the public AOSP debug key and MUST NOT be published. See
+ * docs/RELEASE_SIGNING.md.
+ */
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def resolveSigningProp = { propKey, envKey ->
+    keystoreProps.getProperty(propKey) ?: findProperty(propKey) ?: System.getenv(envKey)
+}
+def releaseStoreFile = resolveSigningProp('storeFile', 'SUVO_RELEASE_STORE_FILE')
+def releaseStorePassword = resolveSigningProp('storePassword', 'SUVO_RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = resolveSigningProp('keyAlias', 'SUVO_RELEASE_KEY_ALIAS')
+def releaseKeyPassword = resolveSigningProp('keyPassword', 'SUVO_RELEASE_KEY_PASSWORD')
+def hasReleaseKeystore = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -104,15 +129,30 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // Populated only when a private release keystore is configured (see
+            // the resolution block above). Left empty otherwise and never
+            // referenced, so builds without secrets don't fail here.
+            if (hasReleaseKeystore) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Sign with the private release key when configured; otherwise fall
+            // back to debug so local/demo builds still work — but such an APK is
+            // trivially re-signable and MUST NOT be published.
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
+            if (!hasReleaseKeystore) {
+                logger.warn("⚠️  No release keystore configured — release APK is DEBUG-SIGNED with the public AOSP key. Do NOT publish. See docs/RELEASE_SIGNING.md.")
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds

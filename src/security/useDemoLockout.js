@@ -3,6 +3,9 @@ import { AppState } from "react-native";
 import { demoExpiryMs } from "../config/demoExpiry";
 import { isDemoExpired } from "./trustedTime";
 
+const INTERVAL_MS = 5 * 60 * 1000; // re-check cadence while foregrounded
+const MAX_ONESHOT_MS = 6 * 60 * 60 * 1000; // horizon for an exact-deadline timer
+
 // Gates the app when a build-time deadline has passed. Returns
 // { status: 'checking' | 'ok' | 'expired', recheck }. The gate treats
 // 'checking' as non-blocking, so we start optimistic and never delay cold
@@ -48,9 +51,24 @@ export default function useDemoLockout() {
       prev = next;
       if (wasHidden && next === "active") recheck();
     });
+
+    // Wall-clock re-evaluation. The mount/foreground checks alone let a session
+    // that's simply left open stream past the deadline. A periodic backstop
+    // re-checks while foregrounded; a one-shot timer fires right at the deadline
+    // when it's near (setTimeout is unreliable for multi-day delays, so only arm
+    // it within a bounded horizon — the interval covers longer waits).
+    const interval = setInterval(recheck, INTERVAL_MS);
+    const remaining = demoExpiryMs() - Date.now();
+    let oneShot;
+    if (remaining >= 0 && remaining <= MAX_ONESHOT_MS) {
+      oneShot = setTimeout(recheck, remaining + 1000);
+    }
+
     return () => {
       aliveRef.current = false;
       sub.remove();
+      clearInterval(interval);
+      if (oneShot) clearTimeout(oneShot);
     };
   }, [enabled, recheck]);
 

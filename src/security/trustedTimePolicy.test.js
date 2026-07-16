@@ -113,6 +113,37 @@ describe("evaluateExpiry — offline behavior", () => {
   });
 });
 
+describe("evaluateExpiry — never-bootstrapped (offline, no prior trusted reading)", () => {
+  test("offline + never bootstrapped fails CLOSED even below the deadline", () => {
+    // Fresh install, clock held before the deadline, both time hosts blocked.
+    const r = evaluateExpiry({ nowMs: EXPIRY - 10 * DAY, networkMs: null, hwmMs: null, expiryMs: EXPIRY, offlinePolicy: "open", everBootstrapped: false });
+    assert.equal(r.trusted, false);
+    assert.equal(r.expired, true);
+    assert.equal(r.reason, "offline-unbootstrapped");
+  });
+  test("offline + bootstrapped keeps offline grace below the deadline", () => {
+    const r = evaluateExpiry({ nowMs: EXPIRY - DAY, networkMs: null, hwmMs: EXPIRY - 2 * DAY, expiryMs: EXPIRY, offlinePolicy: "open", everBootstrapped: true });
+    assert.equal(r.expired, false);
+    assert.equal(r.reason, "offline");
+  });
+  test("a trusted reading is unaffected by everBootstrapped=false", () => {
+    const r = evaluateExpiry({ nowMs: EXPIRY - DAY, networkMs: EXPIRY - DAY, hwmMs: null, expiryMs: EXPIRY, offlinePolicy: "open", everBootstrapped: false });
+    assert.equal(r.trusted, true);
+    assert.equal(r.expired, false);
+    assert.equal(r.reason, "ok");
+  });
+  test("rollback still wins over the unbootstrapped branch", () => {
+    const r = evaluateExpiry({ nowMs: EXPIRY - 30 * DAY, networkMs: null, hwmMs: EXPIRY - DAY, expiryMs: EXPIRY, offlinePolicy: "open", everBootstrapped: false, skewToleranceMs: SKEW });
+    assert.equal(r.expired, true);
+    assert.equal(r.reason, "rollback");
+  });
+  test("defaults to bootstrapped (backward-compatible) when the flag is omitted", () => {
+    const r = evaluateExpiry({ nowMs: EXPIRY - DAY, networkMs: null, hwmMs: EXPIRY - 2 * DAY, expiryMs: EXPIRY, offlinePolicy: "open" });
+    assert.equal(r.expired, false);
+    assert.equal(r.reason, "offline");
+  });
+});
+
 describe("evaluateExpiry — high-water-mark discipline", () => {
   test("HWM advances only from a trusted reading", () => {
     const r = evaluateExpiry({ nowMs: EXPIRY - DAY, networkMs: EXPIRY - DAY, hwmMs: EXPIRY - 3 * DAY, expiryMs: EXPIRY, offlinePolicy: "open", skewToleranceMs: SKEW });

@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { mapInvokeResult } from "./invokeData.logic.js";
+import { mapLoginResult } from "./loginResult.logic.js";
 import { getDeviceId } from "./deviceHeader.js";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
@@ -85,42 +86,23 @@ export async function signUp(username, password, email) {
 }
 
 export async function signIn(usernameOrEmail, password) {
-  let email;
-  if (usernameOrEmail.includes("@")) {
-    email = usernameOrEmail.toLowerCase();
-  } else {
-    // Username → email lookup. NOTE: still a direct table read; reinstate as a
-    // dedicated Edge Function before running the deferred grant-revoke SQL.
-    const { data: profileRow, error: lookupError } = await client()
-      .from("profiles")
-      .select("email")
-      .eq("username", usernameOrEmail.toLowerCase())
-      .maybeSingle();
-    if (lookupError)
-      throw new Error("Could not look up username. Please try again.");
-    if (!profileRow?.email)
-      throw new Error(
-        "Username not found. Please sign in with your email address instead.",
-      );
-    email = profileRow.email;
-  }
-
-  const { data, error } = await client().auth.signInWithPassword({
-    email,
-    password,
+  if (!client()) throw new Error("Supabase not configured");
+  // Username→email resolution AND the password check both happen server-side in
+  // the `login` Edge Function (verify_jwt=false). The client never reads the
+  // profiles table — that was the last direct table read, and removing it
+  // unblocks the anon/authenticated grant-revoke. The email is never returned,
+  // and an unknown username is indistinguishable from a wrong password.
+  const res = await client().functions.invoke("login", {
+    body: { usernameOrEmail, password },
   });
-  if (error) {
-    if (error.code === "email_not_confirmed")
-      throw new Error(
-        "Your email is not confirmed. Please check your inbox and confirm your account.",
-      );
-    if (
-      error.message?.toLowerCase().includes("invalid login credentials") ||
-      error.code === "invalid_credentials"
-    )
-      throw new Error("Invalid email or password.");
-    throw new Error(error.message);
-  }
+  const { access_token, refresh_token } = mapLoginResult(res);
+  // Install the returned session so this client instance is authenticated for
+  // subsequent invokeData calls and onAuthStateChange fires.
+  const { data, error } = await client().auth.setSession({
+    access_token,
+    refresh_token,
+  });
+  if (error) throw new Error(error.message);
   return data.user;
 }
 

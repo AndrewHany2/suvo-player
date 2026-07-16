@@ -80,6 +80,9 @@ web-build/
 *.keystore
 *.jks
 !android/app/debug.keystore
+# Release signing credentials — never commit (the .example template is safe).
+keystore.properties
+!keystore.properties.example
 
 # macOS extras
 ._*

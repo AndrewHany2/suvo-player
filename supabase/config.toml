@@ -371,6 +371,12 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Edge Functions default to verify_jwt = true; override per function below.
+[functions.login]
+# The login endpoint runs BEFORE authentication — it resolves username→email and
+# checks the password server-side — so it must accept unauthenticated calls.
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

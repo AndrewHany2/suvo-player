@@ -49,6 +49,11 @@ export function parseCloudflareTraceTs(bodyText) {
  * @param {number} p.expiryMs        the baked-in deadline
  * @param {"open"|"closed"} [p.offlinePolicy]  behavior when unverifiable (default "open" = fail open)
  * @param {number} [p.skewToleranceMs]         rollback slack (default 5 min)
+ * @param {boolean} [p.everBootstrapped]  has the app EVER recorded a trusted
+ *   reading (HWM or first-seen)? Default true so existing callers are
+ *   unaffected. When false AND offline, we fail CLOSED: a fresh install that has
+ *   never verified time must not get unlimited offline grace from launch #1
+ *   (the cheapest demo bypass — block the two time hosts before first run).
  * @returns {{ expired:boolean, trusted:boolean, rollbackDetected:boolean,
  *             effectiveMs:number, monotonicMs:number, newHwmMs:number, reason:string }}
  */
@@ -59,6 +64,7 @@ export function evaluateExpiry({
   expiryMs,
   offlinePolicy = "open",
   skewToleranceMs = 5 * 60 * 1000,
+  everBootstrapped = true,
 }) {
   // A finite networkMs is the only thing we trust; null/NaN => offline.
   const trusted = Number.isFinite(networkMs);
@@ -80,6 +86,9 @@ export function evaluateExpiry({
   } else if (rollbackDetected) {
     expired = true; // fail CLOSED on tamper evidence
     reason = "rollback";
+  } else if (!everBootstrapped) {
+    expired = true; // fail CLOSED: offline and never once verified time
+    reason = "offline-unbootstrapped";
   } else if (offlinePolicy !== "open") {
     expired = true; // fail CLOSED when policy forbids running unverified
     reason = "offline-closed";

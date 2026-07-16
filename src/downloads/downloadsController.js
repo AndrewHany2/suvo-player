@@ -78,7 +78,11 @@ export function useDownloadsController({ manager, api, documentDirectory, store 
     const record = {
       id, kind: item.kind, title: item.title, poster: item.poster,
       seriesId: item.seriesId, season: item.season, episode: item.episode,
-      remoteUrl: url, localPath, ext: item.ext || 'mp4',
+      // Do NOT persist the remote URL: for Xtream it embeds the account
+      // username+password, and nothing reads it back (the download is tasked
+      // from the local `url` below). Keeping it out of the record removes a
+      // plaintext-credential copy at rest.
+      localPath, ext: item.ext || 'mp4',
       bytesTotal: 0, bytesDone: 0, status: 'queued', createdAt: Date.now(),
     };
     const saved = await store.put(record);

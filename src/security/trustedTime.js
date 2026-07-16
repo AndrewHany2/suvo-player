@@ -115,6 +115,16 @@ async function readHwmMs() {
   }
 }
 
+// Presence-only read of the first-seen marker (its value is diagnostics). Used
+// with the HWM to decide whether time was ever verified on this install.
+async function readSeen() {
+  try {
+    return await AsyncStorage.getItem(SEEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 // Persist the advancing high-water-mark and (once) the first trusted reading.
 // The HWM is written ONLY when it strictly advances to a plausible epoch, so an
 // offline pass (newHwmMs === prior hwm) and a null/0 seed never trigger a write.
@@ -146,6 +156,13 @@ export async function isDemoExpired({
   if (expiryMs == null) return { expired: false, trusted: false, rollbackDetected: false, reason: 'off' };
 
   const hwmMs = await readHwmMs();
+  // "Bootstrapped" == the app has recorded at least one trusted reading before
+  // (an advancing HWM, or the first-seen marker). If neither exists we've never
+  // verified time, so an offline pass must fail closed (see everBootstrapped in
+  // evaluateExpiry) — otherwise blocking the two time hosts before first launch
+  // grants unlimited offline grace.
+  const seen = await readSeen();
+  const everBootstrapped = hwmMs != null || seen != null;
   const networkMs = await fetchNetworkTimeMs({ timeoutMs, signal });
   const result = evaluateExpiry({
     nowMs: Date.now(),
@@ -154,6 +171,7 @@ export async function isDemoExpired({
     expiryMs,
     offlinePolicy,
     skewToleranceMs,
+    everBootstrapped,
   });
   await persistObservation({ hwmMs, networkMs, result });
   return {

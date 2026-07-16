@@ -5,6 +5,7 @@ import {
   adminClient,
   assertBoundDevice,
   assertOwnsUserKey,
+  assertOwnsProfile,
   json,
   corsPreflight,
 } from "../_shared/deviceGate.ts";
@@ -80,6 +81,7 @@ Deno.serve(async (req) => {
         );
       }
       case "iptv.insert": {
+        await assertOwnsProfile(admin, userId, payload.profileId);
         const { data } = await db("iptv_accounts")
           .insert({
             user_id: userId,

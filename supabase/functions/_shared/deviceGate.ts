@@ -53,11 +53,18 @@ export async function assertBoundDevice(
   deviceId: string,
 ) {
   if (!deviceId) throw new Error("DEVICE_MISMATCH");
+  // `.is("revoked_at", null)` makes the server-side kill switch bite on EVERY
+  // data op, not just re-claim: a revoked binding matches no row here and so
+  // throws DEVICE_MISMATCH (routing the client to the device-locked screen).
+  // claim_device already denies revoked devices, but the stock client only
+  // claims once at boot — without this filter a revoked device that never
+  // relaunches (or any direct call with a still-valid JWT) kept full access.
   const { data, error } = await admin
     .from("device_bindings")
     .select("device_id")
     .eq("user_id", userId)
     .eq("device_id", deviceId)
+    .is("revoked_at", null)
     .maybeSingle();
   if (error) throw new Error("SERVER_ERROR");
   if (!data) throw new Error("DEVICE_MISMATCH");
@@ -66,6 +73,25 @@ export async function assertBoundDevice(
     .update({ last_seen_at: new Date().toISOString() })
     .eq("user_id", userId)
     .eq("device_id", deviceId);
+}
+
+// Throws FORBIDDEN if a non-null app_profile `profileId` is not owned by the
+// caller. Used by iptv.insert so a caller can't attach an account row to a
+// profile that isn't theirs. A null/empty profileId (or one equal to the user's
+// own auth id — the "default" profile) is self-scoped and allowed.
+export async function assertOwnsProfile(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+  profileId: string | null | undefined,
+) {
+  if (!profileId || profileId === userId) return;
+  const { data, error } = await admin
+    .from("app_profiles")
+    .select("user_id")
+    .eq("id", profileId)
+    .maybeSingle();
+  if (error) throw new Error("SERVER_ERROR");
+  if (data?.user_id !== userId) throw new Error("FORBIDDEN");
 }
 
 // Throws FORBIDDEN unless the client-supplied library `userKey` belongs to the

@@ -181,7 +181,9 @@ test("start() builds a record from the active api, persists it, and tasks the ma
   const rec = h.value.byId["movie:42"];
   assert.ok(rec, "record added to state");
   assert.equal(rec.status, "queued");
-  assert.equal(rec.remoteUrl, "http://host/movie/42.mp4");
+  // The credentialed remote URL must NOT be persisted at rest (only handed to
+  // the manager below).
+  assert.equal(rec.remoteUrl, undefined);
   assert.equal(rec.localPath, `${DIR}downloads/movie_42.mp4`);
   // Manager received a task with the same id/url/localPath.
   assert.deepEqual(manager.started, [{ id: "movie:42", url: "http://host/movie/42.mp4", localPath: `${DIR}downloads/movie_42.mp4` }]);
