@@ -182,7 +182,9 @@ is the isolation invariant. Every mutating action writes an `admin_audit` row.
   (active/expired/suspended), `expiresAt`, `devicesUsed`/`deviceLimit`.
 - `accounts.create` `{ username, email, password, deviceLimit, expiresAt,
   line: { type, host, username, password, url, nickname } }`
-  → **quota check** → create auth user + `profiles` + default `app_profiles`
+  → **quota check** (a provider's used-count = **all** their `customer_accounts`,
+  including suspended/expired — a slot is occupied until the account is deleted)
+  → create auth user + `profiles` + default `app_profiles`
   + `iptv_accounts` + `device_limits` + `customer_accounts { origin:'provider',
   provider_id: caller }`. Atomic: on any failure, roll back (delete the auth user)
   so no orphan login is left.
@@ -198,9 +200,10 @@ is the isolation invariant. Every mutating action writes an `admin_audit` row.
 - `devices.remove` `{ userId, deviceId }` → delete the binding (frees a slot).
 
 **Email requirement:** GoTrue requires an email. The provider supplies a username;
-if no real email is given, the function generates a stable synthetic email
-(e.g. `<username>@<providerslug>.accounts.local`) stored in `profiles`/auth so
-username-login continues to resolve. (Exact scheme finalized in the plan.)
+if no real email is given, the function generates a stable synthetic email of the
+form **`<username>@<provider-slug>.accounts.local`** (provider-slug derived from
+the provider's `name`/id), stored in `profiles`/auth so username-login continues
+to resolve. A real email may still be supplied and is used verbatim when present.
 
 ## Dashboard app (separate package)
 
@@ -267,10 +270,14 @@ provider-managed — brings their own IPTV line. This reuses `customer_accounts`
 (`origin='self'`, `plan_id` set, `provider_id` null) and the same status gates.
 Payment (StoreKit / Google Play Billing) and plan management are a separate spec.
 
-## Open questions for the plan
+## Resolved decisions
 
-- Exact synthetic-email scheme for username-only accounts.
-- Whether suspended/expired accounts still count against a provider's quota
-  (leaning: yes — they occupy a slot until deleted).
-- Whether super-admin gets a full write view of any provider's accounts or a
-  read-only drill-in for v1 (leaning: read-mostly).
+- **Quota counting:** a provider's used-count includes **all** their
+  `customer_accounts` — suspended and expired ones still occupy a slot until
+  deleted.
+- **Super-admin reach (v1):** **read-mostly** drill-in into a provider's accounts.
+  Full write control over any provider's accounts is a deliberate fast-follow, not
+  v1.
+- **Synthetic email:** username-only accounts get
+  `<username>@<provider-slug>.accounts.local`; a real email is used verbatim when
+  supplied.
