@@ -3,6 +3,24 @@
 Runbook for the service-side pieces. See `migrations/` for schema and
 `functions/` for the Edge Functions.
 
+## Reseller dashboard (preferred)
+
+Providers and the super-admin manage everything through the **dashboard app**
+(`dashboard/`), which calls the `admin` Edge Function. Day-to-day work — creating
+accounts, setting device counts, expiry, suspend, and revoking devices — should go
+through the dashboard, not the SQL below.
+
+**One-time super-admin bootstrap** (there is no admin until you promote a user):
+
+```sql
+insert into public.providers (user_id, role, name, max_accounts)
+select id, 'super_admin', 'Owner', 0
+from auth.users where lower(email) = lower('<your-admin-email>')
+on conflict (user_id) do update set role = 'super_admin';
+```
+
+The SQL snippets below remain as a **break-glass** fallback only.
+
 ## Device limits
 
 Each account may bind up to N devices. The limit resolves as:
