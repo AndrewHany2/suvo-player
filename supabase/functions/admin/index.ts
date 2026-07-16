@@ -383,6 +383,41 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
 
+      case "devices.list": {
+        const target = String(payload.userId ?? "");
+        const owner = await accountProviderId(admin, target);
+        if (owner === undefined || !canActOnAccount(caller, owner)) return json({ error: "FORBIDDEN" }, 403);
+        const { data } = await admin
+          .from("device_bindings")
+          .select("device_id, platform, label, bound_at, last_seen_at, revoked_at")
+          .eq("user_id", target)
+          .order("last_seen_at", { ascending: false, nullsFirst: false });
+        return json(data ?? []);
+      }
+
+      case "devices.revoke":
+      case "devices.unrevoke": {
+        const target = String(payload.userId ?? "");
+        const deviceId = String(payload.deviceId ?? "");
+        const owner = await accountProviderId(admin, target);
+        if (owner === undefined || !canActOnAccount(caller, owner) || !deviceId) return json({ error: "FORBIDDEN" }, 403);
+        const revoked_at = action === "devices.revoke" ? new Date().toISOString() : null;
+        await admin.from("device_bindings").update({ revoked_at })
+          .eq("user_id", target).eq("device_id", deviceId);
+        await audit(admin, userId, action, target, { deviceId });
+        return json({ ok: true });
+      }
+
+      case "devices.remove": {
+        const target = String(payload.userId ?? "");
+        const deviceId = String(payload.deviceId ?? "");
+        const owner = await accountProviderId(admin, target);
+        if (owner === undefined || !canActOnAccount(caller, owner) || !deviceId) return json({ error: "FORBIDDEN" }, 403);
+        await admin.from("device_bindings").delete().eq("user_id", target).eq("device_id", deviceId);
+        await audit(admin, userId, "devices.remove", target, { deviceId });
+        return json({ ok: true });
+      }
+
       default:
         return json({ error: "UNKNOWN_ACTION" }, 400);
     }
