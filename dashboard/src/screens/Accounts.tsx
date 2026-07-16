@@ -11,7 +11,7 @@ type Account = {
   expiresAt: string | null;
   suspended: boolean;
   devicesUsed: number;
-  deviceLimit: number;
+  deviceLimit: number | null;
   note: string | null;
 };
 
@@ -37,6 +37,9 @@ export default function Accounts() {
         },
         (e) => {
           if (cancelled) return;
+          // Clear any previously-loaded rows so a failed search/reload shows
+          // the error alone, never the stale (non-matching) table beneath it.
+          setAccounts(null);
           setError(apiErrorMessage((e as Error).message));
           setLoading(false);
         },
@@ -59,7 +62,7 @@ export default function Accounts() {
       },
     },
     { key: "expiresAt", header: "Expiry", render: (a) => fmtDate(a.expiresAt) },
-    { key: "devices", header: "Devices", render: (a) => `${a.devicesUsed}/${a.deviceLimit}` },
+    { key: "devices", header: "Devices", render: (a) => `${a.devicesUsed}/${a.deviceLimit ?? "default"}` },
   ];
 
   return (
@@ -83,7 +86,7 @@ export default function Accounts() {
       {!loading && !error && accounts !== null && accounts.length === 0 && (
         <p>{search ? "No accounts match your search." : "No accounts yet."}</p>
       )}
-      {!loading && accounts !== null && accounts.length > 0 && (
+      {!loading && !error && accounts !== null && accounts.length > 0 && (
         <Table
           columns={columns}
           rows={accounts}

@@ -9,11 +9,9 @@ type Account = {
   expiresAt: string | null;
   suspended: boolean;
   devicesUsed: number;
-  deviceLimit: number;
+  deviceLimit: number | null;
   note: string | null;
 };
-
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 function expiringWithinDays(iso: string | null, days: number, now: number): boolean {
   if (!iso) return false;
