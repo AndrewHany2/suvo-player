@@ -4,6 +4,7 @@ import {
   getUserId,
   adminClient,
   assertBoundDevice,
+  assertAccountActive,
   assertOwnsUserKey,
   assertOwnsProfile,
   json,
@@ -19,6 +20,7 @@ Deno.serve(async (req) => {
     const userId = await getUserId(req);
     const admin = adminClient();
     await assertBoundDevice(admin, userId, req.headers.get("x-device-id") ?? "");
+    await assertAccountActive(admin, userId);
     const { action, payload = {} } = await req.json();
     const db = admin.from.bind(admin);
 
@@ -187,6 +189,9 @@ Deno.serve(async (req) => {
     const msg = (e as Error).message;
     if (msg === "Unauthorized") return json({ error: "Unauthorized" }, 401);
     if (msg === "DEVICE_MISMATCH") return json({ error: "DEVICE_MISMATCH" }, 403);
+    if (msg === "ACCOUNT_SUSPENDED" || msg === "ACCOUNT_EXPIRED" || msg === "PROVIDER_SUSPENDED") {
+      return json({ error: "ACCOUNT_INACTIVE", reason: msg }, 403);
+    }
     if (msg === "FORBIDDEN") return json({ error: "FORBIDDEN" }, 403);
     return json({ error: "SERVER_ERROR" }, 500);
   }

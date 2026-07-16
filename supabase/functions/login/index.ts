@@ -12,7 +12,8 @@
 // supabase-js surfaces them as `data`; a non-2xx would arrive as an opaque
 // FunctionsHttpError. Only genuine server faults use 5xx.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { adminClient, json, corsPreflight } from "../_shared/deviceGate.ts";
+import { adminClient, json, corsPreflight, loadAccountStatus } from "../_shared/deviceGate.ts";
+import { isActive } from "../_shared/accountStatus.js";
 import {
   INVALID_CREDENTIALS,
   normalizeIdentifier,
@@ -61,6 +62,13 @@ Deno.serve(async (req) => {
         error: mapSignInError(signInError) ?? INVALID_CREDENTIALS,
       });
     }
+    // Reseller gate: the password is correct, so the account provably exists —
+    // safe to return a SPECIFIC status (no enumeration leak).
+    const status = await loadAccountStatus(adminClient(), signIn.session.user.id);
+    if (!isActive(status)) {
+      return json({ ok: false, error: status }); // ACCOUNT_EXPIRED | ACCOUNT_SUSPENDED | PROVIDER_SUSPENDED
+    }
+
     return json({
       ok: true,
       access_token: signIn.session.access_token,

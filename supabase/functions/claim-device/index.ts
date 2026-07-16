@@ -2,7 +2,7 @@
 // Called after login, before any data loads. The count-then-insert decision is
 // made race-safely inside the claim_device SQL function (per-account advisory
 // lock); this handler just resolves the caller and the global default limit.
-import { getUserId, adminClient, json, corsPreflight } from "../_shared/deviceGate.ts";
+import { getUserId, adminClient, json, corsPreflight, assertAccountActive } from "../_shared/deviceGate.ts";
 
 // Global default device count. Per-account overrides live in device_limits.
 // Editable in the dashboard without a redeploy.
@@ -19,6 +19,15 @@ Deno.serve(async (req) => {
     const { deviceId, platform, secondary, label } = await req.json();
     if (!deviceId) return json({ status: "denied" }, 403);
     const admin = adminClient();
+
+    // Reseller gate: a suspended/expired account (or one under a suspended
+    // provider) is denied the claim, routing the client to the locked screen.
+    try {
+      await assertAccountActive(admin, userId);
+    } catch (e) {
+      if ((e as Error).message === "SERVER_ERROR") return json({ error: "SERVER_ERROR" }, 500);
+      return json({ status: "denied" }, 403);
+    }
 
     const { data: status, error } = await admin.rpc("claim_device", {
       p_user_id: userId,
