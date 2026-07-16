@@ -1,0 +1,148 @@
+import { test, describe } from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  canInvoke,
+  canActOnAccount,
+  withinQuota,
+  validateLine,
+  validateNewAccount,
+  providerSlug,
+  resolveEmail,
+  ROLE_SUPER_ADMIN,
+  ROLE_PROVIDER,
+} from "./adminLogic.js";
+
+const superAdmin = { userId: "sa", role: ROLE_SUPER_ADMIN, suspended: false };
+const provider = { userId: "p1", role: ROLE_PROVIDER, suspended: false };
+
+describe("canInvoke", () => {
+  test("null caller denied", () => {
+    assert.equal(canInvoke(null, "accounts.list"), false);
+  });
+  test("suspended provider denied everything", () => {
+    assert.equal(canInvoke({ ...provider, suspended: true }, "accounts.list"), false);
+  });
+  test("provider denied super-admin-only action", () => {
+    assert.equal(canInvoke(provider, "providers.create"), false);
+  });
+  test("provider allowed provider action", () => {
+    assert.equal(canInvoke(provider, "accounts.create"), true);
+  });
+  test("super-admin allowed anything", () => {
+    assert.equal(canInvoke(superAdmin, "providers.create"), true);
+    assert.equal(canInvoke(superAdmin, "accounts.create"), true);
+  });
+});
+
+describe("canActOnAccount", () => {
+  test("provider may act on own account", () => {
+    assert.equal(canActOnAccount(provider, "p1"), true);
+  });
+  test("provider may NOT act on another provider's account (isolation)", () => {
+    assert.equal(canActOnAccount(provider, "p2"), false);
+  });
+  test("super-admin may act on any account", () => {
+    assert.equal(canActOnAccount(superAdmin, "p2"), true);
+  });
+  test("suspended provider denied", () => {
+    assert.equal(canActOnAccount({ ...provider, suspended: true }, "p1"), false);
+  });
+});
+
+describe("withinQuota", () => {
+  test("provider under quota", () => {
+    assert.equal(withinQuota(4, 5, ROLE_PROVIDER), true);
+  });
+  test("provider at quota denied", () => {
+    assert.equal(withinQuota(5, 5, ROLE_PROVIDER), false);
+  });
+  test("super-admin exempt", () => {
+    assert.equal(withinQuota(999, 1, ROLE_SUPER_ADMIN), true);
+  });
+});
+
+describe("validateLine", () => {
+  test("valid xtream", () => {
+    const r = validateLine({ type: "xtream", host: "http://h", username: "u", password: "p" });
+    assert.equal(r.ok, true);
+    assert.equal(r.value.type, "xtream");
+    assert.equal(r.value.url, null);
+  });
+  test("xtream missing password invalid", () => {
+    assert.equal(validateLine({ type: "xtream", host: "http://h", username: "u" }).ok, false);
+  });
+  test("valid m3u", () => {
+    const r = validateLine({ type: "m3u", url: "http://list.m3u" });
+    assert.equal(r.ok, true);
+    assert.equal(r.value.type, "m3u");
+    assert.equal(r.value.host, null);
+  });
+  test("m3u non-url invalid", () => {
+    assert.equal(validateLine({ type: "m3u", url: "not-a-url" }).ok, false);
+  });
+});
+
+describe("validateNewAccount", () => {
+  const good = {
+    username: "Customer_01",
+    password: "secret1",
+    deviceLimit: 2,
+    expiresAt: "2026-12-31T00:00:00Z",
+    line: { type: "xtream", host: "http://h", username: "u", password: "p" },
+  };
+  test("accepts + normalizes a good input (username lowercased)", () => {
+    const r = validateNewAccount(good);
+    assert.equal(r.ok, true);
+    assert.equal(r.value.username, "customer_01");
+    assert.equal(r.value.deviceLimit, 2);
+    assert.equal(typeof r.value.expiresAt, "string");
+  });
+  test("rejects short password", () => {
+    const r = validateNewAccount({ ...good, password: "123" });
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.includes("password"));
+  });
+  test("accepts password of exactly the minimum length (6)", () => {
+    const r = validateNewAccount({ ...good, password: "123456" });
+    assert.equal(r.ok, true);
+    assert.ok(!r.errors.includes("password"));
+  });
+  test("rejects password one below the minimum length (5)", () => {
+    const r = validateNewAccount({ ...good, password: "12345" });
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.includes("password"));
+  });
+  test("rejects deviceLimit < 1", () => {
+    const r = validateNewAccount({ ...good, deviceLimit: 0 });
+    assert.ok(r.errors.includes("deviceLimit"));
+  });
+  test("rejects bad username", () => {
+    const r = validateNewAccount({ ...good, username: "ab" });
+    assert.ok(r.errors.includes("username"));
+  });
+  test("rejects invalid line", () => {
+    const r = validateNewAccount({ ...good, line: { type: "m3u", url: "x" } });
+    assert.ok(r.errors.includes("line"));
+  });
+  test("null/empty expiresAt allowed (=> null)", () => {
+    const r = validateNewAccount({ ...good, expiresAt: "" });
+    assert.equal(r.ok, true);
+    assert.equal(r.value.expiresAt, null);
+  });
+});
+
+describe("providerSlug + resolveEmail", () => {
+  test("slug from name", () => {
+    assert.equal(providerSlug("Acme TV!", "abc1234567"), "acme-tv");
+  });
+  test("slug falls back to id when name empty", () => {
+    assert.equal(providerSlug("", "abcd1234ef"), "abcd1234");
+  });
+  test("real email used verbatim (lowercased)", () => {
+    assert.equal(resolveEmail("bob", "acme", "Bob@Mail.com"), "bob@mail.com");
+  });
+  test("username-only builds synthetic email", () => {
+    assert.equal(resolveEmail("bob", "acme", ""), "bob@acme.accounts.local");
+  });
+});
