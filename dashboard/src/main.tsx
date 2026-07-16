@@ -1,4 +1,11 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-createRoot(document.getElementById("root")!).render(<h1>Suvo Dashboard</h1>);
+import App from "./App";
+import { AuthProvider } from "./auth";
+
+createRoot(document.getElementById("root")!).render(
+  <AuthProvider>
+    <App />
+  </AuthProvider>,
+);
