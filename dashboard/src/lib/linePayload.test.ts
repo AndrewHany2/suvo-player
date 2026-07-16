@@ -20,6 +20,17 @@ describe("buildLinePayload", () => {
     });
   });
 
+  test("xtream: nulls out a non-empty url so a stray M3U url can't leak through", () => {
+    const line = buildLinePayload("xtream", {
+      host: "example.com",
+      lineUsername: "bob",
+      linePassword: "s3cret",
+      url: "https://example.com/leftover.m3u",
+      nickname: "",
+    });
+    expect(line.url).toBeNull();
+  });
+
   test("m3u: trims url, nulls out host/username/password", () => {
     const line = buildLinePayload("m3u", {
       host: "unused",

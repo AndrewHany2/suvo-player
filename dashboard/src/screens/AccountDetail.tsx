@@ -201,9 +201,17 @@ function SubscriptionCard({
             // null via computeExpiresAt and silently clear the expiry instead
             // of doing nothing — block that rather than let it slip through.
             disabled={savingExpiry || (expiryChoice === "custom" && !customDate)}
-            onClick={() =>
-              run(setSavingExpiry, { expiresAt: computeExpiresAt(expiryChoice, customDate, data.expiresAt ?? undefined) })
-            }
+            onClick={() => {
+              // Anchor a preset renewal to the LATER of now vs. the current
+              // expiry: pass the current expiry only when it's still in the
+              // future. For an already-expired account, anchoring to the past
+              // expiry would land "+N months" still in the past → a no-op
+              // renewal. Passing undefined makes expiryPreset count from now.
+              // (never/custom paths ignore the anchor entirely.)
+              const anchor =
+                data.expiresAt && Date.parse(data.expiresAt) > Date.now() ? data.expiresAt : undefined;
+              run(setSavingExpiry, { expiresAt: computeExpiresAt(expiryChoice, customDate, anchor) });
+            }}
           >
             {savingExpiry ? "Saving…" : "Renew"}
           </Button>
