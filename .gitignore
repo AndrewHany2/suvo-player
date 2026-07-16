@@ -94,3 +94,8 @@ tv/packaging/samsung/signature1.xml
 
 # Office temp lock files
 ~$*
+
+# Reseller dashboard (standalone Vite app)
+dashboard/node_modules
+dashboard/dist
+dashboard/.env
