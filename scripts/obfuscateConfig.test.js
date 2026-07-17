@@ -15,11 +15,14 @@ test("tv preset still mangles identifiers and uses a string array", () => {
   assert.strictEqual(tvPreset.compact, true);
 });
 
-test("web preset is balanced-aggressive: CFF + RC4 string encoding + splitting + object keys", () => {
+test("web preset is balanced-aggressive: CFF + RC4 string encoding + splitting", () => {
   assert.strictEqual(webPreset.controlFlowFlattening, true);
   assert.deepStrictEqual(webPreset.stringArrayEncoding, ["rc4"]);
   assert.strictEqual(webPreset.splitStrings, true);
-  assert.strictEqual(webPreset.transformObjectKeys, true);
+});
+
+test("web preset keeps transformObjectKeys OFF (white-screens RN-web — see 2026-07-17 boot smoke)", () => {
+  assert.strictEqual(webPreset.transformObjectKeys, false);
 });
 
 test("web preset keeps runtime anti-tamper OFF (that is Phase B)", () => {

@@ -28,9 +28,16 @@ const tvPreset = {
 
 // Web / Electron — no engine constraints. Balanced-aggressive: control-flow
 // flattening at a moderate threshold, RC4-encoded string array, string
-// splitting, object-key transforms. Deliberately NOT "maximum": no
-// deadCodeInjection / numbersToExpressions (bundle + runtime cost outweighs
-// benefit). selfDefending/debugProtection remain OFF until Phase B.
+// splitting. Deliberately NOT "maximum": no deadCodeInjection /
+// numbersToExpressions (bundle + runtime cost outweighs benefit).
+// selfDefending/debugProtection remain OFF until Phase B.
+//
+// transformObjectKeys is OFF: it renames object-literal keys, which
+// white-screens the React-Native-Web bundle (verified 2026-07-17 — a boot smoke
+// of the obfuscated dist threw `Cannot read properties of undefined (reading
+// 'focusBracket')` and rendered nothing). RN-web / React internals read some
+// object keys by their original name across module boundaries, so renaming them
+// breaks at runtime. Do not re-enable without a passing boot smoke.
 const webPreset = {
   compact: true,
   controlFlowFlattening: true,
@@ -46,7 +53,7 @@ const webPreset = {
   simplify: true,
   splitStrings: true,
   splitStringsChunkLength: 8,
-  transformObjectKeys: true,
+  transformObjectKeys: false,
   unicodeEscapeSequence: false,
   disableConsoleOutput: false,
   target: "browser",

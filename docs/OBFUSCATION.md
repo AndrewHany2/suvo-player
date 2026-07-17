@@ -23,11 +23,14 @@ only — never on `src/`.
 `getPreset(profile)`:
 
 - **`web`** — balanced-aggressive. Control-flow flattening, RC4-encoded string
-  array, string splitting, object-key transforms. Used by `build:web` and
-  `build:electron` (which calls `build:web`). No engine constraints, so this
-  is the stronger of the two presets — deliberately not "maximum" though: no
-  `deadCodeInjection` / `numbersToExpressions` (bundle + runtime cost outweighs
-  benefit).
+  array, string splitting. Used by `build:web` and `build:electron` (which calls
+  `build:web`). No engine constraints, so this is the stronger of the two
+  presets — deliberately not "maximum" though: no `deadCodeInjection` /
+  `numbersToExpressions` (bundle + runtime cost outweighs benefit).
+  `transformObjectKeys` is **off**: it renames object-literal keys and
+  white-screens the React-Native-Web bundle (verified 2026-07-17 boot smoke —
+  `Cannot read properties of undefined (reading 'focusBracket')`). Don't
+  re-enable without a passing boot smoke of the obfuscated `dist`.
 - **`tv`** — TV-safe, light–medium. Deliberately **off**:
   `controlFlowFlattening`, `deadCodeInjection`, `stringArrayEncoding`,
   `selfDefending`. These crawl or break on weak TV engines (webOS/Tizen).
