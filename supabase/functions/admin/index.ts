@@ -4,6 +4,8 @@
 // verify_jwt defaults to true (config.toml) — only authenticated callers reach here.
 import { getUserId, adminClient, json, corsPreflight, loadAccountStatus } from "../_shared/deviceGate.ts";
 import { scrubAuditMeta } from "../_shared/auditMeta.js";
+import { accountStatus } from "../_shared/accountStatus.js";
+import { chunk } from "../_shared/chunk.js";
 import {
   canInvoke,
   canActOnAccount,
