@@ -16,33 +16,22 @@ import {
 } from "../ui/tokens";
 import { ss, useScale } from "../utils/scaleSize";
 import { useApp } from "../context/AppContext";
-import { demoExpiryMs } from "../config/demoExpiry";
 
 import { isTV } from "../utils/isTV";
 
 export default function AuthScreen() {
   useScale(); // re-render + recompute ss() when the scale corrects (webOS cold start)
-  const { signIn, signUp } = useApp();
-  // A time-limited (demo) build is login-only: hide registration so a client
-  // can't mint a fresh, unbound account and slip past the one-device binding.
-  // Pairs with disabling public sign-up server-side (the hard lock).
-  const loginOnly = demoExpiryMs() != null;
+  const { signIn } = useApp();
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const switchMode = (next) => {
-    setMode(next);
-    setError("");
-    setEmail("");
-    setPassword("");
-    setConfirmPassword("");
-  };
-
+  // Login only. Public sign-up is disabled server-side (config.toml
+  // enable_signup=false) because this is a reseller-provisioned product —
+  // accounts are minted by the admin dashboard, never self-registered — so the
+  // app exposes no registration path.
   const handleSubmit = async () => {
     setError("");
     if (!email.trim() || !password) {
@@ -53,27 +42,16 @@ export default function AuthScreen() {
       setError("Password must be at least 6 characters.");
       return;
     }
-    if (mode === "register" && password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
     setLoading(true);
     try {
-      if (mode === "login") {
-        await signIn(email.trim(), password);
-      } else {
-        await signUp(email.trim(), password);
-        await signIn(email.trim(), password);
-      }
+      await signIn(email.trim(), password);
     } catch (err) {
       const msg = err.message || "";
       if (
         msg.toLowerCase().includes("rate limit") ||
         msg.toLowerCase().includes("email rate limit")
       ) {
-        setError(
-          "Too many sign-up attempts. Please wait a few minutes and try again.",
-        );
+        setError("Too many attempts. Please wait a few minutes and try again.");
       } else if (msg.toLowerCase().includes("email not confirmed")) {
         setError(
           "Please check your email and confirm your account before signing in.",
@@ -83,11 +61,6 @@ export default function AuthScreen() {
         msg.toLowerCase().includes("invalid email or password")
       ) {
         setError("Invalid email or password.");
-      } else if (
-        msg.toLowerCase().includes("already registered") ||
-        msg.toLowerCase().includes("already been registered")
-      ) {
-        setError("This email is already registered. Please sign in instead.");
       } else {
         setError(msg);
       }
@@ -104,9 +77,9 @@ export default function AuthScreen() {
     };
     globalThis.addEventListener("keydown", handler);
     return () => globalThis.removeEventListener("keydown", handler);
-  // Re-bound on the form fields/mode/loading, so handleSubmit is captured fresh.
+  // Re-bound on the form fields/loading, so handleSubmit is captured fresh.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email, password, confirmPassword, mode, loading]);
+  }, [email, password, loading]);
 
   // Shared, tokenized input styling so every field reads identically. Resting
   // state is a hairline border on the elevated surface; no glow at rest.
@@ -129,8 +102,7 @@ export default function AuthScreen() {
     marginTop: ss(12),
   };
 
-  let submitLabel = mode === "login" ? "Sign In" : "Create Account";
-  if (loading) submitLabel = "Please wait…";
+  const submitLabel = loading ? "Please wait…" : "Sign In";
 
   return (
     <KeyboardAvoidingView
@@ -190,7 +162,7 @@ export default function AuthScreen() {
             textAlign="center"
             marginBottom={ss(24)}
           >
-            {mode === "login" ? "Sign in to your account" : "Create an account"}
+            Sign in to your account
           </Text>
 
           <Text {...labelStyle}>Email</Text>
@@ -215,20 +187,6 @@ export default function AuthScreen() {
             disabled={loading}
             inputStyle={inputStyle}
           />
-
-          {mode === "register" && (
-            <>
-              <Text {...labelStyle}>Confirm Password</Text>
-              <PasswordInput
-                placeholder="••••••••"
-                placeholderTextColor={colors.faint}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                disabled={loading}
-                inputStyle={inputStyle}
-              />
-            </>
-          )}
 
           {!!error && (
             <XStack
@@ -269,32 +227,6 @@ export default function AuthScreen() {
             {submitLabel}
           </Button>
 
-          {!loginOnly && (
-            <XStack
-              justifyContent="center"
-              alignItems="center"
-              marginTop={ss(16)}
-            >
-              <Text
-                color={colors.muted}
-                fontFamily={fonts.body}
-                fontSize={ss(14)}
-              >
-                {mode === "login"
-                  ? "Don't have an account?"
-                  : "Already have an account?"}
-              </Text>
-              <Button
-                variant="ghost"
-                size="sm"
-                onPress={() =>
-                  switchMode(mode === "login" ? "register" : "login")
-                }
-              >
-                {mode === "login" ? "Register" : "Sign In"}
-              </Button>
-            </XStack>
-          )}
         </YStack>
       </ScrollView>
     </KeyboardAvoidingView>
