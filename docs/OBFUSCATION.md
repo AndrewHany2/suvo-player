@@ -17,15 +17,26 @@ boundary is the functions-only API + (on native) hardware attestation. See
 Wired into `build:web`, `build:tv`, `build:electron`. Runs on build **output**
 only — never on `src/`.
 
-## Preset (TV-safe)
+## Presets (per-target)
 
-`scripts/obfuscateConfig.js` — light–medium. Deliberately **off**:
-`controlFlowFlattening`, `deadCodeInjection`, `stringArrayEncoding`,
-`selfDefending`. These crawl or break on weak TV engines (webOS/Tizen). Kept:
-identifier mangling (locals), string-array extraction, compaction.
+`scripts/obfuscateConfig.js` exports a preset per target profile, selected via
+`getPreset(profile)`:
 
-If a build stalls/whitescreens on TV after an obfuscation change, the preset is
-too heavy — revert the flags above to off.
+- **`web`** — balanced-aggressive. Control-flow flattening, RC4-encoded string
+  array, string splitting, object-key transforms. Used by `build:web` and
+  `build:electron` (which calls `build:web`). No engine constraints, so this
+  is the stronger of the two presets — deliberately not "maximum" though: no
+  `deadCodeInjection` / `numbersToExpressions` (bundle + runtime cost outweighs
+  benefit).
+- **`tv`** — TV-safe, light–medium. Deliberately **off**:
+  `controlFlowFlattening`, `deadCodeInjection`, `stringArrayEncoding`,
+  `selfDefending`. These crawl or break on weak TV engines (webOS/Tizen).
+  Kept: identifier mangling (locals), string-array extraction, compaction.
+  Used by `build:tv`.
+
+If a build stalls/whitescreens on TV after an obfuscation change, the `tv`
+preset is too heavy — revert the flags above to off. Only add a stronger flag
+back after validating on `npm run sim:lg` **and** `npm run sim:tizen`.
 
 ## Electron fuses
 
@@ -36,7 +47,7 @@ binary as a raw Node REPL. Does not change app behavior.
 ## Run manually
 
 ```bash
-node scripts/obfuscate.js <build-output-dir>   # obfuscates every .js in place
+node scripts/obfuscate.js <dir> [web|tv]   # obfuscates every .js in place; profile defaults to web
 ```
 
 Fails loud (non-zero exit) if any file can't be obfuscated — never ships
