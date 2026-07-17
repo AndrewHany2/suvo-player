@@ -6,7 +6,7 @@ import { Badge, Table, type Column } from "../ui";
 
 type Account = {
   userId: string;
-  username: string;
+  name: string;
   status: string;
   expiresAt: string | null;
   suspended: boolean;
@@ -58,7 +58,7 @@ export default function Accounts() {
   }, [search, providerId]);
 
   const columns: Column<Account>[] = [
-    { key: "username", header: "Username" },
+    { key: "name", header: "Name" },
     {
       key: "status",
       header: "Status",
@@ -87,7 +87,7 @@ export default function Accounts() {
       <input
         type="search"
         className="search-input"
-        placeholder="Search by username…"
+        placeholder="Search by name…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         aria-label="Search accounts"
