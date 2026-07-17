@@ -40,6 +40,31 @@ Deno.serve(async (req) => {
 
     if (error) return json({ error: "SERVER_ERROR" }, 500);
     if (status === "denied") return json({ status: "denied" }, 403);
+
+    // First successful claim bootstraps a server-computed trial window. Absent
+    // rows only — ignoreDuplicates means a re-claim can never reset or extend an
+    // existing trial (the anti-abuse point), and expiry is stamped from the
+    // SERVER clock so a frozen client clock can't lengthen it. Existing users
+    // were grandfathered by the entitlements migration, so this only mints a
+    // trial for genuinely new accounts. Best-effort: a failure here must NOT
+    // fail a claim whose device bind already succeeded — the entitlement gate
+    // fails closed anyway, and the next boot's claim retries the bootstrap.
+    const TRIAL_DAYS = 7;
+    try {
+      await admin.from("entitlements").upsert(
+        {
+          user_id: userId,
+          plan: "trial",
+          status: "active",
+          trial_started_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString(),
+        },
+        { onConflict: "user_id", ignoreDuplicates: true },
+      );
+    } catch (bootErr) {
+      console.error("trial bootstrap failed (non-fatal):", (bootErr as Error).message);
+    }
+
     return json({ status }); // "bound" | "ok"
   } catch (e) {
     const msg = (e as Error).message;

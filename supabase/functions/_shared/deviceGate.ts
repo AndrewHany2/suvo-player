@@ -4,7 +4,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { userKeyIsAuthorized } from "./authz.js";
 import { accountStatus, isActive } from "./accountStatus.js";
+import { evaluateEntitlement } from "./entitlement.js";
 export { ACCOUNT_SUSPENDED, ACCOUNT_EXPIRED, PROVIDER_SUSPENDED } from "./accountStatus.js";
+
+// Thrown by assertEntitled when the caller has no active entitlement. The
+// thrown Error also carries a `.reason` (from evaluateEntitlement) so the
+// handler can surface which reason (expired / revoked / suspended / …).
+export const NOT_ENTITLED = "NOT_ENTITLED";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -157,4 +163,49 @@ export async function assertAccountActive(
 ): Promise<void> {
   const status = await loadAccountStatus(admin, userId);
   if (!isActive(status)) throw new Error(status);
+}
+
+// Reads the caller's entitlements row (only the columns the decision needs). A
+// DB error throws SERVER_ERROR (retryable 500) — NOT a denial — so a transient
+// outage doesn't route users to a terminal "expired" state. A genuinely absent
+// row is returned as null, which evaluateEntitlement fails closed on.
+export async function loadEntitlement(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+): Promise<{ status?: string; revoked_at?: string | null; expires_at?: string | null } | null> {
+  const { data, error } = await admin
+    .from("entitlements")
+    .select("status, revoked_at, expires_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error("SERVER_ERROR");
+  return data ?? null;
+}
+
+// Content gate: throws NOT_ENTITLED (with `.reason`) unless the caller has an
+// active, unexpired, unrevoked entitlement, judged against the SERVER clock.
+// This is the real demo/trial + license boundary — see entitlement.js.
+export async function assertEntitled(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+): Promise<void> {
+  const row = await loadEntitlement(admin, userId);
+  const verdict = evaluateEntitlement(row, Date.now());
+  if (!verdict.entitled) {
+    const e = new Error(NOT_ENTITLED) as Error & { reason?: string };
+    e.reason = verdict.reason;
+    throw e;
+  }
+}
+
+// Advisory snapshot for the client UX (the "entitlement.fetch" action). Returns
+// the verdict plus expires_at so the app can show a countdown / expired panel.
+// Never the boundary — assertEntitled already denies content server-side.
+export async function entitlementSnapshot(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+): Promise<{ entitled: boolean; reason: string; expires_at: string | null }> {
+  const row = await loadEntitlement(admin, userId);
+  const verdict = evaluateEntitlement(row, Date.now());
+  return { entitled: verdict.entitled, reason: verdict.reason, expires_at: row?.expires_at ?? null };
 }

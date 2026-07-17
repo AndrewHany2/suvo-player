@@ -7,11 +7,14 @@ import {
   assertAccountActive,
   assertOwnsUserKey,
   assertOwnsProfile,
+  assertEntitled,
+  entitlementSnapshot,
   json,
   corsPreflight,
   ACCOUNT_SUSPENDED,
   ACCOUNT_EXPIRED,
   PROVIDER_SUSPENDED,
+  NOT_ENTITLED,
 } from "../_shared/deviceGate.ts";
 import { validateEntry } from "../_shared/entryLimits.js";
 
@@ -26,6 +29,18 @@ Deno.serve(async (req) => {
     await assertBoundDevice(admin, userId, req.headers.get("x-device-id") ?? "");
     await assertAccountActive(admin, userId);
     const { action, payload = {} } = await req.json();
+
+    // Entitlement snapshot for the client UX. Allowed even when NOT entitled,
+    // so an expired user can still fetch the reason to render the expired panel.
+    // Exposes only the caller's own verdict.
+    if (action === "entitlement.fetch") {
+      return json(await entitlementSnapshot(admin, userId));
+    }
+    // The real demo/trial + license boundary: every content action requires an
+    // active entitlement, judged on the SERVER clock. Fails closed regardless of
+    // a patched client or frozen clock. See _shared/entitlement.js.
+    await assertEntitled(admin, userId);
+
     const db = admin.from.bind(admin);
 
     switch (action) {
@@ -207,6 +222,9 @@ Deno.serve(async (req) => {
     if (msg === "DEVICE_MISMATCH") return json({ error: "DEVICE_MISMATCH" }, 403);
     if (msg === ACCOUNT_SUSPENDED || msg === ACCOUNT_EXPIRED || msg === PROVIDER_SUSPENDED) {
       return json({ error: "ACCOUNT_INACTIVE", reason: msg }, 403);
+    }
+    if (msg === NOT_ENTITLED) {
+      return json({ error: NOT_ENTITLED, reason: (e as { reason?: string }).reason }, 403);
     }
     if (msg === "FORBIDDEN") return json({ error: "FORBIDDEN" }, 403);
     return json({ error: "SERVER_ERROR" }, 500);
