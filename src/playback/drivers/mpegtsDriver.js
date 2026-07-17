@@ -21,6 +21,10 @@
  */
 
 import mpegts from 'mpegts.js';
+import { normalizeMpegtsError } from './mpegtsError.js';
+
+// Re-export so the driver stays the single import surface for consumers.
+export { normalizeMpegtsError };
 
 export const STALL_THRESHOLD_MS = 6000;
 export const STALL_POLL_MS = 1000;
@@ -232,23 +236,6 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
     setQualityCap,
     onStatus, onProgress, onStall, onError,
   };
-}
-
-/**
- * Normalize an mpegts.js ERROR into the NormalizedError shape the classifier
- * expects. mpegts errors are effectively always fatal.
- * @returns {NormalizedError}
- */
-export function normalizeMpegtsError(errType, errDetail, info) {
-  /** @type {NormalizedError} */
-  const out = { fatal: true, type: String(errType || ''), original: { errType, errDetail, info } };
-  const code = info?.code;
-  if (typeof code === 'number') out.httpStatus = code;
-  const t = String(errType || '').toLowerCase();
-  if (t.includes('network')) out.kind = 'network';
-  else if (t.includes('media')) out.kind = 'media';
-  else out.kind = 'media';
-  return out;
 }
 
 export default createMpegtsDriver;
