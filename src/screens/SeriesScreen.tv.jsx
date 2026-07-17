@@ -15,6 +15,7 @@ import "../styles/tvRemoteFocus.css";
 import "./SeriesScreen.tv.css";
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
+import { describeError } from "../utils/authError";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
 
 const CAT_COLS = 4;
@@ -58,6 +59,9 @@ export default function SeriesScreenTV({ navigation, route }) {
 
   const [catFocus, setCatFocus] = useState(0);
   const [grid, setGrid] = useState(null);
+  // Real reason for the current drill-in fetch failure (cleared on every
+  // (re)open/retry alongside grid.failed); falls back to generic copy below.
+  const [gridErrorMsg, setGridErrorMsg] = useState("");
   const [detail, setDetail] = useState(null);
   const [query, setQuery] = useState("");
   const [catZone, setCatZone] = useState("grid");
@@ -174,6 +178,7 @@ export default function SeriesScreenTV({ navigation, route }) {
     };
     setGrid(next);
     gridRef.current = next;
+    setGridErrorMsg("");
     try {
       // getCategoryItems is cache-warm (shared with shelf drill-in) and handles
       // the synthetic "all" (whole catalog) vs a real category internally.
@@ -181,11 +186,12 @@ export default function SeriesScreenTV({ navigation, route }) {
       const updated = { ...next, items: all };
       setGrid(updated);
       gridRef.current = updated;
-    } catch {
+    } catch (err) {
       // Fetch FAILURE (error + retry), distinct from an empty series list.
       const updated = { ...next, items: [], failed: true };
       setGrid(updated);
       gridRef.current = updated;
+      setGridErrorMsg(describeError(err));
     }
   };
 
@@ -1003,7 +1009,7 @@ export default function SeriesScreenTV({ navigation, route }) {
           <StatePanel
             mode="error"
             title="Couldn't load series"
-            message="Something went wrong fetching this category."
+            message={gridErrorMsg || "Something went wrong fetching this category."}
             onRetry={() => openGrid({ id: grid.catId, name: grid.name })}
           />
         )}

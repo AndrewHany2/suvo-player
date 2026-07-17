@@ -6,6 +6,7 @@ import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
+import { describeError } from "../utils/authError";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
@@ -43,6 +44,9 @@ export default function LiveTVScreenTV({ navigation }) {
 
   const [catFocus, setCatFocus] = useState(0);
   const [page, setPage] = useState(null);
+  // Real reason for the current drill-in fetch failure (cleared on every
+  // (re)open/retry alongside page.failed); falls back to generic copy below.
+  const [pageErrorMsg, setPageErrorMsg] = useState("");
   const [query, setQuery] = useState("");
   const [catZone, setCatZone] = useState("grid");
   const [gridQuery, setGridQuery] = useState("");
@@ -117,17 +121,19 @@ export default function LiveTVScreenTV({ navigation }) {
     };
     setPage(next);
     pageRef.current = next;
+    setPageErrorMsg("");
     try {
       // getChannels is cached in the hook (re-open is instant).
       const all = await getChannels(cat.id);
       const updated = { ...next, items: all };
       setPage(updated);
       pageRef.current = updated;
-    } catch {
+    } catch (err) {
       // Fetch FAILURE (error + retry), distinct from an empty channel list.
       const updated = { ...next, items: [], failed: true };
       setPage(updated);
       pageRef.current = updated;
+      setPageErrorMsg(describeError(err));
     }
   };
 
@@ -409,7 +415,7 @@ export default function LiveTVScreenTV({ navigation }) {
           <StatePanel
             mode="error"
             title="Couldn't load channels"
-            message="Something went wrong fetching this category."
+            message={pageErrorMsg || "Something went wrong fetching this category."}
             onRetry={() => openCat({ id: page.catId, name: page.name })}
           />
         )}

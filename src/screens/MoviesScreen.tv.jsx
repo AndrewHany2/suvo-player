@@ -26,6 +26,7 @@ const MOV_GAP = 14;
 const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
+import { describeError } from "../utils/authError";
 
 export default function MoviesScreenTV({ navigation, route }) {
   const { loading, loaded, error, errorMessage, reload, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie, shelves, handleShelfVisible, handleLoadMore } = useMovies({ navigation });
@@ -51,6 +52,9 @@ export default function MoviesScreenTV({ navigation, route }) {
 
   const [catFocus, setCatFocus] = useState(0);
   const [page, setPage] = useState(null);
+  // Real reason for the current drill-in fetch failure (cleared on every
+  // (re)open/retry alongside page.failed); falls back to generic copy below.
+  const [pageErrorMsg, setPageErrorMsg] = useState("");
   const [detail, setDetail] = useState(null);
   const [query, setQuery] = useState("");
   const [catZone, setCatZone] = useState("grid");
@@ -115,15 +119,17 @@ export default function MoviesScreenTV({ navigation, route }) {
   const openCat = async (cat) => {
     const next = { catId: cat.id, name: cat.name, items: null, display: MOV_PAGE, focus: 0, failed: false };
     setPage(next); pageRef.current = next;
+    setPageErrorMsg("");
     try {
       const all = await getCategoryItems(cat.id);
       const updated = { ...next, items: all };
       setPage(updated); pageRef.current = updated;
-    } catch {
+    } catch (err) {
       // Distinguish a fetch FAILURE (show error + retry) from a genuinely empty
       // catalog (items: []). Without this flag both rendered identically.
       const updated = { ...next, items: [], failed: true };
       setPage(updated); pageRef.current = updated;
+      setPageErrorMsg(describeError(err));
     }
   };
 
@@ -554,7 +560,7 @@ export default function MoviesScreenTV({ navigation, route }) {
           <StatePanel
             mode="error"
             title="Couldn't load movies"
-            message="Something went wrong fetching this category."
+            message={pageErrorMsg || "Something went wrong fetching this category."}
             onRetry={() => openCat({ id: page.catId, name: page.name })}
           />
         )}

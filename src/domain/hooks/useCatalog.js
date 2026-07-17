@@ -51,8 +51,8 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
   // (the M3U live-only case) without treating the latter as a stuck spinner.
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  // A user-facing reason when the failure is an auth/expired one (else null, so
-  // the screen falls back to its generic "check your connection" copy).
+  // User-facing reason for any load failure (auth, connectivity, or provider);
+  // never null.
   const [errorMessage, setErrorMessage] = useState(null);
   const [shelves, setShelves] = useState([]);
   const [categoryPage, setCategoryPage] = useState(null); // { catId, name, items }
@@ -62,9 +62,11 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
 
   const loadedRef = useRef(new Set());
   // Circuit breaker: set once a shelf fetch fails with a provider auth error
-  // (401/403). Because Xtream blocks at the account level, that first failure
-  // means every remaining category will fail too — so we stop firing them and
-  // surface the error panel instead of fanning out hundreds of doomed requests.
+  // (401/403) or a connectivity fault (network / timeout / gateway 521). Because
+  // Xtream blocks at the account level (and a dead link fails every request the
+  // same way), that first failure means every remaining category will fail too —
+  // so we stop firing them and surface the error panel instead of fanning out
+  // hundreds of doomed requests.
   const authFailedRef = useRef(false);
   const allShuffledRef = useRef([]);
   const prefetchRef = useRef({ topRated: null });
@@ -169,7 +171,8 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
 
   // ── Lazy shelf load ─────────────────────────────────────────────────────────
   const handleShelfVisible = useCallback(async (catId) => {
-    // Breaker tripped by an earlier 401/403: don't fire more doomed requests.
+    // Breaker tripped by an earlier auth error or connectivity fault: don't fire
+    // more doomed requests.
     if (authFailedRef.current || loadedRef.current.has(catId)) return;
     // Mark loaded BEFORE the await — this is the no-loop guard. A shelf that
     // fails below stays in loadedRef, so it is never re-fetched on its own

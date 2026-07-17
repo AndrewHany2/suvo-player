@@ -10,6 +10,7 @@ import { useApp } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { isAuthError } from "../utils/authError";
+import { isConnectivityError } from "../utils/networkError.logic.js";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import { isLowEndDevice } from "../utils/deviceTier";
 
@@ -153,7 +154,7 @@ export default function LiveTVScreen({ navigation }) {
       // Auth failures (401/403) are account-level: useLiveTV trips its breaker
       // and surfaces the error panel, so don't add per-category log noise here.
       // Isolated failures just hide this category's rail (no retry, no loop).
-      if (!isAuthError(err)) {
+      if (!isAuthError(err) && !isConnectivityError(err)) {
         console.warn(`LiveTV: channels for "${catId}" failed to load`, err);
       }
       setChannelsByCategory((prev) => ({ ...prev, [catId]: [] }));

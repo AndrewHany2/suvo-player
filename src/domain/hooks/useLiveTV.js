@@ -33,7 +33,8 @@ export function useLiveTV({ navigation } = {}) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  // User-facing reason for an auth/expired failure (else null → generic copy).
+  // User-facing reason for any load failure (auth, connectivity, or provider);
+  // never null.
   const [errorMessage, setErrorMessage] = useState(null);
   const [categories, setCategories] = useState([]);
 
@@ -41,9 +42,11 @@ export function useLiveTV({ navigation } = {}) {
   // (web/native) and the TV drill-in so a re-open is instant.
   const channelsCacheRef = useRef(new MemoryManager(CHANNELS_CACHE_MAX));
   // Circuit breaker: set once a channel fetch fails with a provider auth error
-  // (401/403). Xtream blocks at the account level, so that first failure means
-  // every remaining category will fail too — trip the error panel and stop
-  // rather than fanning out one doomed request per category.
+  // (401/403) or a connectivity fault (network / timeout / gateway 521). Xtream
+  // blocks at the account level and a dead link fails every request the same
+  // way, so that first failure means every remaining category will fail too —
+  // trip the error panel and stop rather than fanning out one doomed request
+  // per category.
   const authFailedRef = useRef(false);
 
   // ── Initial load: live categories ───────────────────────────────────────────
