@@ -45,6 +45,18 @@ async function accountProviderId(admin: Admin, targetUserId: string): Promise<st
   return data ? data.provider_id : undefined; // undefined = no such account
 }
 
+// Batched `.in("user_id", …)` select, chunked to keep the id list under
+// practical request-URL length limits. Returns the concatenated rows. Lets the
+// list actions do a CONSTANT number of queries instead of one-per-account.
+async function selectByUserIds(admin: Admin, table: string, columns: string, ids: string[]) {
+  const out: any[] = [];
+  for (const part of chunk(ids, 150)) {
+    const { data } = await admin.from(table).select(columns).in("user_id", part);
+    if (data) out.push(...data);
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   const pre = corsPreflight(req);
   if (pre) return pre;
@@ -76,15 +88,14 @@ Deno.serve(async (req) => {
           .from("providers")
           .select("user_id, role, name, max_accounts, suspended, created_at")
           .order("created_at", { ascending: true });
-        // annotate each with its live account count
-        const out = [];
-        for (const p of data ?? []) {
-          const { count } = await admin
-            .from("customer_accounts")
-            .select("user_id", { count: "exact", head: true })
-            .eq("provider_id", p.user_id);
-          out.push({ ...p, accounts_used: count ?? 0 });
-        }
+        // One grouped read for every provider's live account count (was an
+        // N+1 count-per-provider loop). If the RPC isn't deployed yet, counts
+        // fall back to 0 rather than failing the whole list.
+        const { data: counts } = await admin.rpc("provider_account_counts");
+        const usedBy = new Map<string, number>(
+          (counts ?? []).map((c: any) => [c.provider_id, Number(c.cnt)]),
+        );
+        const out = (data ?? []).map((p: any) => ({ ...p, accounts_used: usedBy.get(p.user_id) ?? 0 }));
         return json(out);
       }
 
@@ -273,32 +284,58 @@ Deno.serve(async (req) => {
         } else {
           q = q.eq("provider_id", userId);
         }
-        const { data: accts } = await q;
-
-        const out = [];
-        for (const a of accts ?? []) {
-          const { data: prof } = await admin
-            .from("profiles").select("username").eq("user_id", a.user_id).maybeSingle();
-          const name = prof?.username ?? "";
-          if (search && !name.toLowerCase().includes(search)) continue;
-          const { count: devicesUsed } = await admin
-            .from("device_bindings")
-            .select("device_id", { count: "exact", head: true })
-            .eq("user_id", a.user_id);
-          const { data: lim } = await admin
-            .from("device_limits").select("device_limit").eq("user_id", a.user_id).maybeSingle();
-          const status = await loadAccountStatus(admin, a.user_id);
-          out.push({
-            userId: a.user_id,
-            name,
-            status,
-            expiresAt: a.expires_at,
-            suspended: a.suspended,
-            devicesUsed: devicesUsed ?? 0,
-            deviceLimit: lim?.device_limit ?? null,
-            note: a.note,
-          });
+        // Optional server-side pagination (client may pass limit/offset). Default
+        // is unchanged (all rows) — but the N+1 that previously made this O(5N)
+        // SERIAL round-trips is gone regardless: the per-account lookups below
+        // are batched into a CONSTANT number of `.in(...)` queries.
+        const limit = Number(payload.limit);
+        if (Number.isInteger(limit) && limit > 0) {
+          const off = Number(payload.offset);
+          const offset = Number.isInteger(off) && off > 0 ? off : 0;
+          q = q.range(offset, offset + Math.min(limit, 500) - 1);
         }
+        const { data: acctsRaw } = await q;
+        let accts = acctsRaw ?? [];
+
+        // Names first, so the search filter runs BEFORE the remaining lookups
+        // (only fetch device/limit rows for accounts we'll actually return).
+        const nameById = new Map<string, string>(
+          (await selectByUserIds(admin, "profiles", "user_id, username", accts.map((a: any) => a.user_id)))
+            .map((p) => [p.user_id, p.username ?? ""]),
+        );
+        if (search) {
+          accts = accts.filter((a: any) => (nameById.get(a.user_id) ?? "").toLowerCase().includes(search));
+        }
+
+        const keptIds = accts.map((a: any) => a.user_id);
+        const bindings = await selectByUserIds(admin, "device_bindings", "user_id", keptIds);
+        const deviceCount = new Map<string, number>();
+        for (const b of bindings) deviceCount.set(b.user_id, (deviceCount.get(b.user_id) ?? 0) + 1);
+        const limitById = new Map<string, number>(
+          (await selectByUserIds(admin, "device_limits", "user_id, device_limit", keptIds))
+            .map((l) => [l.user_id, l.device_limit]),
+        );
+        const providerIds = [...new Set(accts.map((a: any) => a.provider_id).filter(Boolean))] as string[];
+        const provRows = providerIds.length
+          ? (await admin.from("providers").select("user_id, suspended").in("user_id", providerIds)).data ?? []
+          : [];
+        const provSuspended = new Map<string, boolean>(provRows.map((p: any) => [p.user_id, !!p.suspended]));
+
+        const now = Date.now();
+        const out = accts.map((a: any) => ({
+          userId: a.user_id,
+          name: nameById.get(a.user_id) ?? "",
+          status: accountStatus(
+            { suspended: a.suspended, expires_at: a.expires_at },
+            a.provider_id ? (provSuspended.get(a.provider_id) ?? false) : false,
+            now,
+          ),
+          expiresAt: a.expires_at,
+          suspended: a.suspended,
+          devicesUsed: deviceCount.get(a.user_id) ?? 0,
+          deviceLimit: limitById.get(a.user_id) ?? null,
+          note: a.note,
+        }));
         return json(out);
       }
 

@@ -7,6 +7,7 @@ Point-in-time security artifacts and the living requirements matrix for Suvo.
 | [appsec-review.md](appsec-review.md) | Point-in-time (2026-07-17) | Application security / bounty-style review of the remotely-reachable surface. |
 | [agent-config-scan.md](agent-config-scan.md) | Point-in-time (2026-07-17) | AgentShield scan of the `.claude/` agent-harness config, with the applied remediation. |
 | [security-requirements.md](security-requirements.md) | Living | Security requirements as a traceability matrix (threat → control → test → acceptance). |
+| [remediations-2026-07-17.md](remediations-2026-07-17.md) | Point-in-time (2026-07-17) | Fixes applied after the reseller-dashboard security review, with per-fix owner deploy steps. |
 
 ## Scope of these docs
 
