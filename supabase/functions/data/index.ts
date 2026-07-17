@@ -39,6 +39,11 @@ Deno.serve(async (req) => {
     // The real demo/trial + license boundary: every content action requires an
     // active entitlement, judged on the SERVER clock. Fails closed regardless of
     // a patched client or frozen clock. See _shared/entitlement.js.
+    // Known ceiling (accepted 2026-07-18): this gates metadata + IPTV credential
+    // delivery, not the stream itself — a client with already-cached credentials
+    // streams direct from the third-party IPTV provider, so revocation/expiry
+    // bites on the next credential re-fetch, not mid-playback. Suvo does not proxy
+    // the stream bytes, so this is inherent, not a bug to fix here.
     await assertEntitled(admin, userId);
 
     const db = admin.from.bind(admin);

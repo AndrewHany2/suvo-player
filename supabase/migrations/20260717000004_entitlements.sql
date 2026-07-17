@@ -14,12 +14,12 @@
 --
 -- ROLLOUT SAFETY: the backfill below grandfathers every EXISTING user as
 -- active + no-expiry, so flipping the `data` function to enforce cannot lock out
--- current users (they already have an entitled row). Existing paid/provisioned
--- customers stay governed by the reseller gate (customer_accounts / accountStatus)
--- exactly as before; the NEW 7-day trial window applies only to NEW device claims
--- (see claim-device trial bootstrap). Apply this migration BEFORE deploying the
--- enforcing `data` function. To instead put existing users on a trial, change the
--- backfill's expires_at — but do that deliberately.
+-- current users (they already have an entitled row). Paid/provisioned customers
+-- stay governed by the reseller gate (customer_accounts / accountStatus) exactly
+-- as before; claim-device provisions provider-origin accounts as active/no-expiry
+-- (NOT a trial), and the 7-day trial window applies only to future self-signup
+-- accounts that have no customer_accounts row. Apply this migration BEFORE
+-- deploying the enforcing `data` function.
 
 begin;
 
