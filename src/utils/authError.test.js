@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isAuthError, authErrorMessage } from "./authError.js";
+import { isAuthError, authErrorMessage, describeError } from "./authError.js";
 
 test("isAuthError is true for 401 and 403 provider failures", () => {
   assert.equal(isAuthError(new Error("HTTP error! status: 401")), true);
@@ -42,4 +42,30 @@ test("authErrorMessage returns null for non-auth failures (keep generic copy)", 
   assert.equal(authErrorMessage(new Error("HTTP error! status: 500")), null);
   assert.equal(authErrorMessage(new Error("Request timed out after 15000ms")), null);
   assert.equal(authErrorMessage(null), null);
+});
+
+test("describeError shows the connectivity message (+ status) for reachability faults", () => {
+  assert.match(describeError(new TypeError("Failed to fetch")), /can't reach the server/i);
+  assert.match(describeError({ context: { status: 521 } }), /can't reach the server/i);
+  assert.match(describeError({ context: { status: 521 } }), /\(HTTP 521\)/);
+  assert.match(describeError(new Error("Request timed out after 15000ms")), /can't reach the server/i);
+});
+
+test("describeError prefers the provider's own message + status", () => {
+  const err = Object.assign(new Error("Provider error: USER_EXPIRED"), { status: 401, userMessage: "Your subscription has expired" });
+  assert.match(describeError(err), /Your subscription has expired/);
+  assert.match(describeError(err), /status 401/);
+});
+
+test("describeError gives account copy for a bare 401/403", () => {
+  assert.match(describeError(new Error("HTTP error! status: 401")), /expired or been disabled/);
+});
+
+test("describeError surfaces a real HTTP status for other provider errors", () => {
+  assert.match(describeError(new Error("HTTP error! status: 404")), /provider returned an error \(HTTP 404\)/i);
+});
+
+test("describeError is always a non-empty string, even for nullish input", () => {
+  assert.equal(typeof describeError(null), "string");
+  assert.ok(describeError(null).length > 0);
 });
