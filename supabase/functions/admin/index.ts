@@ -167,16 +167,26 @@ Deno.serve(async (req) => {
         }
 
         const slug = providerSlug(row.name, userId);
-        const email = resolveEmail(v.value.username, slug, payload.email);
+        const genToken = () => crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+        const suppliedEmail = String(payload.email ?? "").trim().toLowerCase();
 
-        // 1. auth user
-        const { data: created, error: cErr } = await admin.auth.admin.createUser({
-          email,
-          password: v.value.password,
-          email_confirm: true,
-          user_metadata: { username: v.value.username },
-        });
-        if (cErr || !created.user) return json({ error: "CREATE_FAILED" }, 400);
+        // 1. auth user. Auto-generated emails can (astronomically rarely) collide;
+        // retry once with a fresh token. A provider-supplied email does not retry
+        // (a real dup should surface as CREATE_FAILED).
+        let created: Awaited<ReturnType<typeof admin.auth.admin.createUser>>["data"] | null = null;
+        let email = "";
+        for (let attempt = 0; attempt < 2; attempt++) {
+          email = resolveEmail(slug, suppliedEmail, genToken());
+          const res = await admin.auth.admin.createUser({
+            email,
+            password: v.value.password,
+            email_confirm: true,
+            user_metadata: { name: v.value.name },
+          });
+          if (!res.error && res.data.user) { created = res.data; break; }
+          if (suppliedEmail.includes("@")) break; // don't retry a real supplied email
+        }
+        if (!created?.user) return json({ error: "CREATE_FAILED" }, 400);
         const newId = created.user.id;
 
         // supabase-js returns errors as VALUES (it does not throw), so each
@@ -185,9 +195,9 @@ Deno.serve(async (req) => {
         // ungated ACTIVE orphan login with no customer_accounts row. A try/catch
         // backstop also deletes the user for network-level exceptions.
         try {
-          // 2. profiles (username↔email lookup used by login)
+          // 2. profiles (holds the display NAME in the legacy `username` column + email)
           const { error: profErr } = await admin.from("profiles").upsert(
-            { user_id: newId, username: v.value.username, email },
+            { user_id: newId, username: v.value.name, email },
             { onConflict: "user_id" },
           );
           if (profErr) throw profErr;
@@ -238,7 +248,7 @@ Deno.serve(async (req) => {
 
         // meta MUST NOT include the password or line credentials
         await audit(admin, userId, "account.create", newId, {
-          username: v.value.username,
+          name: v.value.name,
           deviceLimit: v.value.deviceLimit,
           expiresAt: v.value.expiresAt,
           lineType: v.value.line.type,
@@ -264,8 +274,8 @@ Deno.serve(async (req) => {
         for (const a of accts ?? []) {
           const { data: prof } = await admin
             .from("profiles").select("username").eq("user_id", a.user_id).maybeSingle();
-          const username = prof?.username ?? "";
-          if (search && !username.includes(search)) continue;
+          const name = prof?.username ?? "";
+          if (search && !name.toLowerCase().includes(search)) continue;
           const { count: devicesUsed } = await admin
             .from("device_bindings")
             .select("device_id", { count: "exact", head: true })
@@ -275,7 +285,7 @@ Deno.serve(async (req) => {
           const status = await loadAccountStatus(admin, a.user_id);
           out.push({
             userId: a.user_id,
-            username,
+            name,
             status,
             expiresAt: a.expires_at,
             suspended: a.suspended,
@@ -306,7 +316,7 @@ Deno.serve(async (req) => {
         const status = await loadAccountStatus(admin, target);
         return json({
           userId: target,
-          username: prof?.username ?? "",
+          name: prof?.username ?? "",
           email: prof?.email ?? "",
           status,
           expiresAt: acct?.expires_at ?? null,
@@ -340,13 +350,22 @@ Deno.serve(async (req) => {
           dl = Number(payload.deviceLimit);
           if (!Number.isInteger(dl) || dl < 1) return json({ error: "INVALID_INPUT" }, 400);
         }
+        // name (display label) → stored in the legacy profiles.username column
+        if (payload.name !== undefined) {
+          const nm = String(payload.name).trim();
+          if (nm.length < 1 || nm.length > 60) return json({ error: "INVALID_INPUT" }, 400);
+          const { error: nErr } = await admin.from("profiles").update({ username: nm }).eq("user_id", target);
+          if (nErr) return json({ error: "SERVER_ERROR" }, 500);
+        }
         if (Object.keys(acctPatch).length > 0) {
-          await admin.from("customer_accounts").update(acctPatch).eq("user_id", target);
+          const { error: uErr } = await admin.from("customer_accounts").update(acctPatch).eq("user_id", target);
+          if (uErr) return json({ error: "SERVER_ERROR" }, 500);
         }
         if (dl !== undefined) {
-          await admin.from("device_limits").upsert({ user_id: target, device_limit: dl }, { onConflict: "user_id" });
+          const { error: dErr } = await admin.from("device_limits").upsert({ user_id: target, device_limit: dl }, { onConflict: "user_id" });
+          if (dErr) return json({ error: "SERVER_ERROR" }, 500);
         }
-        await audit(admin, userId, "account.update", target, { ...acctPatch, deviceLimit: payload.deviceLimit });
+        await audit(admin, userId, "account.update", target, { ...acctPatch, name: payload.name, deviceLimit: payload.deviceLimit });
         return json({ ok: true });
       }
 
