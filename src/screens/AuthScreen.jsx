@@ -29,7 +29,6 @@ export default function AuthScreen() {
   const loginOnly = demoExpiryMs() != null;
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState("login");
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -39,7 +38,6 @@ export default function AuthScreen() {
   const switchMode = (next) => {
     setMode(next);
     setError("");
-    setUsername("");
     setEmail("");
     setPassword("");
     setConfirmPassword("");
@@ -47,22 +45,12 @@ export default function AuthScreen() {
 
   const handleSubmit = async () => {
     setError("");
-    if (!username.trim() || !password) {
-      setError("Username and password are required.");
-      return;
-    }
-    if (mode === "register" && !/^[a-zA-Z0-9_]{3,30}$/.test(username.trim())) {
-      setError(
-        "Username must be 3–30 characters: letters, numbers, underscores only.",
-      );
+    if (!email.trim() || !password) {
+      setError("Email and password are required.");
       return;
     }
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
-      return;
-    }
-    if (mode === "register" && !email.trim()) {
-      setError("Email is required.");
       return;
     }
     if (mode === "register" && password !== confirmPassword) {
@@ -72,9 +60,9 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       if (mode === "login") {
-        await signIn(username.trim(), password);
+        await signIn(email.trim(), password);
       } else {
-        await signUp(username.trim(), password, email.trim());
+        await signUp(email.trim(), password);
         await signIn(email.trim(), password);
       }
     } catch (err) {
@@ -94,7 +82,7 @@ export default function AuthScreen() {
         msg.toLowerCase().includes("invalid login credentials") ||
         msg.toLowerCase().includes("invalid email or password")
       ) {
-        setError("Invalid username/email or password.");
+        setError("Invalid email or password.");
       } else if (
         msg.toLowerCase().includes("already registered") ||
         msg.toLowerCase().includes("already been registered")
@@ -118,7 +106,7 @@ export default function AuthScreen() {
     return () => globalThis.removeEventListener("keydown", handler);
   // Re-bound on the form fields/mode/loading, so handleSubmit is captured fresh.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [username, email, password, confirmPassword, mode, loading]);
+  }, [email, password, confirmPassword, mode, loading]);
 
   // Shared, tokenized input styling so every field reads identically. Resting
   // state is a hairline border on the elevated surface; no glow at rest.
@@ -205,34 +193,18 @@ export default function AuthScreen() {
             {mode === "login" ? "Sign in to your account" : "Create an account"}
           </Text>
 
-          <Text {...labelStyle}>{mode === "login" ? "Email" : "Username"}</Text>
+          <Text {...labelStyle}>Email</Text>
           <Input
-            placeholder={mode === "login" ? "you@example.com" : "your_username"}
+            placeholder="you@example.com"
             placeholderTextColor={colors.faint}
-            value={username}
-            onChangeText={setUsername}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
             disabled={loading}
             {...inputStyle}
           />
-
-          {mode === "register" && (
-            <>
-              <Text {...labelStyle}>Email</Text>
-              <Input
-                placeholder="you@example.com"
-                placeholderTextColor={colors.faint}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                disabled={loading}
-                {...inputStyle}
-              />
-            </>
-          )}
 
           <Text {...labelStyle}>Password</Text>
           <PasswordInput

@@ -7,7 +7,7 @@ import {
   fetchFavorites, upsertFavorite, deleteFavorite,
   isSupabaseConfigured, getSession, claimDevice,
   signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut,
-  onAuthStateChange, fetchProfile, upsertProfile,
+  onAuthStateChange, fetchProfile,
   fetchAppProfiles, insertAppProfile, updateAppProfile, deleteAppProfile,
   fetchIptvAccounts, insertIptvAccount,
   updateIptvAccount as supabaseUpdateIptvAccount,
@@ -469,16 +469,10 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     if (!authUser || deviceStatus !== 'ok') return;
-    const meta = authUser.user_metadata;
-    if (meta?.username) {
-      // Set the profile optimistically from the JWT metadata we already hold so
-      // first paint doesn't wait on two serial Supabase calls. Reconcile in the
-      // background: fire-and-forget upsert, then re-read for any server fields.
-      setProfile({ username: meta.username, email: authUser.email });
-      upsertProfile(authUser.id, meta.username, authUser.email).catch(() => {});
-    } else {
-      fetchProfile(authUser.id).then((p) => { if (p) setProfile(p); }).catch(() => {});
-    }
+    // Email-only auth: there is no username in signup metadata anymore, so
+    // always fetch the profile from the server (name/email now live in the
+    // `profiles` row, set server-side by the `admin`/`data` functions).
+    fetchProfile(authUser.id).then((p) => { if (p) setProfile(p); }).catch(() => {});
     fetchAppProfiles(authUser.id).then(setAppProfiles).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.id, deviceStatus]);
