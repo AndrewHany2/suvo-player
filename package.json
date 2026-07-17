@@ -17,7 +17,7 @@
     "build:ios:prod": "eas build --platform ios --profile production",
     "web": "expo start --web --port 3001",
     "build:web": "expo export --platform web --clear && node scripts/obfuscate.js dist web",
-    "build:electron": "npx rimraf dist electron/release && npm run build:web && electron-builder --config electron/builder.json --publish never",
+    "build:electron": "rm -rf dist electron/release && npm run build:web && electron-builder --config electron/builder.json --publish never",
     "build:tv": "EXPO_PUBLIC_TV=1 expo export --platform web --output-dir tv/dist --clear && node tv/patch-index.js && node scripts/obfuscate.js tv/dist tv",
     "sim:lg": "npm run build:tv && rm -rf tv/packaging/lg/_expo && cp -r tv/dist/* tv/packaging/lg/ && ares-launch -s 26 tv/packaging/lg",
     "sim:lg:inspect": "npm run build:tv && rm -rf tv/packaging/lg/_expo && cp -r tv/dist/* tv/packaging/lg/ && node tv/enable-inspector.js && (pkill -f webOS_TV_26_Simulator_1.5.0 || true) && sleep 3 && ares-launch -s 26 tv/packaging/lg",
