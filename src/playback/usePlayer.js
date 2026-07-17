@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
+import { reportFatalPlayback } from "../services/observability";
 import { createHlsDriver, createHlsInstance } from "./drivers/hlsDriver";
 import { createMpegtsDriver } from "./drivers/mpegtsDriver";
 import { createLiveRouterDriver } from "./drivers/liveRouterDriver";
@@ -278,6 +279,10 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     // retrying; re-loading the same signed URL forces a fresh handshake. A real
     // credential-refresh would live in AppContext (out of scope here).
     refreshCredentials: () => {},
+    // Surface the fatal-playback signal the recovery machine computes (GONE /
+    // AUTH_EXPIRED / …) — previously discarded — to the observability layer.
+    onFatal: (reason) =>
+      reportFatalPlayback({ reason, isLive, streamId: currentVideo?.streamId, engine: "hls" }),
   });
 
   const isLoading = playback.status === "idle" || playback.status === "loading";

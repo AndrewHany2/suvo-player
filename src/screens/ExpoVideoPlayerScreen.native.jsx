@@ -11,6 +11,7 @@ import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
 import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
+import { reportFatalPlayback } from "../services/observability";
 import storage from "../utils/storage";
 import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
 import { findNextEpisode, buildNextEpisodeVideo } from "../playback/episodeNav";
@@ -154,6 +155,8 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     isLive,
     startTime: isLive ? 0 : resolvedStart || currentVideo?.startTime || 0,
     refreshCredentials: () => {},
+    onFatal: (reason) =>
+      reportFatalPlayback({ reason, isLive, streamId: currentVideo?.streamId, engine: "expo-video" }),
   });
 
   const isLoading = playback.status === "idle" || playback.status === "loading";

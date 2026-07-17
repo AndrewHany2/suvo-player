@@ -17,6 +17,17 @@ const os = require("os");
 const { buildVlcInvocation } = require("./vlcInvocation.js");
 const { resolveAppAssetPath } = require("./appAssetPath.js");
 
+// Main-process crash visibility. The renderer installs its own window handlers
+// (src/services/observability.js), but a throw here — outside the renderer —
+// would otherwise die silently. Log both so desktop failures surface in the
+// terminal / packaged logs. Kept minimal and non-fatal for rejections.
+process.on("uncaughtException", (err) => {
+  console.error("[electron:uncaughtException]", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[electron:unhandledRejection]", reason);
+});
+
 // The only origins our own renderer is ever served from: the packaged app://
 // scheme, and the Expo dev server in development. Everything else is untrusted.
 const ALLOWED_ORIGINS = ["app://localhost", "http://localhost:3001"];

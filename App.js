@@ -8,6 +8,8 @@ import { colors } from './src/ui/tokens';
 import { AppProvider } from './src/context/AppContext';
 import { PlatformProvider } from './src/platform/PlatformProvider';
 import AppNavigator from './src/navigation/AppNavigator';
+import ErrorBoundary from './src/components/ErrorBoundary';
+import { installGlobalHandlers } from './src/services/observability';
 
 // Supabase's GoTrueClient logs a bare console.error when a stored refresh token
 // is rejected on startup ("Invalid Refresh Token: Refresh Token Not Found").
@@ -53,14 +55,23 @@ export default function App() {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
   }, []);
 
+  // Capture uncaught JS errors / promise rejections process-wide (idempotent,
+  // per-platform feature-detected). Without this, an uncaught error vanishes
+  // with zero developer visibility on any of the six targets.
+  useEffect(() => {
+    installGlobalHandlers();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <StatusBar style="light" backgroundColor={colors.bg} />
-      <PlatformProvider>
-        <AppProvider>
-          <AppNavigator />
-        </AppProvider>
-      </PlatformProvider>
+      <ErrorBoundary>
+        <PlatformProvider>
+          <AppProvider>
+            <AppNavigator />
+          </AppProvider>
+        </PlatformProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
