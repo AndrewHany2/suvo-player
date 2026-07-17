@@ -4,7 +4,8 @@ import { useContentService } from "./useContentService";
 import tmdbApi from "../../services/tmdbApi";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 import { isLowEndDevice } from "../../utils/deviceTier";
-import { isAuthError, authErrorMessage } from "../../utils/authError";
+import { isAuthError, describeError } from "../../utils/authError";
+import { isConnectivityError } from "../../utils/networkError.logic.js";
 
 // Cap the drill-in item cache so a long browsing session can't pin the item lists
 // for every category in memory at once (WebOS budget is tight). Halved on low-RAM
@@ -152,7 +153,7 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
     } catch (err) {
       console.error(`${logName}.load:`, err);
       setError(true);
-      setErrorMessage(authErrorMessage(err));
+      setErrorMessage(describeError(err));
     } finally {
       setLoading(false);
       setLoaded(true);
@@ -195,19 +196,20 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
       setShelves((prev) => prev.map((s) =>
         s.id === catId ? { ...s, items, totalCount: items.length, hasMore: false } : s));
     } catch (err) {
-      // A provider auth error (401/403) means every category will fail the same
-      // way — trip the breaker and surface the full error panel ("if one fails,
-      // all fail") instead of hiding this shelf and letting the rest fan out.
-      if (isAuthError(err)) {
+      // A provider auth error (401/403) OR a connectivity fault (network / timeout
+      // / gateway 521) means every category fails the same way — trip the breaker
+      // and surface the full error panel ("if one fails, all fail") instead of
+      // hiding this shelf and letting the rest spin then silently empty.
+      if (isAuthError(err) || isConnectivityError(err)) {
         authFailedRef.current = true;
-        console.warn(`${logName}: access denied loading shelf "${catId}" — stopping`, err);
+        console.warn(`${logName}: access denied / unreachable loading shelf "${catId}" — stopping`, err);
         setError(true);
-        setErrorMessage(authErrorMessage(err));
+        setErrorMessage(describeError(err));
         return;
       }
-      // Isolated (non-auth) failure: hide just this shelf (items:[] →
-      // ContentShelf renders null). loadedRef still holds catId, so it won't
-      // retry — no loop. Log it so a broken rail isn't a silent mystery.
+      // Isolated (non-auth, non-connectivity) failure: hide just this shelf
+      // (items:[] → ContentShelf renders null). loadedRef still holds catId, so it
+      // won't retry — no loop. Log it so a broken rail isn't a silent mystery.
       console.warn(`${logName}: shelf "${catId}" failed to load`, err);
       setShelves((prev) => prev.map((s) =>
         s.id === catId ? { ...s, items: [], totalCount: 0, hasMore: false } : s));
