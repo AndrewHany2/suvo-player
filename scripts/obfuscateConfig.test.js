@@ -25,8 +25,11 @@ test("web preset keeps transformObjectKeys OFF (white-screens RN-web — see 202
   assert.strictEqual(webPreset.transformObjectKeys, false);
 });
 
-test("web preset keeps runtime anti-tamper OFF (that is Phase B)", () => {
-  assert.strictEqual(webPreset.selfDefending, false);
+test("web preset enables selfDefending (Phase B L2) but keeps debugProtection OFF", () => {
+  // selfDefending: resists beautify/patch of the shipped bundle (Layer 2).
+  // debugProtection stays OFF — it freezes on open devtools and needs its own
+  // per-target testing before shipping (tracked in the Phase B native/verify plan).
+  assert.strictEqual(webPreset.selfDefending, true);
   assert.strictEqual(webPreset.debugProtection ?? false, false);
 });
 

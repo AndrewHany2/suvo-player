@@ -38,12 +38,18 @@ const tvPreset = {
 // 'focusBracket')` and rendered nothing). RN-web / React internals read some
 // object keys by their original name across module boundaries, so renaming them
 // breaks at runtime. Do not re-enable without a passing boot smoke.
+//
+// selfDefending is ON (Phase B, Layer 2): wraps the bundle in a self-checking
+// guard so beautifying/patching the shipped code breaks it — raises the cost of
+// tampering. Runtime-safe on the pristine bundle (verified by boot smoke
+// 2026-07-17). debugProtection stays OFF — it traps on open devtools and needs
+// its own per-target validation first.
 const webPreset = {
   compact: true,
   controlFlowFlattening: true,
   controlFlowFlatteningThreshold: 0.5,
   deadCodeInjection: false,
-  selfDefending: false,
+  selfDefending: true,
   stringArray: true,
   stringArrayThreshold: 0.75,
   stringArrayEncoding: ["rc4"],
