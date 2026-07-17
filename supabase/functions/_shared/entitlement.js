@@ -23,7 +23,7 @@
  * @returns {{entitled:boolean, reason:string}} reason ∈
  *   no-entitlement | suspended | revoked | expired | ok
  */
-function evaluateEntitlement(row, nowMs) {
+export function evaluateEntitlement(row, nowMs) {
   if (!row) return { entitled: false, reason: "no-entitlement" };
 
   // status column is 'active' | 'suspended'. Any non-empty, non-active value
@@ -33,14 +33,13 @@ function evaluateEntitlement(row, nowMs) {
     return { entitled: false, reason: "suspended" };
   }
 
-  // Kill switch (mirrors device_bindings.revoked_at). A present revoked_at that
-  // is in the past — or malformed — revokes now; a future value is a scheduled
-  // revocation that has not yet taken effect.
+  // Kill switch — matches device_bindings, where ANY non-null revoked_at revokes
+  // immediately (deviceGate filters `.is("revoked_at", null)`). We deliberately
+  // do NOT honour a "future" revoked_at as scheduled: a set value means revoked,
+  // full stop, so a mis-entered or wrong-timezone timestamp can never leave a
+  // revoked user watching. nowMs is intentionally unused for revocation.
   if (row.revoked_at != null) {
-    const rev = Date.parse(row.revoked_at);
-    if (!Number.isFinite(rev) || rev <= nowMs) {
-      return { entitled: false, reason: "revoked" };
-    }
+    return { entitled: false, reason: "revoked" };
   }
 
   // Trial / license window. null expires_at = no expiry (paid/active). A past or
@@ -54,5 +53,3 @@ function evaluateEntitlement(row, nowMs) {
 
   return { entitled: true, reason: "ok" };
 }
-
-module.exports = { evaluateEntitlement };

@@ -1,6 +1,6 @@
-const test = require("node:test");
-const assert = require("node:assert");
-const { evaluateEntitlement } = require("./entitlement.js");
+import { test } from "node:test";
+import assert from "node:assert";
+import { evaluateEntitlement } from "./entitlement.js";
 
 const NOW = Date.parse("2026-07-17T00:00:00Z");
 const future = new Date(NOW + 86400000).toISOString();
@@ -43,12 +43,17 @@ test("malformed revoked_at → denied (fail closed)", () => {
   assert.deepStrictEqual(r, { entitled: false, reason: "revoked" });
 });
 
-test("future revoked_at → scheduled, not yet revoked", () => {
-  const r = evaluateEntitlement(
-    { status: "active", revoked_at: future, expires_at: future },
-    NOW,
+test("any non-null revoked_at revokes immediately (even a future timestamp)", () => {
+  // Kill-switch semantics match device_bindings: a set value means revoked, so a
+  // future/fumbled timestamp can't leave a revoked user watching.
+  assert.deepStrictEqual(
+    evaluateEntitlement({ status: "active", revoked_at: future, expires_at: future }, NOW),
+    { entitled: false, reason: "revoked" },
   );
-  assert.deepStrictEqual(r, { entitled: true, reason: "ok" });
+  assert.deepStrictEqual(
+    evaluateEntitlement({ status: "active", revoked_at: new Date(NOW).toISOString() }, NOW),
+    { entitled: false, reason: "revoked" },
+  );
 });
 
 test("expired trial → denied", () => {

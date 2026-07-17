@@ -48,6 +48,15 @@ describe("evaluateClientEntitlement (advisory client gate)", () => {
     );
   });
 
+  test("entitled snapshot with malformed expires_at → trusts the server verdict (plays)", () => {
+    // The advisory gate ignores garbage expiry (server is authoritative on it);
+    // it only re-checks a well-formed, already-passed expiry for offline safety.
+    assert.deepEqual(
+      evaluateClientEntitlement({ entitled: true, reason: "ok", expires_at: "garbage" }, NOW),
+      { canPlay: true, reason: "ok" },
+    );
+  });
+
   test("not entitled with no reason → 'not-entitled'", () => {
     assert.deepEqual(evaluateClientEntitlement({ entitled: false }, NOW), {
       canPlay: false,
