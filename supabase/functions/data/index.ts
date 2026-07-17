@@ -39,10 +39,16 @@ Deno.serve(async (req) => {
         // `username` is the legacy physical column that now holds the display name.
         const name = String(payload.username ?? "").trim();
         if (name.length < 1 || name.length > 60) return json({ error: "INVALID_INPUT" }, 400);
-        const { error } = await db("profiles").upsert(
-          { user_id: userId, username: name, email: payload.email },
-          { onConflict: "user_id" },
-        );
+        // profiles.email is display-only now (login uses the GoTrue email). Only
+        // write it when a well-formed value is supplied, and never null an
+        // existing value — so a client can't corrupt the reseller's login-email view.
+        const patch: Record<string, unknown> = { user_id: userId, username: name };
+        if (payload.email != null && payload.email !== "") {
+          const email = String(payload.email).trim().toLowerCase();
+          if (!email.includes("@")) return json({ error: "INVALID_INPUT" }, 400);
+          patch.email = email;
+        }
+        const { error } = await db("profiles").upsert(patch, { onConflict: "user_id" });
         if (error) return json({ error: "SERVER_ERROR" }, 500);
         return json({ ok: true });
       }
