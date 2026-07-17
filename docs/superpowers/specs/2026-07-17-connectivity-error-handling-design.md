@@ -139,8 +139,13 @@ implementation; only add where missing.
   each kind.
 - `loginResult.test.js` — connectivity error → throws `CONNECTIVITY_MESSAGE`
   with `kind:"network"`; a non-connectivity transport error → still generic.
-- `useLiveTV` / `useCatalog` — a connectivity error during shelf load trips
-  `error` (not silent-empty) and sets a message via `describeError`.
+- `useLiveTV` / `useCatalog` — **no hook-render test.** The repo unit-tests
+  pure logic only (no react-test-renderer / RTL), so the hook wiring is not
+  covered by an automated render test. Its correctness rests on the pure-logic
+  tests above (`isConnectivityError` classifies the fault, `describeError`
+  produces the copy) plus `npm run lint` (no unused imports / breaker wiring)
+  and the manual smoke below (a connectivity error during shelf load trips the
+  error panel instead of leaving shelves silent-empty).
 
 ## Files touched
 
