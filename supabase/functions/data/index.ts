@@ -13,6 +13,7 @@ import {
   ACCOUNT_EXPIRED,
   PROVIDER_SUSPENDED,
 } from "../_shared/deviceGate.ts";
+import { validateEntry } from "../_shared/entryLimits.js";
 
 const MAX_HISTORY = 20;
 
@@ -142,6 +143,7 @@ Deno.serve(async (req) => {
       }
       case "history.upsert": {
         await assertOwnsUserKey(admin, userId, payload.userKey);
+        if (!validateEntry(payload.entry).ok) return json({ error: "INVALID_INPUT" }, 400);
         await db("watch_history").upsert(
           {
             user_key: payload.userKey,
@@ -174,6 +176,7 @@ Deno.serve(async (req) => {
       }
       case "favorites.upsert": {
         await assertOwnsUserKey(admin, userId, payload.userKey);
+        if (!validateEntry(payload.entry).ok) return json({ error: "INVALID_INPUT" }, 400);
         await db("favorites").upsert(
           {
             user_key: payload.userKey,
