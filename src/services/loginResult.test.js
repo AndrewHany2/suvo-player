@@ -16,10 +16,10 @@ test("throws the server-supplied message on an expected failure", () => {
   assert.throws(
     () =>
       mapLoginResult({
-        data: { ok: false, error: "Invalid username/email or password." },
+        data: { ok: false, error: "Invalid email or password." },
         error: null,
       }),
-    /invalid username\/email or password/i,
+    /invalid email or password/i,
   );
 });
 
@@ -48,13 +48,13 @@ test("throws a generic message on a transport error (no internals leaked)", () =
 test("rejects a malformed ok:true body that is missing tokens", () => {
   assert.throws(
     () => mapLoginResult({ data: { ok: true, access_token: "a" }, error: null }),
-    /invalid username\/email or password/i,
+    /invalid email or password/i,
   );
 });
 
 test("rejects a body with neither ok nor error", () => {
   assert.throws(
     () => mapLoginResult({ data: {}, error: null }),
-    /invalid username\/email or password/i,
+    /invalid email or password/i,
   );
 });

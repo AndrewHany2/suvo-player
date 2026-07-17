@@ -10,12 +10,12 @@ function mapLoginResult({ data, error }) {
   }
   if (!data || data.ok !== true) {
     throw new Error(
-      (data && data.error) || "Invalid username/email or password.",
+      (data && data.error) || "Invalid email or password.",
     );
   }
   const { access_token, refresh_token } = data;
   if (!access_token || !refresh_token) {
-    throw new Error("Invalid username/email or password.");
+    throw new Error("Invalid email or password.");
   }
   return { access_token, refresh_token };
 }

@@ -69,39 +69,28 @@ export async function getSession() {
   return data.session;
 }
 
-export async function signUp(username, password, email) {
+export async function signUp(email, password) {
   const { data, error } = await client().auth.signUp({
     email: email.toLowerCase(),
     password,
-    options: { data: { username: username.toLowerCase() } },
   });
   if (error) {
     if (error.message?.toLowerCase().includes("rate limit"))
-      throw new Error(
-        "Too many sign-up attempts. Please wait a few minutes and try again.",
-      );
+      throw new Error("Too many sign-up attempts. Please wait a few minutes and try again.");
     throw new Error(error.message);
   }
   return data.user;
 }
 
-export async function signIn(usernameOrEmail, password) {
+export async function signIn(email, password) {
   if (!client()) throw new Error("Supabase not configured");
-  // Username→email resolution AND the password check both happen server-side in
-  // the `login` Edge Function (verify_jwt=false). The client never reads the
-  // profiles table — that was the last direct table read, and removing it
-  // unblocks the anon/authenticated grant-revoke. The email is never returned,
-  // and an unknown username is indistinguishable from a wrong password.
+  // Email-only login. The password check + reseller status gate run server-side
+  // in the `login` Edge Function (verify_jwt=false); the client never reads profiles.
   const res = await client().functions.invoke("login", {
-    body: { usernameOrEmail, password },
+    body: { email, password },
   });
   const { access_token, refresh_token } = mapLoginResult(res);
-  // Install the returned session so this client instance is authenticated for
-  // subsequent invokeData calls and onAuthStateChange fires.
-  const { data, error } = await client().auth.setSession({
-    access_token,
-    refresh_token,
-  });
+  const { data, error } = await client().auth.setSession({ access_token, refresh_token });
   if (error) throw new Error(error.message);
   return data.user;
 }
