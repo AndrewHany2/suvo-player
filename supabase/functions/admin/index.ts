@@ -3,6 +3,7 @@
 // the pure adminLogic module, then performs writes with the service role.
 // verify_jwt defaults to true (config.toml) — only authenticated callers reach here.
 import { getUserId, adminClient, json, corsPreflight, loadAccountStatus } from "../_shared/deviceGate.ts";
+import { scrubAuditMeta } from "../_shared/auditMeta.js";
 import {
   canInvoke,
   canActOnAccount,
@@ -17,7 +18,9 @@ import {
 type Admin = ReturnType<typeof adminClient>;
 
 async function audit(admin: Admin, actorId: string, action: string, target: string | null, meta: unknown) {
-  await admin.from("admin_audit").insert({ actor_id: actorId, action, target, meta: meta ?? null });
+  // scrubAuditMeta strips any password/token/credential key defensively, so a
+  // future call site mistake can never leak a secret into admin_audit.
+  await admin.from("admin_audit").insert({ actor_id: actorId, action, target, meta: scrubAuditMeta(meta) ?? null });
 }
 
 // Load the caller's providers row → the `caller` shape adminLogic expects.
