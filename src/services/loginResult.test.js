@@ -58,3 +58,23 @@ test("rejects a body with neither ok nor error", () => {
     /invalid email or password/i,
   );
 });
+
+test("throws the connectivity message + kind on a network transport fault", () => {
+  try {
+    mapLoginResult({ data: null, error: { name: "FunctionsFetchError", message: "Failed to send a request to the Edge Function" } });
+    assert.fail("expected throw");
+  } catch (e) {
+    assert.match(e.message, /can't reach the server/i);
+    assert.equal(e.kind, "network");
+  }
+});
+
+test("treats a gateway 521 from the edge as connectivity", () => {
+  try {
+    mapLoginResult({ data: null, error: { message: "Edge Function returned a non-2xx status code", context: { status: 521 } } });
+    assert.fail("expected throw");
+  } catch (e) {
+    assert.match(e.message, /can't reach the server/i);
+    assert.equal(e.kind, "network");
+  }
+});
