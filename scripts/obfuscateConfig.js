@@ -5,21 +5,35 @@
 
 // TV (webOS/Tizen) — weak engines over file://. controlFlowFlattening,
 // deadCodeInjection, stringArrayEncoding, selfDefending crawl or break there.
-// Kept: identifier mangling, string-array extraction, compaction. Only add a
-// strong flag after validating on `npm run sim:lg` AND `npm run sim:tizen`.
+// Kept: identifier mangling, string-array extraction, compaction.
+//
+// Task-3 hardening (2026-07-17): added stringArrayThreshold:1 (extract ALL
+// strings) + splitStrings (concatenation only). These are strictly milder than
+// the web preset — no runtime decode, no control-flow rewrite, no key renaming —
+// so they carry no crawl/break risk beyond what already runs on V8. NOT yet
+// confirmed on a real TV engine (the webOS sim isn't installed here and the
+// Tizen emulator can't HW-virtualize on this machine), so treat boot-time/perf
+// as PENDING on-device confirmation — see docs/OBFUSCATION.md.
+//
+// Deliberately still OFF pending a real webOS+Tizen boot test (`npm run sim:lg`
+// AND `npm run sim:tizen`, or deploy to the LG TV): stringArrayEncoding
+// (base64/rc4 — runtime decode is the classic weak-engine crawl), and
+// controlFlowFlattening (biggest hang risk). transformObjectKeys stays off
+// permanently — it white-screens RN-web even on V8.
 const tvPreset = {
   compact: true,
   controlFlowFlattening: false,
   deadCodeInjection: false,
   selfDefending: false,
   stringArray: true,
-  stringArrayThreshold: 0.5,
+  stringArrayThreshold: 1,
   stringArrayEncoding: [],
   rotateStringArray: true,
   identifierNamesGenerator: "mangled",
   numbersToExpressions: false,
   simplify: true,
-  splitStrings: false,
+  splitStrings: true,
+  splitStringsChunkLength: 8,
   transformObjectKeys: false,
   unicodeEscapeSequence: false,
   disableConsoleOutput: false,
