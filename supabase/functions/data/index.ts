@@ -36,10 +36,14 @@ Deno.serve(async (req) => {
         return json(data ?? null);
       }
       case "profiles.upsert": {
-        await db("profiles").upsert(
-          { user_id: userId, username: payload.username, email: payload.email },
+        // `username` is the legacy physical column that now holds the display name.
+        const name = String(payload.username ?? "").trim();
+        if (name.length < 1 || name.length > 60) return json({ error: "INVALID_INPUT" }, 400);
+        const { error } = await db("profiles").upsert(
+          { user_id: userId, username: name, email: payload.email },
           { onConflict: "user_id" },
         );
+        if (error) return json({ error: "SERVER_ERROR" }, 500);
         return json({ ok: true });
       }
       case "appProfiles.list": {
