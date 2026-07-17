@@ -1,16 +1,37 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { OBFUSCATE_OPTIONS } = require("./obfuscateConfig.js");
+const { getPreset, webPreset, tvPreset } = require("./obfuscateConfig.js");
 
-test("preset is TV-safe: no control-flow flattening, no string-array encoding", () => {
-  assert.strictEqual(OBFUSCATE_OPTIONS.controlFlowFlattening, false);
-  assert.strictEqual(OBFUSCATE_OPTIONS.deadCodeInjection, false);
-  assert.strictEqual(OBFUSCATE_OPTIONS.selfDefending, false);
-  assert.deepStrictEqual(OBFUSCATE_OPTIONS.stringArrayEncoding, []);
+test("tv preset stays TV-safe: no CFF, no string-array encoding, no self-defending", () => {
+  assert.strictEqual(tvPreset.controlFlowFlattening, false);
+  assert.strictEqual(tvPreset.deadCodeInjection, false);
+  assert.strictEqual(tvPreset.selfDefending, false);
+  assert.deepStrictEqual(tvPreset.stringArrayEncoding, []);
 });
 
-test("preset still mangles identifiers and uses a string array", () => {
-  assert.strictEqual(OBFUSCATE_OPTIONS.identifierNamesGenerator, "mangled");
-  assert.strictEqual(OBFUSCATE_OPTIONS.stringArray, true);
-  assert.strictEqual(OBFUSCATE_OPTIONS.compact, true);
+test("tv preset still mangles identifiers and uses a string array", () => {
+  assert.strictEqual(tvPreset.identifierNamesGenerator, "mangled");
+  assert.strictEqual(tvPreset.stringArray, true);
+  assert.strictEqual(tvPreset.compact, true);
+});
+
+test("web preset is balanced-aggressive: CFF + RC4 string encoding + splitting + object keys", () => {
+  assert.strictEqual(webPreset.controlFlowFlattening, true);
+  assert.deepStrictEqual(webPreset.stringArrayEncoding, ["rc4"]);
+  assert.strictEqual(webPreset.splitStrings, true);
+  assert.strictEqual(webPreset.transformObjectKeys, true);
+});
+
+test("web preset keeps runtime anti-tamper OFF (that is Phase B)", () => {
+  assert.strictEqual(webPreset.selfDefending, false);
+  assert.strictEqual(webPreset.debugProtection ?? false, false);
+});
+
+test("getPreset returns the matching preset", () => {
+  assert.strictEqual(getPreset("web"), webPreset);
+  assert.strictEqual(getPreset("tv"), tvPreset);
+});
+
+test("getPreset throws loudly on an unknown profile", () => {
+  assert.throws(() => getPreset("desktop"), /unknown obfuscation profile/i);
 });
