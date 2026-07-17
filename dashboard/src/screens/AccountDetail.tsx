@@ -16,7 +16,7 @@ type Line = {
 
 type AccountDetailData = {
   userId: string;
-  username: string;
+  name: string;
   email: string;
   status: string;
   expiresAt: string | null;
@@ -95,7 +95,7 @@ export default function AccountDetail() {
     <div className="container">
       <div className="page-header">
         <div>
-          <h1>{data.username}</h1>
+          <h1>{data.name}</h1>
           <Badge tone={status.tone}>{status.text}</Badge>{" "}
           <span className="muted">Expires {fmtDate(data.expiresAt)}</span>
         </div>
@@ -121,6 +121,7 @@ function SubscriptionCard({
 }) {
   const [deviceLimitDraft, setDeviceLimitDraft] = useState(data.deviceLimit != null ? String(data.deviceLimit) : "");
   const [noteDraft, setNoteDraft] = useState(data.note ?? "");
+  const [nameDraft, setNameDraft] = useState(data.name ?? "");
   const [expiryChoice, setExpiryChoice] = useState<ExpiryChoice>("1");
   const [customDate, setCustomDate] = useState("");
 
@@ -128,6 +129,7 @@ function SubscriptionCard({
   const [savingExpiry, setSavingExpiry] = useState(false);
   const [savingSuspend, setSavingSuspend] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [savingName, setSavingName] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -137,7 +139,8 @@ function SubscriptionCard({
     // null value in its Devices column.
     setDeviceLimitDraft(data.deviceLimit != null ? String(data.deviceLimit) : "");
     setNoteDraft(data.note ?? "");
-  }, [data.deviceLimit, data.note]);
+    setNameDraft(data.name ?? "");
+  }, [data.deviceLimit, data.note, data.name]);
 
   async function run(setBusy: (b: boolean) => void, patch: Record<string, unknown>) {
     setBusy(true);
@@ -156,6 +159,27 @@ function SubscriptionCard({
     <section className="card">
       <h2>Subscription</h2>
       {error && <p className="field-error">{error}</p>}
+
+      <div className="card-row">
+        <Field label="Login email">
+          <input value={data.email} readOnly onFocus={(e) => e.currentTarget.select()} />
+        </Field>
+        <Button variant="secondary" onClick={() => navigator.clipboard?.writeText(data.email)}>
+          Copy
+        </Button>
+      </div>
+
+      <div className="card-row">
+        <Field label="Name">
+          <input value={nameDraft} maxLength={60} onChange={(e) => setNameDraft(e.target.value)} />
+        </Field>
+        <Button
+          disabled={savingName || nameDraft.trim().length < 1}
+          onClick={() => run(setSavingName, { name: nameDraft.trim() })}
+        >
+          {savingName ? "Saving…" : "Save name"}
+        </Button>
+      </div>
 
       <div className="card-row">
         <Field label="Device limit">
@@ -549,14 +573,14 @@ function DangerZone({
         <Modal title="Delete account" onClose={() => setOpen(false)}>
           {error && <p className="field-error">{error}</p>}
           <p>
-            This permanently deletes <strong>{data.username}</strong> and all of its devices and history. Type the
-            username to confirm.
+            This permanently deletes <strong>{data.name}</strong> and all of its devices and history. Type the
+            name to confirm.
           </p>
-          <Field label="Username">
+          <Field label="Name">
             <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" />
           </Field>
           <div className="btn-row">
-            <Button variant="danger" disabled={deleting || confirmText !== data.username} onClick={handleDelete}>
+            <Button variant="danger" disabled={deleting || confirmText !== data.name} onClick={handleDelete}>
               {deleting ? "Deleting…" : "Delete account"}
             </Button>
             <Button variant="secondary" disabled={deleting} onClick={() => setOpen(false)}>
