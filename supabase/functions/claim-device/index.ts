@@ -40,6 +40,49 @@ Deno.serve(async (req) => {
 
     if (error) return json({ error: "SERVER_ERROR" }, 500);
     if (status === "denied") return json({ status: "denied" }, 403);
+
+    // Provision the caller's entitlement on first claim. Idempotent:
+    // ignoreDuplicates never overwrites an existing row, so a re-claim can't
+    // reset/extend it, and grandfathered/pre-provisioned rows are left intact.
+    //
+    // Provider-provisioned customers (they have a customer_accounts row) get NO
+    // entitlement expiry — their subscription TERM is governed by
+    // customer_accounts / assertAccountActive (kept in sync by admin
+    // accounts.update). The entitlements row exists only so the fail-closed
+    // content gate passes and to carry the per-user revoked_at kill switch; do
+    // NOT mirror the reseller term here (that would duplicate it and drift on
+    // renewal, locking out paying customers).
+    //
+    // The 7-day trial window applies ONLY to self-signup accounts (no
+    // customer_accounts row) — future work once signup/billing lands; today it
+    // also bounds any stray account rather than granting access forever. Expiry
+    // is stamped from the SERVER clock so a frozen client clock can't lengthen it.
+    //
+    // Best-effort: a failure here must NOT fail a claim whose device bind already
+    // succeeded — the gate fails closed anyway and the next boot re-provisions.
+    try {
+      const { data: acct } = await admin
+        .from("customer_accounts")
+        .select("user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const TRIAL_DAYS = 7;
+      const entitlement = acct
+        ? { user_id: userId, plan: "active", status: "active", expires_at: null }
+        : {
+            user_id: userId,
+            plan: "trial",
+            status: "active",
+            trial_started_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString(),
+          };
+      await admin
+        .from("entitlements")
+        .upsert(entitlement, { onConflict: "user_id", ignoreDuplicates: true });
+    } catch (bootErr) {
+      console.error("entitlement bootstrap failed (non-fatal):", (bootErr as Error).message);
+    }
+
     return json({ status }); // "bound" | "ok"
   } catch (e) {
     const msg = (e as Error).message;

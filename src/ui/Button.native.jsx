@@ -70,6 +70,14 @@ const Button = forwardRef(function Button(
       ref={ref}
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
+      // Screen-reader semantics for every native button (icon-only ones had no
+      // role/state before). Callers can still override via ...rest.
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      // `sm` can fall below the 44px touch minimum (minH:0). Expand the touch
+      // target vertically only — clears the minimum without changing layout or
+      // overlapping neighbors in horizontal toolbars.
+      hitSlop={sz.minH ? undefined : { top: 10, bottom: 10 }}
       style={({ pressed }) => [base, pressed && !disabled ? { opacity: 0.8 } : null, style]}
       {...rest}
     >

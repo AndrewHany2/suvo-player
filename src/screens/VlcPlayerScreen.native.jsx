@@ -11,6 +11,7 @@ import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
 import { usePlayback, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
+import { reportFatalPlayback } from "../services/observability";
 import { createVlcDriver } from "../playback/drivers/vlcDriver";
 import { findNextEpisode, buildNextEpisodeVideo } from "../playback/episodeNav";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
@@ -122,6 +123,8 @@ export default function VlcPlayerScreen({ navigation }) {
     isLive: false,
     startTime: resolvedStart || currentVideo?.startTime || 0,
     refreshCredentials: () => {},
+    onFatal: (reason) =>
+      reportFatalPlayback({ reason, isLive: false, streamId: currentVideo?.streamId, engine: "vlc" }),
   });
 
   const isLoading = playback.status === "idle" || playback.status === "loading";

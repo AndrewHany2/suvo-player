@@ -10,8 +10,8 @@ import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
 import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
+import { reportFatalPlayback } from "../services/observability";
 import storage from "../utils/storage";
 import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
 import { findNextEpisode, buildNextEpisodeVideo } from "../playback/episodeNav";
@@ -65,6 +65,21 @@ function loadBrightness() {
   }
 }
 
+/**
+ * expo-navigation-bar hides the Android system navigation bar (back / home /
+ * recents) for an immersive fullscreen. Resolve it lazily/guarded: Android-only,
+ * and a dev client that predates the native module simply keeps the bar rather
+ * than crashing. Returns the module or null.
+ */
+function loadNavigationBar() {
+  if (Platform.OS !== "android") return null;
+  try {
+    return require("expo-navigation-bar");
+  } catch {
+    return null;
+  }
+}
+
 import { formatDuration as formatTime } from "../utils/formatDuration";
 
 export default function ExpoVideoPlayerScreen({ navigation }) {
@@ -91,6 +106,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   const [showSleepMenu, setShowSleepMenu] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   // VOD seek bar: live-polled position/duration/buffered, and the in-progress
   // scrub preview (null when not dragging). Track width is measured on layout.
   const [progress, setProgress] = useState({ position: 0, duration: 0, buffered: 0 });
@@ -139,6 +155,8 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     isLive,
     startTime: isLive ? 0 : resolvedStart || currentVideo?.startTime || 0,
     refreshCredentials: () => {},
+    onFatal: (reason) =>
+      reportFatalPlayback({ reason, isLive, streamId: currentVideo?.streamId, engine: "expo-video" }),
   });
 
   const isLoading = playback.status === "idle" || playback.status === "loading";
@@ -193,6 +211,16 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     try { player.staysActiveInBackground = false; } catch {}
     try { player.showNowPlayingNotification = true; } catch {}
     try { if (typeof player.allowsExternalPlayback !== "undefined") player.allowsExternalPlayback = true; } catch {}
+  }, [player]);
+
+  // Mirror the engine's play/pause state so the center transport button and its
+  // icon stay in sync however playback toggles (button, end-of-media, background
+  // pause). expo-video getters can throw before a source loads, so seed guarded.
+  useEffect(() => {
+    if (!player) return undefined;
+    try { setIsPlaying(!!player.playing); } catch {}
+    const sub = player.addListener("playingChange", (e) => setIsPlaying(!!e?.isPlaying));
+    return () => { try { sub?.remove(); } catch {} };
   }, [player]);
 
   // Flush watch progress when the app is backgrounded/inactivated, and pause
@@ -266,7 +294,10 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   useEffect(() => {
     if (!isLive || currentVideo?.streamId == null) return;
     let cancelled = false;
-    fetchNowNext(iptvApi, currentVideo.streamId)
+    // Route through the active backend (ContentService), not the raw Xtream
+    // singleton — an M3U channel would otherwise get a prior Xtream account's
+    // stale EPG. ContentService returns empty for M3U (no short-EPG API).
+    fetchNowNext(contentService, currentVideo.streamId)
       .then((nn) => { if (!cancelled) setNowNext(nn || { now: null, next: null }); })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -312,6 +343,30 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       return next;
     });
   }, []);
+
+  // Play/pause toggle for the center transport button. Routes through the driver
+  // (not player.pause() directly) so the recovery machine's play-intent stays
+  // consistent — a manual pause won't be undone by a reconnect reload.
+  const togglePlayPause = useCallback(() => {
+    const p = playerRef.current;
+    if (!p || !driver) return;
+    let playing = false;
+    try { playing = !!p.playing; } catch {}
+    if (playing) driver.pause();
+    else driver.play();
+    resetControlsTimer();
+  }, [driver, resetControlsTimer]);
+
+  // Android immersive fullscreen: hide the system navigation bar (back / home /
+  // recents) while fullscreen, and restore it on exit or unmount. iOS/web are a
+  // no-op (module resolves to null off Android). setVisibilityAsync works under
+  // edge-to-edge; the hidden bar falls back to Android's swipe-to-reveal.
+  useEffect(() => {
+    const NavBar = loadNavigationBar();
+    if (!NavBar) return undefined;
+    NavBar.setVisibilityAsync(isFullscreen ? "hidden" : "visible").catch(() => {});
+    return () => { NavBar.setVisibilityAsync("visible").catch(() => {}); };
+  }, [isFullscreen]);
 
   // Poll position/duration/buffered for the VOD seek bar. Paused while the user
   // is actively scrubbing so our preview doesn't fight the live value.
@@ -745,6 +800,17 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
           <XStack justifyContent="center" paddingBottom={32}>
             <Button variant="secondary" size="md" icon="close" onPress={handleClose}>Close</Button>
           </XStack>
+        </YStack>
+      )}
+
+      {/* Center play/pause transport. Shown with the controls, hidden during
+          load / fatal error / resume prompt so it never overlaps them. The
+          box-none wrapper lets the surrounding video gestures still fire. */}
+      {showControls && !isLoading && !isFatal && !needsResumeChoice && (
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} justifyContent="center" alignItems="center" pointerEvents="box-none" zIndex={30}>
+          <YStack width={72} height={72} backgroundColor="rgba(0,0,0,0.55)" borderRadius={36} justifyContent="center" alignItems="center" cursor="pointer" onPress={togglePlayPause} pressStyle={{ opacity: 0.8 }}>
+            <Icon name={isPlaying ? "pause" : "play"} size={34} color={colors.text} />
+          </YStack>
         </YStack>
       )}
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
+import { reportFatalPlayback } from "../services/observability";
 import { createHlsDriver, createHlsInstance } from "./drivers/hlsDriver";
 import { createMpegtsDriver } from "./drivers/mpegtsDriver";
 import { createLiveRouterDriver } from "./drivers/liveRouterDriver";
@@ -279,6 +279,10 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     // retrying; re-loading the same signed URL forces a fresh handshake. A real
     // credential-refresh would live in AppContext (out of scope here).
     refreshCredentials: () => {},
+    // Surface the fatal-playback signal the recovery machine computes (GONE /
+    // AUTH_EXPIRED / …) — previously discarded — to the observability layer.
+    onFatal: (reason) =>
+      reportFatalPlayback({ reason, isLive, streamId: currentVideo?.streamId, engine: "hls" }),
   });
 
   const isLoading = playback.status === "idle" || playback.status === "loading";
@@ -843,7 +847,10 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     if (!isLive || !currentVideo?.streamId) return undefined;
     storage.setItem(LAST_CHANNEL_KEY, String(currentVideo.streamId)).catch(() => {});
     let cancelled = false;
-    fetchNowNext(iptvApi, currentVideo.streamId)
+    // Route now/next through the active backend (ContentService), not the raw
+    // Xtream singleton — otherwise an M3U channel gets the previous Xtream
+    // account's stale EPG. ContentService returns empty for M3U (no EPG API).
+    fetchNowNext(contentService, currentVideo.streamId)
       .then((nn) => { if (!cancelled) setNowNext(nn || { now: null, next: null }); })
       .catch(() => {});
     return () => { cancelled = true; };

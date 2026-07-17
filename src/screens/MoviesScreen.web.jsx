@@ -185,7 +185,7 @@ export default function MoviesScreen({ navigation }) {
         </YStack>
       </ScrollView>
       {categoryPage && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={20}>
           <CategoryPage
             name={categoryPage.name}
             items={categoryPage.items}
@@ -198,7 +198,7 @@ export default function MoviesScreen({ navigation }) {
         </YStack>
       )}
       {selectedMovie && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={20}>
           <MovieDetail
             item={selectedMovie}
             onBack={clearSelectedMovie}

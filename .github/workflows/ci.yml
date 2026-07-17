@@ -43,3 +43,23 @@ jobs:
       - run: npm ci
       - run: npm run build:web
       - run: npm run build:tv
+
+  # The reseller dashboard is a standalone Vite/TS app with its own lockfile and
+  # test suite (auth-gating, API, payload/format logic). It's security-sensitive
+  # and was previously in no workflow — typecheck (tsc -b via build) + vitest so
+  # a break there is caught on the PR, not in production.
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test

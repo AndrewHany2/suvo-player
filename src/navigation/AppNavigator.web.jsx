@@ -10,7 +10,6 @@ import { isMacCommand } from "../platform/adapters/input/keys";
 
 import AuthScreen from "../screens/AuthScreen";
 import ConfigErrorScreen from "../screens/ConfigErrorScreen";
-import DemoExpiredScreen from "../screens/DemoExpiredScreen";
 import DeviceLockedScreen from "../screens/DeviceLockedScreen";
 import ProfilesScreen from "../screens/ProfilesScreen";
 // Per-platform screen variants are resolved at BUILD time. Both web/electron
@@ -653,7 +652,6 @@ export default function AppNavigator() {
       <div style={{ width: 48, height: 48, border: "4px solid #28324E", borderTopColor: "#6C5CE7", borderRadius: "50%", animation: "suvo-spin 0.8s linear infinite", willChange: "transform" }} />
     </div>
   );
-  if (gate === "expired") return <DemoExpiredScreen />;
   if (gate === "config-error") return <ConfigErrorScreen />;
   if (gate === "loading") return splash;
   if (gate === "auth") return <AuthScreen />;
