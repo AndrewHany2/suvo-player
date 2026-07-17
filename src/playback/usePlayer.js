@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
 import { createHlsDriver, createHlsInstance } from "./drivers/hlsDriver";
 import { createMpegtsDriver } from "./drivers/mpegtsDriver";
@@ -843,7 +842,10 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     if (!isLive || !currentVideo?.streamId) return undefined;
     storage.setItem(LAST_CHANNEL_KEY, String(currentVideo.streamId)).catch(() => {});
     let cancelled = false;
-    fetchNowNext(iptvApi, currentVideo.streamId)
+    // Route now/next through the active backend (ContentService), not the raw
+    // Xtream singleton — otherwise an M3U channel gets the previous Xtream
+    // account's stale EPG. ContentService returns empty for M3U (no EPG API).
+    fetchNowNext(contentService, currentVideo.streamId)
       .then((nn) => { if (!cancelled) setNowNext(nn || { now: null, next: null }); })
       .catch(() => {});
     return () => { cancelled = true; };

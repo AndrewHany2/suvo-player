@@ -10,7 +10,6 @@ import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
 import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
-import iptvApi from "../services/iptvApi";
 import { contentService } from "../domain/services/ContentService";
 import storage from "../utils/storage";
 import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
@@ -292,7 +291,10 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   useEffect(() => {
     if (!isLive || currentVideo?.streamId == null) return;
     let cancelled = false;
-    fetchNowNext(iptvApi, currentVideo.streamId)
+    // Route through the active backend (ContentService), not the raw Xtream
+    // singleton — an M3U channel would otherwise get a prior Xtream account's
+    // stale EPG. ContentService returns empty for M3U (no short-EPG API).
+    fetchNowNext(contentService, currentVideo.streamId)
       .then((nn) => { if (!cancelled) setNowNext(nn || { now: null, next: null }); })
       .catch(() => {});
     return () => { cancelled = true; };
