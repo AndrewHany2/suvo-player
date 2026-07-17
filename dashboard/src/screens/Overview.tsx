@@ -4,7 +4,7 @@ import { useAuth } from "../auth";
 
 type Account = {
   userId: string;
-  username: string;
+  name: string;
   status: string;
   expiresAt: string | null;
   suspended: boolean;

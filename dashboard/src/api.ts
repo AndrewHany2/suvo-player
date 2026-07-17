@@ -9,7 +9,7 @@ const MESSAGES: Record<string, string> = {
   NOT_A_PROVIDER: "That account can't be deleted here.",
   FORBIDDEN: "You don't have permission to do that.",
   INVALID_INPUT: "Some fields are invalid — check and try again.",
-  CREATE_FAILED: "Could not create — the username/email may already exist.",
+  CREATE_FAILED: "Could not create — the email may already exist.",
   UPDATE_FAILED: "Could not save your changes — please try again.",
   UNKNOWN_ACTION: "That action isn't supported.",
   SERVER_ERROR: "Something went wrong on our end — please try again.",
