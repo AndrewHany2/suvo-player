@@ -103,3 +103,11 @@ To look up a uid from an email once (then reuse it above):
 ```sql
 select id, email from auth.users where lower(email) = lower('<email>');
 ```
+
+## Email-only login + name label (2026-07-17)
+
+1. `supabase db push` — applies `20260717000001_profiles_username_freeform_name.sql`
+   (frees `profiles.username` of UNIQUE/NOT NULL; it now holds a freeform name).
+2. Redeploy Edge Functions: `login`, `admin`, `data`.
+3. Ship the client (all platforms) with email-only `signIn`.
+4. Verify in Studio: `profiles.username` has no residual single-column UNIQUE index.
