@@ -16,7 +16,7 @@ export default function CreateAccount() {
   const navigate = useNavigate();
 
   // Account fields.
-  const [username, setUsername] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [deviceLimit, setDeviceLimit] = useState("1");
   const [note, setNote] = useState("");
@@ -51,7 +51,7 @@ export default function CreateAccount() {
       const expiresAt = computeExpiresAt(expiryChoice, customDate);
       const line = buildLinePayload(lineType, { host, lineUsername, linePassword, url, nickname });
       const payload = {
-        username: username.trim(),
+        name: name.trim(),
         password,
         deviceLimit: Number(deviceLimit),
         expiresAt,
@@ -78,14 +78,13 @@ export default function CreateAccount() {
       <form onSubmit={handleSubmit}>
         {error && <p className="field-error">{error}</p>}
 
-        <Field label="Username" error={fieldError("username", "3-32 characters: letters, numbers, . _ -")}>
+        <Field label="Name" error={fieldError("name", "Name is required (max 60 characters).")}>
           <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             autoComplete="off"
             required
-            minLength={3}
-            maxLength={32}
+            maxLength={60}
           />
         </Field>
 
@@ -111,7 +110,7 @@ export default function CreateAccount() {
           />
         </Field>
 
-        <Field label="Email (optional — auto-generated if left blank)">
+        <Field label="Email (optional — a login email is auto-generated if left blank)">
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
         </Field>
 
