@@ -27,6 +27,7 @@ export default function AuthScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [retryable, setRetryable] = useState(false);
 
   // Login only. Public sign-up is disabled server-side (config.toml
   // enable_signup=false) because this is a reseller-provisioned product —
@@ -34,6 +35,7 @@ export default function AuthScreen() {
   // app exposes no registration path.
   const handleSubmit = async () => {
     setError("");
+    setRetryable(false);
     if (!email.trim() || !password) {
       setError("Email and password are required.");
       return;
@@ -47,7 +49,10 @@ export default function AuthScreen() {
       await signIn(email.trim(), password);
     } catch (err) {
       const msg = err.message || "";
-      if (
+      if (err.kind === "network") {
+        setError(msg || "Can't reach the server. Check your internet connection and try again.");
+        setRetryable(true);
+      } else if (
         msg.toLowerCase().includes("rate limit") ||
         msg.toLowerCase().includes("email rate limit")
       ) {
@@ -215,6 +220,18 @@ export default function AuthScreen() {
                 {error}
               </Text>
             </XStack>
+          )}
+
+          {retryable && (
+            <Button
+              variant="secondary"
+              size="md"
+              onPress={handleSubmit}
+              disabled={loading}
+              style={{ marginTop: ss(12), width: "100%" }}
+            >
+              Retry
+            </Button>
           )}
 
           <Button
