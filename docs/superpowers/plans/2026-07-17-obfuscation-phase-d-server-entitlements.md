@@ -10,6 +10,15 @@
 
 **Tech Stack:** Postgres + RLS (Supabase migration), Deno Edge Functions, `@supabase/supabase-js` service role, node:test for pure logic.
 
+> **AS-BUILT (branch `feat/obfuscation-phase-d-entitlements`, 2026-07-18) — deviations from this plan, all deliberate:**
+> - `entitlement.js` is **ESM `export`**, not the `module.exports`/`require` shown below — CommonJS passes `npm test` but crashes Deno (see D2). The test uses `import`.
+> - `assertEntitled` + `loadEntitlement` + `entitlementSnapshot` live **in `deviceGate.ts`** alongside `assertAccountActive`, not a separate `assertEntitled.ts` (matches the codebase; `data/index.ts` already imports gates from there).
+> - `revoked_at`: **any non-null value revokes** (matches `device_bindings`), not the scheduled-future semantics.
+> - Migration adds `revoke all ... from anon, authenticated` + a **grandfather backfill** (existing users → active/no-expiry) instead of a log-only→enforce rollout — the backfill removes the lockout risk atomically.
+> - **No blanket 7-day trial.** claim-device branches on `customer_accounts` presence: provider-provisioned accounts get active/no-expiry (term stays in `customer_accounts`); the 7-day trial is reserved for future self-signup accounts. (Public signup is OFF today, so an unconditional trial would lock out paying customers on day 8.)
+> - **D4 is logic-only** (`src/services/entitlementGate.logic.js` + tests); the navigator/AppContext wiring is deferred (needs the running app).
+> - **Accepted ceiling:** the gate covers metadata + IPTV-cred delivery, not the stream (cached creds play direct from the provider until re-fetch).
+
 ## Global Constraints
 
 - Pure logic in `supabase/functions/_shared/*.js` (CommonJS-style, matches `entryLimits.js`, `loginLogic.js`, `accountStatus.js`) with `*.test.js` beside it; run via `npm test`. The Deno `index.ts` wrappers import the pure `.js`.
