@@ -38,3 +38,9 @@ test("getPreset returns the matching preset", () => {
 test("getPreset throws loudly on an unknown profile", () => {
   assert.throws(() => getPreset("desktop"), /unknown obfuscation profile/i);
 });
+
+test("getPreset throws on prototype-chain keys, not just plain unknown strings", () => {
+  assert.throws(() => getPreset("constructor"), /unknown obfuscation profile/i);
+  assert.throws(() => getPreset("__proto__"), /unknown obfuscation profile/i);
+  assert.throws(() => getPreset("hasOwnProperty"), /unknown obfuscation profile/i);
+});

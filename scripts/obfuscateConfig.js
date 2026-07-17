@@ -62,15 +62,16 @@ const webPreset = {
 const PRESETS = { web: webPreset, tv: tvPreset };
 
 // Fail loud on an unknown profile — never silently fall back to a weaker (or
-// wrong) preset.
+// wrong) preset. Use Object.hasOwn so prototype keys ("constructor",
+// "__proto__", …) throw like any other unknown profile instead of resolving
+// through Object.prototype.
 function getPreset(profile) {
-  const preset = PRESETS[profile];
-  if (!preset) {
+  if (!Object.hasOwn(PRESETS, profile)) {
     throw new Error(
       `unknown obfuscation profile: ${profile} (expected one of: ${Object.keys(PRESETS).join(", ")})`,
     );
   }
-  return preset;
+  return PRESETS[profile];
 }
 
 module.exports = { getPreset, PRESETS, webPreset, tvPreset };
