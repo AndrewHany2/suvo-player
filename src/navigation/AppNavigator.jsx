@@ -15,7 +15,6 @@ import { DownloadsProvider } from "../downloads/useDownloads.jsx";
 
 import AuthScreen from "../screens/AuthScreen";
 import ConfigErrorScreen from "../screens/ConfigErrorScreen";
-import DemoExpiredScreen from "../screens/DemoExpiredScreen";
 import DeviceLockedScreen from "../screens/DeviceLockedScreen";
 import ProfilesScreen from "../screens/ProfilesScreen";
 import LiveTVScreen from "../screens/LiveTVScreen";
@@ -113,7 +112,6 @@ export default function AppNavigator() {
       <ActivityIndicator size="large" color={colors.accent} />
     </YStack>
   );
-  if (gate === "expired") return <DemoExpiredScreen />;
   if (gate === "config-error") return <ConfigErrorScreen />;
   if (gate === "loading") return splash;
   if (gate === "auth") return <AuthScreen />;

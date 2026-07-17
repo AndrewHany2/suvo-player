@@ -438,7 +438,7 @@ export default function SeriesScreen({ navigation }) {
         </YStack>
       </ScrollView>
       {categoryPage && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={20}>
           <CategoryPage
             name={categoryPage.name}
             items={categoryPage.items}
@@ -451,7 +451,7 @@ export default function SeriesScreen({ navigation }) {
         </YStack>
       )}
       {selectedSeries && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={20}>
           <SeriesDetail
             item={selectedSeries}
             onBack={clearSelectedSeries}
