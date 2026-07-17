@@ -85,16 +85,16 @@ describe("validateLine", () => {
 
 describe("validateNewAccount", () => {
   const good = {
-    username: "Customer_01",
+    name: "Customer 01",
     password: "secret1",
     deviceLimit: 2,
     expiresAt: "2026-12-31T00:00:00Z",
     line: { type: "xtream", host: "http://h", username: "u", password: "p" },
   };
-  test("accepts + normalizes a good input (username lowercased)", () => {
+  test("accepts + trims a good input (name preserved, not lowercased)", () => {
     const r = validateNewAccount(good);
     assert.equal(r.ok, true);
-    assert.equal(r.value.username, "customer_01");
+    assert.equal(r.value.name, "Customer 01");
     assert.equal(r.value.deviceLimit, 2);
     assert.equal(typeof r.value.expiresAt, "string");
   });
@@ -117,10 +117,6 @@ describe("validateNewAccount", () => {
     const r = validateNewAccount({ ...good, deviceLimit: 0 });
     assert.ok(r.errors.includes("deviceLimit"));
   });
-  test("rejects bad username", () => {
-    const r = validateNewAccount({ ...good, username: "ab" });
-    assert.ok(r.errors.includes("username"));
-  });
   test("rejects invalid line", () => {
     const r = validateNewAccount({ ...good, line: { type: "m3u", url: "x" } });
     assert.ok(r.errors.includes("line"));
@@ -130,19 +126,43 @@ describe("validateNewAccount", () => {
     assert.equal(r.ok, true);
     assert.equal(r.value.expiresAt, null);
   });
+  test("accepts a freeform 1-60 char name", () => {
+    const r = validateNewAccount({
+      name: "  John — living room  ",
+      password: "secret6",
+      deviceLimit: 2,
+      line: { type: "m3u", url: "http://x/y.m3u" },
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.value.name, "John — living room");
+  });
+  test("rejects empty / >60 char name", () => {
+    assert.deepEqual(
+      validateNewAccount({ name: "   ", password: "secret6", deviceLimit: 1, line: { type: "m3u", url: "http://x" } }).errors.includes("name"),
+      true,
+    );
+    assert.deepEqual(
+      validateNewAccount({ name: "x".repeat(61), password: "secret6", deviceLimit: 1, line: { type: "m3u", url: "http://x" } }).errors.includes("name"),
+      true,
+    );
+  });
 });
 
-describe("providerSlug + resolveEmail", () => {
+describe("providerSlug", () => {
   test("slug from name", () => {
     assert.equal(providerSlug("Acme TV!", "abc1234567"), "acme-tv");
   });
   test("slug falls back to id when name empty", () => {
     assert.equal(providerSlug("", "abcd1234ef"), "abcd1234");
   });
-  test("real email used verbatim (lowercased)", () => {
-    assert.equal(resolveEmail("bob", "acme", "Bob@Mail.com"), "bob@mail.com");
+});
+
+describe("resolveEmail", () => {
+  test("uses a supplied email (lowercased) when it has @", () => {
+    assert.equal(resolveEmail("acme", "Me@Example.com", "deadbeef"), "me@example.com");
   });
-  test("username-only builds synthetic email", () => {
-    assert.equal(resolveEmail("bob", "acme", ""), "bob@acme.accounts.local");
+  test("auto-generates acc-<token>@<slug>.accounts.local otherwise", () => {
+    assert.equal(resolveEmail("acme", "", "deadbeef"), "acc-deadbeef@acme.accounts.local");
+    assert.equal(resolveEmail("acme", undefined, "deadbeef"), "acc-deadbeef@acme.accounts.local");
   });
 });
