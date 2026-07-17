@@ -4,7 +4,8 @@ import { useContentService } from "./useContentService";
 import { MemoryManager } from "../../platform/optimization/MemoryManager";
 import { epgNowTitle, toFlatChannel } from "./useLiveTV.helpers";
 import { isLowEndDevice } from "../../utils/deviceTier";
-import { isAuthError, authErrorMessage } from "../../utils/authError";
+import { isAuthError, describeError } from "../../utils/authError";
+import { isConnectivityError } from "../../utils/networkError.logic.js";
 
 // Cap the per-category channel cache so a long browsing session can't pin every
 // category's channel list in memory at once (WebOS budget is tight). Halved on
@@ -61,7 +62,7 @@ export function useLiveTV({ navigation } = {}) {
     } catch (err) {
       console.error("useLiveTV.loadCategories:", err);
       setError(true);
-      setErrorMessage(authErrorMessage(err));
+      setErrorMessage(describeError(err));
     } finally {
       setLoading(false);
     }
@@ -94,10 +95,15 @@ export function useLiveTV({ navigation } = {}) {
       channelsCacheRef.current.set(catId, items || []);
       return items || [];
     } catch (err) {
-      // Account-level auth failure — surface the error panel once ("if one
-      // fails, all fail") and stop. The caller still gets the throw to decide
-      // its own per-shelf handling.
-      if (isAuthError(err)) { authFailedRef.current = true; setError(true); setErrorMessage(authErrorMessage(err)); }
+      // Auth (401/403) OR a connectivity fault (network / timeout / gateway 521)
+      // both mean every remaining category fails the same way — trip the breaker
+      // and surface the error panel once, instead of letting shelves spin then
+      // silently empty (which read as "categories keep loading" on a dead link).
+      if (isAuthError(err) || isConnectivityError(err)) {
+        authFailedRef.current = true;
+        setError(true);
+        setErrorMessage(describeError(err));
+      }
       throw err;
     }
   }, [contentService]);
