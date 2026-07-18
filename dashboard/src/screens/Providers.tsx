@@ -4,7 +4,7 @@ import { call, apiErrorMessage } from "../api";
 import { useAuth } from "../auth";
 import { supabase } from "../supabase";
 import { fmtDate } from "../lib/format";
-import { Badge, Button, Field, Modal, Table, type Column } from "../ui";
+import { Badge, Button, ConfirmDialog, Field, Modal, Table, type Column } from "../ui";
 
 type Provider = {
   user_id: string;
@@ -26,6 +26,9 @@ export default function Providers() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Provider | null>(null);
   const [deleting, setDeleting] = useState<Provider | null>(null);
+  const [suspending, setSuspending] = useState<Provider | null>(null);
+  const [suspendBusy, setSuspendBusy] = useState(false);
+  const [suspendError, setSuspendError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,6 +58,22 @@ export default function Providers() {
     if (selfId && targetUserId === selfId) refresh();
   }
 
+  async function confirmProviderSuspend() {
+    if (!suspending) return;
+    setSuspendBusy(true);
+    setSuspendError(null);
+    try {
+      const id = suspending.user_id;
+      await call("providers.update", { userId: id, suspended: !suspending.suspended });
+      setSuspending(null);
+      await afterSave(id);
+    } catch (e) {
+      setSuspendError(apiErrorMessage((e as Error).message));
+    } finally {
+      setSuspendBusy(false);
+    }
+  }
+
   const columns: Column<Provider>[] = [
     { key: "name", header: "Name", render: (p) => <Link to={`/accounts?providerId=${p.user_id}`}>{p.name}</Link> },
     { key: "accounts", header: "Accounts", render: (p) => `${p.accounts_used}/${p.max_accounts}` },
@@ -71,6 +90,15 @@ export default function Providers() {
         <div className="btn-row">
           <Button variant="secondary" onClick={() => setEditing(p)}>
             Edit
+          </Button>
+          <Button
+            variant={p.suspended ? "secondary" : "danger"}
+            onClick={() => {
+              setSuspendError(null);
+              setSuspending(p);
+            }}
+          >
+            {p.suspended ? "Unsuspend" : "Suspend"}
           </Button>
           <Button variant="danger" onClick={() => setDeleting(p)}>
             Delete
@@ -113,6 +141,30 @@ export default function Providers() {
             setDeleting(null);
             await load();
           }}
+        />
+      )}
+      {suspending && (
+        <ConfirmDialog
+          title={suspending.suspended ? "Unsuspend provider" : "Suspend provider"}
+          message={
+            suspending.suspended ? (
+              <>
+                Re-enable <strong>{suspending.name}</strong>? The provider and all of their customer accounts regain
+                access.
+              </>
+            ) : (
+              <>
+                Suspend <strong>{suspending.name}</strong>? This blocks the provider <em>and all of their customer
+                accounts</em> from signing in and playing until unsuspended.
+              </>
+            )
+          }
+          confirmLabel={suspending.suspended ? "Unsuspend" : "Suspend"}
+          confirmVariant={suspending.suspended ? "primary" : "danger"}
+          busy={suspendBusy}
+          error={suspendError}
+          onConfirm={confirmProviderSuspend}
+          onCancel={() => setSuspending(null)}
         />
       )}
     </div>
@@ -194,7 +246,6 @@ function EditProviderModal({
 }) {
   const [name, setName] = useState(provider.name);
   const [maxAccounts, setMaxAccounts] = useState(String(provider.max_accounts));
-  const [suspended, setSuspended] = useState(provider.suspended);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -207,7 +258,6 @@ function EditProviderModal({
         userId: provider.user_id,
         name: name.trim(),
         maxAccounts: Number(maxAccounts),
-        suspended,
       });
       onSaved();
     } catch (e2) {
@@ -227,15 +277,6 @@ function EditProviderModal({
         <Field label="Max accounts">
           <input type="number" min={0} step={1} value={maxAccounts} onChange={(e) => setMaxAccounts(e.target.value)} required />
         </Field>
-        <div className="card-row">
-          <Button
-            type="button"
-            variant={suspended ? "secondary" : "danger"}
-            onClick={() => setSuspended((s) => !s)}
-          >
-            {suspended ? "Unsuspend" : "Suspend"}
-          </Button>
-        </div>
         <div className="btn-row">
           <Button type="submit" disabled={saving}>
             {saving ? "Saving…" : "Save"}
