@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { call, apiErrorMessage } from "../api";
 import { computeExpiresAt, type ExpiryChoice } from "../lib/format";
-import { buildLinePayload, type LineType } from "../lib/linePayload";
+import { buildLinesPayload, type LineForm, type LineType } from "../lib/linePayload";
 import { Button, Field } from "../ui";
 
 const EXPIRY_PRESETS: { choice: ExpiryChoice; label: string }[] = [
@@ -26,13 +26,16 @@ export default function CreateAccount() {
   const [expiryChoice, setExpiryChoice] = useState<ExpiryChoice>("1");
   const [customDate, setCustomDate] = useState("");
 
-  // IPTV line.
-  const [lineType, setLineType] = useState<LineType>("xtream");
-  const [host, setHost] = useState("");
-  const [lineUsername, setLineUsername] = useState("");
-  const [linePassword, setLinePassword] = useState("");
-  const [url, setUrl] = useState("");
-  const [nickname, setNickname] = useState("");
+  // IPTV lines.
+  const emptyLine = (): LineForm => ({ type: "xtream", host: "", lineUsername: "", linePassword: "", url: "", nickname: "" });
+  const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
+  const [allowSelfLines, setAllowSelfLines] = useState(false);
+
+  function updateLine(i: number, patch: Partial<LineForm>) {
+    setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  }
+  function addLine() { setLines((prev) => [...prev, emptyLine()]); }
+  function removeLine(i: number) { setLines((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev)); }
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +52,6 @@ export default function CreateAccount() {
     setInvalidFields([]);
     try {
       const expiresAt = computeExpiresAt(expiryChoice, customDate);
-      const line = buildLinePayload(lineType, { host, lineUsername, linePassword, url, nickname });
       const payload = {
         name: name.trim(),
         password,
@@ -57,7 +59,8 @@ export default function CreateAccount() {
         expiresAt,
         note: note.trim() || undefined,
         email: email.trim() || undefined,
-        line,
+        lines: buildLinesPayload(lines),
+        allowSelfLines,
       };
       const result = await call<{ userId: string }>("accounts.create", payload);
       navigate(`/accounts/${result.userId}`);
@@ -70,7 +73,7 @@ export default function CreateAccount() {
     }
   }
 
-  const lineInvalid = invalidFields.includes("line");
+  const lineInvalid = invalidFields.includes("lines");
 
   return (
     <div className="container">
@@ -157,61 +160,39 @@ export default function CreateAccount() {
           )}
         </fieldset>
 
-        <fieldset className="field-group">
-          <legend>
-            IPTV line{lineInvalid && <span className="field-error"> — check the fields below</span>}
-          </legend>
-          <div className="btn-row">
-            <Button
-              type="button"
-              variant={lineType === "xtream" ? "primary" : "secondary"}
-              onClick={() => setLineType("xtream")}
-            >
-              Xtream
-            </Button>
-            <Button
-              type="button"
-              variant={lineType === "m3u" ? "primary" : "secondary"}
-              onClick={() => setLineType("m3u")}
-            >
-              M3U
-            </Button>
-          </div>
+        <div className="card-row">
+          <label className="checkbox-row">
+            <input type="checkbox" checked={allowSelfLines} onChange={(e) => setAllowSelfLines(e.target.checked)} />
+            Allow this customer to add their own IPTV lines in the app
+          </label>
+        </div>
 
-          {lineType === "xtream" ? (
-            <>
-              <Field label="Host">
-                <input value={host} onChange={(e) => setHost(e.target.value)} required className={lineInvalid ? "input-invalid" : undefined} />
-              </Field>
-              <Field label="Line username">
-                <input value={lineUsername} onChange={(e) => setLineUsername(e.target.value)} required className={lineInvalid ? "input-invalid" : undefined} />
-              </Field>
-              <Field label="Line password">
-                <input
-                  type="password"
-                  value={linePassword}
-                  onChange={(e) => setLinePassword(e.target.value)}
-                  required
-                  className={lineInvalid ? "input-invalid" : undefined}
-                />
-              </Field>
-            </>
-          ) : (
-            <Field label="Playlist URL">
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://…"
-                required
-                className={lineInvalid ? "input-invalid" : undefined}
-              />
-            </Field>
-          )}
-          <Field label="Nickname (optional)">
-            <input value={nickname} onChange={(e) => setNickname(e.target.value)} />
-          </Field>
-        </fieldset>
+        {lines.map((ln, i) => (
+          <fieldset className="field-group" key={i}>
+            <legend>
+              IPTV line {i + 1}
+              {lineInvalid && <span className="field-error"> — check the fields below</span>}
+            </legend>
+            <div className="btn-row">
+              <Button type="button" variant={ln.type === "xtream" ? "primary" : "secondary"} onClick={() => updateLine(i, { type: "xtream" })}>Xtream</Button>
+              <Button type="button" variant={ln.type === "m3u" ? "primary" : "secondary"} onClick={() => updateLine(i, { type: "m3u" })}>M3U</Button>
+              {lines.length > 1 && (
+                <Button type="button" variant="danger" onClick={() => removeLine(i)}>Remove line</Button>
+              )}
+            </div>
+            {ln.type === "xtream" ? (
+              <>
+                <Field label="Host"><input value={ln.host} onChange={(e) => updateLine(i, { host: e.target.value })} required /></Field>
+                <Field label="Line username"><input value={ln.lineUsername} onChange={(e) => updateLine(i, { lineUsername: e.target.value })} required /></Field>
+                <Field label="Line password"><input type="password" value={ln.linePassword} onChange={(e) => updateLine(i, { linePassword: e.target.value })} required /></Field>
+              </>
+            ) : (
+              <Field label="Playlist URL"><input type="url" value={ln.url} onChange={(e) => updateLine(i, { url: e.target.value })} placeholder="https://…" required /></Field>
+            )}
+            <Field label="Nickname (optional)"><input value={ln.nickname} onChange={(e) => updateLine(i, { nickname: e.target.value })} /></Field>
+          </fieldset>
+        ))}
+        <Button type="button" variant="secondary" onClick={addLine}>Add another line</Button>
 
         <Button type="submit" disabled={submitting}>
           {submitting ? "Creating…" : "Create account"}
