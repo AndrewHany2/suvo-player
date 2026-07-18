@@ -23,7 +23,8 @@ type AccountDetailData = {
   suspended: boolean;
   note: string | null;
   deviceLimit: number | null;
-  line: Line | null;
+  allowSelfLines: boolean;
+  lines: Line[];
 };
 
 type Device = {
@@ -103,7 +104,7 @@ export default function AccountDetail() {
 
       <SubscriptionCard data={data} userId={userId} onSaved={load} />
       <SecurityCard userId={userId} />
-      <LineCard data={data} userId={userId} onSaved={load} />
+      <LinesCard data={data} userId={userId} onSaved={load} />
       <DevicesCard devices={devices} devicesError={devicesError} userId={userId} onSaved={loadDevices} />
       <DangerZone data={data} userId={userId} onDeleted={() => navigate("/accounts")} />
     </div>
@@ -130,6 +131,7 @@ function SubscriptionCard({
   const [savingSuspend, setSavingSuspend] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [savingName, setSavingName] = useState(false);
+  const [savingSelfAdd, setSavingSelfAdd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmSuspend, setConfirmSuspend] = useState(false);
 
@@ -310,6 +312,18 @@ function SubscriptionCard({
           {savingNote ? "Saving…" : "Save note"}
         </Button>
       </div>
+
+      <div className="card-row">
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={data.allowSelfLines}
+            disabled={savingSelfAdd}
+            onChange={() => run(setSavingSelfAdd, { allowSelfLines: !data.allowSelfLines })}
+          />
+          Allow this customer to add their own IPTV lines in the app
+        </label>
+      </div>
     </section>
   );
 }
@@ -382,7 +396,7 @@ function SecurityCard({ userId }: { userId: string }) {
   );
 }
 
-function LineCard({
+function LinesCard({
   data,
   userId,
   onSaved,
@@ -391,26 +405,113 @@ function LineCard({
   userId: string;
   onSaved: () => Promise<void>;
 }) {
-  const line = data.line;
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<Line | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirmRemove() {
+    if (!removing) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await call("accounts.deleteLine", { userId, lineId: removing.id });
+      setRemoving(null);
+      await onSaved();
+    } catch (e) {
+      setError(apiErrorMessage((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>IPTV lines</h2>
+      {error && <p className="field-error">{error}</p>}
+
+      {data.lines.length === 0 && <p>No lines yet.</p>}
+      {data.lines.map((ln) =>
+        editingId === ln.id ? (
+          <LineEditor
+            key={ln.id}
+            line={ln}
+            onCancel={() => setEditingId(null)}
+            onSubmit={async (payload) => {
+              await call("accounts.updateLine", { userId, lineId: ln.id, line: payload });
+              setEditingId(null);
+              await onSaved();
+            }}
+          />
+        ) : (
+          <div className="card-row" key={ln.id}>
+            <div style={{ flex: 1 }}>
+              <strong>{ln.nickname || ln.host || ln.url || ln.type}</strong>{" "}
+              <span className="muted">
+                {ln.type === "m3u" ? ln.url : `${ln.username ?? ""}@${ln.host ?? ""}`}
+              </span>
+            </div>
+            <Button variant="secondary" onClick={() => { setAdding(false); setEditingId(ln.id); }}>Edit</Button>
+            <Button variant="danger" disabled={busy} onClick={() => setRemoving(ln)}>Delete</Button>
+          </div>
+        ),
+      )}
+
+      {adding ? (
+        <LineEditor
+          onCancel={() => setAdding(false)}
+          onSubmit={async (payload) => {
+            await call("accounts.addLine", { userId, line: payload });
+            setAdding(false);
+            await onSaved();
+          }}
+        />
+      ) : (
+        <Button onClick={() => { setEditingId(null); setAdding(true); }}>Add line</Button>
+      )}
+
+      {removing && (
+        <Modal title="Delete line" onClose={() => setRemoving(null)}>
+          <p>
+            Delete line <strong>{removing.nickname || removing.host || removing.url}</strong>? This can't be undone.
+          </p>
+          <div className="btn-row">
+            <Button variant="danger" disabled={busy} onClick={confirmRemove}>
+              {busy ? "Deleting…" : "Delete line"}
+            </Button>
+            <Button variant="secondary" disabled={busy} onClick={() => setRemoving(null)}>Cancel</Button>
+          </div>
+        </Modal>
+      )}
+    </section>
+  );
+}
+
+// Add/edit a single line. For an existing xtream line the password must be
+// re-entered to save (the server never returns it) — same rule as before,
+// enforced via lineUpdateBlockedReason.
+function LineEditor({
+  line,
+  onSubmit,
+  onCancel,
+}: {
+  line?: Line;
+  onSubmit: (payload: ReturnType<typeof buildLinePayload>) => Promise<void>;
+  onCancel: () => void;
+}) {
   const [lineType, setLineType] = useState<LineType>(line?.type ?? "xtream");
   const [host, setHost] = useState(line?.host ?? "");
   const [lineUsername, setLineUsername] = useState(line?.username ?? "");
   const [linePassword, setLinePassword] = useState("");
   const [url, setUrl] = useState(line?.url ?? "");
   const [nickname, setNickname] = useState(line?.nickname ?? "");
-
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLineType(line?.type ?? "xtream");
-    setHost(line?.host ?? "");
-    setLineUsername(line?.username ?? "");
-    setLinePassword("");
-    setUrl(line?.url ?? "");
-    setNickname(line?.nickname ?? "");
-  }, [line?.type, line?.host, line?.username, line?.url, line?.nickname]);
-
+  // Adding a brand-new line requires a password (no existing secret to keep);
+  // editing an xtream line also requires re-entry. Both reduce to "xtream needs
+  // a password in the box".
   const blockedReason = lineUpdateBlockedReason(lineType, linePassword);
 
   async function handleSave() {
@@ -418,9 +519,7 @@ function LineCard({
     setSaving(true);
     setError(null);
     try {
-      const payload = buildLinePayload(lineType, { host, lineUsername, linePassword, url, nickname });
-      await call("accounts.updateLine", { userId, line: payload });
-      await onSaved();
+      await onSubmit(buildLinePayload(lineType, { host, lineUsername, linePassword, url, nickname }));
     } catch (e) {
       setError(apiErrorMessage((e as Error).message));
     } finally {
@@ -429,48 +528,30 @@ function LineCard({
   }
 
   return (
-    <section className="card">
-      <h2>IPTV line</h2>
+    <fieldset className="field-group">
+      <legend>{line ? "Edit line" : "New line"}</legend>
       {error && <p className="field-error">{error}</p>}
       <div className="btn-row">
-        <Button type="button" variant={lineType === "xtream" ? "primary" : "secondary"} onClick={() => setLineType("xtream")}>
-          Xtream
-        </Button>
-        <Button type="button" variant={lineType === "m3u" ? "primary" : "secondary"} onClick={() => setLineType("m3u")}>
-          M3U
-        </Button>
+        <Button type="button" variant={lineType === "xtream" ? "primary" : "secondary"} onClick={() => setLineType("xtream")}>Xtream</Button>
+        <Button type="button" variant={lineType === "m3u" ? "primary" : "secondary"} onClick={() => setLineType("m3u")}>M3U</Button>
       </div>
-
       {lineType === "xtream" ? (
         <>
-          <Field label="Host">
-            <input value={host} onChange={(e) => setHost(e.target.value)} />
-          </Field>
-          <Field label="Line username">
-            <input value={lineUsername} onChange={(e) => setLineUsername(e.target.value)} />
-          </Field>
+          <Field label="Host"><input value={host} onChange={(e) => setHost(e.target.value)} /></Field>
+          <Field label="Line username"><input value={lineUsername} onChange={(e) => setLineUsername(e.target.value)} /></Field>
           <Field label="Line password" error={blockedReason ?? undefined}>
-            <input
-              type="password"
-              value={linePassword}
-              onChange={(e) => setLinePassword(e.target.value)}
-              placeholder="Re-enter to change"
-            />
+            <input type="password" value={linePassword} onChange={(e) => setLinePassword(e.target.value)} placeholder={line ? "Re-enter to change" : ""} />
           </Field>
         </>
       ) : (
-        <Field label="Playlist URL">
-          <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
-        </Field>
+        <Field label="Playlist URL"><input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" /></Field>
       )}
-      <Field label="Nickname (optional)">
-        <input value={nickname} onChange={(e) => setNickname(e.target.value)} />
-      </Field>
-
-      <Button disabled={saving || !!blockedReason} onClick={handleSave}>
-        {saving ? "Saving…" : "Save line"}
-      </Button>
-    </section>
+      <Field label="Nickname (optional)"><input value={nickname} onChange={(e) => setNickname(e.target.value)} /></Field>
+      <div className="btn-row">
+        <Button disabled={saving || !!blockedReason} onClick={handleSave}>{saving ? "Saving…" : "Save line"}</Button>
+        <Button variant="secondary" disabled={saving} onClick={onCancel}>Cancel</Button>
+      </div>
+    </fieldset>
   );
 }
 
