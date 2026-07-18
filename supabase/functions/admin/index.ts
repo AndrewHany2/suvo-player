@@ -224,18 +224,20 @@ Deno.serve(async (req) => {
             .select("id")
             .single();
           if (apErr || !prof) throw apErr ?? new Error("app_profile insert returned no row");
-          // 4. iptv line under that profile
-          const { error: lineErr } = await admin.from("iptv_accounts").insert({
-            user_id: newId,
-            profile_id: prof.id,
-            type: v.value.line.type,
-            nickname: v.value.line.nickname,
-            host: v.value.line.host,
-            username: v.value.line.username,
-            password: v.value.line.password,
-            url: v.value.line.url,
-          });
-          if (lineErr) throw lineErr;
+          // 4. iptv line(s) under that profile
+          for (const ln of v.value.lines) {
+            const { error: lineErr } = await admin.from("iptv_accounts").insert({
+              user_id: newId,
+              profile_id: prof.id,
+              type: ln.type,
+              nickname: ln.nickname,
+              host: ln.host,
+              username: ln.username,
+              password: ln.password,
+              url: ln.url,
+            });
+            if (lineErr) throw lineErr;
+          }
           // 5. device limit
           const { error: dlErr } = await admin.from("device_limits").upsert(
             { user_id: newId, device_limit: v.value.deviceLimit },
@@ -249,6 +251,7 @@ Deno.serve(async (req) => {
             provider_id: userId,
             expires_at: v.value.expiresAt,
             note: payload.note ? String(payload.note) : null,
+            allow_self_lines: v.value.allowSelfLines,
           });
           if (caErr) throw caErr;
         } catch (_e) {
@@ -267,7 +270,8 @@ Deno.serve(async (req) => {
           name: v.value.name,
           deviceLimit: v.value.deviceLimit,
           expiresAt: v.value.expiresAt,
-          lineType: v.value.line.type,
+          lineCount: v.value.lines.length,
+          allowSelfLines: v.value.allowSelfLines,
         });
         return json({ userId: newId });
       }
@@ -350,14 +354,14 @@ Deno.serve(async (req) => {
           .from("profiles").select("name, email").eq("user_id", target).maybeSingle();
         const { data: acct } = await admin
           .from("customer_accounts")
-          .select("provider_id, expires_at, suspended, note, origin")
+          .select("provider_id, expires_at, suspended, note, origin, allow_self_lines")
           .eq("user_id", target).maybeSingle();
         const { data: lim } = await admin
           .from("device_limits").select("device_limit").eq("user_id", target).maybeSingle();
-        const { data: line } = await admin
+        const { data: lines } = await admin
           .from("iptv_accounts")
           .select("id, type, nickname, host, username, url")
-          .eq("user_id", target).order("created_at", { ascending: true }).limit(1).maybeSingle();
+          .eq("user_id", target).order("created_at", { ascending: true });
         const status = await loadAccountStatus(admin, target);
         return json({
           userId: target,
@@ -368,7 +372,8 @@ Deno.serve(async (req) => {
           suspended: acct?.suspended ?? false,
           note: acct?.note ?? null,
           deviceLimit: lim?.device_limit ?? null,
-          line: line ?? null, // password intentionally omitted from reads
+          allowSelfLines: acct?.allow_self_lines ?? false,
+          lines: lines ?? [], // passwords intentionally omitted from reads
         });
       }
 
@@ -389,6 +394,7 @@ Deno.serve(async (req) => {
           }
         }
         if (payload.suspended !== undefined) acctPatch.suspended = payload.suspended === true;
+        if (payload.allowSelfLines !== undefined) acctPatch.allow_self_lines = payload.allowSelfLines === true;
         if (payload.note !== undefined) acctPatch.note = payload.note ? String(payload.note) : null;
         let dl: number | undefined;
         if (payload.deviceLimit !== undefined) {
@@ -432,20 +438,55 @@ Deno.serve(async (req) => {
         if (owner === undefined || !canActOnAccount(caller, owner)) return json({ error: "FORBIDDEN" }, 403);
         const line = validateLine(payload.line);
         if (!line.ok) return json({ error: "INVALID_INPUT", fields: ["line"] }, 400);
-        const { data: existing } = await admin
-          .from("iptv_accounts").select("id").eq("user_id", target)
-          .order("created_at", { ascending: true }).limit(1).maybeSingle();
         const fields = {
           type: line.value.type, nickname: line.value.nickname, host: line.value.host,
           username: line.value.username, password: line.value.password, url: line.value.url,
         };
-        if (existing?.id) {
-          await admin.from("iptv_accounts").update(fields).eq("id", existing.id).eq("user_id", target);
+        const lineId = String(payload.lineId ?? "");
+        if (lineId) {
+          const { error: uErr } = await admin.from("iptv_accounts").update(fields).eq("id", lineId).eq("user_id", target);
+          if (uErr) return json({ error: "SERVER_ERROR" }, 500);
         } else {
-          const { data: prof } = await admin.from("app_profiles").select("id").eq("user_id", target).limit(1).maybeSingle();
-          await admin.from("iptv_accounts").insert({ user_id: target, profile_id: prof?.id ?? null, ...fields });
+          const { data: existing } = await admin
+            .from("iptv_accounts").select("id").eq("user_id", target)
+            .order("created_at", { ascending: true }).limit(1).maybeSingle();
+          if (existing?.id) {
+            await admin.from("iptv_accounts").update(fields).eq("id", existing.id).eq("user_id", target);
+          } else {
+            const { data: prof } = await admin.from("app_profiles").select("id").eq("user_id", target).limit(1).maybeSingle();
+            await admin.from("iptv_accounts").insert({ user_id: target, profile_id: prof?.id ?? null, ...fields });
+          }
         }
         await audit(admin, userId, "account.updateLine", target, { lineType: line.value.type }); // no creds
+        return json({ ok: true });
+      }
+
+      case "accounts.addLine": {
+        const target = String(payload.userId ?? "");
+        const owner = await accountProviderId(admin, target);
+        if (owner === undefined || !canActOnAccount(caller, owner)) return json({ error: "FORBIDDEN" }, 403);
+        const line = validateLine(payload.line);
+        if (!line.ok) return json({ error: "INVALID_INPUT", fields: ["line"] }, 400);
+        const { data: prof } = await admin.from("app_profiles").select("id").eq("user_id", target).limit(1).maybeSingle();
+        const { error: insErr } = await admin.from("iptv_accounts").insert({
+          user_id: target, profile_id: prof?.id ?? null,
+          type: line.value.type, nickname: line.value.nickname, host: line.value.host,
+          username: line.value.username, password: line.value.password, url: line.value.url,
+        });
+        if (insErr) return json({ error: "SERVER_ERROR" }, 500);
+        await audit(admin, userId, "account.addLine", target, { lineType: line.value.type }); // no creds
+        return json({ ok: true });
+      }
+
+      case "accounts.deleteLine": {
+        const target = String(payload.userId ?? "");
+        const owner = await accountProviderId(admin, target);
+        if (owner === undefined || !canActOnAccount(caller, owner)) return json({ error: "FORBIDDEN" }, 403);
+        const lineId = String(payload.lineId ?? "");
+        if (!lineId) return json({ error: "INVALID_INPUT", fields: ["lineId"] }, 400);
+        const { error: delErr } = await admin.from("iptv_accounts").delete().eq("id", lineId).eq("user_id", target);
+        if (delErr) return json({ error: "SERVER_ERROR" }, 500);
+        await audit(admin, userId, "account.deleteLine", target, null);
         return json({ ok: true });
       }
 
