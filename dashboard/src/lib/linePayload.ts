@@ -55,3 +55,11 @@ export function lineUpdateBlockedReason(type: LineType, linePassword: string): s
   }
   return null;
 }
+
+// One line's full form state (type + the raw fields). Used by the multi-line
+// editors in CreateAccount and AccountDetail.
+export type LineForm = { type: LineType } & LineFormFields;
+
+export function buildLinesPayload(forms: LineForm[]): LinePayload[] {
+  return forms.map((f) => buildLinePayload(f.type, f));
+}

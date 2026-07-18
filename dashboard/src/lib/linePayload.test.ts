@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { buildLinePayload, lineUpdateBlockedReason } from "./linePayload";
+import { buildLinePayload, lineUpdateBlockedReason, buildLinesPayload, type LineForm } from "./linePayload";
 
 describe("buildLinePayload", () => {
   test("xtream: trims host/username, keeps password as-is, nulls out url", () => {
@@ -72,5 +72,22 @@ describe("lineUpdateBlockedReason", () => {
   test("m3u is never blocked by password, blank or not", () => {
     expect(lineUpdateBlockedReason("m3u", "")).toBeNull();
     expect(lineUpdateBlockedReason("m3u", "anything")).toBeNull();
+  });
+});
+
+describe("buildLinesPayload", () => {
+  test("maps each form to its payload", () => {
+    const forms: LineForm[] = [
+      { type: "xtream", host: "h:8080", lineUsername: "u", linePassword: "p", url: "", nickname: "A" },
+      { type: "m3u", host: "", lineUsername: "", linePassword: "", url: "http://x/get.php", nickname: "" },
+    ];
+    const out = buildLinesPayload(forms);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ type: "xtream", host: "h:8080", username: "u", password: "p", nickname: "A" });
+    expect(out[1]).toMatchObject({ type: "m3u", url: "http://x/get.php", host: null });
+  });
+
+  test("returns an empty array for no forms", () => {
+    expect(buildLinesPayload([])).toEqual([]);
   });
 });
