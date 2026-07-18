@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { shouldRejectSession, isAllowedRole } from "./authGate";
+import { shouldRejectSession, isAllowedRole, isSuperAdmin } from "./authGate";
 
 describe("shouldRejectSession", () => {
   test("FORBIDDEN → reject (tear down session, show gate message)", () => {
@@ -28,5 +28,20 @@ describe("isAllowedRole", () => {
   });
   test("empty role → rejected", () => {
     expect(isAllowedRole("")).toBe(false);
+  });
+});
+
+describe("isSuperAdmin", () => {
+  test("super_admin → true", () => {
+    expect(isSuperAdmin("super_admin")).toBe(true);
+  });
+  test("provider → false", () => {
+    expect(isSuperAdmin("provider")).toBe(false);
+  });
+  test("empty role → false", () => {
+    expect(isSuperAdmin("")).toBe(false);
+  });
+  test("arbitrary role → false", () => {
+    expect(isSuperAdmin("customer")).toBe(false);
   });
 });

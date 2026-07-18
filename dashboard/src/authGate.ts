@@ -21,3 +21,10 @@ export function shouldRejectSession(errorCode: string): boolean {
 export function isAllowedRole(role: string): boolean {
   return ALLOWED_ROLES.has(role);
 }
+
+// True for the super-admin role, which alone may see every provider's accounts
+// and manage providers. auth.tsx already restricts the dashboard to
+// provider/super_admin via isAllowedRole; this narrows within that set.
+export function isSuperAdmin(role: string): boolean {
+  return role === "super_admin";
+}
