@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { call, apiErrorMessage } from "../api";
 import { computeExpiresAt, fmtDate, statusLabel, type ExpiryChoice } from "../lib/format";
 import { buildLinePayload, lineUpdateBlockedReason, type LineType } from "../lib/linePayload";
-import { Badge, Button, Field, Modal, Table, type Column } from "../ui";
+import { Badge, Button, ConfirmDialog, Field, Modal, Table, type Column } from "../ui";
 
 type Line = {
   id: string;
@@ -131,6 +131,21 @@ function SubscriptionCard({
   const [savingNote, setSavingNote] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmSuspend, setConfirmSuspend] = useState(false);
+
+  async function doSuspendToggle() {
+    setSavingSuspend(true);
+    setError(null);
+    try {
+      await call("accounts.update", { userId, suspended: !data.suspended });
+      setConfirmSuspend(false);
+      await onSaved();
+    } catch (e) {
+      setError(apiErrorMessage((e as Error).message));
+    } finally {
+      setSavingSuspend(false);
+    }
+  }
 
   useEffect(() => {
     // Null means "no override — using the account default"; show that as an
@@ -254,11 +269,38 @@ function SubscriptionCard({
         <Button
           variant={data.suspended ? "secondary" : "danger"}
           disabled={savingSuspend}
-          onClick={() => run(setSavingSuspend, { suspended: !data.suspended })}
+          onClick={() => {
+            setError(null);
+            setConfirmSuspend(true);
+          }}
         >
-          {savingSuspend ? "Saving…" : data.suspended ? "Unsuspend account" : "Suspend account"}
+          {data.suspended ? "Unsuspend account" : "Suspend account"}
         </Button>
       </div>
+
+      {confirmSuspend && (
+        <ConfirmDialog
+          title={data.suspended ? "Unsuspend account" : "Suspend account"}
+          message={
+            data.suspended ? (
+              <>
+                Re-enable <strong>{data.name}</strong>? They will be able to sign in and play again.
+              </>
+            ) : (
+              <>
+                Suspend <strong>{data.name}</strong>? They will be signed out and blocked from playback until
+                unsuspended.
+              </>
+            )
+          }
+          confirmLabel={data.suspended ? "Unsuspend" : "Suspend"}
+          confirmVariant={data.suspended ? "primary" : "danger"}
+          busy={savingSuspend}
+          error={error}
+          onConfirm={doSuspendToggle}
+          onCancel={() => setConfirmSuspend(false)}
+        />
+      )}
 
       <div className="card-row">
         <Field label="Note">
