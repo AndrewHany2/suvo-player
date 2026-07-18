@@ -30,3 +30,13 @@ export function accountStatus(account, providerSuspended, nowMs) {
 export function isActive(status) {
   return status === ACCOUNT_ACTIVE;
 }
+
+// Whether a customer may add their own IPTV lines in the app. A missing
+// customer_accounts row is the legacy / ungated case (self-signup before
+// adoption, or a provider login) — allowed. A present row must opt in
+// explicitly; anything other than a literal true (including a missing column)
+// fails closed to not-allowed.
+export function selfLinesAllowed(acctRow) {
+  if (acctRow == null) return true;
+  return acctRow.allow_self_lines === true;
+}

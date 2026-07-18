@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   accountStatus,
   isActive,
+  selfLinesAllowed,
   ACCOUNT_ACTIVE,
   ACCOUNT_SUSPENDED,
   ACCOUNT_EXPIRED,
@@ -66,5 +67,22 @@ describe("accountStatus", () => {
     assert.equal(isActive(ACCOUNT_EXPIRED), false);
     assert.equal(isActive(ACCOUNT_SUSPENDED), false);
     assert.equal(isActive(PROVIDER_SUSPENDED), false);
+  });
+});
+
+describe("selfLinesAllowed", () => {
+  test("no customer_accounts row => allowed (legacy / ungated)", () => {
+    assert.equal(selfLinesAllowed(null), true);
+    assert.equal(selfLinesAllowed(undefined), true);
+  });
+  test("row with allow_self_lines true => allowed", () => {
+    assert.equal(selfLinesAllowed({ allow_self_lines: true }), true);
+  });
+  test("row with allow_self_lines false => not allowed", () => {
+    assert.equal(selfLinesAllowed({ allow_self_lines: false }), false);
+  });
+  test("missing/nullish column on a present row => not allowed (fail closed)", () => {
+    assert.equal(selfLinesAllowed({}), false);
+    assert.equal(selfLinesAllowed({ allow_self_lines: null }), false);
   });
 });
