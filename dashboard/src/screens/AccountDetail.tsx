@@ -60,7 +60,10 @@ export default function AccountDetail() {
     setLoadError(null);
     try {
       const result = await call<AccountDetailData>("accounts.get", { userId });
-      setData(result);
+      // Tolerate a server that predates the multi-line response shape (e.g. the
+      // admin Edge Function not yet redeployed): default the new fields so the
+      // screen degrades gracefully instead of crashing on `data.lines.length`.
+      setData({ ...result, lines: result.lines ?? [], allowSelfLines: result.allowSelfLines ?? false });
     } catch (e) {
       setLoadError(apiErrorMessage((e as Error).message));
     } finally {
