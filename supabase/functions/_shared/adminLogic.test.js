@@ -119,7 +119,7 @@ describe("validateNewAccount", () => {
   });
   test("rejects invalid line", () => {
     const r = validateNewAccount({ ...good, line: { type: "m3u", url: "x" } });
-    assert.ok(r.errors.includes("line"));
+    assert.ok(r.errors.includes("lines"));
   });
   test("null/empty expiresAt allowed (=> null)", () => {
     const r = validateNewAccount({ ...good, expiresAt: "" });
@@ -145,6 +145,45 @@ describe("validateNewAccount", () => {
       validateNewAccount({ name: "x".repeat(61), password: "secret6", deviceLimit: 1, line: { type: "m3u", url: "http://x" } }).errors.includes("name"),
       true,
     );
+  });
+});
+
+describe("validateNewAccount — lines array + allowSelfLines", () => {
+  const base = { name: "Acme", password: "secret6", deviceLimit: 2 };
+  const xtream = { type: "xtream", host: "h:8080", username: "u", password: "p" };
+  const m3u = { type: "m3u", url: "http://x/get.php" };
+
+  test("accepts a lines[] array and returns all normalized lines", () => {
+    const r = validateNewAccount({ ...base, lines: [xtream, m3u] });
+    assert.equal(r.ok, true);
+    assert.equal(r.value.lines.length, 2);
+    assert.equal(r.value.lines[0].type, "xtream");
+    assert.equal(r.value.lines[1].type, "m3u");
+  });
+
+  test("normalizes a legacy single `line` into a one-element array", () => {
+    const r = validateNewAccount({ ...base, line: xtream });
+    assert.equal(r.ok, true);
+    assert.equal(r.value.lines.length, 1);
+    assert.equal(r.value.lines[0].host, "h:8080");
+  });
+
+  test("requires at least one line", () => {
+    const r = validateNewAccount({ ...base, lines: [] });
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.includes("lines"));
+  });
+
+  test("rejects when any line is invalid", () => {
+    const r = validateNewAccount({ ...base, lines: [xtream, { type: "xtream", host: "", username: "", password: "" }] });
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.includes("lines"));
+  });
+
+  test("allowSelfLines defaults false and coerces to a strict boolean", () => {
+    assert.equal(validateNewAccount({ ...base, lines: [xtream] }).value.allowSelfLines, false);
+    assert.equal(validateNewAccount({ ...base, lines: [xtream], allowSelfLines: true }).value.allowSelfLines, true);
+    assert.equal(validateNewAccount({ ...base, lines: [xtream], allowSelfLines: "yes" }).value.allowSelfLines, false);
   });
 });
 
