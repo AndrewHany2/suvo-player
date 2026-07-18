@@ -9,6 +9,7 @@ import {
   assertOwnsProfile,
   assertEntitled,
   entitlementSnapshot,
+  loadSelfLinesAllowed,
   json,
   corsPreflight,
   ACCOUNT_SUSPENDED,
@@ -120,6 +121,15 @@ Deno.serve(async (req) => {
       }
       case "iptv.insert": {
         await assertOwnsProfile(admin, userId, payload.profileId);
+        // Per-customer self-add gate. A provider can lock a customer to the
+        // lines they were given (allow_self_lines=false). No customer_accounts
+        // row (legacy / pre-adoption self-signup) is allowed — the first
+        // self-add is what triggers adoption below. Server-authoritative: the
+        // app also hides the button, but a patched client hitting this path
+        // still gets the 403.
+        if (!(await loadSelfLinesAllowed(admin, userId))) {
+          return json({ error: "SELF_ADD_DISABLED" }, 403);
+        }
         const { data } = await db("iptv_accounts")
           .insert({
             user_id: userId,
