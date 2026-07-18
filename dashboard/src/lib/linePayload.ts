@@ -63,3 +63,13 @@ export type LineForm = { type: LineType } & LineFormFields;
 export function buildLinesPayload(forms: LineForm[]): LinePayload[] {
   return forms.map((f) => buildLinePayload(f.type, f));
 }
+
+// True when a line form has none of its identifying fields filled in — i.e. an
+// untouched row. Nickname alone doesn't count (a line with only a nickname is
+// unusable). CreateAccount uses this to drop blank rows before submit when the
+// customer is allowed to add their own lines, so an empty row isn't sent as an
+// invalid line.
+export function isEmptyLineForm(form: LineForm): boolean {
+  if (form.type === "m3u") return !form.url.trim();
+  return !form.host.trim() && !form.lineUsername.trim() && !form.linePassword.trim();
+}

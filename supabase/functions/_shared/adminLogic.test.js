@@ -168,14 +168,35 @@ describe("validateNewAccount — lines array + allowSelfLines", () => {
     assert.equal(r.value.lines[0].host, "h:8080");
   });
 
-  test("requires at least one line", () => {
+  test("requires at least one line when self-add is off", () => {
     const r = validateNewAccount({ ...base, lines: [] });
     assert.equal(r.ok, false);
     assert.ok(r.errors.includes("lines"));
   });
 
+  test("allows zero lines when allowSelfLines is true", () => {
+    const r = validateNewAccount({ ...base, lines: [], allowSelfLines: true });
+    assert.equal(r.ok, true);
+    assert.ok(!r.errors.includes("lines"));
+    assert.deepEqual(r.value.lines, []);
+    assert.equal(r.value.allowSelfLines, true);
+  });
+
+  test("still keeps provided lines when allowSelfLines is true", () => {
+    const r = validateNewAccount({ ...base, lines: [xtream], allowSelfLines: true });
+    assert.equal(r.ok, true);
+    assert.equal(r.value.lines.length, 1);
+    assert.equal(r.value.lines[0].host, "h:8080");
+  });
+
   test("rejects when any line is invalid", () => {
     const r = validateNewAccount({ ...base, lines: [xtream, { type: "xtream", host: "", username: "", password: "" }] });
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.includes("lines"));
+  });
+
+  test("still rejects an invalid line even when allowSelfLines is true", () => {
+    const r = validateNewAccount({ ...base, lines: [{ type: "xtream", host: "", username: "", password: "" }], allowSelfLines: true });
     assert.equal(r.ok, false);
     assert.ok(r.errors.includes("lines"));
   });

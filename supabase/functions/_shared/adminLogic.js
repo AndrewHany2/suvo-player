@@ -58,14 +58,18 @@ export function validateNewAccount(input) {
   if (password.length < 6) errors.push("password");
   if (!Number.isInteger(deviceLimit) || deviceLimit < 1) errors.push("deviceLimit");
 
-  // Accept a `lines` array; normalize a legacy single `line` to [line]. At
-  // least one valid line is required. Any invalid line fails the whole create.
+  const allowSelfLines = input?.allowSelfLines === true;
+
+  // Accept a `lines` array; normalize a legacy single `line` to [line]. Any
+  // invalid line fails the whole create. At least one line is required UNLESS
+  // the customer is allowed to add their own in the app (allowSelfLines) — then
+  // zero lines is fine and they'll add one themselves.
   const rawLines = Array.isArray(input?.lines)
     ? input.lines
     : (input?.line != null ? [input.line] : []);
   const lines = [];
   if (rawLines.length < 1) {
-    errors.push("lines");
+    if (!allowSelfLines) errors.push("lines");
   } else {
     for (const raw of rawLines) {
       const v = validateLine(raw);
@@ -80,8 +84,6 @@ export function validateNewAccount(input) {
     if (!Number.isFinite(t)) errors.push("expiresAt");
     else expiresAt = new Date(t).toISOString();
   }
-
-  const allowSelfLines = input?.allowSelfLines === true;
 
   return {
     ok: errors.length === 0,

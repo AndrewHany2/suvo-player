@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { buildLinePayload, lineUpdateBlockedReason, buildLinesPayload, type LineForm } from "./linePayload";
+import { buildLinePayload, lineUpdateBlockedReason, buildLinesPayload, isEmptyLineForm, type LineForm } from "./linePayload";
 
 describe("buildLinePayload", () => {
   test("xtream: trims host/username, keeps password as-is, nulls out url", () => {
@@ -89,5 +89,30 @@ describe("buildLinesPayload", () => {
 
   test("returns an empty array for no forms", () => {
     expect(buildLinesPayload([])).toEqual([]);
+  });
+});
+
+describe("isEmptyLineForm", () => {
+  const form = (patch: Partial<LineForm>): LineForm => ({
+    type: "xtream", host: "", lineUsername: "", linePassword: "", url: "", nickname: "", ...patch,
+  });
+
+  test("xtream with all credential fields blank is empty (even with a nickname)", () => {
+    expect(isEmptyLineForm(form({ type: "xtream", nickname: "My line" }))).toBe(true);
+    expect(isEmptyLineForm(form({ type: "xtream", host: "   ", lineUsername: " ", linePassword: "  " }))).toBe(true);
+  });
+
+  test("xtream with any credential field filled is not empty", () => {
+    expect(isEmptyLineForm(form({ type: "xtream", host: "h" }))).toBe(false);
+    expect(isEmptyLineForm(form({ type: "xtream", lineUsername: "u" }))).toBe(false);
+    expect(isEmptyLineForm(form({ type: "xtream", linePassword: "p" }))).toBe(false);
+  });
+
+  test("m3u with a blank url is empty", () => {
+    expect(isEmptyLineForm(form({ type: "m3u", url: "   " }))).toBe(true);
+  });
+
+  test("m3u with a url is not empty", () => {
+    expect(isEmptyLineForm(form({ type: "m3u", url: "http://x/get.php" }))).toBe(false);
   });
 });

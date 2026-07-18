@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { call, apiErrorMessage } from "../api";
 import { computeExpiresAt, type ExpiryChoice } from "../lib/format";
-import { buildLinesPayload, type LineForm, type LineType } from "../lib/linePayload";
+import { buildLinesPayload, isEmptyLineForm, type LineForm, type LineType } from "../lib/linePayload";
 import { Button, Field } from "../ui";
 
 const EXPIRY_PRESETS: { choice: ExpiryChoice; label: string }[] = [
@@ -35,7 +35,9 @@ export default function CreateAccount() {
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
   }
   function addLine() { setLines((prev) => [...prev, emptyLine()]); }
-  function removeLine(i: number) { setLines((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev)); }
+  // Keep at least one line normally; when the customer can add their own,
+  // allow clearing every line so the account can be created with none.
+  function removeLine(i: number) { setLines((prev) => (prev.length > 1 || allowSelfLines ? prev.filter((_, idx) => idx !== i) : prev)); }
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +61,10 @@ export default function CreateAccount() {
         expiresAt,
         note: note.trim() || undefined,
         email: email.trim() || undefined,
-        lines: buildLinesPayload(lines),
+        // Drop untouched rows so a blank line isn't sent as an invalid one.
+        // When allowSelfLines is on this can legitimately be an empty array —
+        // the customer will add their own line in the app.
+        lines: buildLinesPayload(lines.filter((l) => !isEmptyLineForm(l))),
         allowSelfLines,
       };
       const result = await call<{ userId: string }>("accounts.create", payload);
@@ -166,28 +171,31 @@ export default function CreateAccount() {
             Allow this customer to add their own IPTV lines in the app
           </label>
         </div>
+        {allowSelfLines && (
+          <p className="muted">Adding a line below is optional — the customer can add their own in the app.</p>
+        )}
 
         {lines.map((ln, i) => (
           <fieldset className="field-group" key={i}>
             <legend>
-              IPTV line {i + 1}
+              IPTV line {i + 1}{allowSelfLines && " (optional)"}
               {lineInvalid && <span className="field-error"> — check the fields below</span>}
             </legend>
             <div className="btn-row">
               <Button type="button" variant={ln.type === "xtream" ? "primary" : "secondary"} onClick={() => updateLine(i, { type: "xtream" })}>Xtream</Button>
               <Button type="button" variant={ln.type === "m3u" ? "primary" : "secondary"} onClick={() => updateLine(i, { type: "m3u" })}>M3U</Button>
-              {lines.length > 1 && (
+              {(lines.length > 1 || allowSelfLines) && (
                 <Button type="button" variant="danger" onClick={() => removeLine(i)}>Remove line</Button>
               )}
             </div>
             {ln.type === "xtream" ? (
               <>
-                <Field label="Host"><input value={ln.host} onChange={(e) => updateLine(i, { host: e.target.value })} required /></Field>
-                <Field label="Line username"><input value={ln.lineUsername} onChange={(e) => updateLine(i, { lineUsername: e.target.value })} required /></Field>
-                <Field label="Line password"><input type="password" value={ln.linePassword} onChange={(e) => updateLine(i, { linePassword: e.target.value })} required /></Field>
+                <Field label="Host"><input value={ln.host} onChange={(e) => updateLine(i, { host: e.target.value })} required={!allowSelfLines} /></Field>
+                <Field label="Line username"><input value={ln.lineUsername} onChange={(e) => updateLine(i, { lineUsername: e.target.value })} required={!allowSelfLines} /></Field>
+                <Field label="Line password"><input type="password" value={ln.linePassword} onChange={(e) => updateLine(i, { linePassword: e.target.value })} required={!allowSelfLines} /></Field>
               </>
             ) : (
-              <Field label="Playlist URL"><input type="url" value={ln.url} onChange={(e) => updateLine(i, { url: e.target.value })} placeholder="https://…" required /></Field>
+              <Field label="Playlist URL"><input type="url" value={ln.url} onChange={(e) => updateLine(i, { url: e.target.value })} placeholder="https://…" required={!allowSelfLines} /></Field>
             )}
             <Field label="Nickname (optional)"><input value={ln.nickname} onChange={(e) => updateLine(i, { nickname: e.target.value })} /></Field>
           </fieldset>
