@@ -155,6 +155,12 @@ export async function deleteIptvAccount(accountId) {
   return invokeData("iptv.delete", { id: accountId });
 }
 
+// ─── Entitlement ─────────────────────────────────────────────────────────────
+
+export async function fetchEntitlement() {
+  return invokeData("entitlement.fetch", {});
+}
+
 // ─── Watch History ────────────────────────────────────────────────────────────
 
 // Max number of history entries + the local+remote merge live in the pure

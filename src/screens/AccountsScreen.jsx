@@ -44,7 +44,7 @@ const EMPTY_FORM = { type: "xtream", nickname: "", host: "", username: "", passw
 
 export default function AccountsScreen({ navigation }) {
   useScale(); // re-render + recompute ss() when the scale corrects (webOS cold start)
-  const { users, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser, setChannels, authUser, profile, signOut } = useApp();
+  const { users, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser, setChannels, authUser, profile, signOut, allowSelfLines } = useApp();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -252,11 +252,13 @@ export default function AccountsScreen({ navigation }) {
         </XStack>
       )}
 
-      <YStack margin={ss(16)}>
-        <Button variant="primary" icon="plus" disabled={loading} onPress={handleAddNew}>
-          Add account
-        </Button>
-      </YStack>
+      {allowSelfLines && (
+        <YStack margin={ss(16)}>
+          <Button variant="primary" icon="plus" disabled={loading} onPress={handleAddNew}>
+            Add account
+          </Button>
+        </YStack>
+      )}
 
       {IS_NATIVE && <DownloadsStorageLine />}
 
@@ -271,9 +273,11 @@ export default function AccountsScreen({ navigation }) {
           mode="empty"
           icon="tv"
           title="No accounts"
-          message='Tap "Add account" to add your first media service'
-          cta={handleAddNew}
-          ctaLabel="Add account"
+          message={allowSelfLines
+            ? 'Tap "Add account" to add your first media service'
+            : "Your provider manages your subscription. Contact them to add a service."}
+          cta={allowSelfLines ? handleAddNew : undefined}
+          ctaLabel={allowSelfLines ? "Add account" : undefined}
         />
       ) : (
         <FlatList

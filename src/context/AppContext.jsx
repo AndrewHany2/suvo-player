@@ -7,7 +7,7 @@ import {
   fetchFavorites, upsertFavorite, deleteFavorite,
   isSupabaseConfigured, getSession, claimDevice,
   signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut,
-  onAuthStateChange, fetchProfile,
+  onAuthStateChange, fetchProfile, fetchEntitlement,
   fetchAppProfiles, insertAppProfile, updateAppProfile, deleteAppProfile,
   fetchIptvAccounts, insertIptvAccount,
   updateIptvAccount as supabaseUpdateIptvAccount,
@@ -57,6 +57,10 @@ export const AppProvider = ({ children }) => {
   // 'pending' until the device is bound/verified server-side; 'ok' unlocks data
   // loads; 'denied' means this account is bound to another device.
   const [deviceStatus, setDeviceStatus] = useState('pending');
+  // UX mirror of the server's per-customer self-add gate. Default true so a
+  // missing field (older server) never hides the button; only an explicit
+  // false hides it. The server (data/iptv.insert) is authoritative.
+  const [allowSelfLines, setAllowSelfLines] = useState(true);
 
   // ─── App profiles ──────────────────────────────────────────────────────────
   const [appProfiles, setAppProfiles]       = useState([]);
@@ -148,7 +152,7 @@ export const AppProvider = ({ children }) => {
     await supabaseSignOut();
     setAuthUser(null); setProfile(null); setAppProfiles([]);
     setActiveProfileId(null); setUsers([]); setActiveUserId(null);
-    setChannels([]); setWatchHistory([]);
+    setChannels([]); setWatchHistory([]); setAllowSelfLines(true);
     await storage.removeItem('iptv_active_profile');
   }, []);
 
@@ -474,6 +478,7 @@ export const AppProvider = ({ children }) => {
     // `profiles` row, set server-side by the `admin`/`data` functions).
     fetchProfile(authUser.id).then((p) => { if (p) setProfile(p); }).catch(() => {});
     fetchAppProfiles(authUser.id).then(setAppProfiles).catch(() => {});
+    fetchEntitlement().then((e) => setAllowSelfLines(e?.allowSelfLines !== false)).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.id, deviceStatus]);
 
@@ -603,6 +608,7 @@ export const AppProvider = ({ children }) => {
     searchQuery, setSearchQuery, isLoading, setIsLoading, error, setError,
     saveChannels, loadSavedChannels,
     tvUseShelves, setTvUseShelves,
+    allowSelfLines,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [authUser, authLoading, profile, deviceStatus, appProfiles, activeProfileId, activeProfile,
     tvUseShelves,
@@ -613,7 +619,8 @@ export const AppProvider = ({ children }) => {
     signIn, signUp, signOut, switchProfile, addProfile, updateProfile, removeProfile,
     addUser, updateUser, removeUser, saveUsers,
     refetchLibrary,
-    addToMyList, removeFromMyList, isInMyList]);
+    addToMyList, removeFromMyList, isInMyList,
+    allowSelfLines]);
 
   // Playback slice — changes only on play/close (currentVideo); playVideo/
   // closeVideo are stable (useCallback), so browse/nav trees reading only `value`
