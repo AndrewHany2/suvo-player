@@ -43,6 +43,14 @@ const EXPIRY_PRESETS: { choice: ExpiryChoice; label: string }[] = [
   { choice: "12", label: "+12 months" },
 ];
 
+type TabKey = "subscription" | "lines" | "devices" | "security";
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "subscription", label: "Subscription" },
+  { key: "lines", label: "IPTV Lines" },
+  { key: "devices", label: "Devices" },
+  { key: "security", label: "Security" },
+];
+
 export default function AccountDetail() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
@@ -53,6 +61,8 @@ export default function AccountDetail() {
 
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [devicesError, setDevicesError] = useState<string | null>(null);
+
+  const [tab, setTab] = useState<TabKey>("subscription");
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -105,10 +115,27 @@ export default function AccountDetail() {
         </div>
       </div>
 
-      <SubscriptionCard data={data} userId={userId} onSaved={load} />
-      <SecurityCard userId={userId} />
-      <LinesCard data={data} userId={userId} onSaved={load} />
-      <DevicesCard devices={devices} devicesError={devicesError} userId={userId} onSaved={loadDevices} />
+      <div className="tabs">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`tab${tab === t.key ? " active" : ""}`}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "subscription" && <SubscriptionCard data={data} userId={userId} onSaved={load} />}
+      {tab === "lines" && <LinesCard data={data} userId={userId} onSaved={load} />}
+      {tab === "devices" && (
+        <DevicesCard devices={devices} devicesError={devicesError} userId={userId} onSaved={loadDevices} />
+      )}
+      {tab === "security" && <SecurityCard userId={userId} />}
+
+      {/* Danger zone is pinned below the tabs — a destructive action shouldn't hide in a tab. */}
       <DangerZone data={data} userId={userId} onDeleted={() => navigate("/accounts")} />
     </div>
   );
