@@ -90,6 +90,41 @@ export function Modal({
   );
 }
 
+export function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  confirmVariant = "danger",
+  busy = false,
+  error = null,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: React.ReactNode;
+  confirmLabel: string;
+  confirmVariant?: ButtonVariant;
+  busy?: boolean;
+  error?: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal title={title} onClose={onCancel}>
+      {error && <p className="field-error">{error}</p>}
+      <p>{message}</p>
+      <div className="btn-row">
+        <Button variant={confirmVariant} disabled={busy} onClick={onConfirm}>
+          {busy ? "Working…" : confirmLabel}
+        </Button>
+        <Button variant="secondary" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 export function Field({
   label,
   error,
