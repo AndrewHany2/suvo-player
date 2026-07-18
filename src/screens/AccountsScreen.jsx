@@ -244,7 +244,7 @@ export default function AccountsScreen({ navigation }) {
           <XStack flex={1} alignItems="center" gap={ss(10)}>
             <Icon name="settings" size={ss(24)} color={colors.accent2} />
             <YStack>
-              <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(14)} fontWeight={fontWeights.medium}>{profile?.username ?? authUser.email}</Text>
+              <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(14)} fontWeight={fontWeights.medium}>{profile?.name ?? authUser.email}</Text>
               <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(12)} marginTop={ss(1)}>{authUser.email}</Text>
             </YStack>
           </XStack>

@@ -114,8 +114,8 @@ export async function fetchProfile(_userId) {
   return invokeData("profiles.fetch");
 }
 
-export async function upsertProfile(_userId, username, email) {
-  return invokeData("profiles.upsert", { username, email });
+export async function upsertProfile(_userId, name, email) {
+  return invokeData("profiles.upsert", { name, email });
 }
 
 // ─── App Profiles ────────────────────────────────────────────────────────────

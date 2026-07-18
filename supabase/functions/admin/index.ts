@@ -211,9 +211,9 @@ Deno.serve(async (req) => {
         // ungated ACTIVE orphan login with no customer_accounts row. A try/catch
         // backstop also deletes the user for network-level exceptions.
         try {
-          // 2. profiles (holds the display NAME in the legacy `username` column + email)
+          // 2. profiles (holds the display NAME in the `name` column + email)
           const { error: profErr } = await admin.from("profiles").upsert(
-            { user_id: newId, username: v.value.name, email },
+            { user_id: newId, name: v.value.name, email },
             { onConflict: "user_id" },
           );
           if (profErr) throw profErr;
@@ -300,8 +300,8 @@ Deno.serve(async (req) => {
         // Names first, so the search filter runs BEFORE the remaining lookups
         // (only fetch device/limit rows for accounts we'll actually return).
         const nameById = new Map<string, string>(
-          (await selectByUserIds(admin, "profiles", "user_id, username", accts.map((a: any) => a.user_id)))
-            .map((p) => [p.user_id, p.username ?? ""]),
+          (await selectByUserIds(admin, "profiles", "user_id, name", accts.map((a: any) => a.user_id)))
+            .map((p) => [p.user_id, p.name ?? ""]),
         );
         if (search) {
           accts = accts.filter((a: any) => (nameById.get(a.user_id) ?? "").toLowerCase().includes(search));
@@ -347,7 +347,7 @@ Deno.serve(async (req) => {
         const owner = await accountProviderId(admin, target);
         if (owner === undefined || !canActOnAccount(caller, owner)) return json({ error: "FORBIDDEN" }, 403);
         const { data: prof } = await admin
-          .from("profiles").select("username, email").eq("user_id", target).maybeSingle();
+          .from("profiles").select("name, email").eq("user_id", target).maybeSingle();
         const { data: acct } = await admin
           .from("customer_accounts")
           .select("provider_id, expires_at, suspended, note, origin")
@@ -361,7 +361,7 @@ Deno.serve(async (req) => {
         const status = await loadAccountStatus(admin, target);
         return json({
           userId: target,
-          name: prof?.username ?? "",
+          name: prof?.name ?? "",
           email: prof?.email ?? "",
           status,
           expiresAt: acct?.expires_at ?? null,
@@ -395,11 +395,11 @@ Deno.serve(async (req) => {
           dl = Number(payload.deviceLimit);
           if (!Number.isInteger(dl) || dl < 1) return json({ error: "INVALID_INPUT" }, 400);
         }
-        // name (display label) → stored in the legacy profiles.username column
+        // name (display label) → stored in the profiles.name column
         if (payload.name !== undefined) {
           const nm = String(payload.name).trim();
           if (nm.length < 1 || nm.length > 60) return json({ error: "INVALID_INPUT" }, 400);
-          const { error: nErr } = await admin.from("profiles").update({ username: nm }).eq("user_id", target);
+          const { error: nErr } = await admin.from("profiles").update({ name: nm }).eq("user_id", target);
           if (nErr) return json({ error: "SERVER_ERROR" }, 500);
         }
         if (Object.keys(acctPatch).length > 0) {

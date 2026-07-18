@@ -51,19 +51,21 @@ Deno.serve(async (req) => {
     switch (action) {
       case "profiles.fetch": {
         const { data } = await db("profiles")
-          .select("username, email")
+          .select("name, email")
           .eq("user_id", userId)
           .maybeSingle();
-        return json(data ?? null);
+        // Keep a `username` alias for already-installed app clients that still
+        // read profile.username; new clients read profile.name.
+        return json(data ? { name: data.name, username: data.name, email: data.email } : null);
       }
       case "profiles.upsert": {
-        // `username` is the legacy physical column that now holds the display name.
-        const name = String(payload.username ?? "").trim();
+        // Accept `name` (new) or `username` (legacy client alias) → profiles.name.
+        const name = String(payload.name ?? payload.username ?? "").trim();
         if (name.length < 1 || name.length > 60) return json({ error: "INVALID_INPUT" }, 400);
         // profiles.email is display-only now (login uses the GoTrue email). Only
         // write it when a well-formed value is supplied, and never null an
         // existing value — so a client can't corrupt the reseller's login-email view.
-        const patch: Record<string, unknown> = { user_id: userId, username: name };
+        const patch: Record<string, unknown> = { user_id: userId, name };
         if (payload.email != null && payload.email !== "") {
           const email = String(payload.email).trim().toLowerCase();
           if (!email.includes("@")) return json({ error: "INVALID_INPUT" }, 400);
