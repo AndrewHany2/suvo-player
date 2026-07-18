@@ -78,6 +78,22 @@ describe("adopt_self_signup_account function migration", () => {
     assert.ok(insert.includes("on conflict (user_id) do nothing"), "insert must be idempotent");
   });
 
+  test("names the account from its auth email, filling a blank name only (never a provider)", () => {
+    const insert = statement(executableSql(), "insert into public.profiles");
+    assert.ok(insert, "must upsert a profiles row so the account is identifiable");
+    assert.ok(insert.includes("auth.users"), "must source the name from auth.users");
+    assert.ok(insert.includes("u.email"), "must use the auth email as the name");
+    assert.ok(
+      insert.includes("on conflict (user_id) do update"),
+      "must be an idempotent upsert keyed on user_id",
+    );
+    assert.ok(
+      insert.includes("coalesce(nullif(p.username"),
+      "must only fill a blank name, never overwrite an admin-set/provider name",
+    );
+    assert.match(insert, /not exists \([^)]*public\.providers/, "must not name providers");
+  });
+
   test("reconcile forces active/no-expiry, scoped to the adopted self row, never resurrecting a revoked account", () => {
     const update = statement(executableSql(), "update public.entitlements");
     assert.ok(update, "must reconcile entitlements");

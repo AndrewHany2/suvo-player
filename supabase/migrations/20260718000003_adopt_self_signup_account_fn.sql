@@ -4,6 +4,11 @@
   function is called from data/iptv.insert whenever a self-signup user adds a
   line, so new self-signups also become visible/manageable.
 
+  It ALSO names the account from its auth email (upserts a profiles row), because
+  self-signups have no profiles row and would otherwise show a blank, unsearchable
+  name and break the dashboard's type-to-confirm delete. Existing already-adopted
+  accounts are named by the one-time backfill 20260718000004.
+
   Policy (owner-approved): self-added accounts are ACTIVE, NO EXPIRY — this
   removes the 7-day trial for anyone who adds a line. To change the policy later,
   edit expires_at below (and the reconcile).
@@ -28,6 +33,23 @@ security definer
 set search_path = public
 as $$
 begin
+  -- 0. Name the self-signup account from its auth email so it is identifiable in
+  --    the dashboard. Provider accounts are named at creation (accounts.create);
+  --    self-signups are not, and have no profiles row at all — so they render
+  --    blank, are unsearchable, and break the dashboard's type-to-confirm delete.
+  --    Only fills a missing/blank name — never overwrites an admin-set name.
+  --    Same scope as adoption (has a line, not a provider).
+  insert into public.profiles as p (user_id, username, email)
+  select p_user_id, u.email, u.email
+  from auth.users u
+  where u.id = p_user_id
+    and u.email is not null
+    and exists     (select 1 from public.iptv_accounts i  where i.user_id = p_user_id)
+    and not exists (select 1 from public.providers     pr where pr.user_id = p_user_id)
+  on conflict (user_id) do update
+    set username = coalesce(nullif(p.username, ''), excluded.username),
+        email    = coalesce(p.email, excluded.email);
+
   -- 1. Adopt: only if the user has a line, has no customer_accounts row, and is
   --    not a provider. Active, no expiry, traceable marker note.
   insert into public.customer_accounts (user_id, origin, provider_id, expires_at, note)
