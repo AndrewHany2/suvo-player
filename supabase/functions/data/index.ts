@@ -131,6 +131,16 @@ Deno.serve(async (req) => {
           })
           .select("id")
           .single();
+        // Best-effort: adopt a self-signup customer into the reseller dashboard
+        // (active, no-expiry customer_accounts row + entitlement reconcile).
+        // Non-fatal — the line is already saved; a failure here only delays
+        // dashboard visibility. Mirrors claim-device's non-fatal bootstrap.
+        const { error: adoptErr } = await admin.rpc("adopt_self_signup_account", {
+          p_user_id: userId,
+        });
+        if (adoptErr) {
+          console.error("self-signup adoption failed (non-fatal):", adoptErr.message);
+        }
         return json({ id: data?.id ?? null });
       }
       case "iptv.update": {
