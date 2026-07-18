@@ -317,9 +317,10 @@ Deno.serve(async (req) => {
         );
         const providerIds = [...new Set(accts.map((a: any) => a.provider_id).filter(Boolean))] as string[];
         const provRows = providerIds.length
-          ? (await admin.from("providers").select("user_id, suspended").in("user_id", providerIds)).data ?? []
+          ? (await admin.from("providers").select("user_id, suspended, name").in("user_id", providerIds)).data ?? []
           : [];
         const provSuspended = new Map<string, boolean>(provRows.map((p: any) => [p.user_id, !!p.suspended]));
+        const provNameById = new Map<string, string>(provRows.map((p: any) => [p.user_id, p.name ?? ""]));
 
         const now = Date.now();
         const out = accts.map((a: any) => ({
@@ -335,6 +336,8 @@ Deno.serve(async (req) => {
           devicesUsed: deviceCount.get(a.user_id) ?? 0,
           deviceLimit: limitById.get(a.user_id) ?? null,
           note: a.note,
+          providerId: a.provider_id ?? null,
+          providerName: a.provider_id ? (provNameById.get(a.provider_id) ?? null) : null,
         }));
         return json(out);
       }
