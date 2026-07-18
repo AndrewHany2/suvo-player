@@ -3,7 +3,7 @@
 // automatically into deployed functions — no manual secrets needed.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { userKeyIsAuthorized } from "./authz.js";
-import { accountStatus, isActive } from "./accountStatus.js";
+import { accountStatus, isActive, selfLinesAllowed } from "./accountStatus.js";
 import { evaluateEntitlement } from "./entitlement.js";
 export { ACCOUNT_SUSPENDED, ACCOUNT_EXPIRED, PROVIDER_SUSPENDED } from "./accountStatus.js";
 
@@ -155,6 +155,22 @@ export async function loadAccountStatus(
   return accountStatus(acct, providerSuspended, Date.now());
 }
 
+// Whether the caller may add their own IPTV lines in the app. Reads the flag
+// off the caller's customer_accounts row; a missing row is the legacy/ungated
+// case (allowed). A DB error throws SERVER_ERROR (retryable), never a denial.
+export async function loadSelfLinesAllowed(
+  admin: ReturnType<typeof adminClient>,
+  userId: string,
+): Promise<boolean> {
+  const { data: acct, error } = await admin
+    .from("customer_accounts")
+    .select("allow_self_lines")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error("SERVER_ERROR");
+  return selfLinesAllowed(acct);
+}
+
 // Throws the specific status string when the account is inactive; the caller
 // maps it to a client-facing message / HTTP code.
 export async function assertAccountActive(
@@ -204,8 +220,9 @@ export async function assertEntitled(
 export async function entitlementSnapshot(
   admin: ReturnType<typeof adminClient>,
   userId: string,
-): Promise<{ entitled: boolean; reason: string; expires_at: string | null }> {
+): Promise<{ entitled: boolean; reason: string; expires_at: string | null; allowSelfLines: boolean }> {
   const row = await loadEntitlement(admin, userId);
   const verdict = evaluateEntitlement(row, Date.now());
-  return { entitled: verdict.entitled, reason: verdict.reason, expires_at: row?.expires_at ?? null };
+  const allowSelfLines = await loadSelfLinesAllowed(admin, userId);
+  return { entitled: verdict.entitled, reason: verdict.reason, expires_at: row?.expires_at ?? null, allowSelfLines };
 }
