@@ -42,6 +42,11 @@ export default function CreateAccount() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invalidFields, setInvalidFields] = useState<string[]>([]);
+  // On success we show a confirmation with the resolved login email (which the
+  // server auto-generates when Email is left blank) instead of navigating away,
+  // so the provider can copy it and hand it to the customer to sign in.
+  const [created, setCreated] = useState<{ userId: string; email: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   function fieldError(name: string, hint: string): string | undefined {
     return invalidFields.includes(name) ? hint : undefined;
@@ -67,8 +72,12 @@ export default function CreateAccount() {
         lines: buildLinesPayload(lines.filter((l) => !isEmptyLineForm(l))),
         allowSelfLines,
       };
-      const result = await call<{ userId: string }>("accounts.create", payload);
-      navigate(`/accounts/${result.userId}`);
+      const result = await call<{ userId: string; email?: string }>("accounts.create", payload);
+      // Show the copyable login email when the server returns it. Tolerate a
+      // server that predates this field (deploy skew): fall back to the account
+      // detail page, which loads and displays the same email.
+      if (result.email) setCreated({ userId: result.userId, email: result.email });
+      else navigate(`/accounts/${result.userId}`);
     } catch (err) {
       const e2 = err as Error & { fields?: string[] };
       setError(apiErrorMessage(e2.message));
@@ -79,6 +88,52 @@ export default function CreateAccount() {
   }
 
   const lineInvalid = invalidFields.includes("lines");
+
+  // Clear every field back to defaults so "Create another" starts fresh.
+  function reset() {
+    setName("");
+    setPassword("");
+    setDeviceLimit("1");
+    setNote("");
+    setEmail("");
+    setExpiryChoice("1");
+    setCustomDate("");
+    setLines([emptyLine()]);
+    setAllowSelfLines(false);
+    setError(null);
+    setInvalidFields([]);
+    setCopied(false);
+    setCreated(null);
+  }
+
+  if (created) {
+    return (
+      <div className="container">
+        <h1>Account created</h1>
+        <section className="card">
+          <p>Give the customer this login email and the password you set — they sign in with the email, not a username.</p>
+          <div className="card-row">
+            <Field label="Login email">
+              <input value={created.email} readOnly onFocus={(e) => e.currentTarget.select()} />
+            </Field>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                navigator.clipboard?.writeText(created.email);
+                setCopied(true);
+              }}
+            >
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </div>
+          <div className="btn-row">
+            <Button onClick={() => navigate(`/accounts/${created.userId}`)}>View account</Button>
+            <Button variant="secondary" onClick={reset}>Create another</Button>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="container">

@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { mapInvokeResult } from "./invokeData.logic.js";
+import { mapInvokeResult, isForcedLogoutError, functionErrorCode } from "./invokeData.logic.js";
 import { mapLoginResult } from "./loginResult.logic.js";
 import { getDeviceId } from "./deviceHeader.js";
 
@@ -47,6 +47,29 @@ async function invokeData(action, payload = {}) {
     body: { action, payload },
     headers: { "x-device-id": getDeviceId() },
   });
+  // supabase-js turns any non-2xx (the data fn's 403s) into res.error (a
+  // FunctionsHttpError) with res.data === null; the JSON body carrying the real
+  // code — { "error": "ACCOUNT_INACTIVE" } — lives on res.error.context (the raw,
+  // still-unread Response). Read it so the gate below sees the true code instead
+  // of the opaque "Edge Function returned a non-2xx status code" message.
+  if (res.error) {
+    let body = null;
+    try {
+      body = await res.error.context?.json?.();
+    } catch (_e) {
+      // Body missing / already consumed / not JSON — fall back to the message.
+    }
+    const code = functionErrorCode(body, res.error.message);
+    // A suspended/expired account (or one under a suspended provider) makes every
+    // data call return ACCOUNT_INACTIVE. Force a sign-out so the active session
+    // can't keep using the app — the user lands on login, where the reseller gate
+    // shows the specific reason. Swallow any sign-out error so the original error
+    // still propagates to callers.
+    if (isForcedLogoutError(code)) {
+      await signOut().catch(() => {});
+    }
+    throw new Error(code);
+  }
   return mapInvokeResult(res);
 }
 

@@ -273,7 +273,10 @@ Deno.serve(async (req) => {
           lineCount: v.value.lines.length,
           allowSelfLines: v.value.allowSelfLines,
         });
-        return json({ userId: newId });
+        // Return the resolved login email too: when the provider left it blank
+        // it was auto-generated (acc-<token>@<slug>.accounts.local) and the
+        // client shows it so they can hand it to the customer to sign in.
+        return json({ userId: newId, email });
       }
 
       case "accounts.list": {
