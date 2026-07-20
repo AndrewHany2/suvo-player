@@ -28,6 +28,7 @@
       }
     },
     "android": {
+      "versionCode": 10201,
       "usesCleartextTraffic": true,
       "allowBackup": false,
       "adaptiveIcon": {
