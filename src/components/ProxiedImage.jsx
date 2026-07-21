@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Image, View, Text } from "react-native";
+import { Image, View } from "react-native";
+import { colors } from "../ui/tokens";
+import Icon from "../ui/Icon";
 
 /**
  * Simplified Image component - loads directly for performance
@@ -9,7 +11,7 @@ export default function ProxiedImage({
   source,
   style,
   resizeMode = "cover",
-  fallbackColor = "#141A2E",
+  fallbackColor = colors.surface,
   showPlaceholder = true,
   ...props
 }) {
@@ -29,7 +31,7 @@ export default function ProxiedImage({
 
     return (
       <View style={[style, { backgroundColor: fallbackColor, justifyContent: "center", alignItems: "center" }]} {...props}>
-        <Text style={{ color: "#555", fontSize: 32 }}>🎬</Text>
+        <Icon name="film" color={colors.faint} size={32} />
       </View>
     );
   }

@@ -4,7 +4,7 @@ import { useApp } from "../context/AppContext";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import { ss, useScale } from "../utils/scaleSize";
-import { colors } from "../ui/tokens";
+import { colors, fonts } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import Button from "../ui/Button";
@@ -152,7 +152,7 @@ export default function MoviesScreen({ navigation }) {
       >
         <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
         <YStack paddingHorizontal={ss(48)} paddingTop={ss(24)} paddingBottom={ss(4)}>
-          <Text color={colors.text} fontSize={ss(22)} fontWeight="700" letterSpacing={-0.3} marginBottom={ss(12)}>Discover</Text>
+          <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(22)} fontWeight="700" letterSpacing={-0.3} marginBottom={ss(12)}>Discover</Text>
           <DiscoverPills
             items={discoverItems}
             focusedCol={focusedRow === 0 ? focusedCol : -1}

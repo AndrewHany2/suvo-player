@@ -110,7 +110,7 @@ function ChipRow({ label, options, value, onChange, focusedValue = null }) {
               style={{
                 borderColor: selected ? colors.accent : colors.border,
                 backgroundColor: selected ? accentAlpha(0.12) : "transparent",
-                color: selected ? colors.accent : colors.muted,
+                color: selected ? colors.accentText : colors.muted,
                 fontWeight: selected ? fontWeights.bold : fontWeights.regular,
               }}
             >

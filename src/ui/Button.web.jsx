@@ -41,7 +41,8 @@ function variantStyle(variant) {
       return { backgroundColor: "transparent", color: colors.accent, border: "1px solid transparent" };
     case "primary":
     default:
-      return { backgroundColor: colors.accent, color: colors.text, border: "1px solid transparent" };
+      // AA: white label (~5:1) on the indigo fill; colors.text (#EAF0FF) was ~4.26:1 (< 4.5).
+      return { backgroundColor: colors.accent, color: colors.textStrong, border: "1px solid transparent" };
   }
 }
 

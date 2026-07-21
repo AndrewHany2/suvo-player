@@ -441,7 +441,7 @@ export default function MoviesScreenTV({ navigation, route }) {
       { label: resume?.currentTime > 0 ? "Continue" : "Play", icon: "play", type: "play" },
       ...(resume?.currentTime > 0 ? [{ label: "From Start", icon: "back", type: "restart" }] : []),
       ...(trailer ? [{ label: showTrailer ? "Close Trailer" : "Trailer", icon: showTrailer ? "close" : "film", type: "trailer" }] : []),
-      { label: inFav ? "Saved" : "Add to Favorites", icon: "star", type: "fav" },
+      { label: inFav ? "In My List" : "My List", icon: inFav ? "check" : "plus", type: "fav" },
     ];
     const btnClass = (i, type) => [
       "tvl-det-hero-btn",
@@ -555,7 +555,7 @@ export default function MoviesScreenTV({ navigation, route }) {
             );
           })}
         </div>
-        {!filteredItems && !page.failed && <div className="tvl-center"><div className="tvl-spinner" /><p>Loading movies…</p></div>}
+        {!filteredItems && !page.failed && <StatePanel mode="loading" title="Loading movies…" />}
         {page.failed && (
           <StatePanel
             mode="error"
@@ -564,7 +564,13 @@ export default function MoviesScreenTV({ navigation, route }) {
             onRetry={() => openCat({ id: page.catId, name: page.name })}
           />
         )}
-        {!page.failed && filteredItems?.length === 0 && <div className="tvl-center"><p className="tvl-empty-msg">{gridQuery.trim() ? "No results" : `No titles starting with "${filterLetter.toUpperCase()}"`}</p></div>}
+        {!page.failed && filteredItems?.length === 0 && (
+          gridQuery.trim() ? (
+            <StatePanel mode="empty" icon="search" title="No results" message={`No movies match "${gridQuery.trim()}". Try another title.`} />
+          ) : (
+            <StatePanel mode="empty" icon="film" title={`No titles under "${filterLetter.toUpperCase()}"`} message="Try another letter." />
+          )
+        )}
         {filteredItems && filteredItems.length > 0 && (
           <div className="tvl-mov-grid-window">
             <PagedGridTV
@@ -594,7 +600,7 @@ export default function MoviesScreenTV({ navigation, route }) {
         {shelves.length === 0
           ? (loaded
               ? <StatePanel mode="empty" {...emptyContentProps("movies")} />
-              : <div className="tvl-center"><div className="tvl-spinner" /><p>Loading movies…</p></div>)
+              : <StatePanel mode="loading" title="Loading movies…" />)
           : (
             <VirtualShelvesTV
               shelves={shelves}

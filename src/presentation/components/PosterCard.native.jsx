@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { colors, radii, fonts, fontWeights, glow, focusRing, overlay } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
 import { isLowEndDevice } from "../../utils/deviceTier";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 import Icon from "../../ui/Icon";
 
 // Device tier is frozen at first read, so resolve it once at module scope.
@@ -35,11 +36,13 @@ function PosterCardNative({ item, onPress, isFocused = false, width = 130 }) {
   // once the image loads. expo-image auto-downscales the remote poster to the
   // cell size, so no full-res decode into a small card on low-end devices.
   const [loaded, setLoaded] = useState(false);
+  const reducedMotion = useReducedMotion();
   const shimmer = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
-    // Skip the pulse on low-end: a static placeholder block avoids running one
-    // native-driver loop per mounted card on weak hardware.
-    if (!poster || loaded || LOW_END) return undefined;
+    // Skip the pulse on low-end or when reduced-motion is on: a static
+    // placeholder block avoids running one native-driver loop per mounted card
+    // on weak hardware, and honors the OS "Reduce Motion" setting.
+    if (!poster || loaded || LOW_END || reducedMotion) return undefined;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(shimmer, { toValue: 1, duration: 700, useNativeDriver: true }),
@@ -48,7 +51,7 @@ function PosterCardNative({ item, onPress, isFocused = false, width = 130 }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [poster, loaded, shimmer]);
+  }, [poster, loaded, shimmer, reducedMotion]);
 
   return (
     <Pressable
@@ -75,7 +78,7 @@ function PosterCardNative({ item, onPress, isFocused = false, width = 130 }) {
                     contentFit="cover"
                     cachePolicy="memory-disk"
                     recyclingKey={poster}
-                    transition={LOW_END ? 0 : 150}
+                    transition={(LOW_END || reducedMotion) ? 0 : 150}
                     onLoad={() => setLoaded(true)}
                   />
                 </>

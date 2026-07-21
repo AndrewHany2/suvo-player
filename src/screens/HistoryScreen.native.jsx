@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Alert, View } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
@@ -37,15 +38,12 @@ function MyListCard({ item, onPress, onRemove, focused }) {
   const epLabel = getEpLabel(item);
 
   return (
-    <YStack width={130} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick">
+    <YStack width={130} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick" accessibilityRole="button" accessibilityLabel={item.name}>
       <YStack width={130} aspectRatio={2 / 3} borderRadius={radii.sm} backgroundColor={colors.surface} overflow="hidden" borderWidth={2} borderColor={focused ? colors.accent2 : colors.border}>
         {poster
           ? <Image source={poster} style={FILL} contentFit="cover" cachePolicy="memory-disk" recyclingKey={poster} transition={150} />
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
-        <YStack position="absolute" top={8} right={8} zIndex={4} backgroundColor={overlay} borderRadius={4} paddingHorizontal={5} paddingVertical={2}>
-          <Text color={colors.muted} fontFamily={fonts.body} fontSize={9} fontWeight={fontWeights.bold} letterSpacing={0.5}>HD</Text>
-        </YStack>
-        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor={overlay} borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11}>
+        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor={overlay} borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11} accessibilityRole="button" accessibilityLabel="Remove from My List">
           <Icon name="close" size={11} color={colors.text} />
         </YStack>
       </YStack>
@@ -57,7 +55,7 @@ function MyListCard({ item, onPress, onRemove, focused }) {
 
 /* ── Watch History Card ── */
 function CWCard({ item, onPress, onRemove, focused }) {
-  const progress = item.duration > 0 ? Math.min((item.currentTime / item.duration) * 100, 100) : 15;
+  const progress = item.duration > 0 ? Math.min((item.currentTime / item.duration) * 100, 100) : null;
   const timeLeft = formatTimeLeft(item.currentTime, item.duration);
   const epLabel = getEpLabel(item);
   const seasonBadge = item.seasonNum ? `S${item.seasonNum}` : null;
@@ -66,7 +64,7 @@ function CWCard({ item, onPress, onRemove, focused }) {
   const epTitle = item.seriesName && item.name !== item.seriesName ? item.name : null;
 
   return (
-    <YStack width={260} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.85 }} hoverStyle={{ scale: 1.02 }} animation="quick">
+    <YStack width={260} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.85 }} hoverStyle={{ scale: 1.02 }} animation="quick" accessibilityRole="button" accessibilityLabel={`Play ${showTitle}`}>
       <YStack width={260} height={148} borderRadius={radii.sm} backgroundColor={colors.surface} overflow="hidden" borderWidth={2} borderColor={focused ? colors.accent2 : colors.border}>
         {bg
           ? <Image source={bg} style={FILL} contentFit="cover" cachePolicy="memory-disk" recyclingKey={bg} transition={150} />
@@ -77,18 +75,20 @@ function CWCard({ item, onPress, onRemove, focused }) {
             <Text color={colors.text} fontFamily={fonts.display} fontSize={13} fontWeight={fontWeights.bold}>{seasonBadge}</Text>
           </YStack>
         )}
-        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor={overlay} borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11}>
+        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor={overlay} borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11} accessibilityRole="button" accessibilityLabel="Remove from History">
           <Icon name="close" size={11} color={colors.text} />
         </YStack>
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={3} justifyContent="center" alignItems="center">
           <Icon name="play" size={28} color={colors.text} />
         </YStack>
-        {/* Progress bar — keep as RN Views for % string width compatibility */}
-        <YStack position="absolute" left={0} right={0} bottom={0} zIndex={4} padding={10}>
-          <View style={{ height: 3, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
-            <View style={{ height: "100%", width: `${progress}%`, backgroundColor: colors.accent }} />
-          </View>
-        </YStack>
+        {/* Progress bar — only when we have real currentTime/duration; keep as RN Views for % string width compatibility */}
+        {progress !== null && (
+          <YStack position="absolute" left={0} right={0} bottom={0} zIndex={4} padding={10}>
+            <View style={{ height: 3, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
+              <View style={{ height: "100%", width: `${progress}%`, backgroundColor: colors.accent }} />
+            </View>
+          </YStack>
+        )}
       </YStack>
       <YStack paddingTop={8} paddingHorizontal={2}>
         <Text color={colors.text} fontFamily={fonts.body} fontSize={12} fontWeight={fontWeights.medium} marginBottom={2} numberOfLines={1}>{showTitle}</Text>
@@ -120,6 +120,12 @@ export default function HistoryScreen({ navigation }) {
     Alert.alert("Remove from History", `Remove "${item.name}" from history?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Remove", style: "destructive", onPress: () => removeFromWatchHistory(item.id) },
+    ]);
+  };
+  const confirmRemoveFromList = (item) => {
+    Alert.alert("Remove from My List", `Remove "${item.name}" from My List?`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: () => removeFromMyList(item.id) },
     ]);
   };
 
@@ -165,34 +171,46 @@ export default function HistoryScreen({ navigation }) {
       {myList.length > 0 && (
         <YStack paddingBottom={40}>
           <Text color={colors.text} fontFamily={fonts.display} fontSize={22} fontWeight={fontWeights.bold} letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Favorites</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
-            {myList.map((item, idx) => (
+          {/* Horizontal FlashList so a long favorites list virtualizes (recycles cells) instead of mounting every card. */}
+          <FlashList
+            horizontal
+            data={myList}
+            keyExtractor={(item, i) => String(item.id ?? i)}
+            renderItem={({ item, index }) => (
               <MyListCard
-                key={item.id}
                 item={item}
-                focused={focusedRow === myListRowIdx && focusedCol === idx}
+                focused={focusedRow === myListRowIdx && focusedCol === index}
                 onPress={() => openDetail(item)}
-                onRemove={() => removeFromMyList(item.id)}
+                onRemove={() => confirmRemoveFromList(item)}
               />
-            ))}
-          </ScrollView>
+            )}
+            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16 }}
+          />
         </YStack>
       )}
 
       {watchedHistory.length > 0 && (
         <YStack paddingBottom={40}>
           <Text color={colors.text} fontFamily={fonts.display} fontSize={22} fontWeight={fontWeights.bold} letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Watch History</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}>
-            {watchedHistory.map((item, idx) => (
+          {/* Horizontal FlashList so a long history list virtualizes (recycles cells) instead of mounting every card. */}
+          <FlashList
+            horizontal
+            data={watchedHistory}
+            keyExtractor={(item, i) => String(item.id ?? i)}
+            renderItem={({ item, index }) => (
               <CWCard
-                key={item.id}
                 item={item}
-                focused={focusedRow === historyRowIdx && focusedCol === idx}
+                focused={focusedRow === historyRowIdx && focusedCol === index}
                 onPress={() => openDetail(item)}
                 onRemove={() => confirmRemove(item)}
               />
-            ))}
-          </ScrollView>
+            )}
+            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16 }}
+          />
         </YStack>
       )}
     </ScrollView>

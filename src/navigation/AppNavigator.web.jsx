@@ -73,6 +73,10 @@ if (typeof document !== "undefined") {
       box-shadow: 0 0 0 ${ss(3)}px rgba(34,211,238,0.18) !important;
     }
     .suvo-topnav { position: sticky !important; top: 0 !important; z-index: 30 !important; }
+    /* Dim + shield behind showModal() dialogs (Accounts / Settings). The native
+       ::backdrop is transparent by default; this restores the dark scrim the old
+       hand-rolled backdrop div carried. Plain rgba — TV-safe (no gradient). */
+    dialog::backdrop { background: rgba(0,0,0,0.7); }
     .suvo-poster {
       transition: box-shadow 0.2s ease, border-color 0.2s ease;
       cursor: pointer !important;
@@ -103,18 +107,23 @@ if (typeof document !== "undefined") {
       position: absolute; top: 0; bottom: 0; z-index: 4;
       display: flex; align-items: center;
       background: linear-gradient(to right, rgba(10, 14, 26,0.95), rgba(10, 14, 26,0));
-      border: none; cursor: pointer; color: #fff; font-size: ${ss(28)}px; padding: 0 ${ss(14)}px; width: ${ss(56)}px;
+      border: none; cursor: pointer; color: #EAF0FF; font-size: ${ss(28)}px; padding: 0 ${ss(14)}px; width: ${ss(56)}px;
     }
     .suvo-shelf-nav.right { background: linear-gradient(to left, rgba(10, 14, 26,0.95), rgba(10, 14, 26,0)); right: 0; left: auto; justify-content: flex-end; }
     body:not(.keyboard-nav) .suvo-shelf-rail:hover .suvo-shelf-nav { opacity: 1; }
-    @keyframes suvo-blink { 50% { opacity: 0.25; } }
+    /* Keyboard reveal: hover alone hides these arrows from Tab users (they'd
+       focus an invisible control). Reveal on focus (own :focus-visible, and
+       :focus-within so a focused arrow keeps its pair visible). Not gated by
+       keyboard-nav — this must fire precisely during keyboard navigation. */
+    .suvo-shelf-nav:focus-visible,
+    .suvo-shelf-rail:focus-within .suvo-shelf-nav { opacity: 1; }
     .suvo-live-dot {
       display: inline-flex; align-items: center; gap: ${ss(5)}px;
-      font-size: ${ss(10)}px; font-weight: 700; color: #6C5CE7; letter-spacing: 0.08em;
+      font-size: ${ss(10)}px; font-weight: 700; color: #7A86A8; letter-spacing: 0.08em;
     }
     .suvo-live-dot::before {
       content: ''; width: ${ss(6)}px; height: ${ss(6)}px; border-radius: 50%;
-      background: #6C5CE7; animation: suvo-blink 1.6s ease-in-out infinite; flex-shrink: 0;
+      background: #6ABF69; flex-shrink: 0;
     }
     .suvo-cw-card {
       border-radius: ${ss(8)}px; transition: box-shadow 0.2s ease, border-color 0.2s ease;
@@ -123,7 +132,7 @@ if (typeof document !== "undefined") {
     .suvo-cw-play {
       position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.15s ease;
-      font-size: ${ss(38)}px; color: #fff; pointer-events: none; z-index: 5;
+      font-size: ${ss(38)}px; color: #EAF0FF; pointer-events: none; z-index: 5;
     }
     body:not(.keyboard-nav) .suvo-cw-card:hover .suvo-cw-play { opacity: 1; }
     .suvo-shelf-title-btn { cursor: pointer !important; }
@@ -139,7 +148,6 @@ if (typeof document !== "undefined") {
       .suvo-discover-pill:hover { box-shadow: none !important; border-color: #28324E !important; }
       .suvo-load-cta:hover { transform: none !important; }
       .suvo-shelf-rail { contain: layout style; }
-      .suvo-live-dot::before { animation: none !important; opacity: 1; }
     `
         : ""
     }
@@ -158,6 +166,15 @@ const CONTENT_MAP = {
   movies: MoviesScreen,
   series: SeriesScreen,
   home: HistoryScreen,
+};
+
+// Promote a <dialog> to a true modal the instant it mounts: showModal() gives a
+// native focus trap, an inert (background-shielding) ::backdrop, and restores
+// focus to the opener on close — none of which plain `<dialog open>` provides.
+// Guard on !open so a re-render (which re-runs the ref callback) doesn't call
+// showModal() on an already-open dialog, which throws.
+const openAsModal = (el) => {
+  if (el && !el.open) el.showModal();
 };
 
 function BrandGlyph() {
@@ -195,7 +212,7 @@ function NavLink({ item, isActive, isFocused, onPress, fontSize }) {
         pressStyle={{ opacity: 0.7 }}
       >
         <Text
-          color={isFocused || isActive ? colors.text : "#ccc"}
+          color={isFocused || isActive ? colors.text : colors.muted}
           fontSize={fontSize ?? ss(14)}
           fontWeight={isFocused || isActive ? "700" : "500"}
         >
@@ -249,6 +266,8 @@ function TopNav({
         avatar: ss(48),
         avatarFont: ss(22),
         avatarR: ss(10),
+        capFont: ss(14),
+        capGap: ss(5),
       }
     : {
         h: ss(64),
@@ -263,6 +282,8 @@ function TopNav({
         avatar: ss(32),
         avatarFont: ss(16),
         avatarR: ss(8),
+        capFont: ss(11),
+        capGap: ss(4),
       };
 
   return (
@@ -307,54 +328,93 @@ function TopNav({
         ))}
       </XStack>
 
-      <XStack alignItems="center" gap={ss(16)}>
+      <XStack alignItems="flex-start" gap={ss(16)}>
+        {/* Icon-only actions carry a visible caption + native title + aria-label
+            so first-timers (and 10-foot TV viewers, where there's no hover) can
+            recognise them without guessing at the glyph. */}
         <YStack
-          width={S.icon}
-          height={S.icon}
-          borderRadius={S.iconR}
-          justifyContent="center"
           alignItems="center"
+          justifyContent="center"
+          minWidth={ss(44)}
+          minHeight={ss(44)}
+          gap={S.capGap}
           cursor="pointer"
           onPress={onAccounts}
           pressStyle={{ opacity: 0.7 }}
-          backgroundColor={accountsFocused ? accentAlpha(0.18) : "transparent"}
-          borderWidth={2}
-          borderColor={accountsFocused ? colors.accent2 : "transparent"}
-          {...{ className: "suvo-icon-btn" }}
+          {...{ role: "button", "aria-label": "Accounts", title: "Accounts" }}
         >
-          <Icon name="signal" size={S.iconFont} color={colors.text} />
+          <YStack
+            width={S.icon}
+            height={S.icon}
+            borderRadius={S.iconR}
+            justifyContent="center"
+            alignItems="center"
+            backgroundColor={accountsFocused ? accentAlpha(0.18) : "transparent"}
+            borderWidth={2}
+            borderColor={accountsFocused ? colors.accent2 : "transparent"}
+            {...{ className: "suvo-icon-btn" }}
+          >
+            <Icon name="user" size={S.iconFont} color={colors.text} />
+          </YStack>
+          <Text color={colors.muted} fontSize={S.capFont} fontWeight="600">
+            Accounts
+          </Text>
         </YStack>
         <YStack
-          width={S.icon}
-          height={S.icon}
-          borderRadius={S.iconR}
-          justifyContent="center"
           alignItems="center"
+          justifyContent="center"
+          minWidth={ss(44)}
+          minHeight={ss(44)}
+          gap={S.capGap}
           cursor="pointer"
           onPress={onSettings}
           pressStyle={{ opacity: 0.7 }}
-          backgroundColor={settingsFocused ? accentAlpha(0.18) : "transparent"}
-          borderWidth={2}
-          borderColor={settingsFocused ? colors.accent2 : "transparent"}
-          {...{ className: "suvo-icon-btn" }}
+          {...{ role: "button", "aria-label": "Settings", title: "Settings" }}
         >
-          <Icon name="settings" size={S.iconFont} color={colors.text} />
+          <YStack
+            width={S.icon}
+            height={S.icon}
+            borderRadius={S.iconR}
+            justifyContent="center"
+            alignItems="center"
+            backgroundColor={settingsFocused ? accentAlpha(0.18) : "transparent"}
+            borderWidth={2}
+            borderColor={settingsFocused ? colors.accent2 : "transparent"}
+            {...{ className: "suvo-icon-btn" }}
+          >
+            <Icon name="settings" size={S.iconFont} color={colors.text} />
+          </YStack>
+          <Text color={colors.muted} fontSize={S.capFont} fontWeight="600">
+            Settings
+          </Text>
         </YStack>
         <YStack
-          width={S.avatar}
-          height={S.avatar}
-          borderRadius={S.avatarR}
-          backgroundColor={profileFocused ? colors.accent : colors.surface2}
-          borderWidth={profileFocused ? 3 : 2}
-          borderColor={profileFocused ? colors.accent2 : colors.border}
-          justifyContent="center"
           alignItems="center"
+          justifyContent="center"
+          minWidth={ss(44)}
+          minHeight={ss(44)}
+          gap={S.capGap}
           cursor="pointer"
           onPress={onSwitchProfile}
           pressStyle={{ opacity: 0.8 }}
-          {...{ className: "suvo-avatar" }}
+          {...{ role: "button", "aria-label": "Switch profile", title: "Switch profile" }}
         >
-          <Text fontSize={S.avatarFont}>{activeProfile?.avatar || "👤"}</Text>
+          <YStack
+            width={S.avatar}
+            height={S.avatar}
+            borderRadius={S.avatarR}
+            backgroundColor={profileFocused ? colors.accent : colors.surface2}
+            borderWidth={profileFocused ? 3 : 2}
+            borderColor={profileFocused ? colors.accent2 : colors.border}
+            justifyContent="center"
+            alignItems="center"
+            {...{ className: "suvo-avatar" }}
+          >
+            <Text fontSize={S.avatarFont}>{activeProfile?.avatar || "👤"}</Text>
+          </YStack>
+          <Text color={colors.muted} fontSize={S.capFont} fontWeight="600">
+            Profile
+          </Text>
         </YStack>
       </XStack>
     </XStack>
@@ -371,7 +431,7 @@ export default function AppNavigator() {
   } = useApp();
   const { currentVideo } = usePlayback();
   const gate = useAppGate();
-  const [activeTab, setActiveTab] = useState("live");
+  const [activeTab, setActiveTab] = useState("home");
   const [showAccounts, setShowAccounts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
@@ -689,143 +749,107 @@ export default function AppNavigator() {
       {currentVideo && <VideoPlayerScreen />}
 
       {showAccounts && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            backgroundColor: "rgba(0,0,0,0.7)",
-            zIndex: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+        <dialog
+          ref={openAsModal}
+          // Escape fires the dialog's native close → sync React state. Backdrop
+          // clicks land on the dialog element itself (target === currentTarget).
+          onClose={() => setShowAccounts(false)}
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowAccounts(false);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setShowAccounts(false);
+          style={{
+            padding: 0,
+            border: "none",
+            width: ss(600),
+            maxWidth: "90vw",
+            backgroundColor: colors.surface2,
+            borderRadius: ss(16),
+            overflow: "hidden",
           }}
         >
-          <dialog
-            open
+          <div
             style={{
-              position: "static",
-              margin: 0,
-              padding: 0,
-              border: "none",
-              width: ss(600),
-              maxWidth: "90vw",
-              backgroundColor: colors.surface2,
-              borderRadius: ss(16),
-              overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: `${ss(16)}px ${ss(20)}px`,
+              borderBottom: `1px solid ${colors.border}`,
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: `${ss(16)}px ${ss(20)}px`,
-                borderBottom: `1px solid ${colors.border}`,
-              }}
+            <span
+              style={{ color: colors.text, fontSize: ss(18), fontWeight: 700 }}
             >
-              <span
-                style={{ color: colors.text, fontSize: ss(18), fontWeight: 700 }}
-              >
-                Accounts
-              </span>
-              <button
-                onClick={() => setShowAccounts(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#aaa",
-                  fontSize: ss(22),
-                  cursor: "pointer",
-                  lineHeight: 1,
-                  padding: `0 ${ss(4)}px`,
-                }}
-                aria-label="Close"
-              >
-                <Icon name="close" size={ss(16)} color={colors.text} />
-              </button>
-            </div>
-            <AccountsScreen navigation={webNavigation} />
-          </dialog>
-        </div>
+              Accounts
+            </span>
+            <button
+              onClick={() => setShowAccounts(false)}
+              style={{
+                background: "none",
+                border: "none",
+                color: colors.muted,
+                fontSize: ss(22),
+                cursor: "pointer",
+                lineHeight: 1,
+                padding: `0 ${ss(4)}px`,
+              }}
+              aria-label="Close"
+            >
+              <Icon name="close" size={ss(16)} color={colors.text} />
+            </button>
+          </div>
+          <AccountsScreen navigation={webNavigation} />
+        </dialog>
       )}
 
       {showSettings && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            backgroundColor: "rgba(0,0,0,0.7)",
-            zIndex: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+        <dialog
+          ref={openAsModal}
+          onClose={() => setShowSettings(false)}
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowSettings(false);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setShowSettings(false);
+          style={{
+            padding: 0,
+            border: "none",
+            width: ss(560),
+            maxWidth: "90vw",
+            backgroundColor: colors.surface2,
+            borderRadius: ss(16),
+            overflow: "hidden",
           }}
         >
-          <dialog
-            open
+          <div
             style={{
-              position: "static",
-              margin: 0,
-              padding: 0,
-              border: "none",
-              width: ss(560),
-              maxWidth: "90vw",
-              backgroundColor: colors.surface2,
-              borderRadius: ss(16),
-              overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: `${ss(16)}px ${ss(20)}px`,
+              borderBottom: `1px solid ${colors.border}`,
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: `${ss(16)}px ${ss(20)}px`,
-                borderBottom: `1px solid ${colors.border}`,
-              }}
+            <span
+              style={{ color: colors.text, fontSize: ss(18), fontWeight: 700 }}
             >
-              <span
-                style={{ color: colors.text, fontSize: ss(18), fontWeight: 700 }}
-              >
-                Settings
-              </span>
-              <button
-                onClick={() => setShowSettings(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#aaa",
-                  fontSize: ss(22),
-                  cursor: "pointer",
-                  lineHeight: 1,
-                  padding: `0 ${ss(4)}px`,
-                }}
-                aria-label="Close"
-              >
-                <Icon name="close" size={ss(16)} color={colors.text} />
-              </button>
-            </div>
-            <SettingsScreen onClose={() => setShowSettings(false)} />
-          </dialog>
-        </div>
+              Settings
+            </span>
+            <button
+              onClick={() => setShowSettings(false)}
+              style={{
+                background: "none",
+                border: "none",
+                color: colors.muted,
+                fontSize: ss(22),
+                cursor: "pointer",
+                lineHeight: 1,
+                padding: `0 ${ss(4)}px`,
+              }}
+              aria-label="Close"
+            >
+              <Icon name="close" size={ss(16)} color={colors.text} />
+            </button>
+          </div>
+          <SettingsScreen onClose={() => setShowSettings(false)} />
+        </dialog>
       )}
 
       {showExitPrompt && (
@@ -859,7 +883,7 @@ export default function AppNavigator() {
             <span style={{ color: colors.text, fontFamily: fonts.display, fontSize: ss(22), fontWeight: 700 }}>
               Exit app?
             </span>
-            <span style={{ color: "#aaa", fontFamily: fonts.body, fontSize: ss(15), textAlign: "center" }}>
+            <span style={{ color: colors.muted, fontFamily: fonts.body, fontSize: ss(15), textAlign: "center" }}>
               You’ll leave the app and return to the home screen.
             </span>
             <XStack gap={ss(12)} marginTop={ss(20)}>

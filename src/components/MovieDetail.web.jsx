@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View } from "react-native";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors } from "../ui/tokens";
+import { colors, gradient } from "../ui/tokens";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import { contentService } from "../domain/services/ContentService";
@@ -10,6 +10,7 @@ import ProxiedImage from "./ProxiedImage";
 import { usePlatform } from "../platform";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
 import Icon from "../ui/Icon";
+import Button from "../ui/Button";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -17,6 +18,38 @@ const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 const MAX_W = 1700;
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
+
+// Single shared back affordance for detail heroes that sit over a backdrop:
+// one rgba scrim pill with the `back` glyph. Movie and Series render it
+// identically.
+function BackPill({ isTV, onBack, sectionPadH, size }) {
+  return (
+    <YStack
+      position="absolute"
+      top={ss(isTV ? 40 : 20)}
+      left={sectionPadH}
+      zIndex={10}
+      paddingVertical={ss(isTV ? 14 : 8)}
+      paddingHorizontal={ss(isTV ? 24 : 14)}
+      backgroundColor="rgba(0,0,0,0.55)"
+      borderRadius={ss(isTV ? 12 : 8)}
+      cursor="pointer"
+      onPress={onBack}
+      pressStyle={{ opacity: 0.8 }}
+    >
+      <XStack alignItems="center" gap={ss(isTV ? 8 : 6)}>
+        <Icon name="back" color={colors.accent} size={size} />
+        <Text
+          color={colors.accentText}
+          fontSize={size}
+          fontWeight={isTV ? "700" : "600"}
+        >
+          Back
+        </Text>
+      </XStack>
+    </YStack>
+  );
+}
 
 export default function MovieDetail({ item, onBack, onPlay }) {
   const { isTV } = usePlatform();
@@ -85,9 +118,6 @@ export default function MovieDetail({ item, onBack, onPlay }) {
   const backSize = ss(isTV ? 22 : 14);
   const metaSize = ss(isTV ? 18 : 12);
   const ratingSize = ss(isTV ? 20 : 13);
-  const buttonTextSize = ss(isTV ? 22 : 15);
-  const buttonPadH = ss(isTV ? 40 : 28);
-  const buttonPadV = ss(isTV ? 20 : 13);
   const descSize = ss(isTV ? 24 : 15);
   const descLineHeight = ss(isTV ? 38 : 24);
   const castSize = ss(isTV ? 20 : 14);
@@ -123,30 +153,12 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           ]}
         />
 
-        <YStack
-          position="absolute"
-          top={ss(isTV ? 40 : 20)}
-          left={sectionPadH}
-          zIndex={10}
-          paddingVertical={ss(isTV ? 14 : 8)}
-          paddingHorizontal={ss(isTV ? 24 : 14)}
-          backgroundColor="rgba(0,0,0,0.55)"
-          borderRadius={ss(isTV ? 12 : 8)}
-          cursor="pointer"
-          onPress={onBack}
-          pressStyle={{ opacity: 0.8 }}
-        >
-          <XStack alignItems="center" gap={ss(6)}>
-            <Icon name="back" color={colors.accent} size={backSize} />
-            <Text
-              color={colors.accent}
-              fontSize={backSize}
-              fontWeight={isTV ? "700" : "600"}
-            >
-              Back
-            </Text>
-          </XStack>
-        </YStack>
+        <BackPill
+          isTV={isTV}
+          onBack={onBack}
+          sectionPadH={sectionPadH}
+          size={backSize}
+        />
 
         <YStack
           position="absolute"
@@ -159,7 +171,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           <Text
             color={colors.text}
             fontSize={titleSize}
-            fontWeight="900"
+            fontWeight="700"
             letterSpacing={isTV ? -1.5 : -1}
             marginBottom={ss(isTV ? 20 : 12)}
           >
@@ -177,6 +189,11 @@ export default function MovieDetail({ item, onBack, onPlay }) {
             >
               {year ? (
                 <YStack
+                  // Opaque scrim fill: the meta text is muted steel and sits over
+                  // arbitrary photographic backdrop art (before/behind the hero
+                  // gradient), so a solid dark chip guarantees AA contrast
+                  // regardless of what's underneath.
+                  backgroundColor={colors.surface}
                   borderWidth={isTV ? 2 : 1}
                   borderColor={colors.border}
                   borderRadius={ss(isTV ? 8 : 4)}
@@ -194,6 +211,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
               ) : null}
               {data.genre ? (
                 <YStack
+                  backgroundColor={colors.surface}
                   borderWidth={isTV ? 2 : 1}
                   borderColor={colors.border}
                   borderRadius={ss(isTV ? 8 : 4)}
@@ -223,14 +241,15 @@ export default function MovieDetail({ item, onBack, onPlay }) {
               ) : null}
               {data.age ? (
                 <YStack
+                  backgroundColor={colors.surface}
                   borderWidth={isTV ? 2 : 1}
-                  borderColor={colors.accent}
+                  borderColor={colors.border}
                   borderRadius={ss(isTV ? 8 : 4)}
                   paddingHorizontal={ss(isTV ? 14 : 8)}
                   paddingVertical={ss(isTV ? 8 : 3)}
                 >
                   <Text
-                    color={colors.accent}
+                    color={colors.muted}
                     fontSize={metaSize}
                     fontWeight={isTV ? "700" : "400"}
                   >
@@ -244,102 +263,55 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           <XStack alignItems="center" gap={ss(12)} flexWrap="wrap">
             {resumeTime > 0 ? (
               <>
-                <YStack
-                  backgroundColor="#fff"
-                  paddingHorizontal={buttonPadH}
-                  paddingVertical={buttonPadV}
-                  borderRadius={ss(isTV ? 12 : 8)}
-                  cursor="pointer"
+                <Button
+                  variant="primary"
+                  size={isTV ? "lg" : "md"}
+                  icon="play"
                   onPress={() => handlePlay(resumeTime)}
-                  pressStyle={{ opacity: 0.85 }}
-                  hoverStyle={{ opacity: 0.9 }}
-                  animation="quick"
+                  style={{ background: gradient.css }}
                 >
-                  <Text color="#000" fontSize={buttonTextSize} fontWeight="700">
-                    ▶ Continue
-                  </Text>
-                </YStack>
-                <YStack
-                  backgroundColor="rgba(40,40,60,0.85)"
-                  paddingHorizontal={ss(isTV ? 36 : 22)}
-                  paddingVertical={buttonPadV}
-                  borderRadius={ss(isTV ? 12 : 8)}
-                  borderWidth={isTV ? 2 : 1}
-                  borderColor={colors.border}
-                  cursor="pointer"
+                  Continue
+                </Button>
+                <Button
+                  variant="secondary"
+                  size={isTV ? "lg" : "md"}
+                  icon="history"
                   onPress={() => handlePlay(0)}
-                  pressStyle={{ opacity: 0.8 }}
-                  hoverStyle={{ borderColor: "#fff" }}
-                  animation="quick"
                 >
-                  <Text color={colors.text} fontSize={buttonTextSize} fontWeight="600">
-                    ↺ From Start
-                  </Text>
-                </YStack>
+                  From Start
+                </Button>
               </>
             ) : (
-              <YStack
-                backgroundColor="#fff"
-                paddingHorizontal={buttonPadH}
-                paddingVertical={buttonPadV}
-                borderRadius={ss(isTV ? 12 : 8)}
-                cursor="pointer"
+              <Button
+                variant="primary"
+                size={isTV ? "lg" : "md"}
+                icon="play"
                 onPress={() => handlePlay(0)}
-                pressStyle={{ opacity: 0.85 }}
-                hoverStyle={{ opacity: 0.9 }}
-                animation="quick"
+                style={{ background: gradient.css }}
               >
-                <Text color="#000" fontSize={buttonTextSize} fontWeight="700">
-                  ▶ Play Now
-                </Text>
-              </YStack>
+                Play Now
+              </Button>
             )}
             {!isLoading && !!trailer && (
-              <YStack
-                backgroundColor="rgba(40,40,60,0.85)"
-                paddingHorizontal={ss(isTV ? 36 : 22)}
-                paddingVertical={buttonPadV}
-                borderRadius={ss(isTV ? 12 : 8)}
-                borderWidth={isTV ? 2 : 1}
-                borderColor={colors.border}
-                cursor="pointer"
+              <Button
+                variant="secondary"
+                size={isTV ? "lg" : "md"}
+                icon={showTrailer ? "close" : "film"}
                 onPress={() => setShowTrailer((v) => !v)}
-                pressStyle={{ opacity: 0.8 }}
-                hoverStyle={{ borderColor: "#fff" }}
-                animation="quick"
               >
-                <XStack alignItems="center" gap={ss(8)}>
-                  <Icon
-                    name={showTrailer ? "close" : "film"}
-                    color={showTrailer ? colors.text : colors.muted}
-                    size={buttonTextSize}
-                  />
-                  <Text color={colors.text} fontSize={buttonTextSize} fontWeight="600">
-                    {showTrailer ? "Close Trailer" : "Watch Trailer"}
-                  </Text>
-                </XStack>
-              </YStack>
+                {showTrailer ? "Close Trailer" : "Watch Trailer"}
+              </Button>
             )}
             {activeUserId ? (
-              <YStack
-                backgroundColor={
-                  inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"
-                }
-                paddingHorizontal={ss(isTV ? 36 : 22)}
-                paddingVertical={buttonPadV}
-                borderRadius={ss(isTV ? 12 : 8)}
-                borderWidth={isTV ? 2 : 1}
-                borderColor={inFav ? colors.accent : colors.border}
-                cursor="pointer"
+              <Button
+                variant="secondary"
+                size={isTV ? "lg" : "md"}
+                icon={inFav ? "check" : "plus"}
                 onPress={toggleFav}
-                pressStyle={{ opacity: 0.8 }}
-                hoverStyle={{ borderColor: colors.accent }}
-                animation="quick"
+                style={inFav ? { borderColor: colors.accent } : undefined}
               >
-                <Text color={colors.text} fontSize={buttonTextSize} fontWeight="600">
-                  {inFav ? "♥  Saved" : "♡  Add to Favorites"}
-                </Text>
-              </YStack>
+                {inFav ? "In My List" : "My List"}
+              </Button>
             ) : null}
           </XStack>
         </YStack>
@@ -354,7 +326,9 @@ export default function MovieDetail({ item, onBack, onPlay }) {
         >
           <iframe
             title={`${name} trailer`}
-            src={`${trailer}?autoplay=1&rel=0&modestbranding=1`}
+            // Autoplay MUTED — a trailer bursting into sound is startling in a
+            // hushed room; the viewer unmutes deliberately.
+            src={`${trailer}?autoplay=1&mute=1&rel=0&modestbranding=1`}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
             style={{
@@ -384,14 +358,12 @@ export default function MovieDetail({ item, onBack, onPlay }) {
         >
           {(data.description || data.plot || data.overview) && (
             <YStack
-              backgroundColor={isTV ? "rgba(26,26,46,0.6)" : "transparent"}
-              padding={ss(isTV ? 24 : 0)}
-              borderRadius={ss(isTV ? 12 : 0)}
-              borderLeftWidth={isTV ? 4 : 0}
-              borderLeftColor={isTV ? colors.accent : "transparent"}
+              backgroundColor={colors.surface2}
+              padding={ss(isTV ? 24 : 16)}
+              borderRadius={ss(isTV ? 12 : 10)}
             >
               <Text
-                color={isTV ? "#e0e0e0" : colors.muted}
+                color={colors.text}
                 fontSize={descSize}
                 lineHeight={descLineHeight}
                 marginBottom={ss(isTV ? 20 : 12)}

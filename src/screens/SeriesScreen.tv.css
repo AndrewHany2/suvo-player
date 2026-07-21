@@ -53,27 +53,6 @@
   background: var(--a-surface-2);
 }
 
-/* ── Action buttons (Continue / Favorites) ───────────────────────────────── */
-.tvl-det-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin: 14px 0;
-}
-
-.tvl-det-act-btn {
-  padding: 10px 20px;
-  border: 2px solid var(--a-border);
-  border-radius: 8px;
-  background: var(--a-surface-2);
-  color: var(--a-text-dim);
-  font-size: 14px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
 .tvl-ser-trailer {
   height: 220px;
   flex-shrink: 0;
@@ -135,7 +114,9 @@
   font-size: 12px;
   font-weight: 700;
   color: var(--a-text-strong);
-  background: var(--a-indigo);
+  /* Resting decoration → steel/slate ladder (surface2 #1B2236), not the
+     Single-Light indigo. */
+  background: #1B2236;
   border-radius: 5px;
   padding: 4px 9px;
   flex-shrink: 0;
@@ -170,6 +151,7 @@
 }
 .tvl-ep-play {
   font-size: 20px;
-  color: var(--a-indigo);
+  /* Resting glyph → steel muted (#7A86A8), not the Single-Light indigo. */
+  color: #7A86A8;
   flex-shrink: 0;
 }

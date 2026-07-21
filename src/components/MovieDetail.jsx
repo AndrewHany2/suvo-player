@@ -3,8 +3,9 @@ import { Linking, View, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors } from "../ui/tokens";
+import { colors, accentAlpha, fonts } from "../ui/tokens";
 import Icon from "../ui/Icon";
+import Button from "../ui/Button";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import { resumePlaybackUrl } from "../playback/resumePlaybackUrl";
@@ -94,15 +95,15 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
         <GradientOverlay />
 
-        <YStack position="absolute" top={insets.top + 8} left={16} zIndex={10} paddingVertical={8} paddingHorizontal={14} backgroundColor="rgba(0,0,0,0.55)" borderRadius={8} cursor="pointer" onPress={onBack} pressStyle={{ opacity: 0.8 }}>
+        <YStack position="absolute" top={insets.top + 8} left={16} zIndex={10} minHeight={44} justifyContent="center" paddingVertical={8} paddingHorizontal={14} backgroundColor="rgba(0,0,0,0.55)" borderRadius={8} cursor="pointer" onPress={onBack} pressStyle={{ opacity: 0.8 }} role="button" aria-label="Go back" tabIndex={0}>
           <XStack alignItems="center" gap={6}>
             <Icon name="back" color={colors.accent} size={14} />
-            <Text color={colors.accent} fontSize={14} fontWeight="600">Back</Text>
+            <Text color={colors.accentText} fontSize={14} fontWeight="600">Back</Text>
           </XStack>
         </YStack>
 
         <YStack position="absolute" bottom={0} left={16} right={16} zIndex={5} paddingBottom={24}>
-          <Text color={colors.text} fontSize={26} fontWeight="900" lineHeight={32} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{name}</Text>
+          <Text color={colors.text} fontFamily={fonts.display} fontSize={26} fontWeight="700" lineHeight={32} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{name}</Text>
 
           {isLoading ? (
             <Spinner color={colors.accent} marginVertical={12} />
@@ -118,32 +119,21 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           <YStack gap={8}>
             {resumeTime > 0 ? (
               <XStack gap={8}>
-                <YStack flex={1} backgroundColor="#fff" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} cursor="pointer" onPress={() => handlePlay(resumeTime)} pressStyle={{ opacity: 0.85 }} hoverStyle={{ opacity: 0.9 }} animation="quick">
-                  <Text color="#000" fontSize={13} fontWeight="700">▶  Continue</Text>
-                </YStack>
-                <YStack flex={1} backgroundColor="rgba(40,40,60,0.85)" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => handlePlay(0)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: "#fff" }} animation="quick">
-                  <Text color={colors.text} fontSize={13} fontWeight="600">↺  From Start</Text>
-                </YStack>
+                <Button variant="primary" size="sm" icon="play" onPress={() => handlePlay(resumeTime)} style={{ flex: 1, minHeight: 44 }}>Continue</Button>
+                <Button variant="secondary" size="sm" icon="history" onPress={() => handlePlay(0)} style={{ flex: 1, minHeight: 44 }}>From Start</Button>
               </XStack>
             ) : (
-              <YStack backgroundColor="#fff" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} cursor="pointer" onPress={() => handlePlay(0)} pressStyle={{ opacity: 0.85 }} hoverStyle={{ opacity: 0.9 }} animation="quick">
-                <Text color="#000" fontSize={13} fontWeight="700">▶  Play Now</Text>
-              </YStack>
+              <Button variant="primary" size="sm" icon="play" onPress={() => handlePlay(0)} style={{ minHeight: 44 }}>Play Now</Button>
             )}
             <XStack gap={8}>
               {!isLoading && !!trailer && (
-                <YStack flex={1} backgroundColor="rgba(40,40,60,0.85)" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => Linking.openURL(trailer)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: "#fff" }} animation="quick">
-                  <XStack alignItems="center" gap={6}>
-                    <Icon name="film" color={colors.muted} size={15} />
-                    <Text color={colors.text} fontSize={13} fontWeight="600">Trailer</Text>
-                  </XStack>
-                </YStack>
+                <Button variant="secondary" size="sm" icon="film" onPress={() => Linking.openURL(trailer)} style={{ flex: 1, minHeight: 44 }}>Trailer</Button>
               )}
               {activeUserId ? (
                 <YStack
                   flex={1}
-                  backgroundColor={inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"}
-                  minHeight={36}
+                  backgroundColor={inFav ? accentAlpha(0.15) : colors.surface2}
+                  minHeight={44}
                   alignItems="center"
                   justifyContent="center"
                   borderRadius={8}
@@ -154,8 +144,14 @@ export default function MovieDetail({ item, onBack, onPlay }) {
                   pressStyle={{ opacity: 0.8 }}
                   hoverStyle={{ borderColor: colors.accent }}
                   animation="quick"
+                  role="button"
+                  aria-label={inFav ? "Remove from Favorites" : "Add to Favorites"}
+                  tabIndex={0}
                 >
-                  <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
+                  <XStack alignItems="center" gap={6}>
+                    <Icon name={inFav ? "check" : "plus"} color={colors.text} size={15} />
+                    <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "Saved" : "Favorites"}</Text>
+                  </XStack>
                 </YStack>
               ) : null}
             </XStack>

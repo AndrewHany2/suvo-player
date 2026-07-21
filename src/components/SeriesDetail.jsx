@@ -3,10 +3,11 @@ import { Linking, View, SectionList, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors } from "../ui/tokens";
+import { colors, accentAlpha, fonts } from "../ui/tokens";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
+import Button from "../ui/Button";
 import DownloadButton from "../downloads/DownloadButton.jsx";
 import { useDownloads } from "../downloads/useDownloads.jsx";
 import { makeId } from "../downloads/downloadStore.js";
@@ -120,10 +121,10 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
     return (
       <YStack flex={1} backgroundColor={colors.bg}>
         <XStack alignItems="center" gap={14} paddingHorizontal={16} paddingTop={insets.top + 16} paddingBottom={14} borderBottomWidth={1} borderBottomColor={colors.border}>
-          <YStack paddingVertical={8} paddingHorizontal={12} backgroundColor={colors.surface2} borderRadius={8} cursor="pointer" onPress={() => setShowEpisodes(false)} pressStyle={{ opacity: 0.8 }}>
+          <YStack minHeight={44} justifyContent="center" paddingVertical={8} paddingHorizontal={12} backgroundColor={colors.surface2} borderRadius={8} cursor="pointer" onPress={() => setShowEpisodes(false)} pressStyle={{ opacity: 0.8 }} role="button" aria-label="Back to details" tabIndex={0}>
             <XStack alignItems="center" gap={6}>
               <Icon name="back" color={colors.accent} size={14} />
-              <Text color={colors.accent} fontSize={14} fontWeight="600">Back</Text>
+              <Text color={colors.accentText} fontSize={14} fontWeight="600">Back</Text>
             </XStack>
           </YStack>
           <Text color={colors.text} fontSize={18} fontWeight="700" flex={1} numberOfLines={1}>{seriesName}</Text>
@@ -139,7 +140,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
             </YStack>
           )}
           renderItem={({ item: ep, section }) => (
-            <XStack alignItems="center" backgroundColor={colors.surface2} borderRadius={10} padding={12} marginBottom={6} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => handleEpisodePress(ep, section.seasonNum)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.accent }} animation="quick">
+            <XStack alignItems="center" minHeight={44} backgroundColor={colors.surface2} borderRadius={10} padding={12} marginBottom={6} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => handleEpisodePress(ep, section.seasonNum)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.accent }} animation="quick" role="button" aria-label={`Play episode ${getEpisodeNumber(ep)}${ep.title ? ": " + ep.title : ""}`} tabIndex={0}>
               <YStack backgroundColor={colors.accent} borderRadius={6} paddingHorizontal={8} paddingVertical={4} marginRight={12}>
                 <Text color={colors.text} fontSize={12} fontWeight="700">E{getEpisodeNumber(ep)}</Text>
               </YStack>
@@ -158,7 +159,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
                   ext: ep.container_extension || "mp4",
                 }}
               />
-              <Text color={colors.accent} fontSize={16}>▶</Text>
+              <Icon name="play" color={colors.accent} size={16} />
             </XStack>
           )}
         />
@@ -175,15 +176,15 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
         <GradientOverlay />
 
-        <YStack position="absolute" top={50} left={16} zIndex={10} paddingVertical={8} paddingHorizontal={14} backgroundColor="rgba(0,0,0,0.55)" borderRadius={8} cursor="pointer" onPress={onBack} pressStyle={{ opacity: 0.8 }}>
+        <YStack position="absolute" top={insets.top + 8} left={16} zIndex={10} minHeight={44} justifyContent="center" paddingVertical={8} paddingHorizontal={14} backgroundColor="rgba(0,0,0,0.55)" borderRadius={8} cursor="pointer" onPress={onBack} pressStyle={{ opacity: 0.8 }} role="button" aria-label="Go back" tabIndex={0}>
           <XStack alignItems="center" gap={6}>
             <Icon name="back" color={colors.accent} size={14} />
-            <Text color={colors.accent} fontSize={14} fontWeight="600">Back</Text>
+            <Text color={colors.accentText} fontSize={14} fontWeight="600">Back</Text>
           </XStack>
         </YStack>
 
         <YStack position="absolute" bottom={0} left={16} right={16} zIndex={5} paddingBottom={24}>
-          <Text color={colors.text} fontSize={26} fontWeight="900" lineHeight={32} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{seriesName}</Text>
+          <Text color={colors.text} fontFamily={fonts.display} fontSize={26} fontWeight="700" lineHeight={32} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{seriesName}</Text>
 
           {isLoading ? (
             <Spinner color={colors.accent} marginVertical={12} />
@@ -202,44 +203,22 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
 
           <YStack gap={8}>
             {historyEntry && (
-              <YStack backgroundColor="#fff" paddingHorizontal={20} minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} cursor="pointer" onPress={handleContinue} pressStyle={{ opacity: 0.85 }} hoverStyle={{ opacity: 0.9 }} animation="quick">
-                <Text color="#000" fontSize={13} fontWeight="700">
-                  {"▶  Continue"}
-                  {historyEntry.seasonNum ? ` S${historyEntry.seasonNum}E${String(historyEntry.episodeNum).padStart(2, "0")}` : ""}
-                </Text>
-              </YStack>
+              <Button variant="primary" size="sm" icon="play" onPress={handleContinue} style={{ minHeight: 44 }}>
+                {historyEntry.seasonNum
+                  ? `Continue S${historyEntry.seasonNum}E${String(historyEntry.episodeNum).padStart(2, "0")}`
+                  : "Continue"}
+              </Button>
             )}
-            <YStack
-              backgroundColor={historyEntry ? "rgba(40,40,60,0.85)" : "#fff"}
-              paddingHorizontal={20}
-              minHeight={36}
-              alignItems="center"
-              justifyContent="center"
-              borderRadius={8}
-              borderWidth={historyEntry ? 1 : 0}
-              borderColor={colors.border}
-              cursor="pointer"
-              onPress={() => setShowEpisodes(true)}
-              pressStyle={{ opacity: 0.8 }}
-              hoverStyle={{ borderColor: colors.text }}
-              animation="quick"
-            >
-              <Text color={historyEntry ? colors.text : "#000"} fontSize={13} fontWeight={historyEntry ? "600" : "700"}>☰  Browse Episodes</Text>
-            </YStack>
+            <Button variant={historyEntry ? "secondary" : "primary"} size="sm" icon="series" onPress={() => setShowEpisodes(true)} style={{ minHeight: 44 }}>Browse Episodes</Button>
             <XStack gap={8}>
               {!isLoading && !!trailer && (
-                <YStack flex={1} backgroundColor="rgba(40,40,60,0.85)" minHeight={36} alignItems="center" justifyContent="center" borderRadius={8} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => Linking.openURL(trailer)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.text }} animation="quick">
-                  <XStack alignItems="center" gap={7}>
-                    <Icon name="film" color={colors.muted} size={15} />
-                    <Text color={colors.text} fontSize={13} fontWeight="600">Trailer</Text>
-                  </XStack>
-                </YStack>
+                <Button variant="secondary" size="sm" icon="film" onPress={() => Linking.openURL(trailer)} style={{ flex: 1, minHeight: 44 }}>Trailer</Button>
               )}
               {activeUserId ? (
                 <YStack
                   flex={1}
-                  backgroundColor={inFav ? "rgba(108, 92, 231,0.15)" : "rgba(40,40,60,0.85)"}
-                  minHeight={36}
+                  backgroundColor={inFav ? accentAlpha(0.15) : colors.surface2}
+                  minHeight={44}
                   alignItems="center"
                   justifyContent="center"
                   borderRadius={8}
@@ -250,8 +229,14 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
                   pressStyle={{ opacity: 0.8 }}
                   hoverStyle={{ borderColor: colors.accent }}
                   animation="quick"
+                  role="button"
+                  aria-label={inFav ? "Remove from Favorites" : "Add to Favorites"}
+                  tabIndex={0}
                 >
-                  <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "♥  Saved" : "♡  Favorites"}</Text>
+                  <XStack alignItems="center" gap={7}>
+                    <Icon name={inFav ? "check" : "plus"} color={colors.text} size={15} />
+                    <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "Saved" : "Favorites"}</Text>
+                  </XStack>
                 </YStack>
               ) : null}
             </XStack>

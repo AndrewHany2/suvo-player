@@ -115,9 +115,9 @@ function ContentShelf({
           <span style={{ color: colors.text, fontSize: ss(22), fontWeight: fontWeights.bold, letterSpacing: -0.3, fontFamily: fonts.display }}>
             {title}
           </span>
-          <Icon name="chevron-right" size={ss(18)} color={colors.accent2} />
+          <Icon name="chevron-right" size={ss(18)} color={colors.muted} />
         </div>
-        {count != null && <span style={{ color: colors.faint, fontSize: ss(13), fontWeight: fontWeights.medium }}>{count}</span>}
+        {count != null && <span style={{ color: colors.muted, fontSize: ss(13), fontWeight: fontWeights.medium }}>{count}</span>}
       </div>
       {items === null ? (
         // Skeleton rail: a row of poster-shaped placeholders that reserves the

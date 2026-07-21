@@ -82,5 +82,5 @@ const styles = StyleSheet.create({
     minHeight: 48,
     justifyContent: "center",
   },
-  buttonText: { color: colors.bg, fontSize: 16, fontWeight: "600" },
+  buttonText: { color: colors.textStrong, fontSize: 16, fontWeight: "600" },
 });

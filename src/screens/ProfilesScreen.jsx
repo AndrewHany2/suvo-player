@@ -282,6 +282,9 @@ export default function ProfilesScreen() {
                     cursor="pointer"
                     onPress={() => setFormData({ ...formData, avatar: emoji })}
                     pressStyle={{ opacity: 0.8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Avatar ${emoji}`}
+                    accessibilityState={{ selected }}
                   >
                     <Text fontSize={ss(26)}>{emoji}</Text>
                   </YStack>
@@ -403,8 +406,8 @@ export default function ProfilesScreen() {
                         </Text>
                         {active && (
                           <XStack alignItems="center" gap={ss(4)} marginTop={ss(2)}>
-                            <Icon name="check" size={ss(12)} color={colors.accent2} />
-                            <Text color={colors.accent2} fontFamily={fonts.body} fontSize={ss(12)} fontWeight={fontWeights.medium}>
+                            <Icon name="check" size={ss(12)} color={colors.accent} />
+                            <Text color={colors.accentText} fontFamily={fonts.body} fontSize={ss(12)} fontWeight={fontWeights.medium}>
                               Active
                             </Text>
                           </XStack>
@@ -482,6 +485,8 @@ export default function ProfilesScreen() {
                 cursor="pointer"
                 onPress={() => switchProfile(p.id)}
                 pressStyle={{ opacity: 0.8 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Watch as ${p.name}`}
                 {...(!isNative && { hoverStyle: { scale: 1.05 }, animation: "quick" })}
               >
                 <YStack
@@ -515,6 +520,8 @@ export default function ProfilesScreen() {
                 cursor="pointer"
                 onPress={openAdd}
                 pressStyle={{ opacity: 0.5 }}
+                accessibilityRole="button"
+                accessibilityLabel="Add profile"
                 {...(!isNative && { hoverStyle: { scale: 1.05, opacity: 1 }, animation: "quick" })}
               >
                 <YStack
@@ -574,7 +581,7 @@ export default function ProfilesScreen() {
               borderColor={focused ? colors.accent2 : "transparent"}
               {...(!isNative && { hoverStyle: { opacity: 1 }, animation: "quick" })}
             >
-              <Text color={focused ? colors.text : colors.accent2} fontFamily={fonts.body} fontSize={ss(14)} fontWeight={fontWeights.medium}>
+              <Text color={focused ? colors.text : colors.muted} fontFamily={fonts.body} fontSize={ss(14)} fontWeight={fontWeights.medium}>
                 Sign Out
               </Text>
             </XStack>

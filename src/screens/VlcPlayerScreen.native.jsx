@@ -21,6 +21,7 @@ import { useSleepTimer, SLEEP_PRESETS, formatRemaining } from "../playback/useSl
 import { useDeviceIntegrity } from "../security/useDeviceIntegrity";
 import ResumePrompt from "../playback/components/ResumePrompt";
 import { formatDuration as formatTime } from "../utils/formatDuration";
+import { useReducedMotion } from "../hooks/useReducedMotion";
 
 const MODAL_ORIENTATIONS = ["portrait", "landscape"];
 // VLCPlayer resizeMode values; cycled by the aspect button.
@@ -51,6 +52,7 @@ export default function VlcPlayerScreen({ navigation }) {
   const { currentVideo, closeVideo, playVideo } = usePlayback();
   const { updateWatchProgress, addToWatchHistory, flushProgress } = useWatchHistory();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const progressIntervalRef = useRef(null);
   const hasAddedToHistory = useRef(false);
   const controlsTimerRef = useRef(null);
@@ -153,17 +155,18 @@ export default function VlcPlayerScreen({ navigation }) {
   }, []);
   useEffect(() => () => clearTimeout(gestureHintTimerRef.current), []);
 
-  // Keep awake + lock portrait (mirrors the expo screen).
+  // Keep awake while playing (mirrors the expo screen). We deliberately do NOT
+  // force a PORTRAIT_UP lock on mount/unmount — that pinned the whole app to
+  // portrait after playback. Orientation is only changed by the fullscreen
+  // toggle, which restores portrait itself when the user exits fullscreen.
   useEffect(() => {
     activateKeepAwakeAsync().catch(() => {});
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     return () => {
       try {
         deactivateKeepAwake();
       } catch {
         /* noop */
       }
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     };
   }, []);
 
@@ -334,6 +337,14 @@ export default function VlcPlayerScreen({ navigation }) {
     });
     resetControlsTimer();
   }, [resetControlsTimer]);
+
+  // Screen-reader seek: ±10s via the same clamped seek helper the gestures use.
+  const handleSeekAccessibilityAction = useCallback((e) => {
+    const name = e?.nativeEvent?.actionName;
+    const cur = progressRef.current.currentTimeSec || 0;
+    if (name === "increment") seekToSeconds(cur + DOUBLE_TAP_SEEK);
+    else if (name === "decrement") seekToSeconds(cur - DOUBLE_TAP_SEEK);
+  }, [seekToSeconds]);
 
   // ── Touch gestures (PanResponder) — volume (right half) / brightness (left
   //    half) / horizontal drag-to-seek / double-tap ±10s / long-press 2× ──
@@ -573,11 +584,11 @@ export default function VlcPlayerScreen({ navigation }) {
       {showControls && (
         <YStack position="absolute" top={0} left={0} right={0} paddingTop={insets.top + topPadding} pointerEvents="box-none" zIndex={30}>
           <XStack alignItems="center" paddingHorizontal={12} paddingVertical={8} backgroundColor="rgba(0,0,0,0.7)" gap={8} flexWrap="wrap">
-            <YStack width={34} height={34} backgroundColor={accentAlpha(0.9)} borderRadius={17} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }}>
+            <YStack width={44} height={44} backgroundColor={accentAlpha(0.9)} borderRadius={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel="Close player">
               <Icon name="close" size={16} color={colors.text} />
             </YStack>
             <Text color={colors.text} fontFamily={fonts.display} fontSize={14} fontWeight="600" flex={1} minWidth={60} numberOfLines={1}>{currentVideo.name}</Text>
-            {nextEpisode && <Button variant="primary" size="sm" icon="play" onPress={handleNextEpisode}>Next</Button>}
+            {nextEpisode && <Button variant="primary" size="sm" icon="play" onPress={handleNextEpisode} accessibilityLabel="Next episode">Next</Button>}
           </XStack>
         </YStack>
       )}
@@ -585,23 +596,37 @@ export default function VlcPlayerScreen({ navigation }) {
       {showControls && (
         <YStack position="absolute" bottom={0} left={0} right={0} paddingBottom={insets.bottom + 12} backgroundColor="rgba(0,0,0,0.7)" zIndex={30}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
-            <Button variant="secondary" size="sm" icon={paused ? "play" : "pause"} onPress={() => setPaused((p) => !p)} />
-            <Button variant="secondary" size="sm" icon="speed" onPress={() => { setShowSpeedMenu(true); setShowAudioMenu(false); setShowTextMenu(false); setShowSleepMenu(false); }}>{`${speed}x`}</Button>
+            <Button variant="secondary" size="sm" icon={paused ? "play" : "pause"} onPress={() => setPaused((p) => !p)} accessibilityLabel={paused ? "Play" : "Pause"} />
+            <Button variant="secondary" size="sm" icon="speed" onPress={() => { setShowSpeedMenu(true); setShowAudioMenu(false); setShowTextMenu(false); setShowSleepMenu(false); }} accessibilityLabel="Playback speed">{`${speed}x`}</Button>
             {audioTracks.length > 1 && (
-              <Button variant="secondary" size="sm" icon="audio" onPress={() => { setShowAudioMenu(true); setShowTextMenu(false); setShowSpeedMenu(false); setShowSleepMenu(false); }} />
+              <Button variant="secondary" size="sm" icon="audio" onPress={() => { setShowAudioMenu(true); setShowTextMenu(false); setShowSpeedMenu(false); setShowSleepMenu(false); }} accessibilityLabel="Audio track" />
             )}
             {textTracks.length > 0 && (
-              <Button variant="secondary" size="sm" icon="cc" onPress={() => { setShowTextMenu(true); setShowAudioMenu(false); setShowSpeedMenu(false); setShowSleepMenu(false); }} />
+              <Button variant="secondary" size="sm" icon="cc" onPress={() => { setShowTextMenu(true); setShowAudioMenu(false); setShowSpeedMenu(false); setShowSleepMenu(false); }} accessibilityLabel="Subtitles" />
             )}
-            <Button variant="secondary" size="sm" icon="aspect" onPress={cycleResizeMode} />
-            <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" icon="fullscreen" onPress={toggleFullscreen} />
-            <Button variant={sleep.active ? "primary" : "secondary"} size="sm" icon="timer" onPress={() => { setShowSleepMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); setShowTextMenu(false); }}>{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
+            <Button variant="secondary" size="sm" icon="aspect" onPress={cycleResizeMode} accessibilityLabel="Aspect ratio" />
+            <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" icon="fullscreen" onPress={toggleFullscreen} accessibilityLabel="Toggle fullscreen" />
+            <Button variant={sleep.active ? "primary" : "secondary"} size="sm" icon="timer" onPress={() => { setShowSleepMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); setShowTextMenu(false); }} accessibilityLabel="Sleep timer">{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
           </ScrollView>
 
           {progress.durationSec > 0 && (
             <YStack paddingHorizontal={16} paddingTop={4}>
               <View
                 style={{ height: 26, justifyContent: "center" }}
+                accessible
+                accessibilityRole="adjustable"
+                accessibilityLabel="Seek bar"
+                accessibilityValue={{
+                  min: 0,
+                  max: Math.round(progress.durationSec),
+                  now: Math.round(shownFrac * progress.durationSec),
+                  text: `${formatTime(shownFrac * progress.durationSec)} of ${formatTime(progress.durationSec)}`,
+                }}
+                accessibilityActions={[
+                  { name: "increment", label: "Forward 10 seconds" },
+                  { name: "decrement", label: "Back 10 seconds" },
+                ]}
+                onAccessibilityAction={handleSeekAccessibilityAction}
                 onLayout={(e) => { seekTrackWidth.current = e.nativeEvent.layout.width; }}
                 onStartShouldSetResponder={() => true}
                 onMoveShouldSetResponder={() => true}
@@ -624,7 +649,7 @@ export default function VlcPlayerScreen({ navigation }) {
       )}
 
       {/* Speed menu */}
-      <Modal visible={showSpeedMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSpeedMenu(false)}>
+      <Modal visible={showSpeedMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSpeedMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSpeedMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Playback Speed</Text>
@@ -640,7 +665,7 @@ export default function VlcPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Audio menu */}
-      <Modal visible={showAudioMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAudioMenu(false)}>
+      <Modal visible={showAudioMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAudioMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowAudioMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={360} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Audio Track</Text>
@@ -656,7 +681,7 @@ export default function VlcPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Subtitle menu */}
-      <Modal visible={showTextMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowTextMenu(false)}>
+      <Modal visible={showTextMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowTextMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowTextMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={360} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Subtitles</Text>
@@ -675,7 +700,7 @@ export default function VlcPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Sleep-timer menu */}
-      <Modal visible={showSleepMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSleepMenu(false)}>
+      <Modal visible={showSleepMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSleepMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSleepMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={400} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Sleep Timer</Text>

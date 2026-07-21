@@ -9,14 +9,13 @@ import StatsOverlay from "../playback/components/StatsOverlay";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
+import IconButton from "../ui/IconButton";
 import { formatDuration as fmtTime } from "../utils/formatDuration";
 import {
   colors,
   accentAlpha,
   radii,
   fonts,
-  motion,
-  easing,
 } from "../ui/tokens";
 
 const S = {
@@ -66,13 +65,15 @@ const S = {
     objectFit: "contain",
     display: "block",
   },
+  // Resting fill stays on the neutral translucent-white wash over the video;
+  // IconButton layers the cyan focus/hover glow (Single-Light — no indigo at rest).
   closeBtn: {
-    backgroundColor: accentAlpha(0.9),
+    backgroundColor: "rgba(255,255,255,0.12)",
     border: "none",
     color: colors.text,
     borderRadius: "50%",
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     cursor: "pointer",
     flexShrink: 0,
     display: "flex",
@@ -82,11 +83,13 @@ const S = {
   nextBtn: {
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     backgroundColor: accentAlpha(0.9),
     border: "none",
     color: colors.text,
     borderRadius: radii.sm,
+    minHeight: 44,
     padding: "6px 12px",
     fontSize: 12,
     fontFamily: fonts.body,
@@ -104,7 +107,7 @@ const S = {
     borderRadius: radii.sm,
     cursor: "pointer",
     fontSize: 14,
-    color: active ? colors.accent : colors.muted,
+    color: active ? colors.accentText : colors.muted,
     fontWeight: active ? 700 : 400,
     backgroundColor: active ? accentAlpha(0.12) : "transparent",
   }),
@@ -140,8 +143,8 @@ const S = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     flexShrink: 0,
     borderRadius: "50%",
     border: "none",
@@ -164,7 +167,7 @@ const S = {
     height: "100%",
     width: `${pct}%`,
     borderRadius: 3,
-    background: colors.accent2,
+    background: colors.accent,
   }),
   timeText: {
     color: colors.text,
@@ -176,28 +179,26 @@ const S = {
   },
   volSlider: {
     width: 84,
-    accentColor: colors.accent2,
+    accentColor: colors.accent,
     cursor: "pointer",
     flexShrink: 0,
   },
+  // Resting/selected coloring only — IconButton layers the cyan focus ring/glow.
+  // Single-Light: an engaged control (menu open / active) takes Aurora Indigo;
+  // resting stays on the neutral translucent-white wash over the video.
   iconBtn: (active) => ({
-    display: "flex",
-    alignItems: "center",
     gap: 6,
     backgroundColor: active ? accentAlpha(0.2) : "rgba(255,255,255,0.12)",
-    border: "1px solid rgba(255,255,255,0.2)",
-    color: active ? colors.accent2 : colors.text,
+    border: active ? `1px solid ${colors.accent}` : "1px solid rgba(255,255,255,0.2)",
+    color: active ? colors.accent : colors.text,
     borderRadius: radii.sm,
-    minWidth: 40,
-    height: 40,
+    minWidth: 44,
+    height: 44,
     padding: "0 10px",
     fontSize: 12,
     fontFamily: fonts.body,
     fontWeight: 600,
-    cursor: "pointer",
-    justifyContent: "center",
     whiteSpace: "nowrap",
-    transition: `box-shadow ${motion.base}ms ${easing}, outline-color ${motion.fast}ms ${easing}`,
   }),
   menuUp: {
     position: "absolute",
@@ -212,6 +213,68 @@ const S = {
     maxHeight: 320,
     overflowY: "auto",
   },
+  // Consolidated settings popover: wider, scrollable, grouped into labelled
+  // sections so the secondary controls live behind one affordance.
+  settingsMenu: {
+    position: "absolute",
+    bottom: "115%",
+    right: 0,
+    backgroundColor: colors.surface2,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.sm,
+    padding: 0,
+    minWidth: 300,
+    zIndex: 100,
+    maxHeight: 520,
+    overflowY: "auto",
+  },
+  // A labelled section inside the settings menu (hairline-separated).
+  menuSection: {
+    padding: "10px 12px",
+    borderTop: `1px solid ${colors.border}`,
+  },
+  // Eyebrow header for a settings section (display face, per the type ramp).
+  sectionLabel: {
+    color: colors.muted,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  // Wrap of compact option chips (speed / aspect / quality / audio).
+  optionRow: { display: "flex", flexWrap: "wrap", gap: 6 },
+  optionChip: (active) => ({
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: active ? 700 : 400,
+    // Aurora Indigo marks the active path; unselected chips stay on the ladder.
+    color: active ? colors.accentText : colors.text,
+    backgroundColor: active ? accentAlpha(0.15) : colors.surface,
+    border: `1px solid ${active ? colors.accent : colors.border}`,
+    borderRadius: radii.sm,
+    padding: "6px 12px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  }),
+  // Full-width toggle/action row inside the settings menu (stats / PiP / cast).
+  toggleRow: (active) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    textAlign: "left",
+    border: "none",
+    background: "transparent",
+    color: active ? colors.accentText : colors.text,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: active ? 700 : 400,
+    padding: "8px 4px",
+    borderRadius: radii.sm,
+    cursor: "pointer",
+  }),
   stateOverlay: {
     position: "absolute",
     top: 0,
@@ -222,12 +285,22 @@ const S = {
   footer: {
     padding: "4px 12px",
     backgroundColor: "rgba(0,0,0,0.7)",
-    color: colors.faint,
+    // Steel (muted), not Faint Steel — the shortcut legend is readable copy, and
+    // Faint Steel is placeholder/disabled-only per the palette rules.
+    color: colors.muted,
     fontFamily: fonts.body,
     fontSize: 11,
     flexShrink: 0,
   },
 };
+
+// Fatal-error copy. The recovery machine hands us `fatalMessage`, which can be
+// terse or lean technical (e.g. "…the server rejected the connection."). The
+// overlay never headlines that: the primary line is always this calm,
+// benefit-first sentence, and the raw message rides underneath as secondary
+// diagnostic detail for anyone who wants it.
+const FATAL_HEADLINE =
+  "This stream won't play right now — it may be offline, or the connection dropped. Try again, or head back and pick something else.";
 
 export default function VideoPlayerScreen() {
   const player = usePlayer({ isTV: false });
@@ -305,13 +378,14 @@ export default function VideoPlayerScreen() {
   const [webControlsVisible, setWebControlsVisible] = useState(true);
   const webHideTimerRef = useRef(null);
 
-  // Menu refs (outside-click dismissal, web only)
-  const qualityRef = useRef(null);
-  const speedRef = useRef(null);
-  const audioRef = useRef(null);
+  // Menu refs (outside-click dismissal, web only). Subtitle keeps a quick-access
+  // dropdown in the resting bar; every other secondary control now lives inside
+  // the single "more" settings popover.
   const subtitleRef = useRef(null);
-  const aspectRef = useRef(null);
   const moreRef = useRef(null);
+  // Focusable seek bar (role=slider). The global arrow-key handler defers to the
+  // bar's own onKeyDown while it's focused so a keyboard seek fires exactly once.
+  const seekBarRef = useRef(null);
 
   const toggleFullscreenWeb = useCallback(() => {
     if (typeof document === "undefined") return;
@@ -357,9 +431,7 @@ export default function VideoPlayerScreen() {
     if (!openMenu) return undefined;
     const onClick = (e) => {
       if (
-        ![qualityRef, speedRef, audioRef, subtitleRef, aspectRef, moreRef].some((r) =>
-          r.current?.contains(e.target),
-        )
+        ![subtitleRef, moreRef].some((r) => r.current?.contains(e.target))
       ) {
         setOpenMenu(null);
       }
@@ -396,10 +468,13 @@ export default function VideoPlayerScreen() {
           handleClose();
           break;
         case "ArrowLeft":
+          // Let the focused seek bar own its own arrow keys (avoids a double seek).
+          if (e.target === seekBarRef.current) break;
           e.preventDefault();
           video.currentTime -= 10;
           break;
         case "ArrowRight":
+          if (e.target === seekBarRef.current) break;
           e.preventDefault();
           video.currentTime += 10;
           break;
@@ -537,11 +612,6 @@ export default function VideoPlayerScreen() {
     </div>
   );
 
-  const currentQualityLabel =
-    selectedLevel === -1
-      ? "Auto"
-      : getLevelLabel(qualityLevels[selectedLevel], qualityLevels);
-
   // In fullscreen, fade the title bar and footer hints with the rest of the
   // controls so the view is fully immersive once idle; outside fullscreen
   // they stay put as normal window chrome.
@@ -557,19 +627,19 @@ export default function VideoPlayerScreen() {
           transition: "opacity 250ms ease",
         }}
       >
-        <button style={S.closeBtn} onClick={handleClose} title="Close (Esc)" aria-label="Close">
+        <IconButton style={S.closeBtn} onPress={handleClose} title="Close (Esc)" aria-label="Close">
           <Icon name="close" size={16} color={colors.text} />
-        </button>
+        </IconButton>
         <span style={S.title}>{currentVideo.name}</span>
 
         {nextEpisode && (
-          <button
+          <IconButton
             style={S.nextBtn}
-            onClick={handleNextEpisode}
+            onPress={handleNextEpisode}
             title={`Next: S${String(nextEpisode.seasonNum).padStart(2, "0")}E${String(nextEpisode.episode.episode_num).padStart(2, "0")}`}
           >
             Next <Icon name="play" size={13} color={colors.text} />
-          </button>
+          </IconButton>
         )}
       </div>
 
@@ -636,11 +706,26 @@ export default function VideoPlayerScreen() {
           <div style={{ ...S.stateOverlay, backgroundColor: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column" }}>
             <StatePanel
               mode="error"
-              title="Failed to load stream"
-              message={fatalMessage}
+              title="Can't play this stream"
+              message={FATAL_HEADLINE}
               onRetry={handleRetry}
             />
-            <div style={{ display: "flex", justifyContent: "center", paddingBottom: 24 }}>
+            {/* Raw engine/provider reason, kept as quiet secondary detail so it
+                informs without alarming — steel (muted), not the danger tone. */}
+            {fatalMessage ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  color: colors.muted,
+                  fontFamily: fonts.body,
+                  fontSize: 12,
+                  padding: "0 24px",
+                }}
+              >
+                {fatalMessage}
+              </div>
+            ) : null}
+            <div style={{ display: "flex", justifyContent: "center", paddingTop: 16, paddingBottom: 24 }}>
               <Button variant="secondary" size="md" icon="close" onPress={handleClose}>
                 Close
               </Button>
@@ -660,44 +745,16 @@ export default function VideoPlayerScreen() {
             transition: "opacity 250ms ease",
           }}
         >
+        {/* Resting bar: only the most-used controls. Play/pause + volume live in
+            the seek row below; here we keep quick-access Subtitles, a single
+            Settings affordance (everything secondary is grouped behind it), and
+            Fullscreen. Every grouped control keeps its keyboard shortcut. */}
         <div style={S.bottomBar}>
-        <div style={S.dropdown} ref={speedRef}>
-          <button style={S.iconBtn(openMenu === "speed")} onClick={() => setOpenMenu((m) => (m === "speed" ? null : "speed"))} title="Playback speed" aria-label="Playback speed">
-            <Icon name="speed" size={18} color="currentColor" /> {playbackRate}x
-          </button>
-          {openMenu === "speed" && (
-            <div style={S.menuUp}>
-              {SPEEDS.map((r) => (
-                <button key={r} style={S.menuItem(playbackRate === r)} onClick={() => { applySpeed(r); setOpenMenu(null); }}>
-                  {r}x{r === 1 ? " (Normal)" : ""}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {audioTracks.length > 1 && (
-          <div style={S.dropdown} ref={audioRef}>
-            <button style={S.iconBtn(openMenu === "audio")} onClick={() => setOpenMenu((m) => (m === "audio" ? null : "audio"))} title="Audio track" aria-label="Audio track">
-              <Icon name="audio" size={18} color="currentColor" />
-            </button>
-            {openMenu === "audio" && (
-              <div style={S.menuUp}>
-                {audioTracks.map((t, i) => (
-                  <div key={t.id ?? i} style={S.menuItem(selectedAudio === i)} onClick={() => { applyAudio(i); setOpenMenu(null); }}>
-                    {t.name || `Track ${i + 1}`}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {subtitleTracks.length > 0 && (
           <div style={S.dropdown} ref={subtitleRef}>
-            <button style={S.iconBtn(openMenu === "subtitle")} onClick={() => setOpenMenu((m) => (m === "subtitle" ? null : "subtitle"))} title="Subtitles" aria-label="Subtitles">
+            <IconButton style={S.iconBtn(openMenu === "subtitle")} onPress={() => setOpenMenu((m) => (m === "subtitle" ? null : "subtitle"))} title="Subtitles" aria-label="Subtitles">
               <Icon name="cc" size={18} color="currentColor" />
-            </button>
+            </IconButton>
             {openMenu === "subtitle" && (
               <div style={S.menuUp}>
                 <button style={S.menuItem(selectedSubtitle === -1)} onClick={() => { applySubtitle(-1); setOpenMenu(null); }}>
@@ -713,76 +770,106 @@ export default function VideoPlayerScreen() {
           </div>
         )}
 
-        <div style={S.dropdown} ref={aspectRef}>
-          <button style={S.iconBtn(openMenu === "aspect")} onClick={() => setOpenMenu((m) => (m === "aspect" ? null : "aspect"))} title="Aspect ratio" aria-label="Aspect ratio">
-            <Icon name="aspect" size={18} color="currentColor" />
-          </button>
-          {openMenu === "aspect" && (
-            <div style={S.menuUp}>
-              {ASPECT_RATIOS.map(({ value, label }) => (
-                <button key={value} style={S.menuItem(aspectRatio === value)} onClick={() => { applyAspect(value); setOpenMenu(null); }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {qualityLevels.length > 1 && (
-          <div style={S.dropdown} ref={qualityRef}>
-            <button style={S.iconBtn(openMenu === "quality")} onClick={() => setOpenMenu((m) => (m === "quality" ? null : "quality"))} title="Quality" aria-label="Quality">
-              <Icon name="settings" size={18} color="currentColor" /> {currentQualityLabel}
-            </button>
-            {openMenu === "quality" && (
-              <div style={S.menuUp}>
-                <button style={S.menuItem(selectedLevel === -1)} onClick={() => handleSelectLevel(-1)}>
-                  Auto
-                </button>
-                {[...qualityLevels]
-                  .map((l, i) => ({ l, i }))
-                  .sort((a, b) => (b.l.height || 0) - (a.l.height || 0))
-                  .map(({ l, i }) => (
-                    <button key={`${l.height}-${l.bitrate}`} style={S.menuItem(selectedLevel === i)} onClick={() => handleSelectLevel(i)}>
-                      {getLevelLabel(l, qualityLevels)}
-                    </button>
-                  ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {pipSupported && (
-          <button style={S.iconBtn(pipActive)} onClick={handleTogglePip} title="Picture-in-Picture (p)" aria-label="Picture-in-Picture">
-            <Icon name="pip" size={18} color="currentColor" />
-          </button>
-        )}
-
-        {castSupported && (
-          <button style={S.iconBtn(false)} onClick={handleCast} title="Cast / AirPlay" aria-label="Cast">
-            <Icon name="cast" size={18} color="currentColor" />
-          </button>
-        )}
-
-        <button style={S.iconBtn(showStats)} onClick={() => setShowStats((v) => !v)} title="Stats for nerds (i)" aria-label="Stats">
-          <Icon name="info" size={18} color="currentColor" />
-        </button>
-
+        {/* Settings: the single grouping affordance for every secondary control
+            (speed, audio, quality, aspect, stats, PiP, cast, subtitle tuning,
+            picture, sleep). */}
         <div style={S.dropdown} ref={moreRef}>
-          <button style={S.iconBtn(openMenu === "more" || sleep.active)} onClick={() => setOpenMenu((m) => (m === "more" ? null : "more"))} title="Subtitle tuning & sleep timer" aria-label="More settings">
+          <IconButton style={S.iconBtn(openMenu === "more" || sleep.active)} onPress={() => setOpenMenu((m) => (m === "more" ? null : "more"))} title="Settings" aria-label="Settings">
             <Icon name="tune" size={18} color="currentColor" />
             {sleep.active ? ` ${formatRemaining(sleep.secondsLeft)}` : ""}
-          </button>
+          </IconButton>
           {openMenu === "more" && (
-            <div style={{ ...S.menuUp, minWidth: 300, padding: 0, maxHeight: 520 }}>
+            <div style={S.settingsMenu}>
+              {/* Playback speed */}
+              <div style={{ ...S.menuSection, borderTop: "none" }}>
+                <div style={S.sectionLabel}>Playback speed</div>
+                <div style={S.optionRow}>
+                  {SPEEDS.map((r) => (
+                    <IconButton key={r} style={S.optionChip(playbackRate === r)} onPress={() => applySpeed(r)}>
+                      {r === 1 ? "Normal" : `${r}x`}
+                    </IconButton>
+                  ))}
+                </div>
+              </div>
+
+              {/* Audio track */}
+              {audioTracks.length > 1 && (
+                <div style={S.menuSection}>
+                  <div style={S.sectionLabel}>Audio track</div>
+                  <div style={S.optionRow}>
+                    {audioTracks.map((t, i) => (
+                      <IconButton key={t.id ?? i} style={S.optionChip(selectedAudio === i)} onPress={() => applyAudio(i)}>
+                        {t.name || `Track ${i + 1}`}
+                      </IconButton>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Quality */}
+              {qualityLevels.length > 1 && (
+                <div style={S.menuSection}>
+                  <div style={S.sectionLabel}>Quality</div>
+                  <div style={S.optionRow}>
+                    <IconButton style={S.optionChip(selectedLevel === -1)} onPress={() => handleSelectLevel(-1)}>
+                      Auto
+                    </IconButton>
+                    {[...qualityLevels]
+                      .map((l, i) => ({ l, i }))
+                      .sort((a, b) => (b.l.height || 0) - (a.l.height || 0))
+                      .map(({ l, i }) => (
+                        <IconButton key={`${l.height}-${l.bitrate}`} style={S.optionChip(selectedLevel === i)} onPress={() => handleSelectLevel(i)}>
+                          {getLevelLabel(l, qualityLevels)}
+                        </IconButton>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Aspect ratio */}
+              <div style={S.menuSection}>
+                <div style={S.sectionLabel}>Aspect ratio</div>
+                <div style={S.optionRow}>
+                  {ASPECT_RATIOS.map(({ value, label }) => (
+                    <IconButton key={value} style={S.optionChip(aspectRatio === value)} onPress={() => applyAspect(value)}>
+                      {label}
+                    </IconButton>
+                  ))}
+                </div>
+              </div>
+
+              {/* Display toggles / one-off actions */}
+              <div style={S.menuSection}>
+                <div style={S.sectionLabel}>Display</div>
+                <button style={S.toggleRow(showStats)} onClick={() => setShowStats((v) => !v)} aria-pressed={showStats}>
+                  <Icon name="info" size={18} color="currentColor" />
+                  <span style={{ flex: 1 }}>Stats for nerds</span>
+                  <span style={{ fontSize: 12, color: showStats ? colors.accentText : colors.muted }}>{showStats ? "On" : "Off"}</span>
+                </button>
+                {pipSupported && (
+                  <button style={S.toggleRow(pipActive)} onClick={() => { handleTogglePip(); setOpenMenu(null); }} aria-pressed={pipActive}>
+                    <Icon name="pip" size={18} color="currentColor" />
+                    <span style={{ flex: 1 }}>Picture-in-picture</span>
+                    <span style={{ fontSize: 12, color: pipActive ? colors.accentText : colors.muted }}>{pipActive ? "On" : "Off"}</span>
+                  </button>
+                )}
+                {castSupported && (
+                  <button style={S.toggleRow(false)} onClick={() => { handleCast(); setOpenMenu(null); }}>
+                    <Icon name="cast" size={18} color="currentColor" />
+                    <span style={{ flex: 1 }}>Cast / AirPlay</span>
+                  </button>
+                )}
+              </div>
+
               <SubtitleSettings
                 style={subtitleStyle}
                 subtitleOffsetMs={subtitleOffsetMs}
                 audioOffsetMs={audioOffsetMs}
                 onChange={handleSubtitleSettingsChange}
               />
-              <div style={{ padding: "10px 12px", borderTop: `1px solid ${colors.border}` }}>
+              <div style={S.menuSection}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 13 }}>Picture</span>
+                  <span style={S.sectionLabel}>Picture</span>
                   {(videoAdjust.brightness !== 100 || videoAdjust.contrast !== 100) && (
                     <button
                       style={{ ...S.menuItem(false), width: "auto", padding: "2px 8px", fontSize: 12 }}
@@ -805,16 +892,14 @@ export default function VideoPlayerScreen() {
                   onInc={() => applyVideoAdjust({ contrast: videoAdjust.contrast + ADJUST_STEP })}
                 />
               </div>
-              <div style={{ padding: "10px 12px", borderTop: `1px solid ${colors.border}` }}>
-                <div style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 13, marginBottom: 8 }}>
-                  Sleep timer
-                </div>
+              <div style={S.menuSection}>
+                <div style={S.sectionLabel}>Sleep timer</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {SLEEP_PRESETS.map((p) => (
-                    <button
+                    <IconButton
                       key={p.label}
-                      style={S.menuItem(false)}
-                      onClick={() => {
+                      style={S.optionChip(false)}
+                      onPress={() => {
                         if (p.kind === "end-of-episode") {
                           sleep.cancel();
                         } else if (p.minutes) {
@@ -824,12 +909,12 @@ export default function VideoPlayerScreen() {
                       }}
                     >
                       {p.label}
-                    </button>
+                    </IconButton>
                   ))}
                   {sleep.active && (
-                    <button style={{ ...S.menuItem(false), color: colors.danger }} onClick={() => { sleep.cancel(); setOpenMenu(null); }}>
+                    <IconButton style={{ ...S.optionChip(false), color: colors.danger, borderColor: colors.danger }} onPress={() => { sleep.cancel(); setOpenMenu(null); }}>
                       Cancel timer
-                    </button>
+                    </IconButton>
                   )}
                 </div>
               </div>
@@ -837,23 +922,45 @@ export default function VideoPlayerScreen() {
           )}
         </div>
 
-        <button style={S.iconBtn(isFsWeb)} onClick={toggleFullscreenWeb} title="Fullscreen (f)" aria-label="Fullscreen">
+        <IconButton style={S.iconBtn(isFsWeb)} onPress={toggleFullscreenWeb} title="Fullscreen (f)" aria-label="Fullscreen">
           <Icon name={isFsWeb ? "fullscreen-exit" : "fullscreen"} size={18} color="currentColor" />
-        </button>
+        </IconButton>
         </div>
 
         {tvDuration > 0 && (
           <div style={S.ctrlBar}>
-            <button style={S.playBtn} onClick={togglePlayWeb} title="Play / Pause (Space)" aria-label={tvPaused ? "Play" : "Pause"}>
+            <IconButton style={S.playBtn} onPress={togglePlayWeb} title="Play / Pause (Space)" aria-label={tvPaused ? "Play" : "Pause"}>
               <Icon name={tvPaused ? "play" : "pause"} size={20} color="currentColor" />
-            </button>
-            <div style={S.seekTrack} onClick={(e) => seekWebToClientX(e.clientX, e.currentTarget)}>
+            </IconButton>
+            <div
+              ref={seekBarRef}
+              style={S.seekTrack}
+              role="slider"
+              tabIndex={0}
+              aria-label="Seek"
+              aria-valuemin={0}
+              aria-valuemax={Math.round(tvDuration)}
+              aria-valuenow={Math.round(tvCurrentTime)}
+              aria-valuetext={`${fmtTime(tvCurrentTime)} of ${fmtTime(tvDuration)}`}
+              onClick={(e) => seekWebToClientX(e.clientX, e.currentTarget)}
+              onKeyDown={(e) => {
+                const v = videoRef.current;
+                if (!v) return;
+                if (e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  v.currentTime -= 10;
+                } else if (e.key === "ArrowRight") {
+                  e.preventDefault();
+                  v.currentTime += 10;
+                }
+              }}
+            >
               <div style={S.seekFill(pct)} />
             </div>
             <span style={S.timeText}>{fmtTime(tvCurrentTime)} / {fmtTime(tvDuration)}</span>
-            <button style={S.playBtn} onClick={toggleMuteWeb} title="Mute" aria-label="Mute">
+            <IconButton style={S.playBtn} onPress={toggleMuteWeb} title="Mute" aria-label="Mute">
               <Icon name={muted || volume === 0 ? "mute" : "audio"} size={18} color="currentColor" />
-            </button>
+            </IconButton>
             <input
               type="range"
               min={0}

@@ -141,7 +141,9 @@ const TV = {
   settingsRow: {
     display: "flex",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 16,
+    rowGap: 12,
     marginBottom: 6,
   },
   settingsIcon: (focused) => ({
@@ -463,13 +465,13 @@ export default function VideoPlayerScreen() {
       }}
     >
       <div
+        className="tv-busy-spinner"
         style={{
           width: 72,
           height: 72,
           border: "6px solid rgba(255,255,255,0.22)",
           borderTopColor: colors.accent2,
           borderRadius: "50%",
-          animation: "spin 0.8s linear infinite",
           willChange: "transform",
         }}
       />
@@ -489,6 +491,7 @@ export default function VideoPlayerScreen() {
     {
       key: "speed",
       icon: "speed",
+      name: "Speed",
       label: `${playbackRate}x`,
       items: SPEEDS.map((r) => ({ label: `${r}x${r === 1 ? " (Normal)" : ""}`, active: playbackRate === r, run: () => applySpeed(r) })),
       selected: Math.max(0, SPEEDS.indexOf(playbackRate)),
@@ -496,12 +499,14 @@ export default function VideoPlayerScreen() {
     audioTracks.length > 1 && {
       key: "audio",
       icon: "audio",
+      name: "Audio",
       items: audioTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, active: selectedAudio === i, run: () => applyAudio(i) })),
       selected: Math.max(0, selectedAudio),
     },
     subtitleTracks.length > 0 && {
       key: "subtitle",
       icon: "cc",
+      name: "Subtitles",
       items: [
         { label: "Off", active: selectedSubtitle === -1, run: () => applySubtitle(-1) },
         ...subtitleTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, active: selectedSubtitle === i, run: () => applySubtitle(i) })),
@@ -511,12 +516,14 @@ export default function VideoPlayerScreen() {
     {
       key: "aspect",
       icon: "aspect",
+      name: "Aspect",
       items: ASPECT_RATIOS.map(({ value, label }) => ({ label, active: aspectRatio === value, run: () => applyAspect(value) })),
       selected: Math.max(0, ASPECT_RATIOS.findIndex(({ value }) => value === aspectRatio)),
     },
     {
       key: "brightness",
       icon: "brightness",
+      name: "Brightness",
       items: ADJUST_LEVELS.map((lvl) => ({
         label: `${lvl}%${lvl === 100 ? " (Normal)" : ""}`,
         active: videoAdjust.brightness === lvl,
@@ -527,6 +534,7 @@ export default function VideoPlayerScreen() {
     {
       key: "contrast",
       icon: "contrast",
+      name: "Contrast",
       items: ADJUST_LEVELS.map((lvl) => ({
         label: `${lvl}%${lvl === 100 ? " (Normal)" : ""}`,
         active: videoAdjust.contrast === lvl,
@@ -537,6 +545,7 @@ export default function VideoPlayerScreen() {
     qualityLevels.length > 1 && {
       key: "quality",
       icon: "settings",
+      name: "Quality",
       items: [
         { label: "Auto", active: selectedLevel === -1, run: () => handleSelectLevel(-1) },
         ...tvSortedLevels.map(({ l, i }) => ({ label: getLevelLabel(l, qualityLevels), active: selectedLevel === i, run: () => handleSelectLevel(i) })),
@@ -546,6 +555,7 @@ export default function VideoPlayerScreen() {
     {
       key: "stats",
       icon: "info",
+      name: "Stats",
       action: () => setShowStats((v) => !v),
     },
   ].filter(Boolean);
@@ -638,7 +648,7 @@ export default function VideoPlayerScreen() {
                 <div key={item.key} style={{ position: "relative" }}>
                   <div style={TV.settingsIcon(focused || menuOpen)}>
                     <Icon name={item.icon} size={26} color="currentColor" />
-                    {item.label ? <span>{item.label}</span> : null}
+                    <span>{item.name}{item.label ? ` · ${item.label}` : ""}</span>
                   </div>
                   {menuOpen && item.items && (
                     <div style={TV.settingsMenu}>
@@ -704,7 +714,7 @@ export default function VideoPlayerScreen() {
 
       {busyOverlay}
 
-      <style>{`@keyframes spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }`}</style>
+      <style>{`@keyframes spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } } .tv-busy-spinner { animation: spin 0.8s linear infinite; } @media (prefers-reduced-motion: reduce) { .tv-busy-spinner { animation: none; } }`}</style>
     </div>
   );
 }

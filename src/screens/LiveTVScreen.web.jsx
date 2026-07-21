@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
-import { Modal, Alert, TouchableOpacity } from "react-native";
+import { Modal, TouchableOpacity } from "react-native";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
 import { colors, fonts, fontWeights, iconSizes } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
@@ -61,7 +61,6 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
       cursor="pointer"
       onPress={() => onPress(item)}
       pressStyle={{ opacity: 0.8 }}
-      hoverStyle={{ borderColor: colors.accent }}
       animation="quick"
       // Real button semantics so keyboard/AT users can reach and fire the card.
       role="button"
@@ -120,52 +119,45 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
         >
           {item.name}
         </Text>
+        {/* Visually a 20px star, but the pressable spans a 44×44 hit area
+            (transparent padding around the glyph) so the effective touch/pointer
+            target clears the 44px floor. Negative margins keep row layout
+            unchanged. */}
         <TouchableOpacity
           onPress={toggleFav}
+          aria-label={inFav ? "Remove from Favorites" : "Favorite"}
+          style={{
+            width: ss(44),
+            height: ss(44),
+            marginVertical: ss(-12),
+            marginLeft: ss(-10),
+            alignItems: "center",
+            justifyContent: "center",
+          }}
           {...{ onClick: (e) => e.stopPropagation() }}
         >
-          <Text
-            style={{
-              color: inFav ? colors.accent : colors.faint,
-              fontSize: ss(16),
-              marginRight: ss(6),
-            }}
-          >
-            {inFav ? "♥" : "♡"}
-          </Text>
+          <Icon
+            name="star"
+            size={ss(iconSizes.md)}
+            color={inFav ? colors.accent : colors.muted}
+          />
         </TouchableOpacity>
         <span className="suvo-live-dot">LIVE</span>
       </XStack>
-      <Text
-        color={colors.muted}
-        fontSize={ss(13)}
-        lineHeight={ss(18)}
-        minHeight={ss(36)}
-        numberOfLines={2}
-      >
-        {epg || " "}
-      </Text>
-      <YStack
-        height={ss(3)}
-        backgroundColor={colors.border}
-        borderRadius={ss(2)}
-        marginTop={ss(10)}
-      >
-        <YStack
-          width="35%"
-          height="100%"
-          backgroundColor={colors.accent}
-          borderRadius={ss(2)}
-        />
-      </YStack>
-      <Text
-        color={colors.faint}
-        fontSize={ss(11)}
-        marginTop={ss(7)}
-        letterSpacing={0.2}
-      >
-        Live · now playing
-      </Text>
+      {/* EPG "now playing" title, shown only when the provider returned real
+          text. No program timing data exists, so we don't render a fake
+          progress bar or a filler caption — an empty line is omitted entirely. */}
+      {typeof epg === "string" && epg.trim() ? (
+        <Text
+          color={colors.muted}
+          fontSize={ss(13)}
+          lineHeight={ss(18)}
+          minHeight={ss(36)}
+          numberOfLines={2}
+        >
+          {epg}
+        </Text>
+      ) : null}
     </YStack>
   );
 });
@@ -286,7 +278,7 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
         paddingHorizontal={ss(48)}
         marginBottom={ss(14)}
       >
-        <Icon name="tv" size={ss(iconSizes.md)} color={colors.accent2} />
+        <Icon name="tv" size={ss(iconSizes.md)} color={colors.muted} />
         <Text
           color={colors.text}
           fontFamily={fonts.display}
@@ -297,7 +289,7 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
           {cat.name}
         </Text>
         {channels && (
-          <Text color={colors.faint} fontSize={ss(13)} fontWeight={fontWeights.medium}>
+          <Text color={colors.muted} fontSize={ss(13)} fontWeight={fontWeights.medium}>
             {channels.length}
           </Text>
         )}
@@ -396,6 +388,12 @@ export default function LiveTVScreen({ navigation }) {
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [newStreamUrl, setNewStreamUrl] = useState("");
+  // Inline validation message for the Add-Channel sheet (empty fields / bad URL).
+  const [addError, setAddError] = useState("");
+  // Inline success confirmation on the Add-Channel sheet (replaces the raw OS
+  // alert). Auto-dismisses after a beat so the dark-theater UI stays calm.
+  const [addSuccess, setAddSuccess] = useState("");
+  const successTimerRef = useRef(null);
   // Add-Channel sheet remote focus ring (TV): 0=name, 1=url, 2=Cancel, 3=Add.
   const [sheetFocus, setSheetFocus] = useState(0);
   const sheetFocusRef = useRef(0);
@@ -439,8 +437,11 @@ export default function LiveTVScreen({ navigation }) {
         }
       : {}),
   });
-  // Reset the ring to the first field each time the sheet opens.
-  useEffect(() => { if (showAddChannel) setSheetF(0); }, [showAddChannel]);
+  // Reset the ring to the first field (and clear any stale error) each time the
+  // sheet opens.
+  useEffect(() => { if (showAddChannel) { setSheetF(0); setAddError(""); setAddSuccess(""); } }, [showAddChannel]);
+  // Clear the pending success-banner timer if the screen unmounts.
+  useEffect(() => () => clearTimeout(successTimerRef.current), []);
   // Debounced lowercase search term — keeps the filter off the keystroke path.
   const [debouncedQuery, setDebouncedQuery] = useState("");
   useEffect(() => {
@@ -463,17 +464,25 @@ export default function LiveTVScreen({ navigation }) {
   }, [fetchEpgTitle]);
 
   const handleAddChannel = () => {
-    if (!newChannelName.trim() || !newStreamUrl.trim()) {
-      Alert.alert(
-        "Missing Fields",
-        "Please enter both a channel name and stream URL.",
-      );
+    const name = newChannelName.trim();
+    const url = newStreamUrl.trim();
+    setAddSuccess("");
+    // Inline validation — Alert.alert is a no-op on web/Electron/TV, so an
+    // empty or malformed submit would otherwise silently do nothing.
+    if (!name || !url) {
+      setAddError("Enter both a channel name and a stream URL.");
       return;
     }
+    // Basic format guard: playable custom streams must be an http(s) URL.
+    if (!/^https?:\/\/\S+$/i.test(url)) {
+      setAddError("Stream URL must start with http:// or https://");
+      return;
+    }
+    setAddError("");
     const ch = {
-      name: newChannelName.trim(),
-      _lc: newChannelName.trim().toLowerCase(),
-      url: newStreamUrl.trim(),
+      name,
+      _lc: name.toLowerCase(),
+      url,
       id: Date.now().toString(),
       stream_id: Date.now().toString(),
       logo: null,
@@ -491,8 +500,12 @@ export default function LiveTVScreen({ navigation }) {
     saveChannels();
     setNewChannelName("");
     setNewStreamUrl("");
-    setShowAddChannel(false);
-    Alert.alert("Channel Added", `"${ch.name}" added to Custom category.`);
+    // Keep the sheet open and confirm inline (react-native-web's Alert is a
+    // no-op on web/TV anyway) — a brief success banner that fades on its own,
+    // mirroring the inline error banner. Lets the user add more channels.
+    setAddSuccess(`"${ch.name}" added to your Custom category.`);
+    clearTimeout(successTimerRef.current);
+    successTimerRef.current = setTimeout(() => setAddSuccess(""), 3500);
   };
 
   // Categories load is owned by useLiveTV (its own activeUserId effect). Here we
@@ -659,7 +672,7 @@ export default function LiveTVScreen({ navigation }) {
         ))
       ) : (
         <YStack padding={ss(60)} alignItems="center">
-          <Text color={colors.faint} fontSize={ss(15)}>
+          <Text color={colors.muted} fontSize={ss(15)}>
             No channels found
           </Text>
         </YStack>
@@ -718,7 +731,7 @@ export default function LiveTVScreen({ navigation }) {
             />
             <Input
               ref={urlInputRef}
-              placeholder="Stream URL (http://... or rtmp://...)"
+              placeholder="Stream URL (https://...)"
               placeholderTextColor={colors.faint}
               value={newStreamUrl}
               onChangeText={setNewStreamUrl}
@@ -733,9 +746,45 @@ export default function LiveTVScreen({ navigation }) {
               borderColor={isTV && sheetFocus === 1 ? colors.accent2 : colors.border}
               marginBottom={ss(12)}
             />
-            <Text color={colors.faint} fontSize={ss(12)} marginBottom={ss(20)}>
+            <Text color={colors.muted} fontSize={ss(12)} marginBottom={ss(20)}>
               Supported: HLS (.m3u8), DASH (.mpd), direct video
             </Text>
+            {!!addError && (
+              <XStack
+                alignItems="center"
+                gap={ss(8)}
+                marginBottom={ss(16)}
+                paddingVertical={ss(10)}
+                paddingHorizontal={ss(12)}
+                borderRadius={ss(10)}
+                borderWidth={1}
+                borderColor={colors.danger}
+                backgroundColor={colors.surface}
+              >
+                <Icon name="warning" size={ss(iconSizes.sm)} color={colors.danger} />
+                <Text color={colors.danger} fontSize={ss(13)} flex={1}>
+                  {addError}
+                </Text>
+              </XStack>
+            )}
+            {!!addSuccess && (
+              <XStack
+                alignItems="center"
+                gap={ss(8)}
+                marginBottom={ss(16)}
+                paddingVertical={ss(10)}
+                paddingHorizontal={ss(12)}
+                borderRadius={ss(10)}
+                borderWidth={1}
+                borderColor={colors.success}
+                backgroundColor={colors.surface}
+              >
+                <Icon name="check" size={ss(iconSizes.sm)} color={colors.success} />
+                <Text color={colors.success} fontSize={ss(13)} flex={1}>
+                  {addSuccess}
+                </Text>
+              </XStack>
+            )}
             <XStack gap={ss(12)}>
               <Button
                 variant="secondary"

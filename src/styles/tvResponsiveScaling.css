@@ -17,8 +17,13 @@
  *
  * Selectors target the real `.tvl-*` namespace used by every *.tv.jsx screen.
  *
- * var() is intentionally used: this is a TV-only sheet, and modern webOS/Tizen
- * Chromium supports custom properties. Shared legacy CSS still avoids var().
+ * var() is intentionally used: this is a TV-only sheet, and the webOS/Tizen
+ * Chromium floor (71+) supports custom properties. The shared TV base (tvl.css)
+ * likewise authors its --a-* palette with var(); tv/patch-index.js inlines those
+ * --a-* refs to literals at build (a var() inside a multi-value shorthand is
+ * dropped by the engine, so shorthands can't carry one). --tv-scale-clamped here
+ * is not an --a-* token, so it ships as a live var() — fine on the 71+ floor,
+ * where it appears only as a single value inside calc().
  */
 
 :root {

@@ -137,11 +137,6 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
             onLoad={() => setImageLoaded(true)} onError={() => setImageError(true)}
             style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: imageLoaded ? 1 : 0, transition: "opacity 0.2s ease", WebkitUserDrag: "none", userSelect: "none" }} />
         )}
-        {showBadges && (
-          <div style={{ position: "absolute", top: 8, right: 8, backgroundColor: overlay, borderRadius: radii.sm / 2, padding: "2px 5px" }}>
-            <span style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 9, fontWeight: fontWeights.bold, letterSpacing: 0.5 }}>HD</span>
-          </div>
-        )}
         {showBadges && ratingLabel && (
           <div style={{ position: "absolute", top: 8, left: 8, display: "flex", alignItems: "center", gap: 3, backgroundColor: overlay, borderRadius: radii.sm / 2, padding: "2px 5px" }}>
             <Icon name="star" color={colors.rating} size={ss(10)} />
@@ -150,7 +145,7 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
         )}
         {watchedPct > 0 && watchedPct < 100 && (
           <>
-            <div style={{ position: "absolute", bottom: 6, left: 8, backgroundColor: overlay, borderRadius: radii.sm / 2, padding: "2px 6px", color: "#fff", fontFamily: fonts.body, fontSize: 10, fontWeight: fontWeights.bold }}>
+            <div style={{ position: "absolute", bottom: 6, left: 8, backgroundColor: overlay, borderRadius: radii.sm / 2, padding: "2px 6px", color: colors.text, fontFamily: fonts.body, fontSize: 10, fontWeight: fontWeights.bold }}>
               {fmtDur(watched)}{duration > 0 ? ` / ${fmtDur(duration)}` : ""}
             </div>
             <div style={{ position: "absolute", bottom: 0, left: 0, height: 6, width: `${watchedPct}%`, backgroundColor: colors.accent }} />
@@ -158,7 +153,13 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
         )}
       </div>
       <div style={{
-        width, color: colors.text, fontFamily: fonts.body, fontSize: 13, fontWeight: fontWeights.medium, marginTop: 8, lineHeight: "17px", height: 34,
+        // 2-line title. Reserve two lines with a line-height-based min-height (so
+        // cards stay grid-aligned) but never cap the box at a fixed pixel height:
+        // a hard `height: 34` == exactly 2×17px clipped the second line's
+        // descenders (g/y/p) at larger scales. min-height + an em-based
+        // line-height lets the box grow to fit the descenders while the
+        // -webkit-line-clamp still enforces the 2-line limit.
+        width, color: colors.text, fontFamily: fonts.body, fontSize: 13, fontWeight: fontWeights.medium, marginTop: 8, lineHeight: 1.35, minHeight: "2.7em",
         overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box",
         WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
       }}>{item.name}</div>

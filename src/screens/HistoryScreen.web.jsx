@@ -1,10 +1,11 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { Image, View } from "react-native";
 import { YStack, Text, ScrollView } from "../ui/primitives";
-import { colors, fonts, fontWeights, overlay, radii } from "../ui/tokens";
+import { colors, fonts, fontWeights, overlay, heroHeights, zIndex } from "../ui/tokens";
 import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
+import HeroWeb from "../presentation/components/Hero.web";
 import { useApp } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
 import { ss, useScale } from "../utils/scaleSize";
@@ -89,6 +90,55 @@ const getEpLabel = (item) => {
   return null;
 };
 
+/* ── Remove (×) affordance ──
+   Visually a 22px scrim circle in the card corner, but the pressable spans a
+   44×44 hit area (transparent padding around the circle) so a mis-tap is hard
+   and the effective touch/pointer target clears the 44px floor. Announced to
+   assistive tech as a "Remove" button and operable by keyboard. */
+function RemoveButton({ onRemove }) {
+  const handle = (e) => {
+    e?.stopPropagation?.();
+    onRemove();
+  };
+  return (
+    <YStack
+      position="absolute"
+      top={0}
+      left={0}
+      zIndex={5}
+      width={ss(44)}
+      height={ss(44)}
+      paddingTop={ss(8)}
+      paddingLeft={ss(8)}
+      cursor="pointer"
+      onPress={handle}
+      pressStyle={{ opacity: 0.7 }}
+      role="button"
+      aria-label="Remove"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handle(e);
+        }
+      }}
+    >
+      <View
+        style={{
+          width: ss(22),
+          height: ss(22),
+          borderRadius: ss(12),
+          backgroundColor: overlay,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Icon name="close" size={ss(11)} color={colors.text} />
+      </View>
+    </YStack>
+  );
+}
+
 /* ── My List Poster Card ── */
 function MyListCard({ item, onPress, onRemove }) {
   const poster = item.cover || item.movie_image || item.stream_icon || null;
@@ -119,46 +169,7 @@ function MyListCard({ item, onPress, onRemove }) {
         ) : (
           <View style={[FILL, { backgroundColor: colors.surface }]} />
         )}
-        <YStack
-          position="absolute"
-          top={ss(8)}
-          right={ss(8)}
-          zIndex={4}
-          backgroundColor={overlay}
-          borderRadius={ss(4)}
-          paddingHorizontal={ss(5)}
-          paddingVertical={ss(2)}
-        >
-          <Text
-            color={colors.muted}
-            fontFamily={fonts.body}
-            fontSize={ss(9)}
-            fontWeight={fontWeights.bold}
-            letterSpacing={0.5}
-          >
-            HD
-          </Text>
-        </YStack>
-        <YStack
-          position="absolute"
-          top={ss(8)}
-          left={ss(8)}
-          zIndex={5}
-          backgroundColor={overlay}
-          borderRadius={ss(12)}
-          width={ss(22)}
-          height={ss(22)}
-          justifyContent="center"
-          alignItems="center"
-          cursor="pointer"
-          onPress={(e) => {
-            e?.stopPropagation?.();
-            onRemove();
-          }}
-          pressStyle={{ opacity: 0.7 }}
-        >
-          <Icon name="close" size={ss(11)} color={colors.text} />
-        </YStack>
+        <RemoveButton onRemove={onRemove} />
       </YStack>
       <Text
         color={colors.text}
@@ -188,10 +199,12 @@ function MyListCard({ item, onPress, onRemove }) {
 
 /* ── Continue Watching Card ── */
 function CWCard({ item, onPress, onRemove }) {
+  // Only show a resume bar when we know the real duration. If duration is
+  // unknown, render no bar rather than fabricate a fake fill (matches LiveCard).
   const progress =
     item.duration > 0
       ? Math.min((item.currentTime / item.duration) * 100, 100)
-      : 15;
+      : null;
   const timeLeft = formatTimeLeft(item.currentTime, item.duration);
   const epLabel = getEpLabel(item);
   const seasonBadge = item.seasonNum ? `S${item.seasonNum}` : null;
@@ -241,50 +254,33 @@ function CWCard({ item, onPress, onRemove }) {
             </Text>
           </YStack>
         )}
-        <YStack
-          position="absolute"
-          top={ss(8)}
-          left={ss(8)}
-          zIndex={5}
-          backgroundColor={overlay}
-          borderRadius={ss(12)}
-          width={ss(22)}
-          height={ss(22)}
-          justifyContent="center"
-          alignItems="center"
-          cursor="pointer"
-          onPress={(e) => {
-            e?.stopPropagation?.();
-            onRemove();
-          }}
-          pressStyle={{ opacity: 0.7 }}
-        >
-          <Icon name="close" size={ss(11)} color={colors.text} />
-        </YStack>
+        <RemoveButton onRemove={onRemove} />
         <div className="suvo-cw-play">
           <Icon name="play" size={ss(28)} color={colors.text} />
         </div>
-        <YStack
-          position="absolute"
-          left={0}
-          right={0}
-          bottom={0}
-          zIndex={4}
-          paddingHorizontal={ss(12)}
-          paddingBottom={ss(10)}
-        >
-          <View
-            style={{ height: ss(3), borderRadius: ss(2), backgroundColor: colors.border, overflow: "hidden" }}
+        {progress != null && (
+          <YStack
+            position="absolute"
+            left={0}
+            right={0}
+            bottom={0}
+            zIndex={4}
+            paddingHorizontal={ss(12)}
+            paddingBottom={ss(10)}
           >
             <View
-              style={{
-                height: "100%",
-                width: `${progress}%`,
-                backgroundColor: colors.accent,
-              }}
-            />
-          </View>
-        </YStack>
+              style={{ height: ss(3), borderRadius: ss(2), backgroundColor: colors.border, overflow: "hidden" }}
+            >
+              <View
+                style={{
+                  height: "100%",
+                  width: `${progress}%`,
+                  backgroundColor: colors.accent,
+                }}
+              />
+            </View>
+          </YStack>
+        )}
       </YStack>
       <YStack paddingTop={ss(10)} paddingHorizontal={ss(2)}>
         <Text
@@ -332,6 +328,56 @@ export default function HistoryScreen({ navigation }) {
   const fav$ = useDragScroll();
   const cw$ = useDragScroll();
   const [currentDetail, setCurrentDetail] = useState(null);
+
+  // Deferred, undoable removal. A remove doesn't hit the store immediately —
+  // with cross-device sync a mis-tap would delete a resume position everywhere.
+  // Instead we optimistically hide the item, surface a "Removed · Undo"
+  // snackbar, and only commit the store call once the snackbar times out (~5s).
+  // Undo cancels the pending commit and the item reappears untouched.
+  const [pending, setPending] = useState(null); // { kind: 'mylist'|'history', id, name }
+  const pendingRef = useRef(null);
+  const timerRef = useRef(null);
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+  const commit = (p) => {
+    if (!p) return;
+    if (p.kind === "mylist") removeFromMyList(p.id);
+    else removeFromWatchHistory(p.id);
+  };
+  // Keep the latest commit reachable from the unmount-only effect below without
+  // making that effect re-run every render.
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
+  const requestRemove = (kind, item) => {
+    clearTimer();
+    // Never lose a still-pending removal if a second one starts — commit it now.
+    if (pendingRef.current) commit(pendingRef.current);
+    const next = { kind, id: item.id, name: item.name };
+    pendingRef.current = next;
+    setPending(next);
+    timerRef.current = setTimeout(() => {
+      commit(pendingRef.current);
+      pendingRef.current = null;
+      timerRef.current = null;
+      setPending(null);
+    }, 5000);
+  };
+  const undoRemove = () => {
+    clearTimer();
+    pendingRef.current = null;
+    setPending(null);
+  };
+  // On unmount, honor an in-flight removal (the user did press ×) rather than
+  // silently dropping it.
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    commitRef.current(pendingRef.current);
+    pendingRef.current = null;
+  }, []);
 
   const openDetail = (item) => {
     if (item.type === "live") {
@@ -389,11 +435,44 @@ export default function HistoryScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="film"
-        title="Nothing here yet"
-        message="Start watching something and it will appear here"
+        title="Your Home is ready"
+        message="Play a movie, series, or channel and it appears here — and follows you to every device on your account. Browse Movies or Series to get started."
+        cta={() => navigation.navigate("Movies")}
+        ctaLabel="Browse Movies"
       />
     );
   }
+
+  // Feature the most recent Continue-Watching title (or, failing that, the first
+  // My-List title) as the cinematic entry point at the top of Home. Reaching this
+  // point means at least one of the two lists is non-empty, so `featured` is set.
+  const featured = watchedHistory[0] || myList[0] || null;
+  const featuredResume = watchedHistory.length > 0;
+  const heroTitle = featured ? featured.seriesName || featured.name : "";
+  const heroBackdrop = featured
+    ? featured.cover || featured.movie_image || featured.stream_icon || null
+    : null;
+  const heroMeta = featured
+    ? [
+        getEpLabel(featured),
+        featuredResume
+          ? formatTimeLeft(featured.currentTime, featured.duration)
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null
+    : null;
+
+  // Hide the item awaiting a deferred removal so the shelf reflects the pending
+  // state instantly, while the store call is still held back (see requestRemove).
+  const visibleMyList =
+    pending?.kind === "mylist"
+      ? myList.filter((i) => i.id !== pending.id)
+      : myList;
+  const visibleHistory =
+    pending?.kind === "history"
+      ? watchedHistory.filter((i) => i.id !== pending.id)
+      : watchedHistory;
 
   return (
     <ScrollView
@@ -402,19 +481,46 @@ export default function HistoryScreen({ navigation }) {
       contentContainerStyle={{ paddingTop: ss(40), paddingBottom: ss(80) }}
     >
       <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
-      {myList.length > 0 && (
+      {featured && (
+        <HeroWeb
+          backdrop={heroBackdrop}
+          title={heroTitle}
+          meta={heroMeta}
+          continuityLabel="Synced across your devices"
+          primaryLabel={featuredResume ? "Resume" : "Play"}
+          onPrimary={() => openDetail(featured)}
+          secondaryLabel="Browse library"
+          onSecondary={() => navigation.navigate("Movies")}
+          height={heroHeights.web}
+        />
+      )}
+      {visibleMyList.length > 0 && (
         <YStack paddingBottom={ss(48)}>
-          <Text
-            color={colors.text}
-            fontFamily={fonts.display}
-            fontSize={ss(26)}
-            fontWeight={fontWeights.bold}
-            letterSpacing={-0.5}
-            paddingHorizontal={ss(48)}
-            marginBottom={ss(20)}
+          {/* Title carries the same see-all chevron as the catalog shelves so
+              Home reads with the same shelf grammar. Home already shows the full
+              My List here, so there's no separate see-all destination — the
+              chevron is a consistency affordance only (no navigation wired). */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: ss(6),
+              paddingLeft: ss(48),
+              paddingRight: ss(48),
+              marginBottom: ss(20),
+            }}
           >
-            My List
-          </Text>
+            <Text
+              color={colors.text}
+              fontFamily={fonts.display}
+              fontSize={ss(26)}
+              fontWeight={fontWeights.bold}
+              letterSpacing={-0.5}
+            >
+              My List
+            </Text>
+            <Icon name="chevron-right" size={ss(20)} color={colors.muted} />
+          </div>
           <div style={{ position: "relative" }} className="suvo-shelf-rail">
             <button
               className="suvo-shelf-nav"
@@ -440,12 +546,12 @@ export default function HistoryScreen({ navigation }) {
                 cursor: "grab",
               }}
             >
-              {myList.map((item, idx) => (
+              {visibleMyList.map((item) => (
                 <MyListCard
                   key={item.id}
                   item={item}
                   onPress={() => openDetail(item)}
-                  onRemove={() => removeFromMyList(item.id)}
+                  onRemove={() => requestRemove("mylist", item)}
                 />
               ))}
             </div>
@@ -460,19 +566,30 @@ export default function HistoryScreen({ navigation }) {
         </YStack>
       )}
 
-      {watchedHistory.length > 0 && (
+      {visibleHistory.length > 0 && (
         <YStack paddingBottom={ss(48)}>
-          <Text
-            color={colors.text}
-            fontFamily={fonts.display}
-            fontSize={ss(26)}
-            fontWeight={fontWeights.bold}
-            letterSpacing={-0.5}
-            paddingHorizontal={ss(48)}
-            marginBottom={ss(20)}
+          {/* See-all chevron for shelf-grammar consistency (see My List note). */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: ss(6),
+              paddingLeft: ss(48),
+              paddingRight: ss(48),
+              marginBottom: ss(20),
+            }}
           >
-            Continue Watching
-          </Text>
+            <Text
+              color={colors.text}
+              fontFamily={fonts.display}
+              fontSize={ss(26)}
+              fontWeight={fontWeights.bold}
+              letterSpacing={-0.5}
+            >
+              Continue Watching
+            </Text>
+            <Icon name="chevron-right" size={ss(20)} color={colors.muted} />
+          </div>
           <div style={{ position: "relative" }} className="suvo-shelf-rail">
             <button
               className="suvo-shelf-nav"
@@ -498,12 +615,12 @@ export default function HistoryScreen({ navigation }) {
                 cursor: "grab",
               }}
             >
-              {watchedHistory.map((item, idx) => (
+              {visibleHistory.map((item) => (
                 <CWCard
                   key={item.id}
                   item={item}
                   onPress={() => openDetail(item)}
-                  onRemove={() => removeFromWatchHistory(item.id)}
+                  onRemove={() => requestRemove("history", item)}
                 />
               ))}
             </div>
@@ -518,6 +635,71 @@ export default function HistoryScreen({ navigation }) {
         </YStack>
       )}
       </YStack>
+      {pending && (
+        // Full-width, click-through row; only the pill itself is interactive.
+        <div
+          style={{
+            position: "fixed",
+            left: 0,
+            right: 0,
+            bottom: ss(32),
+            zIndex: zIndex.toast,
+            display: "flex",
+            justifyContent: "center",
+            paddingLeft: ss(16),
+            paddingRight: ss(16),
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              pointerEvents: "auto",
+              display: "flex",
+              alignItems: "center",
+              gap: ss(8),
+              maxWidth: "90vw",
+              backgroundColor: colors.surface2,
+              border: `1px solid ${colors.border}`,
+              borderRadius: ss(12),
+              paddingTop: ss(10),
+              paddingBottom: ss(10),
+              paddingLeft: ss(16),
+              paddingRight: ss(8),
+            }}
+          >
+            <Text
+              color={colors.text}
+              fontFamily={fonts.body}
+              fontSize={ss(14)}
+              numberOfLines={1}
+            >
+              Removed
+            </Text>
+            <button
+              type="button"
+              onClick={undoRemove}
+              aria-label="Undo remove"
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                paddingTop: ss(6),
+                paddingBottom: ss(6),
+                paddingLeft: ss(12),
+                paddingRight: ss(12),
+                color: colors.accentText,
+                fontFamily: fonts.body,
+                fontSize: ss(14),
+                fontWeight: fontWeights.bold,
+              }}
+            >
+              Undo
+            </button>
+          </div>
+        </div>
+      )}
     </ScrollView>
   );
 }

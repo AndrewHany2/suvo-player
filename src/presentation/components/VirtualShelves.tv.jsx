@@ -665,7 +665,7 @@ export function VirtualShelvesTV({
                   <span
                     style={{
                       marginLeft: ss(6),
-                      color: colors.faint,
+                      color: colors.muted,
                       fontFamily: fonts.body,
                       fontWeight: fontWeights.medium,
                       fontSize: ss(13),

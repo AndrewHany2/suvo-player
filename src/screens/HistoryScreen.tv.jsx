@@ -513,10 +513,10 @@ export default function HistoryScreenTV({ navigation }) {
     );
     const inFav = isInMyList("movies", streamId);
     const buttons = [
-      { label: resume?.currentTime > 0 ? "▶  Continue" : "▶  Play", type: "play" },
-      ...(resume?.currentTime > 0 ? [{ label: "↺  From Start", type: "restart" }] : []),
+      { label: <><Icon name="play" size={16} color="currentColor" />&nbsp;&nbsp;{resume?.currentTime > 0 ? "Continue" : "Play"}</>, type: "play" },
+      ...(resume?.currentTime > 0 ? [{ label: <><Icon name="back" size={16} color="currentColor" />&nbsp;&nbsp;From Start</>, type: "restart" }] : []),
       ...(trailer ? [{ label: showTrailer ? <><Icon name="close" size={16} color="currentColor" />&nbsp;&nbsp;Close Trailer</> : <><Icon name="film" size={16} color="currentColor" />&nbsp;&nbsp;Trailer</>, type: "trailer" }] : []),
-      { label: inFav ? "♥  Saved" : "♡  Add to Favorites", type: "fav" },
+      { label: <><Icon name={inFav ? "check" : "plus"} size={16} color="currentColor" />&nbsp;&nbsp;{inFav ? "In My List" : "My List"}</>, type: "fav" },
     ];
     const btnClass = (i, type) =>
       ["tvl-det-hero-btn",
@@ -611,10 +611,10 @@ export default function HistoryScreenTV({ navigation }) {
     const actionBtns = [
       ...(historyEntry ? [{
         type: "continue",
-        label: "▶  Continue" + (historyEntry.seasonNum
-          ? ` S${historyEntry.seasonNum}E${String(historyEntry.episodeNum).padStart(2, "0")}` : ""),
+        label: <><Icon name="play" size={16} color="currentColor" />&nbsp;&nbsp;{"Continue" + (historyEntry.seasonNum
+          ? ` S${historyEntry.seasonNum}E${String(historyEntry.episodeNum).padStart(2, "0")}` : "")}</>,
       }] : []),
-      { type: "fav", label: inFav ? "♥  Saved" : "♡  Favorites" },
+      { type: "fav", label: <><Icon name={inFav ? "check" : "plus"} size={16} color="currentColor" />&nbsp;&nbsp;{inFav ? "In My List" : "My List"}</> },
     ];
     const actBtnClass = (i) =>
       ["tvl-det-hero-btn",
@@ -712,7 +712,7 @@ export default function HistoryScreenTV({ navigation }) {
                       {ep.info?.plot && <div className="tvl-ep-plot">{ep.info.plot}</div>}
                       {ep.info?.duration && <div className="tvl-ep-dur">{ep.info.duration}</div>}
                       {hasProgress && !isWatched && (
-                        <div style={{ fontSize: 11, color: colors.accent, marginTop: 4 }}>
+                        <div style={{ fontSize: 14, color: colors.accentText, marginTop: 4 }}>
                           Continue from {fmtTime(epHistory.currentTime)}
                         </div>
                       )}

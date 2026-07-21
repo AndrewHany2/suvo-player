@@ -49,6 +49,7 @@ export default function AccountsScreen({ navigation }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [connectedNick, setConnectedNick] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
 
   const isM3U = formData.type === "m3u";
@@ -138,7 +139,10 @@ export default function AccountsScreen({ navigation }) {
       }
       setActiveUserId(userId);
       saveUsers();
-      alertDialog("Connected!", `Connected to ${user.nickname || user.username}.`, () => navigation.goBack());
+      // Success is a calm inline confirmation, not a blocking OS dialog (Alert is
+      // a no-op on web/TV anyway). Show the banner briefly, then return.
+      setConnectedNick(user.nickname || user.username);
+      setTimeout(() => navigation.goBack(), 1200);
     } finally {
       setLoading(false);
     }
@@ -239,6 +243,20 @@ export default function AccountsScreen({ navigation }) {
   // ── List view ─────────────────────────────────────────────────────────────
   return (
     <YStack flex={1} backgroundColor={colors.bg}>
+      {connectedNick && (
+        <XStack
+          accessibilityLiveRegion="polite"
+          alignItems="center" gap={ss(10)} backgroundColor={colors.surface2}
+          marginHorizontal={ss(16)} marginTop={ss(16)} marginBottom={ss(4)}
+          borderRadius={radii.md} padding={ss(14)} borderWidth={1} borderColor={colors.border}
+        >
+          <Icon name="check" size={ss(20)} color={colors.success} />
+          <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(14)} fontWeight={fontWeights.medium}>
+            Connected to {connectedNick}
+          </Text>
+        </XStack>
+      )}
+
       {authUser && (
         <XStack alignItems="center" backgroundColor={colors.surface2} marginHorizontal={ss(16)} marginTop={ss(16)} marginBottom={ss(4)} borderRadius={radii.md} padding={ss(14)} borderWidth={1} borderColor={colors.border}>
           <XStack flex={1} alignItems="center" gap={ss(10)}>
@@ -293,8 +311,8 @@ export default function AccountsScreen({ navigation }) {
                 <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(13)} numberOfLines={1}>{item.type === "m3u" ? item.url : item.host}</Text>
                 {activeUserId === item.id && (
                   <XStack marginTop={ss(6)} alignItems="center" gap={ss(4)} backgroundColor={accentAlpha(0.15)} borderRadius={radii.sm} paddingHorizontal={ss(8)} paddingVertical={ss(3)} alignSelf="flex-start">
-                    <Icon name="check" size={ss(12)} color={colors.accent2} />
-                    <Text color={colors.accent2} fontFamily={fonts.body} fontSize={ss(12)} fontWeight={fontWeights.medium}>Active</Text>
+                    <Icon name="check" size={ss(12)} color={colors.accent} />
+                    <Text color={colors.accentText} fontFamily={fonts.body} fontSize={ss(12)} fontWeight={fontWeights.medium}>Active</Text>
                   </XStack>
                 )}
               </YStack>

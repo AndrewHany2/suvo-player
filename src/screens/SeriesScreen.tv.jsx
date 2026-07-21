@@ -804,7 +804,7 @@ export default function SeriesScreenTV({ navigation, route }) {
               : ""),
           }]
         : []),
-      { type: "fav", icon: "star", label: inFav ? "Saved" : "Favorites" },
+      { type: "fav", icon: inFav ? "check" : "plus", label: inFav ? "In My List" : "My List" },
     ];
     const actBtnClass = (i) =>
       [
@@ -931,7 +931,7 @@ export default function SeriesScreenTV({ navigation, route }) {
                       {ep.info?.plot && <div className="tvl-ep-plot">{ep.info.plot}</div>}
                       {ep.info?.duration && <div className="tvl-ep-dur">{ep.info.duration}</div>}
                       {hasProgress && !isWatched && (
-                        <div style={{ fontSize: 11, color: colors.accent, marginTop: 4 }}>
+                        <div style={{ fontSize: 14, color: colors.accentText, marginTop: 4 }}>
                           Continue from {Math.floor(epHistory.currentTime / 60)}:{String(Math.floor(epHistory.currentTime % 60)).padStart(2, "0")}
                         </div>
                       )}
@@ -943,7 +943,7 @@ export default function SeriesScreenTV({ navigation, route }) {
             </div>
           </>
         ) : (
-          <div className="tvl-center"><div className="tvl-spinner" /></div>
+          <StatePanel mode="loading" />
         )}
       </div>
     );
@@ -1001,9 +1001,7 @@ export default function SeriesScreenTV({ navigation, route }) {
           })}
         </div>
         {!filteredItems && !grid.failed && (
-          <div className="tvl-center">
-            <div className="tvl-spinner" />
-          </div>
+          <StatePanel mode="loading" title="Loading series…" />
         )}
         {grid.failed && (
           <StatePanel
@@ -1014,9 +1012,11 @@ export default function SeriesScreenTV({ navigation, route }) {
           />
         )}
         {!grid.failed && filteredItems?.length === 0 && (
-          <div className="tvl-center">
-            <p className="tvl-empty-msg">{gridQuery.trim() ? "No results" : `No titles starting with "${filterLetter.toUpperCase()}"`}</p>
-          </div>
+          gridQuery.trim() ? (
+            <StatePanel mode="empty" icon="search" title="No results" message={`No series match "${gridQuery.trim()}". Try another title.`} />
+          ) : (
+            <StatePanel mode="empty" icon="tv" title={`No titles under "${filterLetter.toUpperCase()}"`} message="Try another letter." />
+          )
         )}
         {filteredItems && filteredItems.length > 0 && (
           <div className="tvl-ser-grid-window">
@@ -1053,7 +1053,7 @@ export default function SeriesScreenTV({ navigation, route }) {
         {shelves.length === 0
           ? (loaded
               ? <StatePanel mode="empty" {...emptyContentProps("series")} />
-              : <div className="tvl-center"><div className="tvl-spinner" /><p>Loading series…</p></div>)
+              : <StatePanel mode="loading" title="Loading series…" />)
           : (
             <VirtualShelvesTV
               shelves={shelves}

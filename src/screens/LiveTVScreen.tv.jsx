@@ -406,10 +406,7 @@ export default function LiveTVScreenTV({ navigation }) {
           />
         </div>
         {!filteredItems && !page.failed && (
-          <div className="tvl-center">
-            <div className="tvl-spinner" />
-            <p>Loading…</p>
-          </div>
+          <StatePanel mode="loading" title="Loading channels…" />
         )}
         {page.failed && (
           <StatePanel
@@ -420,7 +417,12 @@ export default function LiveTVScreenTV({ navigation }) {
           />
         )}
         {!page.failed && filteredItems?.length === 0 && (
-          <div className="tvl-center"><p className="tvl-empty-msg">No results</p></div>
+          <StatePanel
+            mode="empty"
+            icon={gridQuery.trim() ? "search" : "tv"}
+            title="No results"
+            message={gridQuery.trim() ? `No channels match "${gridQuery.trim()}". Try another search.` : "No channels in this category."}
+          />
         )}
         {filteredItems && filteredItems.length > 0 && (
           <div className="tvl-ch-grid-window">

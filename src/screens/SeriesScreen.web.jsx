@@ -1,9 +1,10 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
+import Button from "../ui/Button";
 import { useApp } from "../context/AppContext";
 import { useSeries } from "../domain/hooks/useSeries";
 import { useTVNavigation } from "../hooks/useTVNavigation";
@@ -17,6 +18,7 @@ const SHELF_CARD_W = getShelfConfig("web").posterWidth;
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import { useCategoryGridNav } from "../hooks/useCategoryGridNav";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
+import { useShelfWindow } from "../presentation/virtualization/useShelfWindow.js";
 
 // Caps the browse content width on ultrawide monitors (centered via margin auto).
 const MAX_W = 1700;
@@ -255,22 +257,7 @@ function CategoryPage({
         borderBottomWidth={1}
         borderBottomColor={colors.border}
       >
-        <XStack
-          alignItems="center"
-          gap={ss(8)}
-          paddingVertical={ss(8)}
-          paddingHorizontal={ss(14)}
-          backgroundColor={colors.surface2}
-          borderRadius={ss(8)}
-          cursor="pointer"
-          onPress={onBack}
-          pressStyle={{ opacity: 0.8 }}
-        >
-          <Icon name="back" size={ss(16)} color={colors.accent} />
-          <Text color={colors.accent} fontSize={ss(14)} fontWeight={fontWeights.medium}>
-            Back
-          </Text>
-        </XStack>
+        <Button variant="ghost" size="sm" icon="back" onPress={onBack}>Back</Button>
         <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(22)} fontWeight={fontWeights.bold}>
           {name}
         </Text>
@@ -289,7 +276,7 @@ function CategoryPage({
         <Input
           flex={1}
           placeholder="Search titles..."
-          placeholderTextColor="#555"
+          placeholderTextColor={colors.faint}
           value={search}
           onChangeText={setSearch}
           backgroundColor={colors.surface2}
@@ -350,9 +337,31 @@ export default function SeriesScreen({ navigation }) {
 
   useScale(); // re-render + recompute ss() on window resize
 
+  // The visible shelf-row index (NOT raw scroll px). Storing the quantized row
+  // means setState is a no-op — React bails on an equal value — until the
+  // viewport crosses into a new row, instead of re-rendering the whole screen
+  // ~60×/sec while scrolling. Mirrors MoviesScreen.web.
+  const [vAnchor, setVAnchor] = useState(0);
+  const scrollRef = useRef(null);
+  const listRef = useRef(null);
+
   const { focusedRow, focusedCol } = useTVNavigation({
     active: !categoryPage && !selectedSeries,
     rows: [{ items: discoverItems, onSelect: (i) => openCategory(discoverItems[i].id, discoverItems[i].label) }],
+  });
+
+  // Vertical shelf window: mount only shelves near the viewport, with spacer
+  // divs above/below preserving scroll geometry. listTop is the Discover
+  // section's height (distance from scroll top to the first shelf). Called
+  // unconditionally, before the early returns below, per Rules of Hooks.
+  const vcfg = getShelfConfig("web");
+  const rowStride = ss(vcfg.rowHeight);
+  const viewportH = scrollRef.current?.clientHeight || (typeof window !== "undefined" ? window.innerHeight : 900);
+  const listTop = listRef.current?.offsetTop || 0;
+  const rowsVisible = Math.max(1, Math.ceil(viewportH / rowStride));
+  const vWin = useShelfWindow({
+    anchor: vAnchor, total: shelves.length,
+    viewportCount: rowsVisible, overscan: vcfg.vOverscan, stride: rowStride,
   });
 
   if (loading) {
@@ -387,6 +396,8 @@ export default function SeriesScreen({ navigation }) {
   return (
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
       <ScrollView
+        ref={scrollRef}
+        onScroll={(e) => setVAnchor(Math.max(0, Math.floor((e.nativeEvent.contentOffset.y - listTop) / rowStride)))}
         flex={1}
         minHeight={0}
         contentContainerStyle={{ paddingBottom: ss(80) }}
@@ -400,6 +411,7 @@ export default function SeriesScreen({ navigation }) {
         >
           <Text
             color={colors.text}
+            fontFamily={fonts.display}
             fontSize={ss(22)}
             fontWeight="700"
             letterSpacing={-0.3}
@@ -415,22 +427,27 @@ export default function SeriesScreen({ navigation }) {
         </YStack>
         <YStack>
           {shelves.length > 0 ? (
-            shelves.map((shelf) => (
-              <Shelf
-                key={shelf.id}
-                catId={shelf.id}
-                title={shelf.name}
-                items={shelf.items}
-                totalCount={shelf.totalCount}
-                hasMore={shelf.hasMore}
-                loadingMore={shelf.loadingMore}
-                onVisible={handleShelfVisible}
-                onPress={selectSeries}
-                onTitlePress={openCategory}
-                onLoadMore={handleLoadMore}
-                manual={false}
-              />
-            ))
+            <div ref={listRef}>
+              <div style={{ height: vWin.leadingPad }} />
+              {shelves.slice(vWin.start, vWin.end).map((shelf) => (
+                <div key={shelf.id} style={{ height: rowStride, overflow: "visible" }}>
+                  <Shelf
+                    catId={shelf.id}
+                    title={shelf.name}
+                    items={shelf.items}
+                    totalCount={shelf.totalCount}
+                    hasMore={shelf.hasMore}
+                    loadingMore={shelf.loadingMore}
+                    onVisible={handleShelfVisible}
+                    onPress={selectSeries}
+                    onTitlePress={openCategory}
+                    onLoadMore={handleLoadMore}
+                    manual={false}
+                  />
+                </div>
+              ))}
+              <div style={{ height: vWin.trailingPad }} />
+            </div>
           ) : (
             <StatePanel mode="empty" {...emptyContentProps("series")} />
           )}

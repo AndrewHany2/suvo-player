@@ -503,9 +503,9 @@
   color: var(--a-text-strong);
 }
 .tvl-det-hero-btn--play {
-  background: #fff;
-  color: #000;
-  border-color: #fff;
+  background: #6C5CE7;
+  color: #EAF0FF;
+  border-color: #6C5CE7;
 }
 .tvl-det-hero-btn--saved {
   background: rgba(108, 92, 231, 0.18);
@@ -566,12 +566,9 @@
 .tvl-card--on,
 .tvl-ch-card--on,
 .tvl-det-hero-btn--on,
-.tvl-mov-btn--on,
 .tvl-letter-btn--focused,
 .tvl-season-btn--on,
 .tvl-episode--on,
-.tvl-det-act-btn--on,
-.tvl-hist-item--on,
 .tvl-acc-item--on,
 .tvl-acc-btn--on,
 .tvl-acc-add--on {

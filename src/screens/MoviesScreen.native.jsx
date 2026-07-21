@@ -7,7 +7,7 @@ import { useIsOnline } from "../downloads/useIsOnline.js";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import CategoryGridPage from "../presentation/components/CategoryGridPage.native";
 import MovieDetail from "../components/MovieDetail";
-import { colors, accentAlpha } from "../ui/tokens";
+import { colors, fonts } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
@@ -66,30 +66,32 @@ export default function MoviesScreen({ navigation }) {
   const listHeader = (
     <YStack>
       <YStack paddingHorizontal={16} paddingTop={20} paddingBottom={4}>
-        <Text color={colors.text} fontSize={20} fontWeight="700" letterSpacing={-0.3} marginBottom={12}>Discover</Text>
+        <Text color={colors.text} fontFamily={fonts.display} fontSize={20} fontWeight="700" letterSpacing={-0.3} marginBottom={12}>Discover</Text>
         <XStack gap={10} flexWrap="wrap">
           {discoverItems.map((pill, idx) => (
             <XStack
               key={pill.id} alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
-              backgroundColor={accentAlpha(0.08)} borderWidth={1}
-              borderColor={accentAlpha(0.28)}
+              backgroundColor={colors.surface2} borderWidth={1}
+              borderColor={colors.border}
               borderRadius={999} cursor="pointer" onPress={() => openCategory(pill.id, pill.label)}
-              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent }}
+              accessibilityRole="button" accessibilityLabel={pill.label}
+              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }}
             >
               <Icon name={pill.id === "all" ? "film" : "star"} size={14} color={colors.muted} />
               <Text color={colors.text} fontSize={12} fontWeight="600">{pill.label}</Text>
-              <Icon name="chevron-right" size={14} color={colors.accent} />
+              <Icon name="chevron-right" size={14} color={colors.muted} />
             </XStack>
           ))}
           <XStack
             alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
-            backgroundColor={accentAlpha(0.08)} borderWidth={1} borderColor={accentAlpha(0.28)}
+            backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border}
             borderRadius={999} onPress={() => setShowDownloaded(true)}
+            accessibilityRole="button" accessibilityLabel="Downloaded"
           >
-            <Text color={colors.muted} fontSize={13} fontWeight="700">⬇</Text>
+            <Icon name="download" size={14} color={colors.muted} />
             <Text color={colors.text} fontSize={12} fontWeight="600">Downloaded</Text>
             {downloadedMovies.length > 0 && (
-              <Text color={colors.accent} fontSize={12} fontWeight="700">{downloadedMovies.length}</Text>
+              <Text color={colors.muted} fontSize={12} fontWeight="700">{downloadedMovies.length}</Text>
             )}
           </XStack>
         </XStack>

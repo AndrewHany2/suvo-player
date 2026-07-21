@@ -17,6 +17,7 @@ import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
 import { findNextEpisode, buildNextEpisodeVideo } from "../playback/episodeNav";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
 import { useDeviceIntegrity } from "../security/useDeviceIntegrity";
+import { useReducedMotion } from "../hooks/useReducedMotion";
 
 // Phase 2 shared modules.
 import { usePlayerPreferences } from "../playback/usePlayerPreferences";
@@ -87,6 +88,9 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   const { currentVideo, closeVideo, playVideo } = usePlayback();
   const { updateWatchProgress, addToWatchHistory, flushProgress } = useWatchHistory();
   const insets = useSafeAreaInsets();
+  // Honor OS "Reduce Motion": drop the <Modal> slide/fade transitions when set.
+  const reducedMotion = useReducedMotion();
+  const modalAnimation = reducedMotion ? "none" : "fade";
   const progressIntervalRef = useRef(null);
   const hasAddedToHistory = useRef(false);
 
@@ -191,12 +195,13 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     return () => {
       try { deactivateKeepAwake(); } catch {}
-      // Restore portrait on exit. We must NOT unlockAsync() here: the app's
-      // default orientation allows all, so unlocking lets the OS immediately
-      // rotate the (portrait-designed) browse UI back to landscape whenever the
-      // device still reports a landscape sensor reading. Lock to portrait and
-      // keep it locked — only the player runs in landscape.
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+      // Return orientation to the app default on exit. Previously we re-locked
+      // PORTRAIT_UP here, which pinned the ENTIRE app portrait for the rest of
+      // the session after the first playback — the lock outlived the player.
+      // Unlock instead so the rest of the app follows its native (default)
+      // orientation policy; the player owns orientation only while it's mounted
+      // (portrait by default, landscape via toggleFullscreen).
+      ScreenOrientation.unlockAsync().catch(() => {});
     };
   }, []);
 
@@ -400,6 +405,19 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     });
     resetControlsTimer();
   }, [player, resetControlsTimer]);
+
+  // Seek by a relative offset, clamped to [0, duration]. Backs the seek bar's
+  // accessibilityActions (increment/decrement) so VoiceOver/TalkBack can scrub.
+  const seekBy = useCallback((delta) => {
+    const p = playerRef.current;
+    try {
+      if (p && Number.isFinite(p.currentTime)) {
+        const dur = Number.isFinite(p.duration) ? p.duration : Infinity;
+        p.currentTime = Math.max(0, Math.min(dur, p.currentTime + delta));
+      }
+    } catch {}
+    resetControlsTimer();
+  }, [resetControlsTimer]);
 
   // Apply remembered audio/subtitle selections once the tracks are discovered.
   useEffect(() => {
@@ -808,7 +826,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
           box-none wrapper lets the surrounding video gestures still fire. */}
       {showControls && !isLoading && !isFatal && !needsResumeChoice && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} justifyContent="center" alignItems="center" pointerEvents="box-none" zIndex={30}>
-          <YStack width={72} height={72} backgroundColor="rgba(0,0,0,0.55)" borderRadius={36} justifyContent="center" alignItems="center" cursor="pointer" onPress={togglePlayPause} pressStyle={{ opacity: 0.8 }}>
+          <YStack width={72} height={72} backgroundColor="rgba(0,0,0,0.55)" borderRadius={36} justifyContent="center" alignItems="center" cursor="pointer" onPress={togglePlayPause} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause" : "Play"}>
             <Icon name={isPlaying ? "pause" : "play"} size={34} color={colors.text} />
           </YStack>
         </YStack>
@@ -818,7 +836,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       {showControls && (
         <YStack position="absolute" top={0} left={0} right={0} paddingTop={insets.top + topPadding} pointerEvents="box-none">
           <XStack alignItems="center" paddingHorizontal={12} paddingVertical={8} backgroundColor="rgba(0,0,0,0.7)" flexWrap="wrap" gap={8}>
-            <YStack width={34} height={34} backgroundColor={accentAlpha(0.9)} borderRadius={17} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }}>
+            <YStack width={44} height={44} backgroundColor={accentAlpha(0.9)} borderRadius={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel="Close player">
               <Icon name="close" size={16} color={colors.text} />
             </YStack>
 
@@ -826,13 +844,13 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
 
             {isLive && channels.length > 1 && (
               <>
-                <Button variant="secondary" size="sm" icon="back" onPress={() => zapChannel("prev")}>Ch</Button>
-                <Button variant="secondary" size="sm" icon="chevron-right" onPress={() => zapChannel("next")}>Ch</Button>
+                <Button variant="secondary" size="sm" icon="back" onPress={() => zapChannel("prev")} accessibilityLabel="Previous channel">Ch</Button>
+                <Button variant="secondary" size="sm" icon="chevron-right" onPress={() => zapChannel("next")} accessibilityLabel="Next channel">Ch</Button>
               </>
             )}
 
             {nextEpisode && (
-              <Button variant="primary" size="sm" icon="play" onPress={handleNextEpisode}>Next</Button>
+              <Button variant="primary" size="sm" icon="play" onPress={handleNextEpisode} accessibilityLabel="Next episode">Next</Button>
             )}
           </XStack>
 
@@ -860,20 +878,20 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
           {/* Settings icon row (horizontally scrollable so it never overflows). */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
             {!isLive && (
-              <Button variant="secondary" size="sm" icon="speed" onPress={() => { setShowSpeedMenu(true); setShowAudioMenu(false); setShowSubtitleMenu(false); }}>{`${speed}x`}</Button>
+              <Button variant="secondary" size="sm" icon="speed" onPress={() => { setShowSpeedMenu(true); setShowAudioMenu(false); setShowSubtitleMenu(false); }} accessibilityLabel="Playback speed">{`${speed}x`}</Button>
             )}
             {audioTracks.length > 1 && (
-              <Button variant="secondary" size="sm" icon="audio" onPress={() => { setShowAudioMenu(true); setShowSpeedMenu(false); setShowSubtitleMenu(false); }} />
+              <Button variant="secondary" size="sm" icon="audio" onPress={() => { setShowAudioMenu(true); setShowSpeedMenu(false); setShowSubtitleMenu(false); }} accessibilityLabel="Audio track" />
             )}
             {subtitleTracks.length > 0 && (
-              <Button variant="secondary" size="sm" icon="cc" onPress={() => { setShowSubtitleMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); }} />
+              <Button variant="secondary" size="sm" icon="cc" onPress={() => { setShowSubtitleMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); }} accessibilityLabel="Subtitles" />
             )}
-            <Button variant="secondary" size="sm" icon="tune" onPress={() => setShowSubtitleSettings(true)} />
-            <Button variant="secondary" size="sm" icon="aspect" onPress={cycleContentFit} />
-            <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" icon="fullscreen" onPress={toggleFullscreen} />
-            <Button variant={showStats ? "primary" : "secondary"} size="sm" icon="info" onPress={() => setShowStats((s) => !s)} />
-            <Button variant={sleep.active ? "primary" : "secondary"} size="sm" icon="timer" onPress={() => setShowSleepMenu(true)}>{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
-            <Button variant="secondary" size="sm" icon="pip" onPress={handlePip} />
+            <Button variant="secondary" size="sm" icon="tune" onPress={() => setShowSubtitleSettings(true)} accessibilityLabel="Subtitle and audio settings" />
+            <Button variant="secondary" size="sm" icon="aspect" onPress={cycleContentFit} accessibilityLabel="Aspect ratio" />
+            <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" icon="fullscreen" onPress={toggleFullscreen} accessibilityLabel="Toggle fullscreen" />
+            <Button variant={showStats ? "primary" : "secondary"} size="sm" icon="info" onPress={() => setShowStats((s) => !s)} accessibilityLabel="Playback stats" />
+            <Button variant={sleep.active ? "primary" : "secondary"} size="sm" icon="timer" onPress={() => setShowSleepMenu(true)} accessibilityLabel="Sleep timer">{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
+            <Button variant="secondary" size="sm" icon="pip" onPress={handlePip} accessibilityLabel="Picture in picture" />
           </ScrollView>
 
           {/* Seek bar (VOD only) */}
@@ -885,6 +903,15 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
               <YStack paddingHorizontal={16} paddingTop={4}>
                 <View
                   style={{ height: 26, justifyContent: "center" }}
+                  accessible
+                  accessibilityRole="adjustable"
+                  accessibilityLabel="Seek bar"
+                  accessibilityValue={{ min: 0, max: Math.round(progress.duration), now: Math.round(shown) }}
+                  accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+                  onAccessibilityAction={(e) => {
+                    if (e.nativeEvent.actionName === "increment") seekBy(DOUBLE_TAP_SEEK);
+                    else if (e.nativeEvent.actionName === "decrement") seekBy(-DOUBLE_TAP_SEEK);
+                  }}
                   onLayout={(e) => { seekTrackWidth.current = e.nativeEvent.layout.width; }}
                   onStartShouldSetResponder={() => true}
                   onMoveShouldSetResponder={() => true}
@@ -909,13 +936,13 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       )}
 
       {/* Speed Menu */}
-      <Modal visible={showSpeedMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSpeedMenu(false)}>
+      <Modal visible={showSpeedMenu} transparent animationType={modalAnimation} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSpeedMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSpeedMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Playback Speed</Text>
             <ScrollView>
               {SPEEDS.map((rate) => (
-                <YStack key={rate} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={speed === rate ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSpeedChange(rate)} pressStyle={{ opacity: 0.7 }}>
+                <YStack key={rate} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={speed === rate ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSpeedChange(rate)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: speed === rate }} accessibilityLabel={`${rate}x speed`}>
                   <Text color={speed === rate ? colors.accent : colors.muted} fontSize={15} fontWeight={speed === rate ? "700" : "400"}>{rate}x{rate === 1 ? " (Normal)" : ""}</Text>
                 </YStack>
               ))}
@@ -925,13 +952,13 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Audio Menu */}
-      <Modal visible={showAudioMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAudioMenu(false)}>
+      <Modal visible={showAudioMenu} transparent animationType={modalAnimation} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAudioMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowAudioMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Audio Track</Text>
             <ScrollView>
               {audioTracks.map((track, idx) => (
-                <YStack key={idx} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedAudio === track ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleAudioChange(track)} pressStyle={{ opacity: 0.7 }}>
+                <YStack key={idx} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedAudio === track ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleAudioChange(track)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: selectedAudio === track }} accessibilityLabel={`Audio track ${track.language || track.label || idx + 1}`}>
                   <Text color={selectedAudio === track ? colors.accent : colors.muted} fontSize={15} fontWeight={selectedAudio === track ? "700" : "400"}>{track.language || track.label || `Track ${idx + 1}`}</Text>
                 </YStack>
               ))}
@@ -941,16 +968,16 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Subtitle Menu */}
-      <Modal visible={showSubtitleMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSubtitleMenu(false)}>
+      <Modal visible={showSubtitleMenu} transparent animationType={modalAnimation} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSubtitleMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSubtitleMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Subtitles</Text>
             <ScrollView>
-              <YStack paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedSubtitle === null ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSubtitleChange(null)} pressStyle={{ opacity: 0.7 }}>
+              <YStack paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedSubtitle === null ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSubtitleChange(null)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: selectedSubtitle === null }} accessibilityLabel="Subtitles off">
                 <Text color={selectedSubtitle === null ? colors.accent : colors.muted} fontSize={15} fontWeight={selectedSubtitle === null ? "700" : "400"}>Off</Text>
               </YStack>
               {subtitleTracks.map((track, idx) => (
-                <YStack key={idx} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedSubtitle === track ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSubtitleChange(track)} pressStyle={{ opacity: 0.7 }}>
+                <YStack key={idx} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedSubtitle === track ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSubtitleChange(track)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: selectedSubtitle === track }} accessibilityLabel={`Subtitle ${track.language || track.label || idx + 1}`}>
                   <Text color={selectedSubtitle === track ? colors.accent : colors.muted} fontSize={15} fontWeight={selectedSubtitle === track ? "700" : "400"}>{track.language || track.label || `Track ${idx + 1}`}</Text>
                 </YStack>
               ))}
@@ -960,7 +987,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Subtitle & Audio tuning panel */}
-      <Modal visible={showSubtitleSettings} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSubtitleSettings(false)}>
+      <Modal visible={showSubtitleSettings} transparent animationType={modalAnimation} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSubtitleSettings(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSubtitleSettings(false)}>
           <TouchableOpacity activeOpacity={1}>
             <SubtitleSettings
@@ -974,7 +1001,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       </Modal>
 
       {/* Sleep-timer menu */}
-      <Modal visible={showSleepMenu} transparent animationType="fade" supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSleepMenu(false)}>
+      <Modal visible={showSleepMenu} transparent animationType={modalAnimation} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSleepMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSleepMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={400} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Sleep Timer</Text>
@@ -997,12 +1024,14 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
                     setShowSleepMenu(false);
                   }}
                   pressStyle={{ opacity: 0.7 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={preset.label}
                 >
                   <Text color={colors.muted} fontSize={15}>{preset.label}</Text>
                 </YStack>
               ))}
               {sleep.active && (
-                <YStack paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={accentAlpha(0.2)} cursor="pointer" onPress={() => { sleep.cancel(); setShowSleepMenu(false); }} pressStyle={{ opacity: 0.7 }}>
+                <YStack paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={accentAlpha(0.2)} cursor="pointer" onPress={() => { sleep.cancel(); setShowSleepMenu(false); }} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityLabel="Cancel sleep timer">
                   <Text color={colors.accent} fontSize={15} fontWeight="700">Cancel timer ({formatRemaining(sleep.secondsLeft)})</Text>
                 </YStack>
               )}

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
 import { FlatList, Modal, Alert, TouchableOpacity, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { YStack, XStack, Text, Input } from "../ui/primitives";
-import { colors, iconSizes, accentAlpha } from "../ui/tokens";
+import { colors, iconSizes } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
@@ -12,11 +12,6 @@ import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { isAuthError } from "../utils/authError";
 import { isConnectivityError } from "../utils/networkError.logic.js";
 import ContentShelf from "../presentation/components/ContentShelf.native";
-import { isLowEndDevice } from "../utils/deviceTier";
-
-// Low-end: drop the decorative progress bar + "now playing" label to shave a few
-// views off every channel card (frozen at first read).
-const LOW_END = isLowEndDevice();
 
 const getAbbrev = (name) => {
   const words = name.trim().split(/\s+/);
@@ -47,34 +42,35 @@ const ChannelCard = memo(({ item, epg, onPress, fetchEpg }) => {
       width={160} backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border}
       borderRadius={10} padding={10} cursor="pointer"
       onPress={() => onPress(item)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.accent }} animation="quick"
+      accessibilityRole="button" accessibilityLabel={`Play ${item.name}`}
     >
       <XStack alignItems="center" gap={8} marginBottom={8}>
         {item.logo
           ? <Image source={item.logo} style={{ width: 28, height: 28, borderRadius: 5, backgroundColor: colors.bg }} contentFit="contain" cachePolicy="memory-disk" recyclingKey={item.logo} />
           : (
             <YStack width={28} height={28} borderRadius={5} backgroundColor={colors.surface} borderWidth={1} borderColor={colors.border} justifyContent="center" alignItems="center">
-              <Text color={colors.accent} fontWeight="800" fontSize={10} letterSpacing={0.5}>{abbrev}</Text>
+              <Text color={colors.accentText} fontWeight="800" fontSize={10} letterSpacing={0.5}>{abbrev}</Text>
             </YStack>
           )}
         <Text color={colors.text} fontSize={12} fontWeight="600" flex={1} numberOfLines={1}>{item.name}</Text>
-        {/* fav toggle — keep as RN TouchableOpacity for hitSlop support */}
-        <TouchableOpacity onPress={toggleFav} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={{ color: inFav ? colors.accent : colors.faint, fontSize: 16, marginRight: 4 }}>{inFav ? "♥" : "♡"}</Text>
+        {/* favorite toggle — Icon star (indigo/active vs faint/rest); keep as RN
+            TouchableOpacity for hitSlop support */}
+        <TouchableOpacity
+          onPress={toggleFav}
+          hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+          style={{ marginRight: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel={inFav ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+          accessibilityState={{ selected: inFav }}
+        >
+          <Icon name="star" size={iconSizes.sm} color={inFav ? colors.accent : colors.faint} />
         </TouchableOpacity>
-        <XStack alignItems="center" gap={4} backgroundColor={accentAlpha(0.15)} borderRadius={4} paddingHorizontal={6} paddingVertical={2} borderWidth={1} borderColor={accentAlpha(0.3)}>
+        <XStack alignItems="center" gap={4} backgroundColor={colors.surface2} borderRadius={4} paddingHorizontal={6} paddingVertical={2} borderWidth={1} borderColor={colors.border}>
           <YStack width={6} height={6} borderRadius={3} backgroundColor={colors.accent} />
-          <Text color={colors.accent} fontSize={9} fontWeight="800" letterSpacing={0.5}>LIVE</Text>
+          <Text color={colors.accentText} fontSize={9} fontWeight="800" letterSpacing={0.5}>LIVE</Text>
         </XStack>
       </XStack>
-      <Text color={colors.muted} fontSize={12} lineHeight={17} minHeight={34} numberOfLines={2}>{epg || " "}</Text>
-      {!LOW_END && (
-        <>
-          <YStack height={3} backgroundColor={colors.border} borderRadius={2} marginTop={10}>
-            <YStack width="35%" height="100%" backgroundColor={colors.accent} borderRadius={2} />
-          </YStack>
-          <Text color={colors.faint} fontSize={10} marginTop={7} letterSpacing={0.2}>Live · now playing</Text>
-        </>
-      )}
+      {epg ? <Text color={colors.muted} fontSize={12} lineHeight={17} numberOfLines={2}>{epg}</Text> : null}
     </YStack>
   );
 });
@@ -254,7 +250,7 @@ export default function LiveTVScreen({ navigation }) {
             )}
           />
         )}
-        ListEmptyComponent={<YStack padding={60} alignItems="center"><Text color={colors.faint} fontSize={15}>No channels found</Text></YStack>}
+        ListEmptyComponent={<YStack padding={60} alignItems="center"><Text color={colors.muted} fontSize={15}>No channels found</Text></YStack>}
         contentContainerStyle={{ paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} colors={[colors.accent]} />}

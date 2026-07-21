@@ -1,7 +1,7 @@
 import { XStack, Text } from "../../ui/primitives";
 import Icon from "../../ui/Icon";
 import { ss } from "../../utils/scaleSize";
-import { colors, accentAlpha, GLOW_WEB, motion, easing, radii, fonts, fontWeights } from "../../ui/tokens";
+import { colors, accent2Alpha, GLOW_WEB, motion, easing, radii, fonts, fontWeights } from "../../ui/tokens";
 
 import { isTV } from "../../utils/isTV";
 
@@ -9,10 +9,12 @@ import { isTV } from "../../utils/isTV";
  * Discover category pills — web/TV. Shared by Movies & Series so the two
  * Discover rows can't drift apart again.
  *
- * Outline style: dark indigo-wash pill, cyan (accent2) border on the focused
- * item, indigo (accent) chevron. Each pill carries its own `id`/`label`;
- * `focusedCol` is the index of the focused pill (or -1 when focus is elsewhere).
- * The leading line-icon is derived from the pill id (film / tv / star).
+ * Outline style: pills rest on the neutral ladder (surface2 fill, border
+ * hairline, muted glyphs). Cyan (accent2) is the interaction color only — it
+ * appears on hover/focus (border + glow, and the glyphs on TV focus), never at
+ * rest. Each pill carries its own `id`/`label`; `focusedCol` is the index of
+ * the focused pill (or -1 when focus is elsewhere). The leading line-icon is
+ * derived from the pill id (film / tv / star).
  */
 
 // Map a pill id to an Icon name. `all`/`movies` → film, `series`/`tv` → tv,
@@ -49,9 +51,9 @@ export default function DiscoverPills({ items, focusedCol = -1, onSelect }) {
               }
             }}
             alignItems="center" gap={ss(tv ? 12 : 10)} paddingHorizontal={ss(tv ? 26 : 18)} paddingVertical={ss(tv ? 16 : 11)}
-            backgroundColor={focused ? accentAlpha(0.22) : accentAlpha(0.08)}
+            backgroundColor={focused ? accent2Alpha(0.14) : colors.surface2}
             borderWidth={1} borderStyle="solid"
-            borderColor={focused ? colors.accent2 : accentAlpha(0.28)}
+            borderColor={focused ? colors.accent2 : colors.border}
             borderRadius={radii.pill} cursor="pointer"
             onPress={() => onSelect?.(pill)}
             pressStyle={{ opacity: 0.75 }}
@@ -69,9 +71,9 @@ export default function DiscoverPills({ items, focusedCol = -1, onSelect }) {
             }}
             {...{ className: "suvo-discover-pill" }}
           >
-            <Icon name={iconFor(pill.id)} size={ss(tv ? 22 : 16)} color={colors.accent2} />
+            <Icon name={iconFor(pill.id)} size={ss(tv ? 22 : 16)} color={focused ? colors.accent2 : colors.muted} />
             <Text color={colors.text} fontSize={ss(tv ? 18 : 13)} fontWeight={fontWeights.medium} fontFamily={fonts.body} letterSpacing={0.1}>{pill.label}</Text>
-            <Icon name="chevron-right" size={ss(tv ? 22 : 16)} color={colors.accent} />
+            <Icon name="chevron-right" size={ss(tv ? 22 : 16)} color={focused ? colors.accent2 : colors.muted} />
           </XStack>
         );
       })}

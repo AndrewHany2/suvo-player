@@ -36,7 +36,7 @@ function HeaderRight() {
   return (
     <XStack alignItems="center" gap={8} marginRight={12} flexShrink={1}>
       {isSyncing && (
-        <Text color={colors.accent} fontSize={14} fontWeight="700">↻</Text>
+        <Icon name="history" size={14} color={colors.accent} />
       )}
       {playlistName && (
         <XStack
@@ -58,11 +58,13 @@ function HeaderRight() {
           alignItems="center" justifyContent="center" flexShrink={0}
           cursor="pointer" onPress={() => switchProfile(null)} pressStyle={{ opacity: 0.7 }}
           hitSlop={8}
+          accessibilityRole="button" accessibilityLabel="Switch profile"
         >
           <Text fontSize={18}>{activeProfile.avatar || "👤"}</Text>
         </YStack>
       )}
-      <YStack cursor="pointer" onPress={() => navigation.navigate("Accounts")} pressStyle={{ opacity: 0.7 }} flexShrink={0} minWidth={44} minHeight={44} alignItems="center" justifyContent="center" hitSlop={8}>
+      <YStack cursor="pointer" onPress={() => navigation.navigate("Accounts")} pressStyle={{ opacity: 0.7 }} flexShrink={0} minWidth={44} minHeight={44} alignItems="center" justifyContent="center" hitSlop={8} accessibilityRole="button" accessibilityLabel="Accounts">
+
         <Icon name="settings" size={20} color={colors.text} />
       </YStack>
     </XStack>

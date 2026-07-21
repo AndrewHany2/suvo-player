@@ -135,16 +135,16 @@ function ContinueCardTV({ item, onPress, isFocused, width = 340 }) {
         )}
       </div>
       <div style={{ width, paddingTop: 10 }}>
-        <div style={{ color: colors.text, fontFamily: fonts.body, fontSize: 13, fontWeight: fontWeights.medium, lineHeight: "17px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ color: colors.text, fontFamily: fonts.body, fontSize: ss(13), fontWeight: fontWeights.medium, lineHeight: `${ss(17)}px`, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {showTitle}
         </div>
         {(epLabel || epTitle) && (
-          <div style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 12, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ color: colors.muted, fontFamily: fonts.body, fontSize: ss(12), marginTop: ss(2), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {[epLabel, epTitle].filter(Boolean).join(" · ")}
           </div>
         )}
         {timeLeft && (
-          <div style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 12, marginTop: 2 }}>
+          <div style={{ color: colors.muted, fontFamily: fonts.body, fontSize: ss(12), marginTop: ss(2) }}>
             {timeLeft}
           </div>
         )}

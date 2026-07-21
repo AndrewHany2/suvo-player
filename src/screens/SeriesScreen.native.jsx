@@ -76,27 +76,29 @@ export default function SeriesScreen({ navigation }) {
             <XStack
               key={pill.id}
               alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
-              backgroundColor="rgba(108, 92, 231,0.08)" borderWidth={1}
-              borderColor="rgba(108, 92, 231,0.28)"
+              backgroundColor={colors.surface2} borderWidth={1}
+              borderColor={colors.border}
               borderRadius={999} cursor="pointer"
               onPress={() => openCategory(pill.id, pill.label)}
-              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent }} animation="quick"
+              accessibilityRole="button" accessibilityLabel={pill.label}
+              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }} animation="quick"
             >
-              <Icon name={pill.id === "all" ? "tv" : "star"} size={16} color={colors.accent2} />
+              <Icon name={pill.id === "all" ? "tv" : "star"} size={16} color={colors.muted} />
               <Text color={colors.text} fontSize={12} fontWeight={fontWeights.medium}>{pill.label}</Text>
-              <Icon name="chevron-right" size={16} color={colors.accent} />
+              <Icon name="chevron-right" size={16} color={colors.muted} />
             </XStack>
           ))}
           <XStack
             alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
-            backgroundColor="rgba(108, 92, 231,0.08)" borderWidth={1} borderColor="rgba(108, 92, 231,0.28)"
+            backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border}
             borderRadius={999} cursor="pointer" onPress={() => setShowDownloaded(true)}
-            pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent }} animation="quick"
+            accessibilityRole="button" accessibilityLabel="Downloaded"
+            pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }} animation="quick"
           >
-            <Text color={colors.accent2} fontSize={13} fontWeight={fontWeights.bold}>⬇</Text>
+            <Icon name="download" size={16} color={colors.muted} />
             <Text color={colors.text} fontSize={12} fontWeight={fontWeights.medium}>Downloaded</Text>
             {downloadedEpisodes.length > 0 && (
-              <Text color={colors.accent} fontSize={12} fontWeight={fontWeights.bold}>{downloadedEpisodes.length}</Text>
+              <Text color={colors.muted} fontSize={12} fontWeight={fontWeights.bold}>{downloadedEpisodes.length}</Text>
             )}
           </XStack>
         </XStack>
