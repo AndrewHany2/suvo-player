@@ -370,6 +370,7 @@ export default function AccountsScreenTV({ navigation }) {
                   <input
                     ref={refByKey[f.key]}
                     type={f.type === "password" && showPwd ? "text" : f.type}
+                    aria-label={f.label}
                     placeholder={f.placeholder}
                     value={form[f.key]}
                     onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
@@ -428,7 +429,7 @@ export default function AccountsScreenTV({ navigation }) {
             className={focus === 0 ? "tvl-acc-add tvl-acc-add--on" : "tvl-acc-add"}
             onClick={openAddForm}
           >
-            <Icon name="plus" size={iconSizes.md} color={colors.danger} />
+            <Icon name="plus" size={iconSizes.md} color={colors.accent} />
             <span>Add account</span>
           </button>
 

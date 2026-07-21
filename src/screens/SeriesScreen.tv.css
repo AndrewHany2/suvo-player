@@ -13,7 +13,7 @@
 .tvl-ser-grid-window {
   flex: 1;
   min-height: 0;
-  padding: 24px var(--a-inset);
+  padding: 24px var(--a-inset) var(--a-inset-y);
 }
 
 /* Detail panel styles are in tvl.css (shared with movies) */
@@ -49,7 +49,7 @@
 }
 .tvl-letter-btn--active {
   border-color: var(--a-indigo);
-  color: var(--a-indigo);
+  color: var(--a-indigo-text);
   background: var(--a-surface-2);
 }
 
@@ -66,7 +66,7 @@
   border: 2px solid var(--a-border);
   border-radius: 8px;
   background: var(--a-surface-2);
-  color: var(--a-muted);
+  color: var(--a-text-dim);
   font-size: 14px;
   font-weight: 600;
   font-family: inherit;
@@ -134,7 +134,7 @@
 .tvl-ep-badge {
   font-size: 12px;
   font-weight: 700;
-  color: #fff;
+  color: var(--a-text-strong);
   background: var(--a-indigo);
   border-radius: 5px;
   padding: 4px 9px;
@@ -147,7 +147,10 @@
 .tvl-ep-title {
   font-size: 20px;
   font-weight: 700;
-  color: #fff;
+  color: var(--a-text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tvl-ep-plot {
   font-size: 16px;

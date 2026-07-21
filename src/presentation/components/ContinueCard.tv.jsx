@@ -88,15 +88,17 @@ function ContinueCardTV({ item, onPress, isFocused, width = 340 }) {
             onLoad={() => setImageLoaded(true)}
             onError={() => setImageError(true)}
             ref={(n) => { if (n?.complete && n.naturalWidth > 0) setImageLoaded(true); }}
-            style={{ ...FILL, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: imageLoaded ? 1 : 0, transition: "opacity 180ms ease" }}
+            style={{ ...FILL, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: imageLoaded ? 1 : 0 }}
           />
         )}
-        {/* Corner-to-corner scrim — matches the web CWCard gradient. */}
+        {/* Corner-to-corner scrim — same shape as the web CWCard gradient, but
+            bg-toned (rgba(10,14,26,…)) instead of pure black so the wash carries
+            the Aurora background hue on TV. */}
         <div
           style={{
             ...FILL,
             background:
-              "linear-gradient(to top right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0) 100%)",
+              "linear-gradient(to top right, rgba(10,14,26,0.55) 0%, rgba(10,14,26,0.1) 60%, rgba(10,14,26,0) 100%)",
           }}
         />
         {seasonBadge && (

@@ -15,8 +15,11 @@ export const colors = {
   surface2: "#1B2236",  // elevated — modals, inputs, chips
   border: "#28324E",    // hairlines / card borders
   accent: "#6C5CE7",    // indigo — primary actions, active state
+  accentText: "#A99BF5",// lighter indigo — small text on dark (AA >=4.5:1 on bg/surface/surface2)
   accent2: "#22D3EE",   // cyan — focus ring, gradient end
   text: "#EAF0FF",      // ice — primary text
+  textStrong: "#FFFFFF",// pure-white emphasis tier (titles, hero, crew labels)
+  textDim: "#B8C0DA",   // dimmed ice — secondary titles/labels (mirrors CSS --a-text-dim)
   muted: "#7A86A8",     // steel — secondary text
   faint: "#4A5575",     // dimmer steel — placeholders, disabled text
   danger: "#E5484D",    // red — destructive actions, errors

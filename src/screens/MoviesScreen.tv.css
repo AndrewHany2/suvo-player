@@ -14,6 +14,9 @@
   flex: 1;
   min-height: 0;
   padding: 24px var(--a-inset);
+  /* mirror .tvl-scroll's vertical overscan safe band so the last row clears
+     the TV bezel (this is a separate scroller and doesn't inherit it) */
+  padding-bottom: calc(24px + var(--a-inset-y));
 }
 
 /* ── Movie detail layout ─────────────────────────────────────────────────── */
@@ -91,9 +94,8 @@
   line-height: 1.8;
   margin: 0;
   padding: 24px;
-  background: rgba(26, 26, 46, 0.6);
+  background: rgba(20, 26, 46, 0.6);
   border-radius: var(--a-radius-sm);
-  border-left: 4px solid var(--a-indigo);
   font-weight: 500;
 }
 .tvl-mov-crew {
@@ -141,7 +143,7 @@
 }
 .tvl-letter-btn--active {
   border-color: var(--a-indigo);
-  color: var(--a-indigo);
+  color: var(--a-indigo-text);
   background: var(--a-surface-2);
 }
 

@@ -37,6 +37,8 @@ export default function ShelfCard({ item, isFocused, elRef, className = "" }) {
   return (
     <div
       ref={elRef}
+      role="button"
+      aria-label={item.name}
       className={["tvl-card", isFocused && "tvl-card--on", className]
         .filter(Boolean)
         .join(" ")}

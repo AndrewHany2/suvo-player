@@ -117,6 +117,9 @@ const TV = {
     fontSize: 20,
     fontWeight: 600,
   },
+  // White-on-video control alphas (progress track, seek-hint, pills) are an
+  // intentional video-overlay convention: they read against arbitrary frame
+  // content regardless of palette, so they deliberately bypass surface tokens.
   progressTrack: {
     height: 14,
     background: "rgba(255,255,255,0.25)",
@@ -163,7 +166,8 @@ const TV = {
     minWidth: 260,
     maxHeight: 380,
     overflowY: "auto",
-    background: "rgba(20,20,24,0.98)",
+    background: "rgba(20,26,46,0.98)", // surface #141A2E, kept in-palette
+
     border: `1px solid ${colors.border}`,
     borderRadius: radii.sm,
     padding: 6,

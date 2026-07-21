@@ -13,7 +13,7 @@
 .tvl-ch-grid-window {
   flex: 1;
   min-height: 0;
-  padding: 24px var(--a-inset);
+  padding: 24px var(--a-inset) calc(24px + var(--a-inset-y));
 }
 
 .tvl-ch-card {
@@ -43,6 +43,38 @@
   padding: 8px;
 }
 .tvl-ch-ph { font-size: 22px; color: var(--a-border); }
+
+/* Ratio-box fallback for the webOS/Tizen Chromium floor (~38–53), where
+   `aspect-ratio` (Chromium 88) — the logo box's only height source — is ignored
+   and the box collapses. padding-top:56.25% rebuilds the 16:9 height (% resolves
+   against the card width since .tvl-ch-logo is width:100%), and the img + text
+   placeholder are absolutely positioned to fill it (the flex centering above no
+   longer applies once the content box is 0-height, so it is restored on the
+   placeholder). No `inset` shorthand (Chromium 87, banned on TV). Modern engines
+   support aspect-ratio and skip this block. */
+@supports not (aspect-ratio: 1 / 1) {
+  .tvl-ch-logo {
+    height: 0;
+    padding-top: 56.25%;
+  }
+  .tvl-ch-logo img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .tvl-ch-ph {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
 
 .tvl-ch-live {
   position: absolute;

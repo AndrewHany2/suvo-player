@@ -1,0 +1,81 @@
+diff --git a/node_modules/react-native-vlc-media-player/ios/RCTVLCPlayer/RCTVLCPlayer.m b/node_modules/react-native-vlc-media-player/ios/RCTVLCPlayer/RCTVLCPlayer.m
+index 54e29ee..4f276e5 100755
+--- a/node_modules/react-native-vlc-media-player/ios/RCTVLCPlayer/RCTVLCPlayer.m
++++ b/node_modules/react-native-vlc-media-player/ios/RCTVLCPlayer/RCTVLCPlayer.m
+@@ -34,6 +34,7 @@ static NSString *const playbackRate = @"rate";
+     BOOL _paused;
+     BOOL _autoplay;
+     BOOL _acceptInvalidCertificates;
++    NSString * _resizeMode;
+ }
+ 
+ - (instancetype)initWithEventDispatcher:(RCTEventDispatcher *)eventDispatcher
+@@ -215,6 +216,9 @@ static NSString *const playbackRate = @"rate";
+             case VLCMediaPlayerStatePlaying:
+                 _paused = NO;
+                 NSLog(@"VLCMediaPlayerStatePlaying %i", _player.numberOfAudioTracks);
++                // A fresh media resets VLC's crop/aspect/scale, so re-apply the
++                // requested resizeMode once the video is actually rendering.
++                [self applyResizeMode];
+                 self.onVideoPlaying(@{
+                                       @"target": self.reactTag,
+                                       @"seekable": [NSNumber numberWithBool:[_player isSeekable]],
+@@ -423,6 +427,46 @@ static NSString *const playbackRate = @"rate";
+     [_player setVideoAspectRatio:char_content];
+ }
+ 
++// resizeMode maps RN's "contain"/"cover"/"fill" onto VLCKit's aspect/crop knobs,
++// computed against the view's own bounds so the video fills exactly:
++//   contain -> default fit (letterbox, aspect preserved)
++//   cover   -> crop to the view's aspect ratio (fills, aspect preserved, edges cropped)
++//   fill    -> force the display aspect ratio to the view's (fills, stretched)
++- (void)setResizeMode:(NSString *)mode{
++    _resizeMode = mode;
++    [self applyResizeMode];
++}
++
++- (void)applyResizeMode{
++    if (!_player) return;
++    CGSize size = self.bounds.size;
++    if (size.width <= 0 || size.height <= 0) return;
++    // Only the ratio matters to VLC, so integer points are fine.
++    NSString *ratio = [NSString stringWithFormat:@"%d:%d", (int)round(size.width), (int)round(size.height)];
++
++    if ([_resizeMode isEqualToString:@"fill"]) {
++        _player.scaleFactor = 0;
++        _player.videoCropGeometry = NULL;
++        [_player setVideoAspectRatio:(char *)[ratio cStringUsingEncoding:NSASCIIStringEncoding]];
++    } else if ([_resizeMode isEqualToString:@"cover"]) {
++        _player.scaleFactor = 0;
++        [_player setVideoAspectRatio:NULL];
++        _player.videoCropGeometry = (char *)[ratio cStringUsingEncoding:NSASCIIStringEncoding];
++    } else {
++        // contain (default)
++        _player.scaleFactor = 0;
++        [_player setVideoAspectRatio:NULL];
++        _player.videoCropGeometry = NULL;
++    }
++}
++
++- (void)layoutSubviews{
++    [super layoutSubviews];
++    // Re-apply on bounds changes (rotation, fullscreen toggle) so cover/fill
++    // stay matched to the current view size.
++    [self applyResizeMode];
++}
++
+ - (void)setMuted:(BOOL)value
+ {
+     if (_player) {
+diff --git a/node_modules/react-native-vlc-media-player/ios/RCTVLCPlayer/RCTVLCPlayerManager.m b/node_modules/react-native-vlc-media-player/ios/RCTVLCPlayer/RCTVLCPlayerManager.m
+index 971e823..fd90403 100755
+--- a/node_modules/react-native-vlc-media-player/ios/RCTVLCPlayer/RCTVLCPlayerManager.m
++++ b/node_modules/react-native-vlc-media-player/ios/RCTVLCPlayer/RCTVLCPlayerManager.m
+@@ -40,6 +40,7 @@ RCT_EXPORT_VIEW_PROPERTY(seek, float);
+ RCT_EXPORT_VIEW_PROPERTY(rate, float);
+ RCT_EXPORT_VIEW_PROPERTY(resume, BOOL);
+ RCT_EXPORT_VIEW_PROPERTY(videoAspectRatio, NSString);
++RCT_EXPORT_VIEW_PROPERTY(resizeMode, NSString);
+ RCT_EXPORT_VIEW_PROPERTY(snapshotPath, NSString);
+ RCT_CUSTOM_VIEW_PROPERTY(muted, BOOL, RCTVLCPlayer)
+ {

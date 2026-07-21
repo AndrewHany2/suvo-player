@@ -27,16 +27,13 @@ const code = fs.readFileSync(bundlePath, "utf8");
 const result = babel.transformSync(code, {
   configFile: false,
   babelrc: false,
-  plugins: [
-    // Convert template literals to ES5 string concatenation
-    [require("@babel/plugin-transform-template-literals"), { loose: true }],
-    // Convert ?. optional chaining
-    require("@babel/plugin-transform-optional-chaining"),
-    // Convert ?? nullish coalescing
-    require("@babel/plugin-transform-nullish-coalescing-operator"),
-    // Convert &&=, ||=, ??= logical assignment operators
-    require("@babel/plugin-transform-logical-assignment-operators"),
-  ],
+  // Pin the syntax floor to the oldest Chromium we ship to (webOS ≈ 38). Metro
+  // already downlevels most modern syntax, but its target is not this floor —
+  // hand-picking 4 plugins leaves gaps (e.g. `**` exponentiation is Chromium
+  // 52, class fields, etc.). preset-env with an explicit `chrome: '38'` target
+  // pulls in EVERY syntax transform that floor needs, so nothing slips through.
+  // No `useBuiltIns` → syntax transforms only, no core-js polyfills injected.
+  presets: [["@babel/preset-env", { targets: { chrome: "38" }, bugfixes: true }]],
   // Preserve the existing source map comment if present
   sourceMaps: false,
   compact: true,

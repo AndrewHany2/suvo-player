@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-21T00:00:00Z",
+  "title": "Design System: Suvo",
+  "extensions": {
+    "colorMeta": {
+      "aurora-indigo": { "role": "primary", "displayName": "Aurora Indigo", "canonical": "#6C5CE7", "tonalRamp": ["#181432", "#241C55", "#33268A", "#4536B8", "#5748D2", "#6C5CE7", "#8E82EE", "#C3BCF7"] },
+      "signal-cyan": { "role": "secondary", "displayName": "Signal Cyan", "canonical": "#22D3EE", "tonalRamp": ["#08313A", "#0B4854", "#0E6274", "#12889E", "#19AAC4", "#22D3EE", "#67E3F4", "#B3F1FA"] },
+      "midnight-bg": { "role": "neutral", "displayName": "Midnight", "canonical": "#0A0E1A", "tonalRamp": ["#0A0E1A", "#141A2E", "#1B2236", "#28324E", "#3B4870", "#4A5575", "#7A86A8", "#EAF0FF"] },
+      "slate-surface": { "role": "neutral", "displayName": "Slate Surface", "canonical": "#141A2E", "tonalRamp": ["#0A0E1A", "#141A2E", "#1B2236", "#28324E", "#3B4870", "#4A5575", "#7A86A8", "#EAF0FF"] },
+      "elevated-surface": { "role": "neutral", "displayName": "Elevated Surface", "canonical": "#1B2236", "tonalRamp": ["#0A0E1A", "#141A2E", "#1B2236", "#28324E", "#3B4870", "#4A5575", "#7A86A8", "#EAF0FF"] },
+      "ice-text": { "role": "neutral", "displayName": "Ice", "canonical": "#EAF0FF" },
+      "steel-muted": { "role": "neutral", "displayName": "Steel", "canonical": "#7A86A8" },
+      "faint-steel": { "role": "neutral", "displayName": "Faint Steel", "canonical": "#4A5575" },
+      "danger": { "role": "tertiary", "displayName": "Danger", "canonical": "#E5484D" },
+      "success": { "role": "tertiary", "displayName": "Success", "canonical": "#6ABF69" },
+      "rating-gold": { "role": "tertiary", "displayName": "Rating Gold", "canonical": "#FFD700" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero titles and largest headings. Space Grotesk 700, tracking -0.02em (never below -0.04em)." },
+      "headline": { "displayName": "Headline", "purpose": "Section and shelf headings. Space Grotesk 700." },
+      "title": { "displayName": "Title", "purpose": "Card, dialog, and settings-section titles. Space Grotesk 600." },
+      "body": { "displayName": "Body", "purpose": "Descriptions and prose. Inter 400; cap measure at 65-75ch." },
+      "label": { "displayName": "Label", "purpose": "Buttons, metadata, chips, form labels. Inter 600. Eyebrows/kickers use the display face instead." }
+    },
+    "gradients": [
+      { "name": "accent-gradient", "value": "linear-gradient(100deg, #6C5CE7, #22D3EE)", "purpose": "Nav band and active/selected states. Static — never animated (TV jank)." },
+      { "name": "hero-scrim", "value": "linear-gradient(100deg, rgba(10,14,26,0.95) 0%, rgba(10,14,26,0.7) 40%, rgba(10,14,26,0) 100%)", "purpose": "Left-to-transparent wash so hero backdrop art stays legible under the title." }
+    ],
+    "shadows": [
+      { "name": "focus-glow-web", "value": "0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55)", "purpose": "Cyan focus/hover glow on buttons and posters (web). Gate on isTV() — TV must not receive it." },
+      { "name": "focus-glow-native", "value": "shadowColor #22D3EE, radius 16, opacity 0.45, elevation 8", "purpose": "Same interaction cue as a native shadow." },
+      { "name": "card-native", "value": "0 2px 6px rgba(0,0,0,0.25), elevation 4", "purpose": "Ambient card lift, native only. Web/TV render nothing at rest." },
+      { "name": "modal-native", "value": "0 8px 16px rgba(0,0,0,0.4), elevation 12", "purpose": "Modal lift, native only." },
+      { "name": "tv-focus-fill", "value": "rgba(34,211,238,0.20)", "purpose": "TV focus fill — stronger than web's 0.12 because TV strips the glow halo." }
+    ],
+    "motion": [
+      { "name": "fast", "value": "120ms", "purpose": "Micro-feedback (press, small toggles)." },
+      { "name": "base", "value": "200ms", "purpose": "Default state transition (hover, focus, open)." },
+      { "name": "slow", "value": "320ms", "purpose": "Larger surface transitions." },
+      { "name": "ease-standard", "value": "cubic-bezier(0.4,0,0.2,1)", "purpose": "Standard easing on web/native. TV ignores all motion." }
+    ],
+    "overlay": { "name": "overlay", "value": "rgba(10,14,26,0.72)", "purpose": "Translucent dark wash for scrims/badges over art." },
+    "zIndex": [
+      { "name": "base", "value": 0 },
+      { "name": "dropdown", "value": 100 },
+      { "name": "overlay", "value": 1000 },
+      { "name": "modal", "value": 1100 },
+      { "name": "toast", "value": 1200 }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Highest-emphasis action; accent gradient fill with cyan focus glow.",
+      "html": "<button class=\"ds-btn-primary\">Play</button>",
+      "css": ".ds-btn-primary { background: linear-gradient(100deg, #6C5CE7, #22D3EE); color: #EAF0FF; font-family: Inter, sans-serif; font-weight: 600; font-size: 14px; padding: 12px 24px; border: none; border-radius: 14px; transition: box-shadow 200ms cubic-bezier(0.4,0,0.2,1); cursor: pointer; } .ds-btn-primary:hover, .ds-btn-primary:focus-visible { box-shadow: 0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55); outline: none; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Medium-emphasis action on the elevated surface.",
+      "html": "<button class=\"ds-btn-secondary\">Add to My List</button>",
+      "css": ".ds-btn-secondary { background: #1B2236; color: #EAF0FF; font-family: Inter, sans-serif; font-weight: 600; font-size: 14px; padding: 12px 24px; border: 1px solid #28324E; border-radius: 14px; transition: box-shadow 200ms cubic-bezier(0.4,0,0.2,1); cursor: pointer; } .ds-btn-secondary:hover, .ds-btn-secondary:focus-visible { box-shadow: 0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55); outline: none; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis / inline action; no fill, no border.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #EAF0FF; font-family: Inter, sans-serif; font-weight: 600; font-size: 14px; padding: 12px 16px; border: none; border-radius: 14px; transition: background 200ms cubic-bezier(0.4,0,0.2,1); cursor: pointer; } .ds-btn-ghost:hover { background: #1B2236; } .ds-btn-ghost:focus-visible { box-shadow: 0 0 0 1px rgba(34,211,238,0.6); outline: none; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Text input on the elevated surface with a cyan focus ring.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Playlist URL\" />",
+      "css": ".ds-input { background: #1B2236; color: #EAF0FF; font-family: Inter, sans-serif; font-size: 16px; padding: 12px 16px; border: 1px solid #28324E; border-radius: 14px; width: 100%; box-sizing: border-box; transition: box-shadow 200ms cubic-bezier(0.4,0,0.2,1); } .ds-input::placeholder { color: #4A5575; } .ds-input:focus { box-shadow: 0 0 0 2px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.35); outline: none; }"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Genre/category filter; selected variant takes the accent gradient.",
+      "html": "<span class=\"ds-chip\">Action</span> <span class=\"ds-chip ds-chip--selected\">Comedy</span>",
+      "css": ".ds-chip { display: inline-block; background: #1B2236; color: #EAF0FF; font-family: Inter, sans-serif; font-weight: 600; font-size: 14px; padding: 8px 16px; border-radius: 999px; cursor: pointer; } .ds-chip--selected { background: linear-gradient(100deg, #6C5CE7, #22D3EE); color: #EAF0FF; }"
+    },
+    {
+      "name": "Poster Card",
+      "kind": "card",
+      "refersTo": "poster-card",
+      "description": "Core content tile — poster-ratio image with a cyan focus/hover glow. The unit browse is built from.",
+      "html": "<div class=\"ds-poster\" tabindex=\"0\"><div class=\"ds-poster__art\"></div></div>",
+      "css": ".ds-poster { width: 160px; background: #141A2E; border-radius: 10px; overflow: hidden; cursor: pointer; transition: box-shadow 200ms cubic-bezier(0.4,0,0.2,1); } .ds-poster__art { width: 160px; height: 240px; background: linear-gradient(135deg, #1B2236, #28324E); } .ds-poster:hover, .ds-poster:focus-visible { box-shadow: 0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55); outline: none; }"
+    },
+    {
+      "name": "StatePanel (empty)",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "The single shared loading / error / empty surface. All three states route through it — no ad-hoc spinners or error screens elsewhere.",
+      "html": "<div class=\"ds-state\"><div class=\"ds-state__icon\"></div><h3 class=\"ds-state__title\">Nothing here yet</h3><p class=\"ds-state__body\">Add a playlist to start watching.</p><button class=\"ds-btn-primary\">Add playlist</button></div>",
+      "css": ".ds-state { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 32px; color: #EAF0FF; } .ds-state__icon { width: 48px; height: 48px; border-radius: 999px; background: #1B2236; } .ds-state__title { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 20px; margin: 0; } .ds-state__body { font-family: Inter, sans-serif; font-size: 16px; color: #7A86A8; margin: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Midnight Theater",
+    "overview": "Suvo is a dark, hushed room where the screen is the only light. The interface is midnight and everything on it is furniture in a home theater: present, precise, and silent until you reach for it. Content is the light source; the chrome recedes into the dark. When attention moves, a single beam follows it — Aurora Indigo marks the active path, Signal Cyan marks focus, and nothing else earns saturation. Premium through restraint, not spectacle: depth is tonal layering, not shadows or glass; motion is quiet on phone and desktop and absent on the 10-foot TV. One identity renders identically across iOS, Android, web, Electron, and TV.",
+    "keyCharacteristics": [
+      "Dark-only, permanent. Midnight field with tonal depth, never a light theme.",
+      "Content is the hero; chrome is furniture-grade and recessive.",
+      "Two accents used as light: Aurora Indigo (active) and Signal Cyan (focus).",
+      "Flat by default; the only elevation is a focus glow, and only while focused.",
+      "One identity across six targets, authored to the webOS-file:// lowest common denominator."
+    ],
+    "rules": [
+      { "name": "The Single-Light Rule", "body": "Color is light in a dark theater. Aurora Indigo marks the active path and Signal Cyan marks focus — that is the entire budget for saturation in the chrome. A resting, unfocused control that is tinted is wrong.", "section": "colors" },
+      { "name": "The Literal-Hex Sync Rule", "body": "Shared CSS must duplicate token values as literal hex, never var(). Old webOS Chromium can't be assumed to support custom properties, so tokens.js and the CSS mirrors carry the same hex by hand and must stay in sync.", "section": "colors" },
+      { "name": "The Display-for-Signage Rule", "body": "Space Grotesk is for titles, headings, and eyebrows only. Body copy and metadata are always Inter.", "section": "typography" },
+      { "name": "The Flat-Theater Rule", "body": "Surfaces are flat at rest. The only shadow is the cyan focus glow, on focus/hover only. On TV even that is gone — depth there is purely tonal.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the surface midnight and let content be the light. Build depth by stepping the tonal ladder (#0A0E1A -> #141A2E -> #1B2236), not by adding shadows.",
+      "Do reserve Aurora Indigo for active/primary and Signal Cyan for focus/interaction — the Single-Light Rule.",
+      "Do hit WCAG 2.1 AA contrast: >=4.5:1 body, >=3:1 large text. Body copy is Ice (#EAF0FF) or Steel (#7A86A8) on dark — never Faint Steel (#4A5575).",
+      "Do give the 10-foot TV UI a clearly visible, predictable D-pad focus order, and honor prefers-reduced-motion across the whole app.",
+      "Do use >=44x44px touch targets on mobile.",
+      "Do duplicate token values as literal hex in shared CSS (no var()), kept in sync with src/ui/tokens.js.",
+      "Do channel every loading/error/empty state through StatePanel; recover silently, never strand the viewer on a dead spinner."
+    ],
+    "donts": [
+      "Don't build spec-heavy EPG / TV-guide grids with tiny text or broadcaster-logo walls.",
+      "Don't add cluttered, ad-laden chrome — promo banners, upsell nags, tracking. Suvo is zero ads and zero trackers.",
+      "Don't let Suvo become a generic streaming clone with no identity.",
+      "Don't build techy, power-user density (Kodi/VLC): settings-first layouts, skin sprawl, engineer-facing controls.",
+      "Don't ship transition, transform, linear-gradient, box-shadow, or var() in shared TV CSS.",
+      "Don't put a drop shadow on a resting card or surface (web/TV). The only shadow is the cyan focus glow, on focus/hover only.",
+      "Don't animate the accent gradient, and don't set body copy in Space Grotesk.",
+      "Don't use border-left/border-right greater than 1px as a colored accent stripe, gradient-filled text, or decorative glassmorphism."
+    ]
+  }
+}

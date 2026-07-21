@@ -19,7 +19,7 @@
   border-radius: 8px;
   font-size: 15px;
   font-weight: 600;
-  color: var(--a-danger);
+  color: var(--a-indigo-text);
   cursor: pointer;
   font-family: inherit;
   text-align: left;
@@ -41,7 +41,7 @@
 .tvl-acc-name {
   font-size: 17px;
   font-weight: 600;
-  color: #fff;
+  color: var(--a-text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -63,7 +63,7 @@
   background: var(--a-border);
   border: 1px solid var(--a-border);
   border-radius: 5px;
-  color: var(--a-muted);
+  color: var(--a-text-dim);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -98,8 +98,6 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--a-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 .tvl-field input {
   width: 100%;
@@ -108,13 +106,13 @@
   background: var(--a-surface);
   border: 2px solid var(--a-border);
   border-radius: 6px;
-  color: #fff;
+  color: var(--a-text-strong);
   font-size: 17px;
   font-family: inherit;
   outline: none;
 }
 .tvl-field input:focus { border-color: var(--a-cyan); }
-.tvl-field input::placeholder { color: #444; }
+.tvl-field input::placeholder { color: var(--a-muted); }
 /* Password reveal toggle — overlaid at the trailing edge of the field. */
 .tvl-pwd-eye {
   position: absolute;

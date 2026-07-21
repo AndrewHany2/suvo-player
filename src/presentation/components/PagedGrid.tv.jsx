@@ -34,6 +34,7 @@ export function PagedGridTV({
   const gridRef = useRef(null);
   const focusedRef = useRef(null);
   const [rowHeight, setRowHeight] = useState(0);
+  const [viewportRows, setViewportRows] = useState(4);
 
   const total = items.length;
   const totalRows = Math.ceil(total / cols);
@@ -57,14 +58,32 @@ export function PagedGridTV({
     if (h > 0) setRowHeight((prev) => (Math.abs(prev - h) <= 1 ? prev : h));
   }, [cols, total, rowHeight]);
 
+  const stride = (rowHeight || 0) + gap;
+
   // Visible-row count from the container height (fallback to a small page until
   // measured). Feeds computeWindow's viewportCount so the window covers the page.
-  const stride = (rowHeight || 0) + gap;
-  const viewportRows = (() => {
-    const ch = containerRef.current?.clientHeight || 0;
-    if (!ch || !stride) return 4;
-    return Math.max(1, Math.ceil(ch / stride));
-  })();
+  // Measured in an effect (mount + ResizeObserver + resize, and re-run when the
+  // measured stride changes) so the render body performs NO layout reads — a
+  // clientHeight read here forced a synchronous layout on every D-pad focus move.
+  // Mirrors VirtualShelves.tv's measure pattern.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const ch = containerRef.current?.clientHeight || 0;
+      const next = !ch || !stride ? 4 : Math.max(1, Math.ceil(ch / stride));
+      setViewportRows((prev) => (prev === next ? prev : next));
+    };
+    measure();
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+    if (ro && containerRef.current) ro.observe(containerRef.current);
+    globalThis.addEventListener?.("resize", measure);
+    return () => {
+      ro?.disconnect();
+      globalThis.removeEventListener?.("resize", measure);
+    };
+  }, [stride]);
 
   const win = computeWindow({
     anchor: focusRow,

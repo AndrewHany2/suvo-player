@@ -38,7 +38,7 @@ export default function HeroTV({ item, height = 300 }) {
           right: 0,
           bottom: 0,
           left: 0,
-          background: `linear-gradient(to top, ${colors.bg} 2%, rgba(0,0,0,0.35) 40%, transparent 70%)`,
+          background: `linear-gradient(to top, ${colors.bg} 2%, rgba(10,14,26,0.35) 40%, transparent 70%)`,
         }}
       />
       <div
@@ -53,7 +53,6 @@ export default function HeroTV({ item, height = 300 }) {
           fontSize: ss(64),
           lineHeight: 1.05,
           letterSpacing: -1,
-          textShadow: "0 2px 12px rgba(0,0,0,0.6)",
         }}
       >
         {item?.name || ""}

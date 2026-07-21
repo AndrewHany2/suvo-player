@@ -6,6 +6,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "postinstall": "patch-package",
     "start": "expo start",
     "dev:android": "expo run:android",
     "dev:ios": "expo run:ios",
@@ -74,6 +75,7 @@
     "@babel/plugin-transform-nullish-coalescing-operator": "^7.28.6",
     "@babel/plugin-transform-optional-chaining": "^7.28.6",
     "@babel/plugin-transform-template-literals": "^7.29.7",
+    "@babel/preset-env": "^7.29.0",
     "@electron/fuses": "^1.8.0",
     "@types/react": "~19.1.10",
     "concurrently": "^9.2.1",
@@ -83,6 +85,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
     "javascript-obfuscator": "^5.4.3",
+    "patch-package": "^8.0.1",
     "pptxgenjs": "^4.0.1",
     "react-refresh": "^0.18.0",
     "typescript": "^6.0.3",

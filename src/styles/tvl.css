@@ -1,5 +1,7 @@
 /* Shared TV layout base — imported by all *.tv.jsx screens
-   No transitions · No transforms · No gradients · No hover · No shadows */
+   No transforms · No hover · No shadows. Gradients limited to legibility scrims
+   over imagery + the 2px hairline accent; no decorative gradients, transitions,
+   or shadows. */
 
 /* ── Aurora TV tokens — single source of truth (TV-safe: no effects) ──────── */
 :root {
@@ -10,17 +12,22 @@
   --a-indigo: #6C5CE7;
   --a-cyan: #22D3EE;
   --a-danger: #E5484D;
+  --a-indigo-text: #A99BF5;
   --a-text: #EAF0FF;
+  --a-text-strong: #FFFFFF;
   --a-text-dim: #B8C0DA;
   --a-muted: #7A86A8;
-  --a-rating: #ffd700;
+  --a-rating: #FFD700;
   --a-hairline: linear-gradient(100deg, #6C5CE7, #22D3EE);
   --a-radius: 14px;
   --a-radius-sm: 10px;
   --a-inset: 64px;
+  --a-inset-y: 28px;
   --a-focus-ring: #22D3EE;
   /* Stronger tint than web (0.12): TV strips the cyan GLOW_WEB halo old webOS
-     janks on, so the fill carries the focus affordance at 10 feet instead. */
+     janks on, so the fill carries the focus affordance at 10 feet instead.
+     Mirrors accent2Alpha(0.20) from tokens.js — can't call the JS helper here
+     because this is a var()-free-at-build static sheet (patch-index inlines it). */
   --a-focus-fill: rgba(34, 211, 238, 0.20);
   /* Type ramp shares the Aurora web/Electron language (Inter/Space Grotesk,
      same weights + hierarchy) but is authored one step larger for 10-foot
@@ -69,7 +76,8 @@
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
-  padding-bottom: 40px;
+  /* 40px rhythm + ~5% vertical overscan band so the last row clears the TV bezel */
+  padding-bottom: calc(40px + var(--a-inset-y));
 }
 .tvl-scroll::-webkit-scrollbar {
   display: none;
@@ -80,8 +88,9 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  /* ~5% title-safe horizontal inset (overscan) — matches grids/lists */
-  padding: 14px var(--a-inset);
+  /* ~5% title-safe horizontal inset (overscan) — matches grids/lists.
+     Extra top padding clears the ~5% vertical overscan band on TV. */
+  padding: var(--a-inset-y) var(--a-inset) 14px;
   border-bottom: 1px solid var(--a-border);
   flex-shrink: 0;
 }
@@ -119,7 +128,7 @@
 .tvl-topbar-title {
   font-size: 28px;
   font-weight: 700;
-  color: #fff;
+  color: var(--a-text-strong);
   flex: 1;
   background: none;
   border: none;
@@ -150,7 +159,7 @@
 .tvl-empty-msg {
   font-size: 18px;
   font-weight: 600;
-  color: #fff;
+  color: var(--a-text-strong);
   margin: 0 0 4px;
 }
 
@@ -178,12 +187,17 @@
     transform: translateZ(0) rotate(360deg);
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .tvl-spinner {
+    animation: none;
+  }
+}
 
 /* ── Button ───────────────────────────────────────────────────────────────── */
 .tvl-btn {
   padding: 12px 28px;
-  background: var(--a-hairline);
-  color: #fff;
+  background: var(--a-indigo);
+  color: var(--a-text-strong);
   border: none;
   border-radius: var(--a-radius);
   font-size: 15px;
@@ -293,10 +307,35 @@
   /* Fade the poster in over the --a-surface skeleton once decoded, so the
      load reads as an intentional reveal instead of a blank-then-pop flash. */
   opacity: 0;
-  transition: opacity 180ms ease;
 }
 .tvl-card-img img.loaded {
   opacity: 1;
+}
+
+/* Ratio-box fallback for the webOS/Tizen Chromium floor (~38–53). `aspect-ratio`
+   ships in Chromium 88 and is the ONLY height source on the poster/thumb
+   wrappers above, so on the real TV fleet those boxes collapse to auto height
+   and the img renders at its intrinsic size — broken, uneven rows. This block
+   restores the box height the old way: padding-top for the fluid-width poster
+   (150% = a 2:3 box, % resolves against its own width since it is width:100%),
+   an explicit height for the fixed-120px detail thumb, and absolutely-positioned
+   fill children (no `inset` shorthand — that is Chromium 87 and banned on TV).
+   Modern engines support aspect-ratio, skip this block, and are unchanged. */
+@supports not (aspect-ratio: 1 / 1) {
+  .tvl-card-img {
+    height: 0;
+    padding-top: 150%;
+  }
+  .tvl-card-img img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .tvl-det-hero-thumb {
+    height: 180px; /* 120px width × 3/2 (2:3); fixed width can't use padding-top % */
+  }
 }
 
 .tvl-card-ph {
@@ -334,7 +373,7 @@
 }
 /* Brighten + tint title when its card is focused */
 .tvl-card--on .tvl-card-title {
-  color: #fff;
+  color: var(--a-text-strong);
 }
 
 /* ── Hero banner (backdrop image only, content lives below) ───────────────── */
@@ -420,7 +459,7 @@
 .tvl-det-hero-title {
   font-size: var(--a-fs-hero);
   font-weight: 900;
-  color: #fff;
+  color: var(--a-text-strong);
   letter-spacing: -0.5px;
   line-height: 1.1;
 }
@@ -439,7 +478,7 @@
 }
 .tvl-det-tag--alert {
   border-color: var(--a-indigo);
-  color: var(--a-indigo);
+  color: var(--a-indigo-text);
 }
 .tvl-det-rating {
   font-size: 16px;
@@ -460,8 +499,8 @@
   cursor: pointer;
   white-space: nowrap;
   border: 2px solid rgba(255, 255, 255, 0.22);
-  background: rgba(30, 30, 50, 0.9);
-  color: #fff;
+  background: rgba(27, 34, 54, 0.9);
+  color: var(--a-text-strong);
 }
 .tvl-det-hero-btn--play {
   background: #fff;
@@ -471,7 +510,7 @@
 .tvl-det-hero-btn--saved {
   background: rgba(108, 92, 231, 0.18);
   border-color: var(--a-indigo);
-  color: #fff;
+  color: var(--a-text-strong);
 }
 .tvl-det-hero-plot {
   font-size: 16px;
@@ -501,13 +540,12 @@
 }
 .tvl-det-body-plot {
   font-size: 19px;
-  color: #ddd;
+  color: var(--a-text-dim);
   line-height: 1.75;
   margin: 0;
   padding: 22px 26px;
-  background: rgba(26, 26, 46, 0.6);
+  background: rgba(20, 26, 46, 0.6);
   border-radius: var(--a-radius-sm);
-  border-left: 4px solid var(--a-indigo);
   font-weight: 500;
 }
 .tvl-det-body-crew {
@@ -518,7 +556,7 @@
   padding: 10px 4px;
 }
 .tvl-det-body-crew strong {
-  color: #fff;
+  color: var(--a-text-strong);
   font-weight: 700;
   margin-right: 8px;
 }
@@ -551,34 +589,13 @@
    the scrollbar itself stays hidden. */
 .tv-shelf-rail::-webkit-scrollbar { display: none; }
 
-/* ── Shelf scroll-hint fades + chevrons (VirtualShelvesTV rails) ───────────────
-   .more-left / .more-right are set from the shelf's scroll window; the fades pin
-   to the rail edges and the chevrons are the "more this way" cue over them. */
+/* ── Shelf scroll-hint chevrons (VirtualShelvesTV rails) ───────────────────────
+   .more-left / .more-right are set from the shelf's scroll window; the chevrons
+   are the "more this way" cue at the rail edges. (Edge-fade gradients were
+   removed: chevrons already signal more content, and the fades repainted over
+   the scrolling rail.) */
 .tvl-shelf-rowwrap {
   position: relative;
-}
-.tvl-shelf-rowwrap::before,
-.tvl-shelf-rowwrap::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 12px;
-  width: 120px;
-  pointer-events: none;
-  opacity: 0;
-  z-index: 2;
-}
-.tvl-shelf-rowwrap::before {
-  left: 0;
-  background: linear-gradient(90deg, var(--a-bg) 35%, transparent);
-}
-.tvl-shelf-rowwrap::after {
-  right: 0;
-  background: linear-gradient(270deg, var(--a-bg) 35%, transparent);
-}
-.tvl-shelf-rowwrap.more-left::before,
-.tvl-shelf-rowwrap.more-right::after {
-  opacity: 1;
 }
 .tvl-shelf-chev {
   position: absolute;

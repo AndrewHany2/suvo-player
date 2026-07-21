@@ -22,7 +22,13 @@ const SHELF_OVERSCAN = 8; // shelves kept mounted above/below the visible page
 // 1280 TV viewport that the browser upscales ×1.5 — matching web proportions.
 const POSTER_W = 340; // design px — sized so ~5 posters show per rail in one view
 const CARD_GAP_D = 8; // design px gap — matches ContentShelf.web
-const PAD_D = 48; // design px rail horizontal inset
+const PAD_D = 48; // design px — used ONLY in the cols count estimate below.
+// Header/rail horizontal inset. ss(96)=64px logical, matching the grid/topbar
+// inset (--a-inset = 64px), so Home shelves line up with the grid and clear the
+// TV safe area. NOT folded into PAD_D because that feeds the cols width math
+// (line ~219), where doubling would shrink the virtualization window; the count
+// estimate stays on 48 (over-counting cols is a harmless, safe overscan).
+const INSET_D = 96; // design px header/rail padding-inline
 const TITLE_H_D = 34; // design px poster title block (PosterCard.web: 2-line clamp)
 // Row = header + poster (width×1.5) + title + breathing room, all in design px.
 const ROW_HEIGHT_D = 40 + Math.round(POSTER_W * 1.5) + TITLE_H_D + 28;
@@ -30,6 +36,7 @@ const HERO_H = 900; // Hero.web billboard height falls out of tokens.heroHeights
 // constant is used only as the fallback when the rails-top can't be measured.
 
 const PAD = PAD_D; // kept as design px; call sites wrap it in ss(PAD)
+const INSET = INSET_D; // kept as design px; call sites wrap it in ss(INSET)
 const HERO_DEBOUNCE_MS = 150;
 
 const loadedLen = (s) => (Array.isArray(s?.items) ? s.items.length : 0);
@@ -360,7 +367,7 @@ export function VirtualShelvesTV({
       // Horizontal scroll-into-view using the card's REAL geometry. At the end of
       // the rail `right + pad - clientWidth` is clamped by the browser to the max
       // scroll, so the last poster lands flush with no trailing dead space.
-      const pad = ss(PAD);
+      const pad = ss(INSET);
       const left = card.offsetLeft;
       const right = left + card.offsetWidth;
       if (left - pad < rail.scrollLeft)
@@ -547,7 +554,7 @@ export function VirtualShelvesTV({
           <HeroTV item={heroItem} height={HERO_H} />
         ))}
       {zoneCfg.hasPills && (
-        <div style={{ padding: `${ss(36)}px ${ss(PAD)}px ${ss(20)}px` }}>
+        <div style={{ padding: `${ss(36)}px ${ss(INSET)}px ${ss(20)}px` }}>
           <DiscoverPills
             items={pills}
             focusedCol={
@@ -641,7 +648,7 @@ export function VirtualShelvesTV({
                   display: "flex",
                   alignItems: "center",
                   gap: ss(6),
-                  padding: `${ss(28)}px ${ss(PAD)}px ${ss(10)}px`,
+                  padding: `${ss(28)}px ${ss(INSET)}px ${ss(10)}px`,
                   color: colors.text,
                   fontFamily: fonts.display,
                   fontWeight: fontWeights.bold,
@@ -680,8 +687,8 @@ export function VirtualShelvesTV({
                     overflowX: "auto",
                     overflowY: "hidden",
                     gap: CARD_GAP,
-                    paddingLeft: ss(PAD),
-                    paddingRight: ss(PAD),
+                    paddingLeft: ss(INSET),
+                    paddingRight: ss(INSET),
                     scrollbarWidth: "none",
                   }}
                 >
@@ -732,13 +739,13 @@ export function VirtualShelvesTV({
                   className="tvl-shelf-chev tvl-shelf-chev--left"
                   aria-hidden="true"
                 >
-                  <Icon name="chevron-right" size={26} color="#fff" />
+                  <Icon name="chevron-right" size={26} color={colors.textStrong} />
                 </span>
                 <span
                   className="tvl-shelf-chev tvl-shelf-chev--right"
                   aria-hidden="true"
                 >
-                  <Icon name="chevron-right" size={26} color="#fff" />
+                  <Icon name="chevron-right" size={26} color={colors.textStrong} />
                 </span>
               </div>
             </div>

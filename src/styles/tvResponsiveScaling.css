@@ -1,47 +1,35 @@
 /**
  * TV Responsive Scaling (Aurora)
  *
- * Single scaling strategy for the TV body. The webOS/Tizen build pins the
- * layout viewport to width=1280 (see tv/patch-index.js), so the panel itself
- * scales 1280 → physical resolution (1.5× at 1080p, 2× at 4K). That means the
- * `.tvl-*` body — authored in px against the 1280 design width — already holds
- * its proportions at 720p / 1080p / 1440p / 4K with no per-element work.
+ * The webOS/Tizen build pins the layout viewport to width=1280 (see
+ * tv/patch-index.js), so the panel itself scales 1280 → physical resolution
+ * (1.5× at 1080p, 2× at 4K). The `.tvl-*` body — authored in px against the
+ * 1280 design width — therefore already holds its proportions at
+ * 720p / 1080p / 1440p / 4K with no per-element work, and no reactive scaling
+ * is needed.
  *
- * This sheet makes that explicit and adds one reactive lever: a root scale
- * derived from the *actual* CSS viewport width, clamped so it is a no-op at the
- * 1280 design width and only grows modestly if a panel reports a wider logical
- * viewport. Existing px values are left untouched (no double-scaling); new
- * spacing that wants to track the screen can read `--tvl-rem` / the scale var.
+ * All this sheet still carries is `--tv-scale-clamped` (pinned to 1), the
+ * `.tvl-screen` shell sizing, and the focus-ring width rule that multiplies by
+ * that var. The earlier `--tvl-rem` / `--tvl-safe-x` vars and the
+ * `body[data-tv]` font-size rule were removed: nothing in src/ consumed them,
+ * so they were a misleading dead abstraction implying a reactive rem system
+ * that never existed.
  *
  * Selectors target the real `.tvl-*` namespace used by every *.tv.jsx screen.
- * (The old `.tv-*` selectors here were dead — nothing in the app emits them.)
  *
  * var() is intentionally used: this is a TV-only sheet, and modern webOS/Tizen
  * Chromium supports custom properties. Shared legacy CSS still avoids var().
  */
 
 :root {
-  /* Design width matches the pinned TV viewport (tv/patch-index.js). */
-  --tvl-design-width: 1280;
-
-  /* Live scale from the CSS viewport. At the pinned 1280 viewport this is 1.0,
-     so the body renders exactly as authored; clamp keeps it from ever shrinking
-     the UI and caps growth on unusually wide logical viewports. */
-  --tv-scale: calc(100vw / 1280);
-  --tv-scale-clamped: clamp(1, var(--tv-scale), 1.35);
-
-  /* Base rem unit screens can scale against. 16px at the design width. */
-  --tvl-rem: calc(16px * var(--tv-scale-clamped));
-
-  /* Title-safe horizontal inset (~5% overscan margin), scaled. */
-  --tvl-safe-x: calc(64px * var(--tv-scale-clamped));
-}
-
-/* Drive the root font-size so any rem-based sizing tracks the scale. This is a
-   no-op for the existing px layout (which does not use rem) and a safe hook for
-   future rem sizing. */
-body[data-tv="true"] {
-  font-size: var(--tvl-rem);
+  /* The layout viewport is pinned to 1280 (tv/patch-index.js), so the logical
+     scale is always 1.0 — the browser upscales 1280 → physical resolution
+     itself. The previous reactive clamp() here was doubly broken: it mixed a
+     length (calc(100vw/1280)) into a numeric clamp() (invalid on every engine,
+     so --tv-scale-clamped fell back), and clamp() itself is Chromium 79, above
+     the ~38–53 TV floor. Pin it to a plain unitless 1 so the focus-ring math is
+     valid — and valid on the floor (calc × unitless is Chromium 26). */
+  --tv-scale-clamped: 1;
 }
 
 /* The screen shell fills the (already-scaled) viewport. Nav-hosted screens are

@@ -507,6 +507,8 @@ const ChannelCard = memo(function ChannelCard({ item, isFocused }) {
   return (
     <div
       className={isFocused ? "tvl-ch-card tvl-ch-card--on" : "tvl-ch-card"}
+      role="button"
+      aria-label={item.name}
     >
       <div className="tvl-ch-logo">
         {src && !err ? (
