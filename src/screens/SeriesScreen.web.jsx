@@ -147,7 +147,7 @@ function ShelfBase({
           >
             {title}
           </Text>
-          <Icon name="chevron-right" size={ss(18)} color={colors.accent} />
+          <Icon name="chevron-right" size={ss(18)} color={colors.muted} />
         </XStack>
         {totalCount != null && (
           <Text color={colors.muted} fontSize={ss(13)} fontWeight={fontWeights.medium}>

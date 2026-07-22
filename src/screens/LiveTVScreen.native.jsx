@@ -60,7 +60,7 @@ const ChannelCard = memo(({ item, epg, onPress, fetchEpg }) => {
           hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
           style={{ marginRight: 4 }}
           accessibilityRole="button"
-          accessibilityLabel={inFav ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+          accessibilityLabel={inFav ? `Remove ${item.name} from My List` : `Add ${item.name} to My List`}
           accessibilityState={{ selected: inFav }}
         >
           <Icon name="star" size={iconSizes.sm} color={inFav ? colors.accent : colors.faint} />

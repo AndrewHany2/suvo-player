@@ -763,7 +763,7 @@ export default function SeriesScreenTV({ navigation, route }) {
           mode="empty"
           icon="tv"
           title="No account"
-          message="Add your media service from Settings"
+          message="Add your media service in Accounts to start watching."
           cta={() => navigation.navigate("Accounts")}
           ctaLabel="Add Account"
         />
@@ -926,7 +926,7 @@ export default function SeriesScreenTV({ navigation, route }) {
                     <div className="tvl-ep-body">
                       <div className="tvl-ep-title">
                         {ep.title || `Episode ${ep.episode_num}`}
-                        {isWatched && <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}><Icon name="check" size={iconSizes.sm} color={colors.accent2} /></span>}
+                        {isWatched && <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}><Icon name="check" size={iconSizes.sm} color={colors.accentText} /></span>}
                       </div>
                       {ep.info?.plot && <div className="tvl-ep-plot">{ep.info.plot}</div>}
                       {ep.info?.duration && <div className="tvl-ep-dur">{ep.info.duration}</div>}

@@ -362,7 +362,7 @@ export default function LiveTVScreenTV({ navigation }) {
           mode="empty"
           icon="tv"
           title="No account"
-          message='Open "Accounts" to add your media service'
+          message="Add your media service in Accounts to start watching."
           cta={() => navigation.navigate("Accounts")}
           ctaLabel="Add Account"
         />

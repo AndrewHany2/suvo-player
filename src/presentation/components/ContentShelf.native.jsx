@@ -80,11 +80,11 @@ function ContentShelf({
           onPress={onTitlePress ? () => onTitlePress(id, title) : undefined}
           style={{ flexDirection: "row", alignItems: "center", gap: ss(4) }}
         >
-          {leadingIcon && <Icon name={leadingIcon} size={ss(18)} color={colors.accent2} />}
+          {leadingIcon && <Icon name={leadingIcon} size={ss(18)} color={colors.muted} />}
           <Text style={{ color: colors.text, fontFamily: fonts.display, fontSize: ss(20), fontWeight: fontWeights.bold, letterSpacing: -0.3 }}>
             {title}
           </Text>
-          {onTitlePress && <Icon name="chevron-right" size={ss(18)} color={colors.accent2} />}
+          {onTitlePress && <Icon name="chevron-right" size={ss(18)} color={colors.muted} />}
         </Pressable>
         {count != null && <Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: ss(13), fontWeight: fontWeights.medium }}>{count}</Text>}
       </View>

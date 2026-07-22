@@ -1,23 +1,31 @@
 import { useState, useEffect, memo } from "react";
 import { Linking, View, SectionList, Platform } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ss } from "../utils/scaleSize";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, accentAlpha, fonts } from "../ui/tokens";
+import { colors, fonts } from "../ui/tokens";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
+import { LABELS } from "../ui/labels";
 import DownloadButton from "../downloads/DownloadButton.jsx";
 import { useDownloads } from "../downloads/useDownloads.jsx";
 import { makeId } from "../downloads/downloadStore.js";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
+// Midnight scrim matching SeriesDetail.web, so the detail hero reads with the
+// same Aurora tone across web and native rather than a colder flat-black wash.
 const GradientOverlay = memo(() => (
-  <View style={FILL} pointerEvents="none">
-    <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, top: "45%", backgroundColor: "rgba(0,0,0,0.82)" }} />
-  </View>
+  <LinearGradient
+    style={FILL}
+    pointerEvents="none"
+    colors={["rgba(10,14,26,0.15)", "rgba(10,14,26,0.6)", "#0A0E1A"]}
+    locations={[0, 0.45, 1]}
+  />
 ));
 
 import { getTrailerWatchUrl as getTrailerUrl } from "../utils/youtubeTrailer";
@@ -170,7 +178,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
   // ── Hero / detail view ────────────────────────────────────────────────────
   return (
     <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
-      <YStack width="100%" height={420} position="relative">
+      <YStack width="100%" height={ss(420)} position="relative">
         {backdrop
           ? <Image source={backdrop} style={FILL} contentFit="cover" cachePolicy="memory-disk" transition={150} />
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
@@ -184,7 +192,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
         </YStack>
 
         <YStack position="absolute" bottom={0} left={16} right={16} zIndex={5} paddingBottom={24}>
-          <Text color={colors.text} fontFamily={fonts.display} fontSize={26} fontWeight="700" lineHeight={32} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{seriesName}</Text>
+          <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(26)} fontWeight="700" lineHeight={ss(32)} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{seriesName}</Text>
 
           {isLoading ? (
             <Spinner color={colors.accent} marginVertical={12} />
@@ -212,32 +220,19 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
             <Button variant={historyEntry ? "secondary" : "primary"} size="sm" icon="series" onPress={() => setShowEpisodes(true)} style={{ minHeight: 44 }}>Browse Episodes</Button>
             <XStack gap={8}>
               {!isLoading && !!trailer && (
-                <Button variant="secondary" size="sm" icon="film" onPress={() => Linking.openURL(trailer)} style={{ flex: 1, minHeight: 44 }}>Trailer</Button>
+                <Button variant="secondary" size="sm" icon="film" onPress={() => Linking.openURL(trailer)} style={{ flex: 1, minHeight: 44 }}>Watch Trailer</Button>
               )}
               {activeUserId ? (
-                <YStack
-                  flex={1}
-                  backgroundColor={inFav ? accentAlpha(0.15) : colors.surface2}
-                  minHeight={44}
-                  alignItems="center"
-                  justifyContent="center"
-                  borderRadius={8}
-                  borderWidth={1}
-                  borderColor={inFav ? colors.accent : colors.border}
-                  cursor="pointer"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={inFav ? "check" : "plus"}
                   onPress={toggleFav}
-                  pressStyle={{ opacity: 0.8 }}
-                  hoverStyle={{ borderColor: colors.accent }}
-                  animation="quick"
-                  role="button"
-                  aria-label={inFav ? "Remove from Favorites" : "Add to Favorites"}
-                  tabIndex={0}
+                  style={{ flex: 1, minHeight: 44, ...(inFav ? { borderColor: colors.accent } : null) }}
+                  accessibilityLabel={inFav ? LABELS.removeFromMyList : LABELS.addToMyList}
                 >
-                  <XStack alignItems="center" gap={7}>
-                    <Icon name={inFav ? "check" : "plus"} color={colors.text} size={15} />
-                    <Text color={colors.text} fontSize={13} fontWeight="600">{inFav ? "Saved" : "Favorites"}</Text>
-                  </XStack>
-                </YStack>
+                  {inFav ? LABELS.inMyList : LABELS.myList}
+                </Button>
               ) : null}
             </XStack>
           </YStack>

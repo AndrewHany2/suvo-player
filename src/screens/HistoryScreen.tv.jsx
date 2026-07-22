@@ -6,7 +6,9 @@ import PosterCardWeb from "../presentation/components/PosterCard.web";
 import ContinueCardTV from "../presentation/components/ContinueCard.tv";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import StatePanel from "../ui/StatePanel";
-import { colors } from "../ui/tokens";
+import { colors, fonts, fontWeights } from "../ui/tokens";
+import { ss } from "../utils/scaleSize";
+import { LABELS } from "../ui/labels";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
@@ -83,9 +85,12 @@ export default function HistoryScreenTV({ navigation }) {
   // Home reuses the shared virtualized shelf (VirtualShelvesTV) with the hero and
   // see-all disabled; it owns rail rendering, windowing and D-pad within the list.
   const shelves = [
-    { id: "favorites", name: "Favorites", items: favItems },
-    { id: "history", name: "Continue Watching", items: histItems },
+    { id: "favorites", name: LABELS.myList, items: favItems },
+    { id: "history", name: LABELS.continueWatching, items: histItems },
   ].filter((s) => s.items.length > 0);
+  // Cinematic entry point: feature the most recent Continue-Watching title (or,
+  // failing that, the first My-List title) — mirrors the web Home hero.
+  const featured = histItems[0] || favItems[0] || null;
   // When there are no shelves, VirtualShelvesTV isn't mounted, so the raw key
   // handler still owns up→navbar / Back in the empty state.
   const shelfCountRef = useRef(0);
@@ -491,10 +496,10 @@ export default function HistoryScreenTV({ navigation }) {
         <StatePanel
           mode="empty"
           icon="tv"
-          title="No account connected"
-          message="Connect an IPTV account to save favorites and watch history."
+          title={LABELS.noAccountTitle}
+          message={LABELS.noAccountBody}
           cta={() => navigation.navigate("Accounts")}
-          ctaLabel="Connect account"
+          ctaLabel={LABELS.noAccountCta}
         />
       </div>
     );
@@ -707,7 +712,7 @@ export default function HistoryScreenTV({ navigation }) {
                     <div className="tvl-ep-body">
                       <div className="tvl-ep-title">
                         {ep.title || `Episode ${ep.episode_num}`}
-                        {isWatched && <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}><Icon name="check" size={14} color={colors.accent2} /></span>}
+                        {isWatched && <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}><Icon name="check" size={14} color={colors.accentText} /></span>}
                       </div>
                       {ep.info?.plot && <div className="tvl-ep-plot">{ep.info.plot}</div>}
                       {ep.info?.duration && <div className="tvl-ep-dur">{ep.info.duration}</div>}
@@ -737,26 +742,93 @@ export default function HistoryScreenTV({ navigation }) {
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar">
-          <span className="tvl-topbar-title">My List &amp; History</span>
+          <span className="tvl-topbar-title">{LABELS.home}</span>
         </div>
         <StatePanel
           mode="empty"
           icon="film"
-          title="Nothing here yet"
-          message="Start watching something and it will appear here"
+          title={LABELS.emptyTitle}
+          message={LABELS.emptyBody}
+          cta={() => navigation.navigate("Movies")}
+          ctaLabel={LABELS.emptyCta}
         />
       </div>
     );
   }
 
+  // Cinematic Home hero — the interactive 10-foot twin of the web Home hero:
+  // featured backdrop + title + resume meta + a Resume/Play + Browse-library
+  // button pair. VirtualShelvesTV owns hero↔shelf D-pad focus and reports which
+  // button is focused; we render the billboard + buttons and it drives them.
+  const featuredResume = histItems.length > 0;
+  const heroBackdrop = featured ? (featured.cover || featured.movie_image || featured.stream_icon || null) : null;
+  const heroTitle = featured ? (featured.seriesName || featured.name || "") : "";
+  const heroEp = featured?.seasonNum && featured?.episodeNum
+    ? `S${featured.seasonNum} E${String(featured.episodeNum).padStart(2, "0")}` : null;
+  const heroLeft = featured && featured.duration > 0 && featured.currentTime > 0
+    ? (() => {
+        const l = featured.duration - featured.currentTime;
+        if (l <= 60) return null;
+        const h = Math.floor(l / 3600);
+        const m = Math.floor((l % 3600) / 60);
+        return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
+      })()
+    : null;
+  const heroMeta = [heroEp, heroLeft].filter(Boolean).join(" · ") || null;
+
+  const renderHomeHero = (item, { focusedButton }) => (
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", background: colors.bg }}>
+      {heroBackdrop && (
+        <img
+          src={heroBackdrop}
+          alt=""
+          decoding="async"
+          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.9 }}
+        />
+      )}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: `linear-gradient(to top, ${colors.bg} 4%, rgba(10,14,26,0.35) 42%, transparent 72%)` }} />
+      <div style={{ position: "absolute", left: ss(48), right: ss(48), bottom: ss(64), maxWidth: ss(900) }}>
+        <div style={{ display: "flex", alignItems: "center", gap: ss(8), marginBottom: ss(14) }}>
+          <Icon name="signal" size={ss(20)} color={colors.muted} />
+          <span style={{ color: colors.muted, fontFamily: fonts.display, fontWeight: fontWeights.medium, fontSize: ss(20), letterSpacing: 0.3 }}>
+            Synced across your devices
+          </span>
+        </div>
+        <div style={{ color: colors.textStrong, fontFamily: fonts.display, fontWeight: fontWeights.bold, fontSize: ss(64), lineHeight: 1.05, letterSpacing: -1 }}>
+          {heroTitle}
+        </div>
+        {heroMeta && (
+          <div style={{ color: colors.text, fontFamily: fonts.body, fontSize: ss(24), marginTop: ss(12) }}>{heroMeta}</div>
+        )}
+        <div style={{ display: "flex", gap: ss(16), marginTop: ss(28) }}>
+          <button
+            className={`tvl-det-hero-btn tvl-det-hero-btn--play ${focusedButton === "play" ? "tvl-det-hero-btn--on" : ""}`}
+            onClick={() => openItem(item)}
+          >
+            <Icon name="play" size={20} color="currentColor" />&nbsp;&nbsp;{featuredResume ? "Resume" : "Play"}
+          </button>
+          <button
+            className={`tvl-det-hero-btn ${focusedButton === "details" ? "tvl-det-hero-btn--on" : ""}`}
+            onClick={() => navigation.navigate("Movies")}
+          >
+            Browse library
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="tvl-screen">
       <div className="tvl-topbar">
-        <span className="tvl-topbar-title">My List &amp; History</span>
+        <span className="tvl-topbar-title">{LABELS.home}</span>
       </div>
       <VirtualShelvesTV
         shelves={shelves}
-        showHero={false}
+        featuredItem={featured}
+        renderHero={renderHomeHero}
+        onHeroPlay={(item) => openItem(item)}
+        onHeroDetails={() => navigation.navigate("Movies")}
         onSelect={openItem}
         onUpAtTop={focusNav}
         onBack={() => navigation.goBack?.()}

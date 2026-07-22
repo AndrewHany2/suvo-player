@@ -6,8 +6,10 @@ import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
 import HeroWeb from "../presentation/components/Hero.web";
+import { LABELS } from "../ui/labels";
 import { useApp } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
+import { useDeferredRemove } from "../hooks/useDeferredRemove";
 import { ss, useScale } from "../utils/scaleSize";
 import MovieDetail from "../components/MovieDetail.web";
 import SeriesDetail from "../components/SeriesDetail.web";
@@ -329,55 +331,17 @@ export default function HistoryScreen({ navigation }) {
   const cw$ = useDragScroll();
   const [currentDetail, setCurrentDetail] = useState(null);
 
-  // Deferred, undoable removal. A remove doesn't hit the store immediately —
-  // with cross-device sync a mis-tap would delete a resume position everywhere.
-  // Instead we optimistically hide the item, surface a "Removed · Undo"
-  // snackbar, and only commit the store call once the snackbar times out (~5s).
-  // Undo cancels the pending commit and the item reappears untouched.
-  const [pending, setPending] = useState(null); // { kind: 'mylist'|'history', id, name }
-  const pendingRef = useRef(null);
-  const timerRef = useRef(null);
-  const clearTimer = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-  const commit = (p) => {
+  // Deferred, undoable removal (shared with native via useDeferredRemove): a
+  // remove doesn't hit the store immediately — with cross-device sync a mis-tap
+  // would delete a resume position everywhere. The item is optimistically
+  // hidden, a "Removed · Undo" snackbar shows, and the store call only commits
+  // once the timer elapses (~5s). Undo cancels it.
+  const commit = useCallback((p) => {
     if (!p) return;
     if (p.kind === "mylist") removeFromMyList(p.id);
     else removeFromWatchHistory(p.id);
-  };
-  // Keep the latest commit reachable from the unmount-only effect below without
-  // making that effect re-run every render.
-  const commitRef = useRef(commit);
-  commitRef.current = commit;
-  const requestRemove = (kind, item) => {
-    clearTimer();
-    // Never lose a still-pending removal if a second one starts — commit it now.
-    if (pendingRef.current) commit(pendingRef.current);
-    const next = { kind, id: item.id, name: item.name };
-    pendingRef.current = next;
-    setPending(next);
-    timerRef.current = setTimeout(() => {
-      commit(pendingRef.current);
-      pendingRef.current = null;
-      timerRef.current = null;
-      setPending(null);
-    }, 5000);
-  };
-  const undoRemove = () => {
-    clearTimer();
-    pendingRef.current = null;
-    setPending(null);
-  };
-  // On unmount, honor an in-flight removal (the user did press ×) rather than
-  // silently dropping it.
-  useEffect(() => () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    commitRef.current(pendingRef.current);
-    pendingRef.current = null;
-  }, []);
+  }, [removeFromMyList, removeFromWatchHistory]);
+  const { pending, requestRemove, undoRemove } = useDeferredRemove(commit);
 
   const openDetail = (item) => {
     if (item.type === "live") {
@@ -405,10 +369,10 @@ export default function HistoryScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="tv"
-        title="No account connected"
-        message="Connect an IPTV account to save favorites and watch history."
+        title={LABELS.noAccountTitle}
+        message={LABELS.noAccountBody}
         cta={() => navigation.navigate("Accounts")}
-        ctaLabel="Connect account"
+        ctaLabel={LABELS.noAccountCta}
       />
     );
   }
@@ -435,10 +399,10 @@ export default function HistoryScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="film"
-        title="Your Home is ready"
-        message="Play a movie, series, or channel and it appears here — and follows you to every device on your account. Browse Movies or Series to get started."
+        title={LABELS.emptyTitle}
+        message={LABELS.emptyBody}
         cta={() => navigation.navigate("Movies")}
-        ctaLabel="Browse Movies"
+        ctaLabel={LABELS.emptyCta}
       />
     );
   }
@@ -496,10 +460,9 @@ export default function HistoryScreen({ navigation }) {
       )}
       {visibleMyList.length > 0 && (
         <YStack paddingBottom={ss(48)}>
-          {/* Title carries the same see-all chevron as the catalog shelves so
-              Home reads with the same shelf grammar. Home already shows the full
-              My List here, so there's no separate see-all destination — the
-              chevron is a consistency affordance only (no navigation wired). */}
+          {/* Home shows the full My List inline here, so there's no see-all
+              destination — no chevron affordance to avoid implying navigation
+              that isn't wired. */}
           <div
             style={{
               display: "flex",
@@ -517,9 +480,8 @@ export default function HistoryScreen({ navigation }) {
               fontWeight={fontWeights.bold}
               letterSpacing={-0.5}
             >
-              My List
+              {LABELS.myList}
             </Text>
-            <Icon name="chevron-right" size={ss(20)} color={colors.muted} />
           </div>
           <div style={{ position: "relative" }} className="suvo-shelf-rail">
             <button
@@ -551,7 +513,7 @@ export default function HistoryScreen({ navigation }) {
                   key={item.id}
                   item={item}
                   onPress={() => openDetail(item)}
-                  onRemove={() => requestRemove("mylist", item)}
+                  onRemove={() => requestRemove({ kind: "mylist", id: item.id, name: item.name })}
                 />
               ))}
             </div>
@@ -568,7 +530,7 @@ export default function HistoryScreen({ navigation }) {
 
       {visibleHistory.length > 0 && (
         <YStack paddingBottom={ss(48)}>
-          {/* See-all chevron for shelf-grammar consistency (see My List note). */}
+          {/* Full list shown inline — no see-all chevron (see My List note). */}
           <div
             style={{
               display: "flex",
@@ -586,9 +548,8 @@ export default function HistoryScreen({ navigation }) {
               fontWeight={fontWeights.bold}
               letterSpacing={-0.5}
             >
-              Continue Watching
+              {LABELS.continueWatching}
             </Text>
-            <Icon name="chevron-right" size={ss(20)} color={colors.muted} />
           </div>
           <div style={{ position: "relative" }} className="suvo-shelf-rail">
             <button
@@ -620,7 +581,7 @@ export default function HistoryScreen({ navigation }) {
                   key={item.id}
                   item={item}
                   onPress={() => openDetail(item)}
-                  onRemove={() => requestRemove("history", item)}
+                  onRemove={() => requestRemove({ kind: "history", id: item.id, name: item.name })}
                 />
               ))}
             </div>

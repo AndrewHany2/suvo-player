@@ -148,7 +148,7 @@ export default function AuthScreen() {
             backgroundColor={isTV() ? colors.surface : accentAlpha(0.18)}
             marginBottom={ss(12)}
           >
-            <Icon name="tv" size={ss(iconSizes.lg)} color={colors.accent2} />
+            <Icon name="tv" size={ss(iconSizes.lg)} color={colors.accent} />
           </YStack>
           <Text
             fontSize={ss(26)}

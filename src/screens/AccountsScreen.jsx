@@ -260,7 +260,7 @@ export default function AccountsScreen({ navigation }) {
       {authUser && (
         <XStack alignItems="center" backgroundColor={colors.surface2} marginHorizontal={ss(16)} marginTop={ss(16)} marginBottom={ss(4)} borderRadius={radii.md} padding={ss(14)} borderWidth={1} borderColor={colors.border}>
           <XStack flex={1} alignItems="center" gap={ss(10)}>
-            <Icon name="settings" size={ss(24)} color={colors.accent2} />
+            <Icon name="settings" size={ss(24)} color={colors.muted} />
             <YStack>
               <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(14)} fontWeight={fontWeights.medium}>{profile?.name ?? authUser.email}</Text>
               <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(12)} marginTop={ss(1)}>{authUser.email}</Text>

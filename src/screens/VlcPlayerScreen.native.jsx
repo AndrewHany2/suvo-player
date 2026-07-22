@@ -595,7 +595,12 @@ export default function VlcPlayerScreen({ navigation }) {
 
       {showControls && (
         <YStack position="absolute" bottom={0} left={0} right={0} paddingBottom={insets.bottom + 12} backgroundColor="rgba(0,0,0,0.7)" zIndex={30}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+          {/* Secondary control row — wraps so every control stays visible without
+              horizontal scrolling. Everyday controls (play/pause, speed, audio,
+              subtitles, aspect, fullscreen) lead; the rarer sleep timer trails
+              with the subtler ghost treatment. Active toggles use the indigo
+              primary fill. */}
+          <XStack flexWrap="wrap" justifyContent="center" alignItems="center" gap={8} paddingHorizontal={12} paddingVertical={8}>
             <Button variant="secondary" size="sm" icon={paused ? "play" : "pause"} onPress={() => setPaused((p) => !p)} accessibilityLabel={paused ? "Play" : "Pause"} />
             <Button variant="secondary" size="sm" icon="speed" onPress={() => { setShowSpeedMenu(true); setShowAudioMenu(false); setShowTextMenu(false); setShowSleepMenu(false); }} accessibilityLabel="Playback speed">{`${speed}x`}</Button>
             {audioTracks.length > 1 && (
@@ -606,8 +611,8 @@ export default function VlcPlayerScreen({ navigation }) {
             )}
             <Button variant="secondary" size="sm" icon="aspect" onPress={cycleResizeMode} accessibilityLabel="Aspect ratio" />
             <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" icon="fullscreen" onPress={toggleFullscreen} accessibilityLabel="Toggle fullscreen" />
-            <Button variant={sleep.active ? "primary" : "secondary"} size="sm" icon="timer" onPress={() => { setShowSleepMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); setShowTextMenu(false); }} accessibilityLabel="Sleep timer">{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
-          </ScrollView>
+            <Button variant={sleep.active ? "primary" : "ghost"} size="sm" icon="timer" onPress={() => { setShowSleepMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); setShowTextMenu(false); }} accessibilityLabel="Sleep timer">{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
+          </XStack>
 
           {progress.durationSec > 0 && (
             <YStack paddingHorizontal={16} paddingTop={4}>

@@ -8,6 +8,20 @@ import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
 import { ss } from "../utils/scaleSize";
 
 import { isTV } from "../utils/isTV";
+import appConfig from "../../app.json";
+
+// Player keyboard shortcuts, mirrored from VideoPlayerScreen.web.jsx so the app's
+// existing bindings are discoverable. Keep in sync if those bindings change.
+const SHORTCUTS = [
+  { keys: ["Space", "K"], label: "Play or pause" },
+  { keys: ["F"], label: "Toggle fullscreen" },
+  { keys: ["←", "→"], label: "Seek 10 seconds" },
+  { keys: ["↑", "↓"], label: "Volume — or change channel on live TV" },
+  { keys: ["[", "]"], label: "Slower or faster playback" },
+  { keys: ["P"], label: "Picture-in-picture" },
+  { keys: ["I"], label: "Show playback stats" },
+  { keys: ["Esc"], label: "Exit the player" },
+];
 
 const ASPECT_OPTIONS = [
   { value: "default", label: "Default" },
@@ -123,6 +137,55 @@ function ChipRow({ label, options, value, onChange, focusedValue = null }) {
   );
 }
 
+function Kbd({ children }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: ss(24),
+        paddingLeft: ss(7),
+        paddingRight: ss(7),
+        paddingTop: ss(3),
+        paddingBottom: ss(3),
+        borderRadius: radii.sm,
+        border: `1px solid ${colors.border}`,
+        backgroundColor: accentAlpha(0.06),
+        color: colors.text,
+        fontFamily: fonts.body,
+        fontSize: ss(12),
+        fontWeight: fontWeights.medium,
+        lineHeight: 1,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function ShortcutRow({ keys, label }) {
+  return (
+    <XStack
+      justifyContent="space-between"
+      alignItems="center"
+      gap={ss(12)}
+      paddingVertical={ss(12)}
+      borderBottomWidth={1}
+      borderBottomColor={colors.border}
+    >
+      <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(14)} flex={1}>
+        {label}
+      </Text>
+      <XStack gap={ss(6)} alignItems="center" flexShrink={0}>
+        {keys.map((k) => (
+          <Kbd key={k}>{k}</Kbd>
+        ))}
+      </XStack>
+    </XStack>
+  );
+}
+
 export default function SettingsScreen({ onClose }) {
   const { settings, update } = useSettings();
   const tv = isTV();
@@ -186,6 +249,39 @@ export default function SettingsScreen({ onClose }) {
           onChange={(v) => update({ defaultAspect: v })}
           focusedValue={tv && focusIdx >= 1 ? ASPECT_OPTIONS[focusIdx - 1].value : null}
         />
+      </YStack>
+
+      {!tv && (
+        <YStack marginBottom={ss(32)}>
+          <SectionTitle>Keyboard shortcuts</SectionTitle>
+          {SHORTCUTS.map((s) => (
+            <ShortcutRow key={s.label} keys={s.keys} label={s.label} />
+          ))}
+        </YStack>
+      )}
+
+      <YStack>
+        <SectionTitle>About</SectionTitle>
+        <XStack justifyContent="space-between" alignItems="center" paddingVertical={ss(14)}>
+          <YStack gap={ss(4)}>
+            <Text
+              color={colors.text}
+              fontFamily={fonts.display}
+              fontWeight={fontWeights.bold}
+              fontSize={ss(16)}
+            >
+              Suvo
+            </Text>
+            <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(13)}>
+              Your library, calm and in one place.
+            </Text>
+          </YStack>
+          {appConfig?.expo?.version ? (
+            <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(13)}>
+              Version {appConfig.expo.version}
+            </Text>
+          ) : null}
+        </XStack>
       </YStack>
     </YStack>
   );

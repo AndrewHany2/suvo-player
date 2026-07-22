@@ -222,6 +222,33 @@ function TvShape({ size, color }) {
   );
 }
 
+// House: a filled roof triangle over an open-top outlined body — the Home tab
+// glyph. Mirrors the web `home` path (roof peak + body rect).
+function HomeShape({ size, color }) {
+  const t = Math.max(2, Math.round(size / 11));
+  const roofBase = size * 0.82;
+  const roofH = size * 0.34;
+  const bodyW = size * 0.58;
+  const bodyH = size * 0.36;
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View
+        style={{
+          width: 0,
+          height: 0,
+          borderLeftWidth: roofBase / 2,
+          borderRightWidth: roofBase / 2,
+          borderBottomWidth: roofH,
+          borderLeftColor: "transparent",
+          borderRightColor: "transparent",
+          borderBottomColor: color,
+        }}
+      />
+      <View style={{ width: bodyW, height: bodyH, borderWidth: t, borderTopWidth: 0, borderColor: color, marginTop: -t }} />
+    </View>
+  );
+}
+
 // A vertical column of 3 sprocket holes — the film strip's defining feature.
 function HoleColumn({ hole, color }) {
   return (
@@ -532,6 +559,8 @@ function Icon({ name, size = 20, color = colors.text, ...rest }) {
       return <View {...rest}><Warning size={size} color={color} /></View>;
     case "user":
       return <View {...rest}><UserShape size={size} color={color} /></View>;
+    case "home":
+      return <View {...rest}><HomeShape size={size} color={color} /></View>;
     case "tv":
       return <View {...rest}><TvShape size={size} color={color} /></View>;
     case "film":

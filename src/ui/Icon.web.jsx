@@ -30,6 +30,13 @@ const PATHS = {
   back: <path d="M19 12H5M12 19l-7-7 7-7" />,
   // Chevron pointing right.
   "chevron-right": <path d="M9 6l6 6-6 6" />,
+  // House: roof peak + body — the Home tab glyph.
+  home: (
+    <>
+      <path d="M4 11 12 4l8 7" />
+      <path d="M6 10v9h12v-9" />
+    </>
+  ),
   // Five-point star (filled with currentColor so ratings read as a solid glyph).
   star: (
     <path

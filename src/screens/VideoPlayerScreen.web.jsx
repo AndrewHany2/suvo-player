@@ -14,6 +14,7 @@ import { formatDuration as fmtTime } from "../utils/formatDuration";
 import {
   colors,
   accentAlpha,
+  accent2Alpha,
   radii,
   fonts,
 } from "../ui/tokens";
@@ -152,14 +153,36 @@ const S = {
     color: colors.text,
     cursor: "pointer",
   },
+  // Hit area: a taller transparent wrapper so the pointer target isn't the 6px
+  // visual strip. Centers the slim rail; `touchAction: none` lets a touch drag
+  // scrub instead of scrolling the page.
   seekTrack: {
     position: "relative",
     flex: 1,
+    height: 20,
+    display: "flex",
+    alignItems: "center",
+    cursor: "pointer",
+    touchAction: "none",
+  },
+  // The slim visual track (stays 6px) rendered inside the hit area.
+  seekRail: {
+    position: "relative",
+    width: "100%",
     height: 6,
     borderRadius: 3,
     background: "rgba(255,255,255,0.25)",
-    cursor: "pointer",
   },
+  // Buffered-range shading behind the played fill (neutral white wash).
+  seekBuffered: (pct) => ({
+    position: "absolute",
+    left: 0,
+    top: 0,
+    height: "100%",
+    width: `${pct}%`,
+    borderRadius: 3,
+    background: "rgba(255,255,255,0.35)",
+  }),
   seekFill: (pct) => ({
     position: "absolute",
     left: 0,
@@ -168,6 +191,22 @@ const S = {
     width: `${pct}%`,
     borderRadius: 3,
     background: colors.accent,
+  }),
+  // Visible playhead handle at the fill end. Text/indigo at rest; the cyan
+  // focus/hover accent is layered via the `.suvo-seek` CSS rules (Single-Light).
+  // No transition on `left`, so there's no animated thumb to suppress under
+  // prefers-reduced-motion.
+  seekHandle: (pct) => ({
+    position: "absolute",
+    left: `${pct}%`,
+    top: "50%",
+    transform: "translate(-50%, -50%)",
+    width: 13,
+    height: 13,
+    borderRadius: "50%",
+    background: colors.text,
+    border: `2px solid ${colors.accent}`,
+    pointerEvents: "none",
   }),
   timeText: {
     color: colors.text,
@@ -386,6 +425,50 @@ export default function VideoPlayerScreen() {
   // Focusable seek bar (role=slider). The global arrow-key handler defers to the
   // bar's own onKeyDown while it's focused so a keyboard seek fires exactly once.
   const seekBarRef = useRef(null);
+  // Pointer drag-to-scrub state. `scrubPct` is non-null only during a drag; it
+  // overrides the played fill / handle position / aria-valuenow so the thumb
+  // tracks the pointer, and the actual seek is committed on pointerup. Pointer
+  // capture keeps move/up events flowing even when the pointer leaves the bar.
+  const [scrubPct, setScrubPct] = useState(null);
+  const scrubbingRef = useRef(false);
+  // Buffered-range width (0-100), shaded behind the fill. Read from the <video>
+  // element's own buffered TimeRanges when available; stays 0 otherwise.
+  const [bufferedPct, setBufferedPct] = useState(0);
+
+  // Map a pointer clientX to a 0-1 position along the seek bar's own rect (same
+  // horizontal extent as the visual rail, so the math matches click-to-jump).
+  const ratioFromClientX = useCallback((clientX) => {
+    const el = seekBarRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    if (!(rect.width > 0)) return 0;
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }, []);
+
+  const handleScrubDown = useCallback((e) => {
+    if (e.button != null && e.button !== 0) return; // primary button only
+    scrubbingRef.current = true;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setScrubPct(ratioFromClientX(e.clientX) * 100);
+  }, [ratioFromClientX]);
+
+  const handleScrubMove = useCallback((e) => {
+    if (!scrubbingRef.current) return;
+    setScrubPct(ratioFromClientX(e.clientX) * 100);
+  }, [ratioFromClientX]);
+
+  const handleScrubUp = useCallback((e) => {
+    if (!scrubbingRef.current) return;
+    scrubbingRef.current = false;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    seekWebToClientX(e.clientX, seekBarRef.current);
+    setScrubPct(null);
+  }, [seekWebToClientX]);
+
+  const handleScrubCancel = useCallback(() => {
+    scrubbingRef.current = false;
+    setScrubPct(null);
+  }, []);
 
   const toggleFullscreenWeb = useCallback(() => {
     if (typeof document === "undefined") return;
@@ -403,6 +486,27 @@ export default function VideoPlayerScreen() {
     document.addEventListener("fullscreenchange", onFs);
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
+
+  // Track the buffered range from the element itself (readily available on the
+  // media element). Updated on progress/timeupdate; falls back to 0 shading when
+  // no buffered TimeRanges exist rather than fabricating a value.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return undefined;
+    const update = () => {
+      const d = v.duration;
+      const b = v.buffered;
+      if (!(d > 0) || !b || !b.length) { setBufferedPct(0); return; }
+      setBufferedPct(Math.min((b.end(b.length - 1) / d) * 100, 100));
+    };
+    v.addEventListener("progress", update);
+    v.addEventListener("timeupdate", update);
+    update();
+    return () => {
+      v.removeEventListener("progress", update);
+      v.removeEventListener("timeupdate", update);
+    };
+  }, [videoRef, currentVideo?.url]);
 
   // Reveal the control cluster and (re)start the idle-hide countdown. Stays put
   // while a menu is open or the video is paused (checked via refs so the timer
@@ -689,9 +793,7 @@ export default function VideoPlayerScreen() {
           crossOrigin="anonymous"
           onClick={togglePlayWeb}
           style={{ ...getVideoStyle, cursor: webControlsVisible ? "pointer" : "none" }}
-        >
-          <track kind="captions" />
-        </video>
+        />
         {frozenFrame}
         {showStats && <StatsOverlay stats={stats} />}
         {/* Resume prompt (VOD, web). Held until the user chooses. */}
@@ -932,31 +1034,48 @@ export default function VideoPlayerScreen() {
             <IconButton style={S.playBtn} onPress={togglePlayWeb} title="Play / Pause (Space)" aria-label={tvPaused ? "Play" : "Pause"}>
               <Icon name={tvPaused ? "play" : "pause"} size={20} color="currentColor" />
             </IconButton>
-            <div
-              ref={seekBarRef}
-              style={S.seekTrack}
-              role="slider"
-              tabIndex={0}
-              aria-label="Seek"
-              aria-valuemin={0}
-              aria-valuemax={Math.round(tvDuration)}
-              aria-valuenow={Math.round(tvCurrentTime)}
-              aria-valuetext={`${fmtTime(tvCurrentTime)} of ${fmtTime(tvDuration)}`}
-              onClick={(e) => seekWebToClientX(e.clientX, e.currentTarget)}
-              onKeyDown={(e) => {
-                const v = videoRef.current;
-                if (!v) return;
-                if (e.key === "ArrowLeft") {
-                  e.preventDefault();
-                  v.currentTime -= 10;
-                } else if (e.key === "ArrowRight") {
-                  e.preventDefault();
-                  v.currentTime += 10;
-                }
-              }}
-            >
-              <div style={S.seekFill(pct)} />
-            </div>
+            {(() => {
+              // During a drag the thumb/fill follow the pointer (scrubPct);
+              // otherwise they follow playback (pct).
+              const displayPct = scrubPct != null ? scrubPct : pct;
+              const nowTime = scrubPct != null ? (scrubPct / 100) * tvDuration : tvCurrentTime;
+              return (
+                <div
+                  ref={seekBarRef}
+                  className="suvo-seek"
+                  style={S.seekTrack}
+                  role="slider"
+                  tabIndex={0}
+                  aria-label="Seek"
+                  aria-valuemin={0}
+                  aria-valuemax={Math.round(tvDuration)}
+                  aria-valuenow={Math.round(nowTime)}
+                  aria-valuetext={`${fmtTime(nowTime)} of ${fmtTime(tvDuration)}`}
+                  onClick={(e) => seekWebToClientX(e.clientX, e.currentTarget)}
+                  onPointerDown={handleScrubDown}
+                  onPointerMove={handleScrubMove}
+                  onPointerUp={handleScrubUp}
+                  onPointerCancel={handleScrubCancel}
+                  onKeyDown={(e) => {
+                    const v = videoRef.current;
+                    if (!v) return;
+                    if (e.key === "ArrowLeft") {
+                      e.preventDefault();
+                      v.currentTime -= 10;
+                    } else if (e.key === "ArrowRight") {
+                      e.preventDefault();
+                      v.currentTime += 10;
+                    }
+                  }}
+                >
+                  <div style={S.seekRail}>
+                    {bufferedPct > 0 && <div style={S.seekBuffered(bufferedPct)} />}
+                    <div style={S.seekFill(displayPct)} />
+                    <div className="suvo-seek-handle" style={S.seekHandle(displayPct)} />
+                  </div>
+                </div>
+              );
+            })()}
             <span style={S.timeText}>{fmtTime(tvCurrentTime)} / {fmtTime(tvDuration)}</span>
             <IconButton style={S.playBtn} onPress={toggleMuteWeb} title="Mute" aria-label="Mute">
               <Icon name={muted || volume === 0 ? "mute" : "audio"} size={18} color="currentColor" />
@@ -989,7 +1108,10 @@ export default function VideoPlayerScreen() {
         {isLive ? "↑↓: Channel" : "↑↓: Volume"} · [ ]: Speed · P: PiP · I: Stats ·
         Esc: Close
       </div>
-      <style>{`@keyframes spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }`}</style>
+      <style>{`@keyframes spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }
+        .suvo-seek:focus { outline: none; }
+        .suvo-seek:hover .suvo-seek-handle,
+        .suvo-seek:focus-visible .suvo-seek-handle { background: ${colors.accent2}; border-color: ${colors.accent2}; box-shadow: 0 0 0 4px ${accent2Alpha(0.35)}; }`}</style>
     </div>
   );
 }

@@ -4,6 +4,12 @@ import { Platform } from "react-native";
 // Check if we're on a web platform (includes TV platforms like WebOS)
 const isWeb = Platform.OS === "web";
 
+// Initial D-pad focus index. Web/TV starts at 0 so the first cell is focused on
+// mount (unchanged). Native touch (iOS/Android) starts at -1 so nothing is
+// focused at rest — the hook attaches no key listeners there, so a resting 0/0
+// would otherwise paint a permanent focus ring on the first card.
+const INITIAL_FOCUS = isWeb ? 0 : -1;
+
 /**
  * 2D remote-control navigation for LG TV (WebOS).
  *
@@ -21,15 +27,15 @@ const isWeb = Platform.OS === "web";
  * @returns {{ focusedRow: number, focusedCol: number }}
  */
 export function useTVNavigation({ rows, active = true }) {
-  const [focusedRow, setFocusedRow] = useState(0);
-  const [focusedCol, setFocusedCol] = useState(0);
-  const ref = useRef({ row: 0, col: 0 });
+  const [focusedRow, setFocusedRow] = useState(INITIAL_FOCUS);
+  const [focusedCol, setFocusedCol] = useState(INITIAL_FOCUS);
+  const ref = useRef({ row: INITIAL_FOCUS, col: INITIAL_FOCUS });
   const navHasFocusRef = useRef(false);
 
   useEffect(() => {
-    ref.current = { row: 0, col: 0 };
-    setFocusedRow(0);
-    setFocusedCol(0);
+    ref.current = { row: INITIAL_FOCUS, col: INITIAL_FOCUS };
+    setFocusedRow(INITIAL_FOCUS);
+    setFocusedCol(INITIAL_FOCUS);
   }, [active]);
 
   // Pause when navbar claims focus; resume when navbar returns it

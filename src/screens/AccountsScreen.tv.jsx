@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
-import { colors, iconSizes } from "../ui/tokens";
+import { colors, iconSizes, fonts } from "../ui/tokens";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
@@ -24,13 +24,13 @@ const inputFieldsFor = (type) =>
   type === "m3u"
     ? [
         { key: "nickname", label: "Nickname (optional)", placeholder: "My playlist", type: "text" },
-        { key: "url", label: "Playlist URL *", placeholder: "http://host/get.php?…  or  .m3u / .m3u8", type: "text", autoCapitalize: "none", autoCorrect: "off" },
+        { key: "url", label: "Playlist URL *", placeholder: "http://host/get.php?…  or  .m3u / .m3u8", type: "text", autoCapitalize: "none", autoCorrect: "off", hint: "From your provider's welcome email." },
       ]
     : [
         { key: "nickname", label: "Nickname (optional)", placeholder: "My account", type: "text" },
-        { key: "host", label: "Host *", placeholder: "server.example.com:8080", type: "text", autoCapitalize: "none", autoCorrect: "off" },
-        { key: "username", label: "Username *", placeholder: "username", type: "text", autoCapitalize: "none", autoCorrect: "off" },
-        { key: "password", label: "Password *", placeholder: "password", type: "password" },
+        { key: "host", label: "Host *", placeholder: "server.example.com:8080", type: "text", autoCapitalize: "none", autoCorrect: "off", hint: "From your provider's welcome email." },
+        { key: "username", label: "Username *", placeholder: "username", type: "text", autoCapitalize: "none", autoCorrect: "off", hint: "The username your provider gave you." },
+        { key: "password", label: "Password *", placeholder: "password", type: "password", hint: "The password your provider gave you." },
       ];
 const TOGGLE_IDX = 0;
 
@@ -42,7 +42,7 @@ export default function AccountsScreenTV({ navigation }) {
   // Column within a focused account row: 0=connect (whole row), 1=Edit, 2=Delete.
   const [col,          setCol]          = useState(0);
   const [fieldFocus,   setFieldFocus]   = useState(0);
-  const [confirmFocus, setConfirmFocus] = useState(1); // 0=cancel 1=delete
+  const [confirmFocus, setConfirmFocus] = useState(0); // 0=cancel 1=delete — default to Cancel (safe: OK won't delete)
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
   const [editId,       setEditId]       = useState(null);
@@ -68,7 +68,7 @@ export default function AccountsScreenTV({ navigation }) {
   const colRef        = useRef(0);
   const setColF       = (c) => { colRef.current = c; setCol(c); };
   const fieldFocRef   = useRef(0);
-  const confirmFocRef = useRef(1);
+  const confirmFocRef = useRef(0);
   const viewRef       = useRef("list");
   const rowsRef       = useRef([]);
   const elRef         = useRef(null);
@@ -237,7 +237,7 @@ export default function AccountsScreenTV({ navigation }) {
   // Reset focused field index when switching views
   useEffect(() => {
     if (view === "form")    { fieldFocRef.current = 1; setFieldFocus(1); } // start on Host
-    if (view === "confirm") { confirmFocRef.current = 1; setConfirmFocus(1); }
+    if (view === "confirm") { confirmFocRef.current = 0; setConfirmFocus(0); }
     if (view === "list")    setColF(0); // land on the connect column
   }, [view]);
 
@@ -391,6 +391,9 @@ export default function AccountsScreenTV({ navigation }) {
                     </button>
                   )}
                 </div>
+                {f.hint && (
+                  <span style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 13 }}>{f.hint}</span>
+                )}
               </div>
             );
           })}
@@ -479,6 +482,10 @@ export default function AccountsScreenTV({ navigation }) {
               </button>
             );
           })()}
+
+          <div style={{ padding: "8px 4px 4px", color: colors.muted, fontFamily: fonts.body, fontSize: 14 }}>
+            Need help connecting? Visit suvo.app/help
+          </div>
         </div>
       </div>
     </div>

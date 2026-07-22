@@ -53,7 +53,9 @@
   gap: 4px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--a-cyan);
+  /* Resting selected-state → indigo, not cyan (cyan is focus-only).
+     Literal-Hex Sync: accentText #A99BF5. */
+  color: #A99BF5;
   margin-top: 3px;
 }
 

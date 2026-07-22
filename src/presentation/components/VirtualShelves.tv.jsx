@@ -132,11 +132,16 @@ export function VirtualShelvesTV({
   // means focus is in the rails (handled by `focus`/`move`). Prop-gated: Home
   // passes neither renderHero-interactivity nor discoverItems, so both zones are
   // disabled and Up-at-top yields to the navbar exactly as before.
-  const [topFocus, setTopFocus] = useState({
-    zone: "shelves",
+  const [topFocus, setTopFocus] = useState(() => ({
+    // Start on the hero's primary button when an interactive hero is present, so
+    // the visible billboard IS the focused target on first paint. Otherwise the
+    // focus ring lands on the first shelf poster below a full-height hero and the
+    // viewer sees no cursor (and Enter fires the wrong item). Home is the only
+    // interactive-hero caller; Movies/Series pass showHero={false} → "shelves".
+    zone: showHero && !!renderHero && (!!onHeroPlay || !!onHeroDetails) ? "hero" : "shelves",
     heroBtn: 0,
     pillCol: 0,
-  });
+  }));
   // True while the top navbar holds the remote (it dispatches tv-nav-focus /
   // tv-nav-blur). Key SUPPRESSION while the navbar has focus is handled by
   // useTVInput's yieldToNav (its flag now survives this component's frequent
@@ -656,11 +661,16 @@ export function VirtualShelvesTV({
                 }}
               >
                 <span>{shelf.name}</span>
-                <Icon
-                  name="chevron-right"
-                  size={ss(22)}
-                  color={colors.accent2}
-                />
+                {/* The chevron means "see all →"; only show it when there IS a
+                    see-all destination. Home shelves pass no onSeeAll, so the
+                    header stays a plain title instead of a dead affordance. */}
+                {onSeeAll && (
+                  <Icon
+                    name="chevron-right"
+                    size={ss(22)}
+                    color={colors.accent2}
+                  />
+                )}
                 {full.length > 0 && (
                   <span
                     style={{

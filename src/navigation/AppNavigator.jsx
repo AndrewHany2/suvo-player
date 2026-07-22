@@ -6,7 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import { ActivityIndicator } from "react-native";
 import { YStack, XStack, Text } from "../ui/primitives";
 import Icon from "../ui/Icon";
-import { colors, accentAlpha } from "../ui/tokens";
+import { colors, accentAlpha, fonts } from "../ui/tokens";
 import { useApp } from "../context/AppContext";
 import { useAppGate } from "./useAppGate";
 import contentService from "../domain/services/ContentService";
@@ -90,13 +90,21 @@ function MainTabs() {
       headerShadowVisible: false,
       headerTintColor: colors.text,
       headerTitleAlign: "left",
-      headerTitleStyle: { fontWeight: "700", fontSize: 22, letterSpacing: -0.4 },
+      // Aurora fonts on the nav chrome too — otherwise the header/tab labels
+      // silently fall back to San Francisco/Roboto, the one place native breaks
+      // the single-design-language rule.
+      headerTitleStyle: { fontFamily: fonts.display, fontWeight: "700", fontSize: 22, letterSpacing: -0.4 },
+      tabBarLabelStyle: { fontFamily: fonts.body },
       headerRight: () => <HeaderRight />,
     }}>
+      {/* Home leads (the History screen renders the Home hero + My List +
+          Continue Watching), matching the web/TV top-nav order Home → Live →
+          Movies → Series. Route name stays "History" so existing navigation
+          targets keep working; only the visible tab label is "Home". */}
+      <Tab.Screen name="History" component={HistoryScreen} options={{ title: "Home", tabBarIcon: ({ color }) => <Icon name="home" size={20} color={color} /> }} />
       <Tab.Screen name="LiveTV"  component={LiveTVScreen}  options={{ title: "Live", tabBarIcon: ({ color }) => <Icon name="tv" size={20} color={color} /> }} />
       <Tab.Screen name="Movies"  component={MoviesScreen}  options={{ title: "Movies",  tabBarIcon: ({ color }) => <Icon name="film" size={20} color={color} /> }} />
       <Tab.Screen name="Series"  component={SeriesScreen}  options={{ title: "Series",  tabBarIcon: ({ color }) => <Icon name="series" size={20} color={color} /> }} />
-      <Tab.Screen name="History" component={HistoryScreen} options={{ title: "History", tabBarIcon: ({ color }) => <Icon name="history" size={20} color={color} /> }} />
     </Tab.Navigator>
   );
 }

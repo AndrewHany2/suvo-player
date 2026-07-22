@@ -6,6 +6,7 @@ import { ss } from "../../utils/scaleSize";
 import { isLowEndDevice } from "../../utils/deviceTier";
 import { useReducedMotion } from "../../hooks/useReducedMotion";
 import Icon from "../../ui/Icon";
+import { LABELS } from "../../ui/labels";
 
 // Device tier is frozen at first read, so resolve it once at module scope.
 // Low-end: no image crossfade, static (non-pulsing) placeholder, no HD badge.
@@ -21,7 +22,7 @@ const LOW_END = isLowEndDevice();
  * so it tracks the type/spacing ramp; all colours come from tokens. The film and
  * star glyphs are the shared Icon set, not emoji.
  */
-function PosterCardNative({ item, onPress, isFocused = false, width = 130 }) {
+function PosterCardNative({ item, onPress, onRemove, isFocused = false, width = 130 }) {
   // Movies/Live resolve stream_icon/cover first; series carry no stream_icon so
   // they fall through to cover, with backdrop_path as the cover-absent fallback.
   const poster = item.stream_icon || item.cover || item.movie_image || item.backdrop_path || null;
@@ -98,6 +99,22 @@ function PosterCardNative({ item, onPress, isFocused = false, width = 130 }) {
                   <Text style={styles.ratingText}>{ratingLabel}</Text>
                 </View>
               )}
+              {onRemove && (
+                // Visually a small scrim circle in the corner; the pressable
+                // spans a 44×44 hit area so the effective touch target clears
+                // the minimum and a mis-tap on the poster is hard.
+                <Pressable
+                  onPress={(e) => { e?.stopPropagation?.(); onRemove(); }}
+                  hitSlop={11}
+                  style={styles.removeHit}
+                  accessibilityRole="button"
+                  accessibilityLabel={LABELS.removeFromMyList}
+                >
+                  <View style={styles.removeCircle}>
+                    <Icon name="close" size={ss(11)} color={colors.text} />
+                  </View>
+                </Pressable>
+              )}
             </View>
             <Text numberOfLines={2} style={styles.title}>{item.name}</Text>
           </>
@@ -109,12 +126,26 @@ function PosterCardNative({ item, onPress, isFocused = false, width = 130 }) {
 
 const styles = StyleSheet.create({
   poster: {
-    borderRadius: radii.md,
+    borderRadius: radii.card,
     backgroundColor: colors.surface,
     overflow: "hidden",
     position: "relative",
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  removeHit: {
+    position: "absolute",
+    top: ss(8),
+    left: ss(8),
+    zIndex: 5,
+  },
+  removeCircle: {
+    width: ss(22),
+    height: ss(22),
+    borderRadius: ss(11),
+    backgroundColor: overlay,
+    alignItems: "center",
+    justifyContent: "center",
   },
   // Focus/press only: cyan ring + native glow shadow. Never shown at rest.
   posterActive: {

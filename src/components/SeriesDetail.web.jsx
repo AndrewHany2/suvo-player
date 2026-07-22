@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View, SectionList } from "react-native";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, gradient } from "../ui/tokens";
+import { colors } from "../ui/tokens";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import { contentService } from "../domain/services/ContentService";
@@ -10,6 +10,7 @@ import { usePlatform } from "../platform";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
+import { LABELS } from "../ui/labels";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -445,7 +446,6 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
                 size={isTV ? "lg" : "md"}
                 icon="play"
                 onPress={handleContinue}
-                style={{ background: gradient.css }}
               >
                 {historyEntry.seasonNum
                   ? `Continue S${historyEntry.seasonNum}E${String(historyEntry.episodeNum).padStart(2, "0")}`
@@ -457,7 +457,6 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
               size={isTV ? "lg" : "md"}
               icon="series"
               onPress={() => setShowEpisodes(true)}
-              style={historyEntry ? undefined : { background: gradient.css }}
             >
               Browse Episodes
             </Button>
@@ -479,7 +478,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
                 onPress={toggleFav}
                 style={inFav ? { borderColor: colors.accent } : undefined}
               >
-                {inFav ? "In My List" : "My List"}
+                {inFav ? LABELS.inMyList : LABELS.myList}
               </Button>
             ) : null}
           </XStack>

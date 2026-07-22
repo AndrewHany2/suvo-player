@@ -110,6 +110,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   const [showSleepMenu, setShowSleepMenu] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPip, setIsPip] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   // VOD seek bar: live-polled position/duration/buffered, and the in-progress
   // scrub preview (null when not dragging). Track width is measured on layout.
@@ -745,6 +746,8 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
           nativeControls={false}
           fullscreenOptions={{ enable: true }}
           allowsPictureInPicture
+          onPictureInPictureStart={() => setIsPip(true)}
+          onPictureInPictureStop={() => setIsPip(false)}
         />
       </View>
 
@@ -875,8 +878,12 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       {/* Bottom control container — settings icon row + (VOD) seek bar */}
       {showControls && (
         <YStack position="absolute" bottom={0} left={0} right={0} paddingBottom={insets.bottom + 12} backgroundColor="rgba(0,0,0,0.7)" zIndex={20}>
-          {/* Settings icon row (horizontally scrollable so it never overflows). */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8 }}>
+          {/* Secondary control row — wraps so every control stays visible without
+              horizontal scrolling. Everyday controls (speed, audio, subtitles,
+              aspect, fullscreen) lead; rarer ones (tuning, stats, sleep, PiP)
+              trail with the subtler ghost treatment. Active toggles use the
+              indigo primary fill. */}
+          <XStack flexWrap="wrap" justifyContent="center" alignItems="center" gap={8} paddingHorizontal={12} paddingVertical={8}>
             {!isLive && (
               <Button variant="secondary" size="sm" icon="speed" onPress={() => { setShowSpeedMenu(true); setShowAudioMenu(false); setShowSubtitleMenu(false); }} accessibilityLabel="Playback speed">{`${speed}x`}</Button>
             )}
@@ -886,13 +893,13 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
             {subtitleTracks.length > 0 && (
               <Button variant="secondary" size="sm" icon="cc" onPress={() => { setShowSubtitleMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); }} accessibilityLabel="Subtitles" />
             )}
-            <Button variant="secondary" size="sm" icon="tune" onPress={() => setShowSubtitleSettings(true)} accessibilityLabel="Subtitle and audio settings" />
             <Button variant="secondary" size="sm" icon="aspect" onPress={cycleContentFit} accessibilityLabel="Aspect ratio" />
             <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" icon="fullscreen" onPress={toggleFullscreen} accessibilityLabel="Toggle fullscreen" />
-            <Button variant={showStats ? "primary" : "secondary"} size="sm" icon="info" onPress={() => setShowStats((s) => !s)} accessibilityLabel="Playback stats" />
-            <Button variant={sleep.active ? "primary" : "secondary"} size="sm" icon="timer" onPress={() => setShowSleepMenu(true)} accessibilityLabel="Sleep timer">{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
-            <Button variant="secondary" size="sm" icon="pip" onPress={handlePip} accessibilityLabel="Picture in picture" />
-          </ScrollView>
+            <Button variant="ghost" size="sm" icon="tune" onPress={() => setShowSubtitleSettings(true)} accessibilityLabel="Subtitle and audio settings" />
+            <Button variant={showStats ? "primary" : "ghost"} size="sm" icon="info" onPress={() => setShowStats((s) => !s)} accessibilityLabel="Playback stats" />
+            <Button variant={sleep.active ? "primary" : "ghost"} size="sm" icon="timer" onPress={() => setShowSleepMenu(true)} accessibilityLabel="Sleep timer">{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
+            <Button variant={isPip ? "primary" : "ghost"} size="sm" icon="pip" onPress={handlePip} accessibilityLabel="Picture in picture" />
+          </XStack>
 
           {/* Seek bar (VOD only) */}
           {!isLive && progress.duration > 0 && (() => {

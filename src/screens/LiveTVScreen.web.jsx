@@ -5,6 +5,7 @@ import { colors, fonts, fontWeights, iconSizes } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
+import { LABELS } from "../ui/labels";
 import { useApp } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
@@ -125,7 +126,7 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
             unchanged. */}
         <TouchableOpacity
           onPress={toggleFav}
-          aria-label={inFav ? "Remove from Favorites" : "Favorite"}
+          aria-label={inFav ? LABELS.removeFromMyList : LABELS.addToMyList}
           style={{
             width: ss(44),
             height: ss(44),
@@ -142,14 +143,17 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
             color={inFav ? colors.accent : colors.muted}
           />
         </TouchableOpacity>
-        <span className="suvo-live-dot">LIVE</span>
+        {/* Label color overridden to AA-safe textDim on the surface2 card; the
+            .suvo-live-dot CSS default (muted #7A86A8) fails AA at 10px. The
+            success-green LIVE dot (::before) is untouched. */}
+        <span className="suvo-live-dot" style={{ color: colors.textDim }}>LIVE</span>
       </XStack>
       {/* EPG "now playing" title, shown only when the provider returned real
           text. No program timing data exists, so we don't render a fake
           progress bar or a filler caption — an empty line is omitted entirely. */}
       {typeof epg === "string" && epg.trim() ? (
         <Text
-          color={colors.muted}
+          color={colors.textDim}
           fontSize={ss(13)}
           lineHeight={ss(18)}
           minHeight={ss(36)}
@@ -746,7 +750,7 @@ export default function LiveTVScreen({ navigation }) {
               borderColor={isTV && sheetFocus === 1 ? colors.accent2 : colors.border}
               marginBottom={ss(12)}
             />
-            <Text color={colors.muted} fontSize={ss(12)} marginBottom={ss(20)}>
+            <Text color={colors.textDim} fontSize={ss(12)} marginBottom={ss(20)}>
               Supported: HLS (.m3u8), DASH (.mpd), direct video
             </Text>
             {!!addError && (

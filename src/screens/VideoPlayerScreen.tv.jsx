@@ -8,7 +8,7 @@ import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import { formatDuration as fmtTime } from "../utils/formatDuration";
-import { colors, accentAlpha, radii, fonts } from "../ui/tokens";
+import { colors, accentAlpha, accent2Alpha, radii, fonts } from "../ui/tokens";
 
 // LG webOS remote key codes
 const TV_KEYS = {
@@ -130,7 +130,9 @@ const TV = {
   progressFill: (pct) => ({
     height: "100%",
     width: `${pct}%`,
-    background: colors.accent2,
+    // RESTING progress fill → indigo (matches card resume bars); cyan is
+    // focus-only. See Single-Light rule.
+    background: colors.accent,
     borderRadius: 7,
   }),
   seekHint: {
@@ -154,7 +156,7 @@ const TV = {
     minWidth: 56,
     padding: "0 16px",
     borderRadius: radii.sm,
-    background: focused ? accentAlpha(0.25) : "rgba(255,255,255,0.12)",
+    background: focused ? accent2Alpha(0.25) : "rgba(255,255,255,0.12)",
     border: focused ? `3px solid ${colors.accent2}` : "3px solid transparent",
     color: colors.text,
     fontSize: 20,
@@ -182,8 +184,9 @@ const TV = {
     borderRadius: radii.sm,
     fontSize: 20,
     fontWeight: active ? 700 : 500,
-    color: active ? colors.accent2 : colors.text,
-    background: highlighted ? accentAlpha(0.3) : "transparent",
+    // SELECTED item at rest → indigo text; highlighted (focused) row → cyan fill.
+    color: active ? colors.accentText : colors.text,
+    background: highlighted ? accent2Alpha(0.3) : "transparent",
   }),
   stateOverlay: {
     position: "absolute",
@@ -591,13 +594,13 @@ export default function VideoPlayerScreen() {
       <div style={TV.controls(tvControlsVisible)} onClick={showTvControls}>
         {/* Top bar */}
         <div style={TV.topBar}>
-          <button style={TV.closeBtn} tabIndex={-1} onClick={handleClose} aria-label="Close">
+          <button style={TV.closeBtn} tabIndex={-1} onClick={handleClose} aria-label="Close player">
             <Icon name="back" size={26} color={colors.text} />
           </button>
           <span style={TV.title}>
             {currentVideo.name}
             {isLive && nowNext.now && (
-              <span style={{ display: "block", fontSize: 18, fontWeight: 500, color: colors.accent2 }}>
+              <span style={{ display: "block", fontSize: 18, fontWeight: 500, color: colors.accentText }}>
                 {`NOW: ${nowNext.now.title}`}
                 {nowNext.next ? `  ·  NEXT: ${nowNext.next.title}` : ""}
               </span>
@@ -624,7 +627,7 @@ export default function VideoPlayerScreen() {
         {/* Center — play/pause icon (spinner is handled by the busy overlay) */}
         <div style={TV.center}>
           {isBusy ? null : (
-            <span style={TV.playIcon}>
+            <span style={TV.playIcon} role="img" aria-label={tvPaused ? "Paused" : "Playing"}>
               {tvPaused ? (
                 <Icon name="play" size={80} color="rgba(255,255,255,0.9)" />
               ) : (
@@ -646,16 +649,20 @@ export default function VideoPlayerScreen() {
               const menuOpen = tvNav.inMenu && tvNav.focus === idx;
               return (
                 <div key={item.key} style={{ position: "relative" }}>
-                  <div style={TV.settingsIcon(focused || menuOpen)}>
+                  <div
+                    style={TV.settingsIcon(focused || menuOpen)}
+                    role="button"
+                    aria-label={`${item.name}${item.label ? `, ${item.label}` : ""}`}
+                  >
                     <Icon name={item.icon} size={26} color="currentColor" />
-                    <span>{item.name}{item.label ? ` · ${item.label}` : ""}</span>
+                    <span>{item.name}</span>
                   </div>
                   {menuOpen && item.items && (
                     <div style={TV.settingsMenu}>
                       {item.items.map((mi, mIdx) => (
                         <div key={mi.label} style={TV.settingsMenuItem(tvNav.menuIndex === mIdx, mi.active)}>
                           <span>{mi.label}</span>
-                          {mi.active ? <Icon name="check" size={20} color={colors.accent2} /> : null}
+                          {mi.active ? <Icon name="check" size={20} color={colors.accentText} /> : null}
                         </div>
                       ))}
                     </div>
@@ -669,6 +676,12 @@ export default function VideoPlayerScreen() {
             <>
               <div
                 style={TV.progressTrack}
+                role="slider"
+                aria-label="Seek"
+                aria-valuemin={0}
+                aria-valuemax={Math.round(tvDuration) || 0}
+                aria-valuenow={Math.round(tvCurrentTime) || 0}
+                aria-valuetext={`${fmtTime(tvCurrentTime)} of ${fmtTime(tvDuration)}`}
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const ratio = (e.clientX - rect.left) / rect.width;

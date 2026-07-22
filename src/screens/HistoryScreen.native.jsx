@@ -1,17 +1,21 @@
-import { useState } from "react";
-import { Alert, View } from "react-native";
+import { useState, useCallback } from "react";
+import { View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
 import { LinearGradient } from "expo-linear-gradient";
-import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
-import { colors, fonts, fontWeights, overlay, radii } from "../ui/tokens";
+import { YStack, Text, ScrollView } from "../ui/primitives";
+import { colors, fonts, fontWeights, radii, zIndex, heroHeights } from "../ui/tokens";
+import { ss } from "../utils/scaleSize";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
+import HeroNative from "../presentation/components/Hero.native";
+import PosterCard from "../presentation/components/PosterCard.native";
+import { LABELS } from "../ui/labels";
 import { useApp } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
-import { useTVNavigation } from "../hooks/useTVNavigation";
+import { useDeferredRemove } from "../hooks/useDeferredRemove";
 import MovieDetail from "../components/MovieDetail";
 import SeriesDetail from "../components/SeriesDetail";
 
@@ -32,29 +36,12 @@ const getEpLabel = (item) => {
   return null;
 };
 
-/* ── My List Poster Card ── */
-function MyListCard({ item, onPress, onRemove, focused }) {
-  const poster = item.cover || item.movie_image || item.stream_icon || null;
-  const epLabel = getEpLabel(item);
-
-  return (
-    <YStack width={130} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.8 }} hoverStyle={{ scale: 1.03 }} animation="quick" accessibilityRole="button" accessibilityLabel={item.name}>
-      <YStack width={130} aspectRatio={2 / 3} borderRadius={radii.sm} backgroundColor={colors.surface} overflow="hidden" borderWidth={2} borderColor={focused ? colors.accent2 : colors.border}>
-        {poster
-          ? <Image source={poster} style={FILL} contentFit="cover" cachePolicy="memory-disk" recyclingKey={poster} transition={150} />
-          : <View style={[FILL, { backgroundColor: colors.surface }]} />}
-        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor={overlay} borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11} accessibilityRole="button" accessibilityLabel="Remove from My List">
-          <Icon name="close" size={11} color={colors.text} />
-        </YStack>
-      </YStack>
-      <Text color={colors.text} fontFamily={fonts.body} fontSize={12} fontWeight={fontWeights.medium} marginTop={8} lineHeight={16} numberOfLines={2}>{item.name}</Text>
-      {epLabel && <Text color={colors.muted} fontFamily={fonts.body} fontSize={9} marginTop={4} letterSpacing={0.3}>{epLabel}</Text>}
-    </YStack>
-  );
-}
-
-/* ── Watch History Card ── */
-function CWCard({ item, onPress, onRemove, focused }) {
+/* ── Continue Watching Card ──
+   Landscape 16:9 twin of the web/TV Continue-Watching card: shared radius
+   (radii.card), 1px hairline border, gradient scrim, centered play glyph,
+   progress bar. All dimensions flow through ss() to track the density ramp. */
+const CW_W = 240;
+function CWCard({ item, onPress, onRemove }) {
   const progress = item.duration > 0 ? Math.min((item.currentTime / item.duration) * 100, 100) : null;
   const timeLeft = formatTimeLeft(item.currentTime, item.duration);
   const epLabel = getEpLabel(item);
@@ -64,42 +51,56 @@ function CWCard({ item, onPress, onRemove, focused }) {
   const epTitle = item.seriesName && item.name !== item.seriesName ? item.name : null;
 
   return (
-    <YStack width={260} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.85 }} hoverStyle={{ scale: 1.02 }} animation="quick" accessibilityRole="button" accessibilityLabel={`Play ${showTitle}`}>
-      <YStack width={260} height={148} borderRadius={radii.sm} backgroundColor={colors.surface} overflow="hidden" borderWidth={2} borderColor={focused ? colors.accent2 : colors.border}>
+    <YStack width={ss(CW_W)} cursor="pointer" onPress={onPress} pressStyle={{ opacity: 0.85 }} accessibilityRole="button" accessibilityLabel={`Play ${showTitle}`}>
+      <YStack width={ss(CW_W)} height={ss(Math.round((CW_W * 9) / 16))} borderRadius={radii.card} backgroundColor={colors.surface} overflow="hidden" borderWidth={1} borderColor={colors.border}>
         {bg
           ? <Image source={bg} style={FILL} contentFit="cover" cachePolicy="memory-disk" recyclingKey={bg} transition={150} />
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
-        <LinearGradient colors={["transparent", "rgba(0,0,0,0.75)"]} style={FILL} />
+        <LinearGradient colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0.1)", "transparent"]} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={FILL} />
         {seasonBadge && (
-          <YStack position="absolute" top={10} left={12} zIndex={4}>
-            <Text color={colors.text} fontFamily={fonts.display} fontSize={13} fontWeight={fontWeights.bold}>{seasonBadge}</Text>
+          <YStack position="absolute" top={ss(10)} left={ss(12)} zIndex={4}>
+            <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(13)} fontWeight={fontWeights.bold}>{seasonBadge}</Text>
           </YStack>
         )}
-        <YStack position="absolute" top={8} left={8} zIndex={5} backgroundColor={overlay} borderRadius={12} width={22} height={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11} accessibilityRole="button" accessibilityLabel="Remove from History">
-          <Icon name="close" size={11} color={colors.text} />
+        <YStack
+          position="absolute" top={ss(8)} left={ss(8)} zIndex={5}
+          backgroundColor="rgba(10,14,26,0.72)" borderRadius={ss(11)} width={ss(22)} height={ss(22)}
+          justifyContent="center" alignItems="center" cursor="pointer"
+          onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11}
+          accessibilityRole="button" accessibilityLabel={LABELS.removeFromMyList}
+        >
+          <Icon name="close" size={ss(11)} color={colors.text} />
         </YStack>
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={3} justifyContent="center" alignItems="center">
-          <Icon name="play" size={28} color={colors.text} />
+          <Icon name="play" size={ss(28)} color={colors.text} />
         </YStack>
-        {/* Progress bar — only when we have real currentTime/duration; keep as RN Views for % string width compatibility */}
         {progress !== null && (
-          <YStack position="absolute" left={0} right={0} bottom={0} zIndex={4} padding={10}>
-            <View style={{ height: 3, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
+          <YStack position="absolute" left={0} right={0} bottom={0} zIndex={4} padding={ss(10)}>
+            <View style={{ height: ss(3), borderRadius: ss(2), backgroundColor: colors.border, overflow: "hidden" }}>
               <View style={{ height: "100%", width: `${progress}%`, backgroundColor: colors.accent }} />
             </View>
           </YStack>
         )}
       </YStack>
-      <YStack paddingTop={8} paddingHorizontal={2}>
-        <Text color={colors.text} fontFamily={fonts.body} fontSize={12} fontWeight={fontWeights.medium} marginBottom={2} numberOfLines={1}>{showTitle}</Text>
+      <YStack paddingTop={ss(8)} paddingHorizontal={ss(2)}>
+        <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(13)} fontWeight={fontWeights.medium} marginBottom={ss(2)} numberOfLines={1}>{showTitle}</Text>
         {(epLabel || epTitle) && (
-          <Text color={colors.muted} fontFamily={fonts.body} fontSize={11} marginBottom={2} numberOfLines={1}>
+          <Text color={colors.textDim} fontFamily={fonts.body} fontSize={ss(11)} marginBottom={ss(2)} numberOfLines={1}>
             {[epLabel, epTitle].filter(Boolean).join(" · ")}
           </Text>
         )}
-        {timeLeft && <Text color={colors.muted} fontFamily={fonts.body} fontSize={11}>{timeLeft}</Text>}
+        {timeLeft && <Text color={colors.textDim} fontFamily={fonts.body} fontSize={ss(11)}>{timeLeft}</Text>}
       </YStack>
     </YStack>
+  );
+}
+
+/* ── Section header ── */
+function SectionTitle({ children }) {
+  return (
+    <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(20)} fontWeight={fontWeights.bold} letterSpacing={-0.3} paddingHorizontal={ss(16)} marginBottom={ss(16)}>
+      {children}
+    </Text>
   );
 }
 
@@ -110,44 +111,29 @@ export default function HistoryScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [currentDetail, setCurrentDetail] = useState(null);
 
+  const commit = useCallback((p) => {
+    if (!p) return;
+    if (p.kind === "mylist") removeFromMyList(p.id);
+    else removeFromWatchHistory(p.id);
+  }, [removeFromMyList, removeFromWatchHistory]);
+  const { pending, requestRemove, undoRemove } = useDeferredRemove(commit);
+
   const openDetail = (item) => {
     if (item.type === "live") { playLive(item); return; }
     setCurrentDetail(item);
   };
   const closeDetail = () => setCurrentDetail(null);
   const handlePlay = (videoObj) => { playVideoObject(videoObj); setCurrentDetail(null); };
-  const confirmRemove = (item) => {
-    Alert.alert("Remove from History", `Remove "${item.name}" from history?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () => removeFromWatchHistory(item.id) },
-    ]);
-  };
-  const confirmRemoveFromList = (item) => {
-    Alert.alert("Remove from My List", `Remove "${item.name}" from My List?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () => removeFromMyList(item.id) },
-    ]);
-  };
-
-  // Build TV navigation rows dynamically
-  const tvRows = [
-    ...(myList.length > 0 ? [{ items: myList, onSelect: (i) => openDetail(myList[i]) }] : []),
-    ...(watchedHistory.length > 0 ? [{ items: watchedHistory, onSelect: (i) => openDetail(watchedHistory[i]) }] : []),
-  ];
-  const myListRowIdx = myList.length > 0 ? 0 : -1;
-  const historyRowIdx = watchedHistory.length > 0 ? (myList.length > 0 ? 1 : 0) : -1;
-
-  const { focusedRow, focusedCol } = useTVNavigation({ active: !currentDetail, rows: tvRows });
 
   if (!activeUserId) {
     return (
       <StatePanel
         mode="empty"
         icon="tv"
-        title="No account connected"
-        message="Connect an IPTV account to save favorites and watch history."
+        title={LABELS.noAccountTitle}
+        message={LABELS.noAccountBody}
         cta={() => navigation.navigate("Accounts")}
-        ctaLabel="Connect account"
+        ctaLabel={LABELS.noAccountCta}
       />
     );
   }
@@ -160,57 +146,108 @@ export default function HistoryScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="film"
-        title="Your list is empty"
-        message="Open a movie and add it to Favorites to save it here"
+        title={LABELS.emptyTitle}
+        message={LABELS.emptyBody}
+        cta={() => navigation.navigate("Movies")}
+        ctaLabel={LABELS.emptyCta}
       />
     );
   }
 
+  // Hide the item awaiting a deferred removal so the shelf reflects the pending
+  // state instantly while the store call is held back (see useDeferredRemove).
+  const visibleMyList = pending?.kind === "mylist" ? myList.filter((i) => i.id !== pending.id) : myList;
+  const visibleHistory = pending?.kind === "history" ? watchedHistory.filter((i) => i.id !== pending.id) : watchedHistory;
+
+  // Cinematic entry point: feature the most recent Continue-Watching title (or,
+  // failing that, the first My-List title) — mirrors the web Home hero.
+  const featured = watchedHistory[0] || myList[0] || null;
+  const featuredResume = watchedHistory.length > 0;
+  const heroMeta = featured
+    ? [getEpLabel(featured), featuredResume ? formatTimeLeft(featured.currentTime, featured.duration) : null].filter(Boolean).join(" · ") || null
+    : null;
+
   return (
-    <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingTop: 24, paddingBottom: insets.bottom + 80 }} showsVerticalScrollIndicator={false}>
-      {myList.length > 0 && (
-        <YStack paddingBottom={40}>
-          <Text color={colors.text} fontFamily={fonts.display} fontSize={22} fontWeight={fontWeights.bold} letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Favorites</Text>
-          {/* Horizontal FlashList so a long favorites list virtualizes (recycles cells) instead of mounting every card. */}
+    <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingTop: ss(24), paddingBottom: insets.bottom + ss(80) }} showsVerticalScrollIndicator={false}>
+      {featured && (
+        <HeroNative
+          backdrop={featured.cover || featured.movie_image || featured.stream_icon || null}
+          title={featured.seriesName || featured.name}
+          meta={heroMeta}
+          continuityLabel="Synced across your devices"
+          primaryLabel={featuredResume ? "Resume" : "Play"}
+          onPrimary={() => openDetail(featured)}
+          secondaryLabel="Browse library"
+          onSecondary={() => navigation.navigate("Movies")}
+          height={heroHeights.native}
+        />
+      )}
+
+      {visibleMyList.length > 0 && (
+        <YStack paddingBottom={ss(40)}>
+          <SectionTitle>{LABELS.myList}</SectionTitle>
+          {/* Shared PosterCard (same card as Movies/Series/Live), with the
+              deferred-undo remove affordance. Horizontal FlashList virtualizes. */}
           <FlashList
             horizontal
-            data={myList}
+            data={visibleMyList}
             keyExtractor={(item, i) => String(item.id ?? i)}
-            renderItem={({ item, index }) => (
-              <MyListCard
+            renderItem={({ item }) => (
+              <PosterCard
                 item={item}
-                focused={focusedRow === myListRowIdx && focusedCol === index}
+                width={ss(120)}
                 onPress={() => openDetail(item)}
-                onRemove={() => confirmRemoveFromList(item)}
+                onRemove={() => requestRemove({ kind: "mylist", id: item.id, name: item.name })}
               />
             )}
-            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+            ItemSeparatorComponent={() => <View style={{ width: ss(12) }} />}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16 }}
+            contentContainerStyle={{ paddingHorizontal: ss(16) }}
           />
         </YStack>
       )}
 
-      {watchedHistory.length > 0 && (
-        <YStack paddingBottom={40}>
-          <Text color={colors.text} fontFamily={fonts.display} fontSize={22} fontWeight={fontWeights.bold} letterSpacing={-0.3} paddingHorizontal={16} marginBottom={16}>Watch History</Text>
-          {/* Horizontal FlashList so a long history list virtualizes (recycles cells) instead of mounting every card. */}
+      {visibleHistory.length > 0 && (
+        <YStack paddingBottom={ss(40)}>
+          <SectionTitle>{LABELS.continueWatching}</SectionTitle>
           <FlashList
             horizontal
-            data={watchedHistory}
+            data={visibleHistory}
             keyExtractor={(item, i) => String(item.id ?? i)}
-            renderItem={({ item, index }) => (
+            renderItem={({ item }) => (
               <CWCard
                 item={item}
-                focused={focusedRow === historyRowIdx && focusedCol === index}
                 onPress={() => openDetail(item)}
-                onRemove={() => confirmRemove(item)}
+                onRemove={() => requestRemove({ kind: "history", id: item.id, name: item.name })}
               />
             )}
-            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+            ItemSeparatorComponent={() => <View style={{ width: ss(12) }} />}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16 }}
+            contentContainerStyle={{ paddingHorizontal: ss(16) }}
           />
+        </YStack>
+      )}
+
+      {pending && (
+        <YStack
+          position="absolute" left={0} right={0} bottom={insets.bottom + ss(16)} zIndex={zIndex.toast}
+          alignItems="center" paddingHorizontal={ss(16)} pointerEvents="box-none"
+        >
+          <YStack
+            accessibilityRole="alert"
+            flexDirection="row" alignItems="center" gap={ss(8)}
+            backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border} borderRadius={radii.md}
+            paddingVertical={ss(10)} paddingLeft={ss(16)} paddingRight={ss(8)}
+          >
+            <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(14)} numberOfLines={1}>Removed</Text>
+            <YStack
+              cursor="pointer" onPress={undoRemove} pressStyle={{ opacity: 0.7 }} hitSlop={8}
+              paddingVertical={ss(6)} paddingHorizontal={ss(12)}
+              accessibilityRole="button" accessibilityLabel="Undo remove"
+            >
+              <Text color={colors.accentText} fontFamily={fonts.body} fontSize={ss(14)} fontWeight={fontWeights.bold}>Undo</Text>
+            </YStack>
+          </YStack>
         </YStack>
       )}
     </ScrollView>
