@@ -132,6 +132,21 @@ android {
         versionName appVersionName
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+
+        // Only package the ABIs real devices actually use. A distributed
+        // universal APK otherwise bundles all four ABIs' native libs (libVLC
+        // is ~55MB each), producing a ~270MB APK that stalls on "Installing…"
+        // when sideloaded. abiFilters gates the FINAL APK for every source,
+        // including prebuilt .so from dependency AARs (VLC). Driven by the
+        // reactNativeArchitectures property so an x86_64 emulator can still be
+        // targeted locally with `-PreactNativeArchitectures=x86_64`.
+        ndk {
+            abiFilters.clear()
+            abiFilters.addAll(
+                (findProperty("reactNativeArchitectures") ?: "armeabi-v7a,arm64-v8a")
+                    .split(",").collect { it.trim() }.findAll { it }
+            )
+        }
     }
     signingConfigs {
         debug {

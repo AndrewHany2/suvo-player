@@ -361,9 +361,27 @@ export function VirtualShelvesTV({
     // Rails start below the hero + pills; measure their real top so the scroll
     // offset is correct regardless of whether pills are shown.
     const railsTop = railsRef.current?.offsetTop ?? ss(heroH);
-    if (el)
-      el.scrollTop =
-        focus.shelfAnchor <= 0 ? 0 : railsTop + rowOffset(focus.shelfAnchor);
+    if (el) {
+      // Vertical scroll target. "On the top shelf" and "the hero/pills zone is
+      // focused" are DIFFERENT states — don't conflate them with scrollTop=0:
+      //  • A top zone (Hero/Discover pills) is focused → park at 0 so the
+      //    billboard/pills fill the view.
+      //  • A shelf is focused → reveal THAT shelf. For the top shelf that's
+      //    `railsTop` (rowOffset(0)=0), which scrolls a full-height hero off so
+      //    the focused row is visible. Without this, Home's interactive ~900px
+      //    hero stayed pinned at 0 and hid the focused top shelf (My List) even
+      //    though the ring had already moved onto it. Gated on hasHero so
+      //    Movies/Series (no hero) keep the Discover pills pinned at 0 → their
+      //    scroll behaviour is byte-for-byte unchanged.
+      const topZoneFocused = topFocus.zone !== "shelves";
+      el.scrollTop = topZoneFocused
+        ? 0
+        : focus.shelfAnchor <= 0
+          ? zoneCfg.hasHero
+            ? railsTop
+            : 0
+          : railsTop + rowOffset(focus.shelfAnchor);
+    }
 
     const focusedId = shelves[focus.shelf]?.id;
     const rail = railRefs.current[focusedId];
@@ -391,8 +409,11 @@ export function VirtualShelvesTV({
     // scale correction must re-run it with the corrected value. It already tracks
     // `dims` (which changes when measure re-runs), but `scale` makes it explicit
     // and independent of ResizeObserver timing.
+    // topFocus.zone: entering the Hero/pills zone doesn't change `focus`, so the
+    // effect must key on the zone to re-park scroll at 0 (and back to the shelf
+    // on return). zoneCfg.hasHero gates the top-shelf reveal above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus, shelves, dims, scale]);
+  }, [focus, shelves, dims, scale, topFocus.zone, zoneCfg.hasHero]);
 
   // Track chevron hint edges + raw scrollLeft from a rail's real geometry. This
   // is UI/edge-hint state ONLY — it never feeds the mount window (that is
