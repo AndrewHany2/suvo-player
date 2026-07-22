@@ -22,8 +22,30 @@
  * @typedef {import('./types.js').PlayerStatus} PlayerStatus
  */
 
-import Hls from 'hls.js';
 import { effectiveResponseUrl } from './hlsResponseUrl.js';
+
+/**
+ * Lazily load + cache hls.js so its (heavy) top-level factory only runs the
+ * first time playback actually needs the engine — not on cold start. Keeping
+ * this a `require()` inside a function (rather than a static top-level import)
+ * is what lets Metro defer the module's evaluation, which matters most on the
+ * weak TV JS engine. The literal `require('hls.js')` is what Metro's dependency
+ * graph collects and lazy-evaluates in the app bundle; the `getBuiltinModule`
+ * branch is only reached in the Node ESM test runtime, where there is no
+ * module-scoped `require`. hls.js exports its class via `module.exports = Hls`
+ * (CJS) so `.default` is absent — fall back to the module object itself.
+ * @returns {typeof import('hls.js').default}
+ */
+let _hlsModule = null;
+function loadHls() {
+  if (_hlsModule) return _hlsModule;
+  const mod =
+    typeof require === 'function'
+      ? require('hls.js')
+      : process.getBuiltinModule('node:module').createRequire(process.cwd() + '/')('hls.js');
+  _hlsModule = mod?.default ?? mod;
+  return _hlsModule;
+}
 
 /**
  * hls.js loader that repairs an empty/relative response URL before the playlist
@@ -36,15 +58,21 @@ import { effectiveResponseUrl } from './hlsResponseUrl.js';
  * browser, XhrLoader elsewhere); a no-op wherever the engine already reports a
  * proper redirected URL (e.g. desktop). See ./hlsResponseUrl.js for the rule.
  */
-class FileSafeLoader extends Hls.DefaultConfig.loader {
-  load(context, config, callbacks) {
-    const onSuccess = callbacks.onSuccess;
-    callbacks.onSuccess = (response, stats, ctx, networkDetails) => {
-      if (response) response.url = effectiveResponseUrl(response.url, ctx?.url);
-      onSuccess(response, stats, ctx, networkDetails);
-    };
-    super.load(context, config, callbacks);
-  }
+let _FileSafeLoader = null;
+function getFileSafeLoader() {
+  if (_FileSafeLoader) return _FileSafeLoader;
+  const Hls = loadHls();
+  _FileSafeLoader = class FileSafeLoader extends Hls.DefaultConfig.loader {
+    load(context, config, callbacks) {
+      const onSuccess = callbacks.onSuccess;
+      callbacks.onSuccess = (response, stats, ctx, networkDetails) => {
+        if (response) response.url = effectiveResponseUrl(response.url, ctx?.url);
+        onSuccess(response, stats, ctx, networkDetails);
+      };
+      super.load(context, config, callbacks);
+    }
+  };
+  return _FileSafeLoader;
 }
 
 /**
@@ -93,11 +121,12 @@ export function createHlsInstance({
   onSubtitleTracksUpdated,
   onSubtitleTrackSwitch,
 } = {}) {
+  const Hls = loadHls();
   const hls = new Hls({
     // Repair empty post-redirect response URLs so relative segments never
     // resolve against the file:// document (webOS live-TV hang). No-op on
     // engines that report a proper redirected URL. See FileSafeLoader above.
-    loader: FileSafeLoader,
+    loader: getFileSafeLoader(),
     ...(isTV
       ? {
           // TVs (esp. webOS) have far less memory/CPU headroom — keep buffers
@@ -187,6 +216,7 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
   let boundHandler = () => {};
 
   function bindHlsErrors() {
+    const Hls = loadHls();
     const inst = hls();
     if (inst === boundInst) return; // already bound to this instance
     // Detach from the previous instance.
@@ -235,6 +265,7 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     const uri =
       isLive && rawUri.endsWith('.ts') ? rawUri.replace(/\.ts$/, '.m3u8') : rawUri;
     const isHls = uri.includes('.m3u8');
+    const Hls = loadHls();
 
     // Let the host (re)create + wire the engine instance for this source before
     // we touch it, so getHls() always resolves the fresh instance (avoids a
@@ -454,6 +485,7 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
    * @returns {NormalizedError}
    */
   function normalizeHlsError(data) {
+    const Hls = loadHls();
     const d = data || {};
     /** @type {NormalizedError} */
     const out = { type: d.type, fatal: !!d.fatal, original: d };
@@ -583,6 +615,7 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
    * @returns {Unsubscribe}
    */
   function onError(cb) {
+    const Hls = loadHls();
     const videoEl = el();
     const unsubs = [];
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useApp, usePlayback } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
 import Icon from "../ui/Icon";
@@ -64,6 +64,21 @@ export default function HistoryScreenTV({ navigation }) {
   const activeUserIdRef = useRef(activeUserId);
   activeUserIdRef.current = activeUserId;
 
+  // O(1) episode-resume lookup: build once per watchHistory change instead of
+  // running watchHistory.find(...) per episode on every series-detail re-render.
+  // Keyed on String(episodeId) for series entries; first match wins to preserve
+  // the exact semantics of the previous .find() predicate.
+  const episodeHistoryById = useMemo(() => {
+    const m = new Map();
+    for (const h of watchHistory || []) {
+      if (h.type === "series") {
+        const key = String(h.episodeId);
+        if (!m.has(key)) m.set(key, h);
+      }
+    }
+    return m;
+  }, [watchHistory]);
+
   // ── Movie detail state ────────────────────────────────────────────────────
   const [movieDetail, setMovieDetail] = useState(null);
   const movieDetailRef = useRef(null);
@@ -98,7 +113,7 @@ export default function HistoryScreenTV({ navigation }) {
   // When there are no shelves, VirtualShelvesTV isn't mounted, so the raw key
   // handler still owns up→navbar / Back in the empty state.
   const shelfCountRef = useRef(0);
-  useEffect(() => { shelfCountRef.current = shelves.length; });
+  useEffect(() => { shelfCountRef.current = shelves.length; }, [shelves.length]);
 
   useEffect(() => {
     movieBtnRef.current?.scrollIntoView({ block: "nearest" });
@@ -713,9 +728,7 @@ export default function HistoryScreenTV({ navigation }) {
             )}
             <div className="tvl-episodes">
               {episodes.map((ep, i) => {
-                const epHistory = (watchHistory || []).find(
-                  (h) => h.type === "series" && String(h.episodeId) === String(ep.id),
-                );
+                const epHistory = episodeHistoryById.get(String(ep.id));
                 const hasProgress = epHistory && epHistory.currentTime > 0;
                 const isWatched = hasProgress && epHistory.duration > 0 && epHistory.currentTime / epHistory.duration > 0.9;
                 return (

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { memo, useState, useCallback } from "react";
 import { View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { Image } from "expo-image";
@@ -42,7 +42,7 @@ const getEpLabel = (item) => {
    (radii.card), 1px hairline border, gradient scrim, centered play glyph,
    progress bar. All dimensions flow through ss() to track the density ramp. */
 const CW_W = 240;
-function CWCard({ item, onPress, onRemove }) {
+const CWCard = memo(function CWCard({ item, onPress, onRemove }) {
   const progress = item.duration > 0 ? Math.min((item.currentTime / item.duration) * 100, 100) : null;
   const timeLeft = formatTimeLeft(item.currentTime, item.duration);
   const epLabel = getEpLabel(item);
@@ -94,7 +94,7 @@ function CWCard({ item, onPress, onRemove }) {
       </YStack>
     </YStack>
   );
-}
+});
 
 /* ── Section header ── */
 function SectionTitle({ children }) {
@@ -120,12 +120,29 @@ export default function HistoryScreen({ navigation }) {
   }, [removeFromMyList, removeFromWatchHistory]);
   const { pending, requestRemove, undoRemove } = useDeferredRemove(commit);
 
-  const openDetail = (item) => {
+  const openDetail = useCallback((item) => {
     if (item.type === "live") { playLive(item); return; }
     setCurrentDetail(item);
-  };
+  }, [playLive]);
   const closeDetail = () => setCurrentDetail(null);
   const handlePlay = (videoObj) => { playVideoObject(videoObj); setCurrentDetail(null); };
+
+  const keyExtractor = useCallback((item, i) => String(item.id ?? i), []);
+  const renderMyListItem = useCallback(({ item }) => (
+    <PosterCard
+      item={item}
+      width={ss(120)}
+      onPress={() => openDetail(item)}
+      onRemove={() => requestRemove({ kind: "mylist", id: item.id, name: item.name })}
+    />
+  ), [openDetail, requestRemove]);
+  const renderHistoryItem = useCallback(({ item }) => (
+    <CWCard
+      item={item}
+      onPress={() => openDetail(item)}
+      onRemove={() => requestRemove({ kind: "history", id: item.id, name: item.name })}
+    />
+  ), [openDetail, requestRemove]);
 
   if (!activeUserId) {
     return (
@@ -199,15 +216,8 @@ export default function HistoryScreen({ navigation }) {
           <FlashList
             horizontal
             data={visibleMyList}
-            keyExtractor={(item, i) => String(item.id ?? i)}
-            renderItem={({ item }) => (
-              <PosterCard
-                item={item}
-                width={ss(120)}
-                onPress={() => openDetail(item)}
-                onRemove={() => requestRemove({ kind: "mylist", id: item.id, name: item.name })}
-              />
-            )}
+            keyExtractor={keyExtractor}
+            renderItem={renderMyListItem}
             ItemSeparatorComponent={() => <View style={{ width: ss(12) }} />}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: ss(16) }}
@@ -221,14 +231,8 @@ export default function HistoryScreen({ navigation }) {
           <FlashList
             horizontal
             data={visibleHistory}
-            keyExtractor={(item, i) => String(item.id ?? i)}
-            renderItem={({ item }) => (
-              <CWCard
-                item={item}
-                onPress={() => openDetail(item)}
-                onRemove={() => requestRemove({ kind: "history", id: item.id, name: item.name })}
-              />
-            )}
+            keyExtractor={keyExtractor}
+            renderItem={renderHistoryItem}
             ItemSeparatorComponent={() => <View style={{ width: ss(12) }} />}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: ss(16) }}

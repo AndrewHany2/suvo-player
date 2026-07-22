@@ -9,7 +9,7 @@ import { colors, accentAlpha, fonts, overlay } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
-import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
+import { useChannels, usePlayback, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import { reportFatalPlayback } from "../services/observability";
 import storage from "../utils/storage";
@@ -84,7 +84,7 @@ function loadNavigationBar() {
 import { formatDuration as formatTime } from "../utils/formatDuration";
 
 export default function ExpoVideoPlayerScreen({ navigation }) {
-  const { channels } = useApp();
+  const { channels } = useChannels();
   const { currentVideo, closeVideo, playVideo } = usePlayback();
   const { updateWatchProgress, addToWatchHistory, flushProgress } = useWatchHistory();
   const insets = useSafeAreaInsets();

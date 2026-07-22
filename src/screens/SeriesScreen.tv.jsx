@@ -109,6 +109,23 @@ export default function SeriesScreenTV({ navigation, route }) {
     return out;
   };
 
+  // Memoized filtered grid, keyed on the item ARRAY (stable across D-pad focus
+  // moves — movGrid/onGridQueryChange/growGridDisplay only spread new focus/
+  // display fields and keep grid.items by reference) plus the active
+  // filter/query. Without this the full O(n) filter re-ran on every keypress and
+  // ~1x/sec while a video played over the grid. The ref mirror lets the focus-
+  // move handlers read the same list without re-filtering.
+  const filteredItems = useMemo(() => {
+    if (!grid?.items) return null;
+    const gridQ = gridQuery.trim().toLowerCase();
+    let out = grid.items;
+    if (filterLetter !== "all") out = out.filter((s) => s.name?.toLowerCase().startsWith(filterLetter));
+    if (gridQ) out = out.filter((s) => s.name?.toLowerCase().includes(gridQ));
+    return out;
+  }, [grid?.items, filterLetter, gridQuery]);
+  const filteredItemsRef = useRef(null);
+  filteredItemsRef.current = filteredItems;
+
   const focusNav = () => {
     navActiveRef.current = true;
     setNavActive(true);
@@ -461,8 +478,7 @@ export default function SeriesScreenTV({ navigation, route }) {
     if (g.focus > 0) movGrid(g, g.focus - 1);
   };
   const onGridRight = (g) => {
-    const filtered = getFilteredItems(g.items);
-    const max = filtered.length - 1;
+    const max = (filteredItemsRef.current?.length ?? 0) - 1;
     if (g.focus >= max) return;
     movGrid(g, g.focus + 1);
   };
@@ -474,14 +490,12 @@ export default function SeriesScreenTV({ navigation, route }) {
     }
   };
   const onGridDown = (g) => {
-    const filtered = getFilteredItems(g.items);
-    const max = filtered.length - 1;
+    const max = (filteredItemsRef.current?.length ?? 0) - 1;
     const next = Math.min(g.focus + SER_COLS, max);
     movGrid(g, next);
   };
   const onGridEnter = (g) => {
-    const filtered = getFilteredItems(g.items);
-    const item = filtered[g.focus];
+    const item = filteredItemsRef.current?.[g.focus];
     if (item) openDetail(item);
   };
 
@@ -976,7 +990,6 @@ export default function SeriesScreenTV({ navigation, route }) {
 
   // ── Grid view ─────────────────────────────────────────────────────────────
   if (grid) {
-    const filteredItems = grid.items ? getFilteredItems(grid.items) : null;
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar">

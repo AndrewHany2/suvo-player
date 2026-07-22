@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, memo, useMemo, useSyncExternalStore, useDeferredValue } from "react";
 import { FlatList, Modal, KeyboardAvoidingView, Platform, TouchableOpacity, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { YStack, XStack, Text, Input } from "../ui/primitives";
@@ -6,7 +6,7 @@ import { colors, iconSizes, fonts, radii, zIndex } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
-import { useApp } from "../context/AppContext";
+import { useApp, useChannels } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { isAuthError } from "../utils/authError";
@@ -20,17 +20,66 @@ const getAbbrev = (name) => {
   return name.slice(0, 3).toUpperCase();
 };
 
+/**
+ * Per-screen EPG store: a stable external store (useSyncExternalStore) so a
+ * channel's "now playing" title fetch re-renders only the one ChannelCard that
+ * subscribed to it, instead of churning a screen-level `epgCache` state that
+ * re-rendered the whole shelf tree once per fetch. The store identity is stable
+ * for the screen's lifetime, so passing it through renderItem keeps that closure
+ * stable and lets ContentShelf's memo bail. `get(sid)` is `undefined` until a
+ * fetch starts, then `null` while loading, then the title (or "" on failure).
+ */
+function useEpgStore(fetchEpgTitle) {
+  const fetchRef = useRef(fetchEpgTitle);
+  fetchRef.current = fetchEpgTitle;
+  const storeRef = useRef(null);
+  if (storeRef.current === null) {
+    const cache = new Map();
+    const listeners = new Map();
+    const notify = (sid) => { const s = listeners.get(sid); if (s) s.forEach((cb) => cb()); };
+    storeRef.current = {
+      get: (sid) => cache.get(sid),
+      subscribe: (sid, cb) => {
+        let s = listeners.get(sid);
+        if (!s) { s = new Set(); listeners.set(sid, s); }
+        s.add(cb);
+        return () => { s.delete(cb); };
+      },
+      // Idempotent: guarded on cache.has so mounting/remounting a card never
+      // re-fetches a channel already loaded (or in flight).
+      fetch: (sid) => {
+        if (cache.has(sid)) return;
+        cache.set(sid, null);
+        notify(sid);
+        fetchRef.current(sid).then(
+          (title) => { cache.set(sid, title); notify(sid); },
+          () => { cache.set(sid, ""); notify(sid); },
+        );
+      },
+      reset: () => {
+        const sids = Array.from(cache.keys());
+        cache.clear();
+        sids.forEach(notify);
+      },
+    };
+  }
+  return storeRef.current;
+}
+
 /* ─── Live Channel Card ─── */
-const ChannelCard = memo(({ item, epg, onPress, fetchEpg }) => {
-  const { addToMyList, removeFromMyList, isInMyList } = useApp();
+const ChannelCard = memo(({ item, epgStore, onPress, inFav, addToMyList, removeFromMyList }) => {
   const abbrev = getAbbrev(item.name);
   const sid = item.stream_id || item.id;
-  const inFav = isInMyList("live", sid);
 
-  // Fetch EPG once per channel (keyed on sid); epg is only a "not yet loaded"
-  // guard and fetchEpg is a stable prop, so neither belongs in the deps.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (epg === undefined && fetchEpg) fetchEpg(sid); }, [sid]);
+  // Subscribe only to THIS channel's EPG slice, so a neighbouring channel's
+  // title landing doesn't re-render this card.
+  const subscribe = useCallback((cb) => epgStore.subscribe(sid, cb), [epgStore, sid]);
+  const getSnapshot = useCallback(() => epgStore.get(sid), [epgStore, sid]);
+  const epg = useSyncExternalStore(subscribe, getSnapshot);
+
+  // Fetch once per channel; store.fetch self-guards, so this is safe to run on
+  // every mount/sid change without a "not yet loaded" flag.
+  useEffect(() => { epgStore.fetch(sid); }, [epgStore, sid]);
 
   const toggleFav = (e) => {
     e?.stopPropagation?.();
@@ -88,7 +137,9 @@ export default function LiveTVScreen({ navigation }) {
     fetchEpgTitle,
     playChannel,
   } = useLiveTV({ navigation });
-  const { setChannels, saveChannels } = useApp();
+  const { myList, isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { setChannels, saveChannels } = useChannels();
+  const epgStore = useEpgStore(fetchEpgTitle);
   const online = useIsOnline();
   const [refreshing, setRefreshing] = useState(false);
   // Locally-injected synthetic categories (currently just "Custom" for
@@ -100,7 +151,6 @@ export default function LiveTVScreen({ navigation }) {
   );
   const [channelsByCategory, setChannelsByCategory] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
-  const [epgCache, setEpgCache] = useState({});
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [newStreamUrl, setNewStreamUrl] = useState("");
@@ -119,14 +169,6 @@ export default function LiveTVScreen({ navigation }) {
     toastTimerRef.current = setTimeout(() => setToast(null), 2600);
   }, []);
   useEffect(() => () => clearTimeout(toastTimerRef.current), []);
-
-  const fetchEpg = useCallback(async (streamId) => {
-    setEpgCache((prev) => { if (prev[streamId] !== undefined) return prev; return { ...prev, [streamId]: null }; });
-    try {
-      const title = await fetchEpgTitle(streamId);
-      setEpgCache((prev) => ({ ...prev, [streamId]: title }));
-    } catch { setEpgCache((prev) => ({ ...prev, [streamId]: "" })); }
-  }, [fetchEpgTitle]);
 
   const handleAddChannel = () => {
     const nm = newChannelName.trim();
@@ -153,12 +195,12 @@ export default function LiveTVScreen({ navigation }) {
   // Categories load is owned by useLiveTV; reset screen-local shelf state when
   // the active account changes.
   useEffect(() => {
-    setEpgCache({});
+    epgStore.reset();
     setChannelsByCategory({});
     setCustomCats([]);
     setFailedCats({});
     loadedRef.current.clear();
-  }, [activeUserId]);
+  }, [activeUserId, epgStore]);
 
   const loadChannelCategory = useCallback(async (catId) => {
     if (loadedRef.current.has(catId)) return;
@@ -208,19 +250,59 @@ export default function LiveTVScreen({ navigation }) {
 
   const handleChannelPress = playChannel;
 
+  // Stable per-channel renderer for ContentShelf. Kept referentially stable
+  // (all closed-over values are stable useCallbacks / the stable epgStore) so
+  // ContentShelf's React.memo can bail — only `myList` bumps its identity, so a
+  // favorite toggle re-renders the cards (to flip the star) but a category load
+  // or an EPG fetch does not. inFav is computed here (isInMyList reads a ref)
+  // rather than inside the card, so the card no longer subscribes to the whole
+  // AppContext (which changes on every setChannels).
+  const renderChannel = useCallback(
+    (channel) => {
+      const csid = channel.stream_id || channel.id;
+      return (
+        <ChannelCard
+          item={channel}
+          epgStore={epgStore}
+          onPress={handleChannelPress}
+          inFav={isInMyList("live", csid)}
+          addToMyList={addToMyList}
+          removeFromMyList={removeFromMyList}
+        />
+      );
+    },
+    // myList is an intentional dep: it forces a new renderer (and thus a star
+    // refresh) when favorites change, since isInMyList reads a stable ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [epgStore, handleChannelPress, isInMyList, addToMyList, removeFromMyList, myList],
+  );
+
+  // Debounce the query that drives the eager fan-out load: a single keystroke
+  // in a burst no longer fires a fetch for EVERY category. loadChannelCategory
+  // still dedupes via loadedRef, so this only warms categories once search
+  // settles (250ms idle).
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   // While a search is active, eagerly load every category's channels so the
   // channel-name match spans ALL categories, not just the ones scrolled into
   // view. loadChannelCategory dedupes via loadedRef, so this fires each
   // category's fetch at most once.
   useEffect(() => {
-    if (!searchQuery) return;
+    if (!debouncedQuery) return;
     categories.forEach((cat) => loadChannelCategory(cat.id));
-  }, [searchQuery, categories, loadChannelCategory]);
+  }, [debouncedQuery, categories, loadChannelCategory]);
 
-  const displayCategories = filterCategoriesBySearch(
-    categories,
-    searchQuery,
-    (cat) => channelsByCategory[cat.id],
+  // filterCategoriesBySearch scans O(total channels) with an active query, so
+  // memoize it (React 19 useDeferredValue keeps typing responsive by letting
+  // the expensive filter lag a keystroke behind the input).
+  const deferredQuery = useDeferredValue(searchQuery);
+  const displayCategories = useMemo(
+    () => filterCategoriesBySearch(categories, deferredQuery, (cat) => channelsByCategory[cat.id]),
+    [categories, deferredQuery, channelsByCategory],
   );
 
   if (loading) {
@@ -294,14 +376,7 @@ export default function LiveTVScreen({ navigation }) {
             itemWidth={160} gap={8}
             onVisible={loadChannelCategory}
             onPress={handleChannelPress}
-            renderItem={(channel) => (
-              <ChannelCard
-                item={channel}
-                epg={epgCache[channel.stream_id || channel.id]}
-                onPress={handleChannelPress}
-                fetchEpg={fetchEpg}
-              />
-            )}
+            renderItem={renderChannel}
           />
         )}
         ListEmptyComponent={<YStack padding={60} alignItems="center"><Text color={colors.muted} fontSize={15}>No channels found</Text></YStack>}

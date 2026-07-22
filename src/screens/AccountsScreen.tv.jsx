@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../context/AppContext";
+import { useApp, useChannels } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
 import { colors, iconSizes, fonts } from "../ui/tokens";
@@ -35,7 +35,8 @@ const inputFieldsFor = (type) =>
 const TOGGLE_IDX = 0;
 
 export default function AccountsScreenTV({ navigation }) {
-  const { users, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser, setChannels, tvUseShelves, setTvUseShelves } = useApp();
+  const { users, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser, tvUseShelves, setTvUseShelves } = useApp();
+  const { setChannels } = useChannels();
 
   const [view,         setView]         = useState("list");
   const [focus,        setFocus]        = useState(0);

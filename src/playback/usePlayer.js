@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
+import { useChannels, usePlayback, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import { reportFatalPlayback } from "../services/observability";
 import { createHlsDriver, createHlsInstance } from "./drivers/hlsDriver";
@@ -107,13 +107,18 @@ export function getLevelLabel(level, levels) {
  *   the shared close handler. Defaults to just invoking it.
  */
 export function usePlayer({ isTV, onSleepElapsed } = {}) {
-  const { channels } = useApp();
+  const { channels } = useChannels();
   const { currentVideo, closeVideo, playVideo } = usePlayback();
   const { updateWatchProgress, addToWatchHistory, flushProgress } = useWatchHistory();
 
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const progressRef = useRef(null);
+  // Timestamp of the last UI-clock write (tvCurrentTime / media-session
+  // position). 'timeupdate' fires ~4-6/sec; the scrubber + OS position only
+  // need ~1 Hz, so we throttle to keep the large player screen from
+  // re-rendering on every raw tick (weak webOS/Tizen CPU).
+  const lastUiTickRef = useRef(0);
 
   const [qualityLevels, setQualityLevels] = useState([]);
   const [selectedLevel, setSelectedLevel] = useState(-1);
@@ -619,7 +624,9 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
       clearInterval(progressRef.current);
       progressRef.current = setInterval(() => {
         if (video && !video.paused && currentVideo) {
-          setTvCurrentTime(video.currentTime);
+          // tvCurrentTime is driven by the throttled onTimeUpdate below; this
+          // interval only persists resume progress (must keep running even if
+          // 'timeupdate' goes quiet during a rebuffer).
           updateWatchProgress(
             currentVideo.streamId,
             currentVideo.type,
@@ -643,6 +650,11 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
       if (Number.isFinite(video.duration)) setTvDuration(video.duration);
     };
     const onTimeUpdate = () => {
+      // Throttle to ~1 Hz: 'timeupdate' fires ~4-6/sec and tvCurrentTime feeds
+      // the full player screen, so an unthrottled write re-renders it 4-6x/sec.
+      const now = Date.now();
+      if (now - lastUiTickRef.current < 900) return;
+      lastUiTickRef.current = now;
       setTvCurrentTime(video.currentTime);
       // Keep the OS media-controls scrubber in sync (VOD only; live has no duration).
       if (!isLive && Number.isFinite(video.duration)) {

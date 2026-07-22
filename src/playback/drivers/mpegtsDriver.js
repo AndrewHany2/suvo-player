@@ -20,11 +20,34 @@
  * @typedef {import('./types.js').PlayerStatus} PlayerStatus
  */
 
-import mpegts from 'mpegts.js';
 import { normalizeMpegtsError } from './mpegtsError.js';
 
 // Re-export so the driver stays the single import surface for consumers.
 export { normalizeMpegtsError };
+
+/**
+ * Lazily load + cache mpegts.js so its top-level factory only runs the first
+ * time a raw MPEG-TS stream is actually played — not on cold start. A static
+ * top-level import would eagerly evaluate the engine (and mpegts.js's UMD
+ * wrapper touches `window`, which also makes it unsafe to evaluate outside a
+ * browser). Keeping this a `require()` inside a function lets Metro defer the
+ * evaluation; the literal `require('mpegts.js')` is what Metro's dependency
+ * graph collects. The `getBuiltinModule` branch is only reached in the Node ESM
+ * test runtime, where there is no module-scoped `require`. mpegts.js exports its
+ * object via `module.exports` (CJS) so `.default` is absent — fall back to the
+ * module object itself.
+ * @returns {any}
+ */
+let _mpegtsModule = null;
+function loadMpegts() {
+  if (_mpegtsModule) return _mpegtsModule;
+  const mod =
+    typeof require === 'function'
+      ? require('mpegts.js')
+      : process.getBuiltinModule('node:module').createRequire(process.cwd() + '/')('mpegts.js');
+  _mpegtsModule = mod?.default ?? mod;
+  return _mpegtsModule;
+}
 
 export const STALL_THRESHOLD_MS = 6000;
 export const STALL_POLL_MS = 1000;
@@ -32,6 +55,7 @@ export const STALL_POLL_MS = 1000;
 /** @returns {boolean} whether mpegts.js MSE live playback is usable here. */
 export function isMpegtsSupported() {
   try {
+    const mpegts = loadMpegts();
     return !!(mpegts && mpegts.isSupported && mpegts.isSupported());
   } catch {
     return false;
@@ -79,6 +103,7 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
 
     destroyPlayer();
     try {
+      const mpegts = loadMpegts();
       player = mpegts.createPlayer(
         { type: 'mpegts', isLive: loadOpts.isLive !== false, url: uri },
         {

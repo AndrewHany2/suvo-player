@@ -100,6 +100,18 @@ export default function MoviesScreenTV({ navigation, route }) {
   const getFilteredItems = (items) =>
     filterMovies(items, filterLetterRef.current, gridQueryRef.current);
 
+  // Memoized filtered grid, keyed on the item ARRAY (stable across D-pad focus
+  // moves — movMovFocus only swaps `page.focus`) plus the active filter/query.
+  // Without this the full O(n) filter re-ran on every keypress and ~1x/sec while
+  // a video played over the grid. The ref mirror lets the focus-move handlers
+  // read the same list without re-filtering.
+  const filteredItems = useMemo(
+    () => (page?.items ? filterMovies(page.items, filterLetter, gridQuery) : null),
+    [page?.items, filterLetter, gridQuery],
+  );
+  const filteredItemsRef = useRef(null);
+  filteredItemsRef.current = filteredItems;
+
   // Open detail directly when navigated from history.
   useEffect(() => {
     if (route?.params?.openDetail && route?.params?.streamId) {
@@ -203,8 +215,7 @@ export default function MoviesScreenTV({ navigation, route }) {
   const growMovDisplay = (next) => { const pg = pageRef.current; if (pg) { const n = { ...pg, display: next }; pageRef.current = n; setPage(n); } };
   const onMovLeft = (pg) => { if (pg.focus > 0) movMovFocus(pg, pg.focus - 1); };
   const onMovRight = (pg) => {
-    const filtered = getFilteredItems(pg.items);
-    const max = filtered.length - 1;
+    const max = (filteredItemsRef.current?.length ?? 0) - 1;
     if (pg.focus >= max) return;
     movMovFocus(pg, pg.focus + 1);
   };
@@ -213,12 +224,11 @@ export default function MoviesScreenTV({ navigation, route }) {
     else { filterZoneRef.current = "filter"; setFilterZone("filter"); }
   };
   const onMovDown = (pg) => {
-    const filtered = getFilteredItems(pg.items);
-    const max = filtered.length - 1;
+    const max = (filteredItemsRef.current?.length ?? 0) - 1;
     const next = Math.min(pg.focus + MOV_COLS, max);
     movMovFocus(pg, next);
   };
-  const onMovEnter = (pg) => { const item = getFilteredItems(pg.items)[pg.focus]; if (item) openDetail(item); };
+  const onMovEnter = (pg) => { const item = filteredItemsRef.current?.[pg.focus]; if (item) openDetail(item); };
 
   const onFilterLeft = () => { if (filterIdxRef.current > 0) { filterIdxRef.current -= 1; setFilterIdx(filterIdxRef.current); } };
   const onFilterRight = () => { if (filterIdxRef.current < ALPHA.length - 1) { filterIdxRef.current += 1; setFilterIdx(filterIdxRef.current); } };
@@ -568,7 +578,6 @@ export default function MoviesScreenTV({ navigation, route }) {
 
   // ── Movie grid ────────────────────────────────────────────────────────────
   if (page) {
-    const filteredItems = page.items ? getFilteredItems(page.items) : null;
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar">

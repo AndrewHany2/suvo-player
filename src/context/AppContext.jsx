@@ -30,6 +30,13 @@ const AppContext = createContext();
 // the value is exposed (three memoized slices, three nested providers).
 const PlaybackContext = createContext();
 const WatchHistoryContext = createContext();
+// channels is appended to incrementally during LiveTV browse (setChannels(prev
+// => [...prev, ...])) and searchQuery changes on every keystroke; both used to
+// live in the single app value, re-rendering every useApp() consumer. They now
+// live in their own memoized slices/providers so only their dedicated hook
+// consumers re-render on those changes.
+const ChannelsContext = createContext();
+const SearchContext = createContext();
 
 export const useApp = () => {
   const ctx = useContext(AppContext);
@@ -46,6 +53,18 @@ export const usePlayback = () => {
 export const useWatchHistory = () => {
   const ctx = useContext(WatchHistoryContext);
   if (!ctx) throw new Error('useWatchHistory must be used within AppProvider');
+  return ctx;
+};
+
+export const useChannels = () => {
+  const ctx = useContext(ChannelsContext);
+  if (!ctx) throw new Error('useChannels must be used within AppProvider');
+  return ctx;
+};
+
+export const useSearch = () => {
+  const ctx = useContext(SearchContext);
+  if (!ctx) throw new Error('useSearch must be used within AppProvider');
   return ctx;
 };
 
@@ -414,17 +433,17 @@ export const AppProvider = ({ children }) => {
   const closeVideo = useCallback(() => setCurrentVideo(null), []);
 
   // ─── Storage helpers ───────────────────────────────────────────────────────
-  const loadSavedChannels = async () => {
+  const loadSavedChannels = useCallback(async () => {
     try {
       const saved = await storage.getItem('iptv_channels');
       if (saved) setChannels(JSON.parse(saved));
     } catch (e) { console.error('loadSavedChannels:', e); }
-  };
+  }, []);
 
-  const saveChannels = async () => {
+  const saveChannels = useCallback(async () => {
     try { await storage.setItem('iptv_channels', JSON.stringify(channels)); }
     catch (e) { console.error('saveChannels:', e); }
-  };
+  }, [channels]);
 
   // ─── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -599,23 +618,20 @@ export const AppProvider = ({ children }) => {
   const value = useMemo(() => ({
     authUser, authLoading, profile, deviceStatus, signIn, signUp, signOut,
     appProfiles, activeProfileId, activeProfile, switchProfile, addProfile, updateProfile, removeProfile,
-    channels, setChannels,
     users, setUsers, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser,
     activeAccountId,
     currentSeries, setCurrentSeries,
     refetchLibrary, isSyncing,
     myList, addToMyList, removeFromMyList, isInMyList,
-    searchQuery, setSearchQuery, isLoading, setIsLoading, error, setError,
-    saveChannels, loadSavedChannels,
+    isLoading, setIsLoading, error, setError,
     tvUseShelves, setTvUseShelves,
     allowSelfLines,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [authUser, authLoading, profile, deviceStatus, appProfiles, activeProfileId, activeProfile,
     tvUseShelves,
-    channels,
     users, activeUserId, isSyncing, myList,
     activeAccountId,
-    searchQuery, isLoading, error,
+    isLoading, error,
     signIn, signUp, signOut, switchProfile, addProfile, updateProfile, removeProfile,
     addUser, updateUser, removeUser, saveUsers,
     refetchLibrary,
@@ -638,13 +654,33 @@ export const AppProvider = ({ children }) => {
     [watchHistory, addToWatchHistory, updateWatchProgress, removeFromWatchHistory, flushProgress],
   );
 
+  // Channels slice — channels grows incrementally during LiveTV browse (each
+  // append recreates this value), so isolating it keeps that churn off every
+  // other consumer. setChannels is a stable state setter; save/loadSavedChannels
+  // are useCallback.
+  const channelsValue = useMemo(
+    () => ({ channels, setChannels, saveChannels, loadSavedChannels }),
+    [channels, saveChannels, loadSavedChannels],
+  );
+
+  // Search slice — searchQuery changes on every keystroke; setSearchQuery is a
+  // stable state setter.
+  const searchValue = useMemo(
+    () => ({ searchQuery, setSearchQuery }),
+    [searchQuery],
+  );
+
   return (
     <AppContext.Provider value={value}>
-      <PlaybackContext.Provider value={playbackValue}>
-        <WatchHistoryContext.Provider value={historyValue}>
-          {children}
-        </WatchHistoryContext.Provider>
-      </PlaybackContext.Provider>
+      <ChannelsContext.Provider value={channelsValue}>
+        <SearchContext.Provider value={searchValue}>
+          <PlaybackContext.Provider value={playbackValue}>
+            <WatchHistoryContext.Provider value={historyValue}>
+              {children}
+            </WatchHistoryContext.Provider>
+          </PlaybackContext.Provider>
+        </SearchContext.Provider>
+      </ChannelsContext.Provider>
     </AppContext.Provider>
   );
 };

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { FlatList, useWindowDimensions } from "react-native";
 import { YStack, XStack, Text, Input, Spinner } from "../../ui/primitives";
 import Button from "../../ui/Button";
@@ -40,14 +40,34 @@ export default function CategoryGridPage({ name, items, onBack, onSelect, onLoad
   // ~3 across on a phone, more on a tablet, posters sized to fill the row.
   const { cols, cardW } = posterGrid(winW - GRID_OUTER * 2, { target: GRID_TARGET_W, gap: GRID_GAP });
 
-  const filtered = items
-    ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items)
-    : null;
-  const displayed = filtered ? filtered.slice(0, displayCount) : null;
+  // Defer the query so typing stays responsive: the TextInput stays bound to the
+  // immediate `search`, but the (potentially large) catalog filter runs against
+  // the deferred value, letting React keep keystrokes snappy under load.
+  const deferredSearch = useDeferredValue(search);
+
+  // Filter once per (items, query) instead of re-scanning the whole catalog on
+  // every keystroke AND every render. The query is lowercased a single time
+  // outside the predicate rather than once per item.
+  const filtered = useMemo(() => {
+    if (!items) return null;
+    const q = deferredSearch.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((i) => i.name?.toLowerCase().includes(q));
+  }, [items, deferredSearch]);
+  const displayed = useMemo(
+    () => (filtered ? filtered.slice(0, displayCount) : null),
+    [filtered, displayCount],
+  );
   const hasLocalMore = filtered && displayCount < filtered.length;
   const hasMore = hasLocalMore || hasRemote;
 
-  useEffect(() => { setDisplayCount(GRID_PAGE); }, [search]);
+  useEffect(() => { setDisplayCount(GRID_PAGE); }, [deferredSearch]);
+
+  const keyExtractor = useCallback((item) => String(item[keyField]), [keyField]);
+  const renderItem = useCallback(
+    ({ item }) => <PosterCard item={item} onPress={onSelect} width={cardW} />,
+    [onSelect, cardW],
+  );
 
   return (
     <YStack flex={1} backgroundColor={colors.bg}>
@@ -81,11 +101,15 @@ export default function CategoryGridPage({ name, items, onBack, onSelect, onLoad
           key={`grid-${cols}`}
           style={{ flex: 1 }}
           data={displayed}
-          keyExtractor={(item) => String(item[keyField])}
+          keyExtractor={keyExtractor}
           numColumns={cols}
           contentContainerStyle={{ paddingHorizontal: GRID_OUTER, paddingVertical: 12 }}
           columnWrapperStyle={{ gap: GRID_GAP, marginBottom: GRID_GAP }}
-          renderItem={({ item }) => <PosterCard item={item} onPress={onSelect} width={cardW} />}
+          renderItem={renderItem}
+          removeClippedSubviews
+          windowSize={7}
+          initialNumToRender={cols * 4}
+          maxToRenderPerBatch={cols * 3}
           onEndReached={() => {
             if (hasLocalMore) setDisplayCount((c) => Math.min(c + GRID_PAGE, filtered.length));
             else if (hasRemote && !loadingMore && onLoadMore) onLoadMore();

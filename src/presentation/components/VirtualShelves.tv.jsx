@@ -114,13 +114,21 @@ export function VirtualShelvesTV({
     const d = rowHeightForShelf?.(shelves[idx]);
     return d ? ss(d) : ROW_HEIGHT;
   };
+  // Prefix-sum of row heights: rowOffsets[idx] = summed heights of every row
+  // before `idx`. Byte-identical to the old O(idx) loop (it calls the same
+  // rowH), but built once per render instead of re-summing on every rowOffset
+  // call (render spacer + apply-scroll effect). rowH's inputs are `shelves`,
+  // `rowHeightForShelf`, and `scale` (via ss()/ROW_HEIGHT) — the same deps the
+  // measure/apply-scroll effects use for scale-dependent geometry.
+  const rowOffsets = useMemo(() => {
+    const offsets = [0];
+    for (let i = 0; i < shelves.length; i++) offsets.push(offsets[i] + rowH(i));
+    return offsets;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shelves, rowHeightForShelf, scale]);
   // Top of shelf `idx` = summed heights of every row before it. Reduces to
   // idx * ROW_HEIGHT when all rows are the default height (Movies/Series).
-  const rowOffset = (idx) => {
-    let sum = 0;
-    for (let i = 0; i < idx; i++) sum += rowH(i);
-    return sum;
-  };
+  const rowOffset = (idx) => rowOffsets[idx] ?? 0;
   const containerRef = useRef(null);
   const railRefs = useRef({}); // shelfId -> rail DOM node
   const focusedCardRef = useRef(null); // DOM node of the currently focused card

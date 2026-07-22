@@ -7,7 +7,7 @@ import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { LABELS } from "../ui/labels";
 import { ensureSkeletonKeyframes } from "../presentation/components/SkeletonPoster.web";
-import { useApp } from "../context/AppContext";
+import { useApp, useChannels, useSearch } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
@@ -432,12 +432,8 @@ export default function LiveTVScreen({ navigation }) {
     () => (customCats.length ? [...baseCategories, ...customCats] : baseCategories),
     [customCats, baseCategories],
   );
-  const {
-    setChannels,
-    saveChannels,
-    searchQuery,
-    setSearchQuery,
-  } = useApp();
+  const { setChannels, saveChannels } = useChannels();
+  const { searchQuery, setSearchQuery } = useSearch();
   const [channelsByCategory, setChannelsByCategory] = useState({});
   const [epgCache, setEpgCache] = useState({});
   const [showAddChannel, setShowAddChannel] = useState(false);

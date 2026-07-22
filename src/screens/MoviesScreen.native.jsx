@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList } from "react-native";
 import { YStack, XStack, Text } from "../ui/primitives";
 import { useMovies } from "../domain/hooks/useMovies";
@@ -25,14 +25,66 @@ export default function MoviesScreen({ navigation }) {
   const { items: downloads } = useDownloads();
   const online = useIsOnline();
   const [showDownloaded, setShowDownloaded] = useState(false);
-  const downloadedMovies = downloads
-    .filter((r) => r.kind === "movie")
-    .map((r) => ({ stream_id: r.id, name: r.title, stream_icon: r.poster, __download: r }));
+  const downloadedMovies = useMemo(
+    () => downloads
+      .filter((r) => r.kind === "movie")
+      .map((r) => ({ stream_id: r.id, name: r.title, stream_icon: r.poster, __download: r })),
+    [downloads],
+  );
 
   // When the device goes offline, auto-surface downloads (the only playable content).
   useEffect(() => { if (!online) setShowDownloaded(true); }, [online]);
 
   const vcfg = getShelfConfig("native");
+
+  const listHeader = useMemo(() => (
+    <YStack>
+      <YStack paddingHorizontal={16} paddingTop={20} paddingBottom={4}>
+        <Text color={colors.text} fontFamily={fonts.display} fontSize={20} fontWeight="700" letterSpacing={-0.3} marginBottom={12}>Discover</Text>
+        <XStack gap={10} flexWrap="wrap">
+          {discoverItems.map((pill) => (
+            <XStack
+              key={pill.id} alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
+              backgroundColor={colors.surface2} borderWidth={1}
+              borderColor={colors.border}
+              borderRadius={999} cursor="pointer" onPress={() => openCategory(pill.id, pill.label)}
+              accessibilityRole="button" accessibilityLabel={pill.label}
+              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }} animation="quick"
+            >
+              <Icon name={pill.id === "all" ? "film" : "star"} size={16} color={colors.muted} />
+              <Text color={colors.text} fontSize={12} fontWeight="600">{pill.label}</Text>
+              <Icon name="chevron-right" size={16} color={colors.muted} />
+            </XStack>
+          ))}
+          <XStack
+            alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
+            backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border}
+            borderRadius={999} cursor="pointer" onPress={() => setShowDownloaded(true)}
+            accessibilityRole="button" accessibilityLabel="Downloaded"
+            pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }} animation="quick"
+          >
+            <Icon name="download" size={16} color={colors.muted} />
+            <Text color={colors.text} fontSize={12} fontWeight="600">Downloaded</Text>
+            {downloadedMovies.length > 0 && (
+              <Text color={colors.muted} fontSize={12} fontWeight="700">{downloadedMovies.length}</Text>
+            )}
+          </XStack>
+        </XStack>
+      </YStack>
+    </YStack>
+  ), [discoverItems, downloadedMovies.length, openCategory]);
+
+  const renderItem = useCallback(({ item }) => (
+    <ContentShelf
+      id={item.id}
+      title={item.name} count={item.totalCount} items={item.items}
+      hasMore={item.hasMore} loadingMore={item.loadingMore} manual={item.manual}
+      onVisible={handleShelfVisible}
+      onPress={selectMovie}
+      onTitlePress={openCategory}
+      onLoadMore={handleLoadMore}
+    />
+  ), [handleShelfVisible, selectMovie, openCategory, handleLoadMore]);
 
   if (loading) {
     // Header + placeholder shelves read as the real screen filling in, rather
@@ -75,43 +127,6 @@ export default function MoviesScreen({ navigation }) {
     );
   }
 
-  const listHeader = (
-    <YStack>
-      <YStack paddingHorizontal={16} paddingTop={20} paddingBottom={4}>
-        <Text color={colors.text} fontFamily={fonts.display} fontSize={20} fontWeight="700" letterSpacing={-0.3} marginBottom={12}>Discover</Text>
-        <XStack gap={10} flexWrap="wrap">
-          {discoverItems.map((pill) => (
-            <XStack
-              key={pill.id} alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
-              backgroundColor={colors.surface2} borderWidth={1}
-              borderColor={colors.border}
-              borderRadius={999} cursor="pointer" onPress={() => openCategory(pill.id, pill.label)}
-              accessibilityRole="button" accessibilityLabel={pill.label}
-              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }} animation="quick"
-            >
-              <Icon name={pill.id === "all" ? "film" : "star"} size={16} color={colors.muted} />
-              <Text color={colors.text} fontSize={12} fontWeight="600">{pill.label}</Text>
-              <Icon name="chevron-right" size={16} color={colors.muted} />
-            </XStack>
-          ))}
-          <XStack
-            alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
-            backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border}
-            borderRadius={999} cursor="pointer" onPress={() => setShowDownloaded(true)}
-            accessibilityRole="button" accessibilityLabel="Downloaded"
-            pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }} animation="quick"
-          >
-            <Icon name="download" size={16} color={colors.muted} />
-            <Text color={colors.text} fontSize={12} fontWeight="600">Downloaded</Text>
-            {downloadedMovies.length > 0 && (
-              <Text color={colors.muted} fontSize={12} fontWeight="700">{downloadedMovies.length}</Text>
-            )}
-          </XStack>
-        </XStack>
-      </YStack>
-    </YStack>
-  );
-
   return (
     <YStack flex={1} backgroundColor={colors.bg}>
       {!online && (
@@ -126,17 +141,7 @@ export default function MoviesScreen({ navigation }) {
         data={shelves}
         keyExtractor={(item) => String(item.id)}
         ListHeaderComponent={listHeader}
-        renderItem={({ item }) => (
-          <ContentShelf
-            id={item.id}
-            title={item.name} count={item.totalCount} items={item.items}
-            hasMore={item.hasMore} loadingMore={item.loadingMore} manual={item.manual}
-            onVisible={handleShelfVisible}
-            onPress={selectMovie}
-            onTitlePress={openCategory}
-            onLoadMore={handleLoadMore}
-          />
-        )}
+        renderItem={renderItem}
         ListEmptyComponent={<StatePanel mode="empty" {...emptyContentProps("movies")} />}
         windowSize={5}
         maxToRenderPerBatch={3}

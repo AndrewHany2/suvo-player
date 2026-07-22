@@ -7,7 +7,7 @@ import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import PasswordInput from "../ui/PasswordInput";
 import StatePanel from "../ui/StatePanel";
-import { useApp } from "../context/AppContext";
+import { useApp, useChannels } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import DownloadsStorageLine from "../downloads/DownloadsStorageLine.jsx";
 
@@ -20,7 +20,8 @@ const EMPTY_FORM = { type: "xtream", nickname: "", host: "", username: "", passw
 
 export default function AccountsScreen({ navigation }) {
   useScale(); // re-render + recompute ss() when the scale corrects (webOS cold start)
-  const { users, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser, setChannels, authUser, profile, signOut, allowSelfLines } = useApp();
+  const { users, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser, authUser, profile, signOut, allowSelfLines } = useApp();
+  const { setChannels } = useChannels();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);

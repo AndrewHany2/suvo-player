@@ -19,6 +19,11 @@
 import { useEffect, useReducer, useRef, useCallback, useMemo } from 'react';
 import { initialState, reduce } from './recoveryMachine.js';
 
+// Minimum spacing between PROGRESS dispatches (ms). Web/TV drivers emit
+// onProgress on every 'timeupdate' (~4-6/sec); we collapse that to ~1 Hz to
+// match the native 1s poll and stop the per-tick host re-render.
+const PROGRESS_DISPATCH_MS = 900;
+
 /**
  * Optionally resolve @react-native-community/netinfo if it is installed. The
  * dependency is not declared in package.json today, so we resolve it lazily and
@@ -221,7 +226,27 @@ export function useResilientPlayback({
         // 'error' is handled by onError so we can normalize the payload.
       })
     );
-    unsubs.push(driver.onProgress((t) => send({ type: 'PROGRESS', currentTime: t })));
+    // Throttle PROGRESS to ~1 Hz *only while steadily playing*. Web/TV drivers
+    // bind onProgress to the media element's 'timeupdate' (fires ~4-6/sec), and
+    // the PROGRESS-while-playing reducer branch allocates a fresh state every
+    // call (savedTime advances), so an unthrottled feed forces a host re-render
+    // 4-6x/sec during steady playback on the weak webOS/Tizen CPU. The native
+    // driver already polls at 1s; this makes web/TV symmetric.
+    // CRITICAL: only collapse ticks in the 'playing' state. While
+    // recovering/buffering, an advancing PROGRESS is what proves the stream
+    // came back and fires CANCEL_RETRY — dropping it would let a stale RELOAD
+    // fire. Those states pass through immediately.
+    let lastProgressAt = 0;
+    unsubs.push(
+      driver.onProgress((t) => {
+        if (machineRef.current?.state === 'playing') {
+          const now = Date.now();
+          if (now - lastProgressAt < PROGRESS_DISPATCH_MS) return;
+          lastProgressAt = now;
+        }
+        send({ type: 'PROGRESS', currentTime: t });
+      })
+    );
     unsubs.push(driver.onStall(() => send({ type: 'STALL' })));
     unsubs.push(driver.onError((err) => send({ type: 'ERROR', raw: err })));
 

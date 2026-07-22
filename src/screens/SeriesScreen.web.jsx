@@ -6,7 +6,7 @@ import { emptyContentProps } from "../ui/emptyContentProps";
 import { LABELS } from "../ui/labels";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
-import { useApp } from "../context/AppContext";
+import { useSearch } from "../context/AppContext";
 import { useSeries } from "../domain/hooks/useSeries";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import { ss, useScale } from "../utils/scaleSize";
@@ -240,7 +240,7 @@ function CategoryPage({
   hasRemote,
   loadingMore,
 }) {
-  const { searchQuery: search, setSearchQuery: setSearch } = useApp();
+  const { searchQuery: search, setSearchQuery: setSearch } = useSearch();
   const { filtered, focusedIdx, onColsChange } = useCategoryGridNav({ items, search, onSelect: onPress, onBack });
 
   const CARD_W = ss(240);

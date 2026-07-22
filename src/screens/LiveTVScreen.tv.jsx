@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef, useMemo } from "react";
 import { usePlayback } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
@@ -80,9 +80,10 @@ export default function LiveTVScreenTV({ navigation }) {
 
   // Category cards filtered by the search query.
   const q = query.trim().toLowerCase();
-  const visibleCats = q
-    ? cats.filter((c) => c.name?.toLowerCase().includes(q))
-    : cats;
+  const visibleCats = useMemo(
+    () => (q ? cats.filter((c) => c.name?.toLowerCase().includes(q)) : cats),
+    [cats, q],
+  );
 
   useEffect(() => {
     catsRef.current = visibleCats;
@@ -97,11 +98,19 @@ export default function LiveTVScreenTV({ navigation }) {
 
   // ── Grid-view text search ─────────────────────────────────────────────────
   const gq = gridQuery.trim().toLowerCase();
-  const getFilteredChannels = (items) => {
-    const query = gridQueryRef.current;
-    if (!items || !query) return items || [];
-    return items.filter((c) => c.name?.toLowerCase().includes(query));
-  };
+  // Memoize the filtered channel list on the STABLE `page.items` array + active
+  // query. D-pad focus moves mint a new `page` object but keep the same items
+  // array, so this doesn't re-filter the whole list on every keypress/render.
+  const filteredChannels = useMemo(() => {
+    const items = page?.items;
+    if (!items) return null;
+    if (!gq) return items;
+    return items.filter((c) => c.name?.toLowerCase().includes(gq));
+  }, [page?.items, gq]);
+  // Ref mirror so the once-bound D-pad key handlers read bounds/index without
+  // re-filtering the full list.
+  const filteredChannelsRef = useRef(null);
+  filteredChannelsRef.current = filteredChannels;
   useEffect(() => { gridQueryRef.current = gq; }, [gq]);
   useEffect(() => { gridZoneRef.current = gridZone; }, [gridZone]);
   // Reset grid focus to top whenever the filtered set changes.
@@ -275,7 +284,7 @@ export default function LiveTVScreenTV({ navigation }) {
     if (pg.focus > 0) movCh(pg, pg.focus - 1);
   };
   const onChRight = (pg) => {
-    const max = getFilteredChannels(pg.items).length - 1;
+    const max = (filteredChannelsRef.current?.length ?? 0) - 1;
     if (pg.focus >= max) return;
     movCh(pg, pg.focus + 1);
   };
@@ -284,12 +293,12 @@ export default function LiveTVScreenTV({ navigation }) {
     else setGridZoneBoth("search");
   };
   const onChDown = (pg) => {
-    const max = getFilteredChannels(pg.items).length - 1;
+    const max = (filteredChannelsRef.current?.length ?? 0) - 1;
     const next = Math.min(pg.focus + CH_COLS, max);
     movCh(pg, next);
   };
   const onChEnter = (pg) => {
-    const item = getFilteredChannels(pg.items)[pg.focus];
+    const item = filteredChannelsRef.current?.[pg.focus];
     if (item) play(item);
   };
 
@@ -397,7 +406,7 @@ export default function LiveTVScreenTV({ navigation }) {
   }
 
   if (page) {
-    const filteredItems = page.items ? getFilteredChannels(page.items) : null;
+    const filteredItems = filteredChannels;
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar">

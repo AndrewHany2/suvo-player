@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, lazy, Suspense } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -21,11 +21,35 @@ import LiveTVScreen from "../screens/LiveTVScreen";
 import MoviesScreen from "../screens/MoviesScreen";
 import SeriesScreen from "../screens/SeriesScreen";
 import HistoryScreen from "../screens/HistoryScreen";
-import VideoPlayerScreen from "../screens/VideoPlayerScreen";
 import AccountsScreen from "../screens/AccountsScreen";
+
+// Lazily load the player stack. VideoPlayerScreen.native pulls in BOTH engine
+// screens (expo-video + VLC) and usePlayer, none of which are needed until the
+// user actually opens a video — the "VideoPlayer" route is a fullScreenModal
+// reached only on play. Deferring its module evaluation keeps the expo-video /
+// VLC engine factories off the cold-start path.
+const VideoPlayerScreen = lazy(() => import("../screens/VideoPlayerScreen"));
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Suspense wrapper so the lazy player screen can be handed to React Navigation
+// as a plain `component`. The fallback is a neutral black player backdrop with
+// a spinner (the player renders full-screen over black), shown only for the
+// brief module-resolve tick on first open.
+function VideoPlayerRoute(props) {
+  return (
+    <Suspense
+      fallback={
+        <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor="#000">
+          <ActivityIndicator size="large" color={colors.accent} />
+        </YStack>
+      }
+    >
+      <VideoPlayerScreen {...props} />
+    </Suspense>
+  );
+}
 
 function HeaderRight() {
   const { users, activeUserId, activeProfile, switchProfile, isSyncing } = useApp();
@@ -133,7 +157,7 @@ export default function AppNavigator() {
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ freezeOnBlur: true, headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text, contentStyle: { backgroundColor: colors.bg } }}>
           <Stack.Screen name="Main"        component={MainTabs}         options={{ headerShown: false }} />
-          <Stack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ headerShown: false, presentation: "fullScreenModal" }} />
+          <Stack.Screen name="VideoPlayer" component={VideoPlayerRoute} options={{ headerShown: false, presentation: "fullScreenModal" }} />
           <Stack.Screen name="Accounts"    component={AccountsScreen}   options={{ title: "Accounts", presentation: "modal", headerStyle: { backgroundColor: colors.surface2 }, headerTintColor: colors.text }} />
         </Stack.Navigator>
       </NavigationContainer>

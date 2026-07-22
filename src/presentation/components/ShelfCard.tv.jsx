@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import Icon from "../../ui/Icon";
 import { colors, iconSizes } from "../../ui/tokens";
 import { posterUrl } from "../../utils/imagePrefetch";
@@ -17,9 +17,12 @@ import { posterUrl } from "../../utils/imagePrefetch";
  * VirtualShelvesTV, which holds the focus ref on the wrapping cell instead, so
  * they omit `elRef`.
  */
-export default function ShelfCard({ item, isFocused, elRef, className = "" }) {
+function ShelfCard({ item, isFocused, elRef, className = "" }) {
   const [err, setErr] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const posterRef = useCallback((n) => {
+    if (n?.complete && n.naturalWidth > 0) setLoaded(true);
+  }, []);
   const src = posterUrl(item);
   const rating = item.tmdb_rating ?? item.rating;
   const rLabel =
@@ -53,7 +56,7 @@ export default function ShelfCard({ item, isFocused, elRef, className = "" }) {
             onError={() => setErr(true)}
             // Prefetched posters may already be decoded before React binds
             // onLoad — mark them loaded on mount so they don't stay faded out.
-            ref={(n) => { if (n?.complete && n.naturalWidth > 0) setLoaded(true); }}
+            ref={posterRef}
             decoding="async"
           />
         ) : (
@@ -74,3 +77,5 @@ export default function ShelfCard({ item, isFocused, elRef, className = "" }) {
     </div>
   );
 }
+
+export default memo(ShelfCard);

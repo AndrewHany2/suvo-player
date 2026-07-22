@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
-import { useApp } from "../context/AppContext";
+import { useSearch } from "../context/AppContext";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import { ss, useScale } from "../utils/scaleSize";
@@ -24,7 +24,7 @@ const MAX_W = 1700;
 
 /* ─── Category Page (drill-in grid + web D-pad) ─── */
 function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, loadingMore }) {
-  const { searchQuery: search, setSearchQuery: setSearch } = useApp();
+  const { searchQuery: search, setSearchQuery: setSearch } = useSearch();
   const { filtered, focusedIdx, onColsChange } = useCategoryGridNav({ items, search, onSelect: onPlay, onBack });
 
   const CARD_W = ss(240);
