@@ -2,6 +2,10 @@ import { useEffect, useRef } from "react";
 import { Animated } from "react-native";
 import { colors, radii } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
+import { isLowEndDevice } from "../../utils/deviceTier";
+
+const LOW_END = isLowEndDevice();
 
 /**
  * Poster-shaped loading placeholder — native.
@@ -14,8 +18,16 @@ import { ss } from "../../utils/scaleSize";
 export default function SkeletonPoster({ width = 120 }) {
   const opacity = useRef(new Animated.Value(0.4)).current;
   const posterH = Math.round(width * 1.5);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    // Honor reduced-motion / low-end: render a static placeholder rather than a
+    // pulsing loop (mirrors PosterCard.native's shimmer gate). "Reduced motion
+    // everywhere" is a hard product bar, and every loading rail mounts these.
+    if (LOW_END || reducedMotion) {
+      opacity.setValue(0.6);
+      return undefined;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
@@ -24,7 +36,7 @@ export default function SkeletonPoster({ width = 120 }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [opacity]);
+  }, [opacity, reducedMotion]);
 
   return (
     <Animated.View style={{ width, opacity }}>

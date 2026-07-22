@@ -458,7 +458,9 @@
 }
 .tvl-det-hero-title {
   font-size: var(--a-fs-hero);
-  font-weight: 900;
+  /* Type ramp tops at 700; Space Grotesk has no reliable 900 face on the TV
+     fallback stack, so 900 silently rendered as the 700 face anyway. */
+  font-weight: 700;
   color: var(--a-text-strong);
   letter-spacing: -0.5px;
   line-height: 1.1;
@@ -616,4 +618,56 @@
 .tvl-shelf-rowwrap.more-left .tvl-shelf-chev--left,
 .tvl-shelf-rowwrap.more-right .tvl-shelf-chev--right {
   opacity: 1;
+}
+
+/* ── Skeleton grid cell (grid initial-load) ────────────────────────────────────
+   Parity with VirtualShelvesTV's SkeletonPoster rows: the drill-in grid loading
+   state renders a poster-shaped skeleton grid instead of a lone spinner, so the
+   swap to real cards lands with no layout jump. The sweep is a compositor-layer
+   translateX (translateZ(0) + will-change), the same GPU-thread technique the
+   boot spinner uses so it keeps animating while the catalog JSON parse blocks
+   the main thread. */
+@keyframes tvl-skel-sweep {
+  from { transform: translateZ(0) translateX(-100%); }
+  to { transform: translateZ(0) translateX(100%); }
+}
+.tvl-skel {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  background: var(--a-surface);
+  border: 1px solid var(--a-border);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+.tvl-skel--wide {
+  aspect-ratio: 16 / 9;
+}
+.tvl-skel::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(100deg, transparent 20%, var(--a-surface-2) 50%, transparent 80%);
+  animation: tvl-skel-sweep 1.4s ease-in-out infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tvl-skel::after { animation: none; }
+}
+/* Ratio-box fallback for the webOS/Tizen Chromium floor (~38–53) where
+   aspect-ratio (Chromium 88) is ignored and the box would collapse to 0 height,
+   showing nothing during load. Rebuild the height the old way (% padding-top
+   resolves against the width since .tvl-skel is width:100%). */
+@supports not (aspect-ratio: 1 / 1) {
+  .tvl-skel {
+    height: 0;
+    padding-top: 150%;
+  }
+  .tvl-skel--wide {
+    padding-top: 56.25%;
+  }
 }

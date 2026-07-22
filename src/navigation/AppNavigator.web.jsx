@@ -139,6 +139,34 @@ if (typeof document !== "undefined") {
     body:not(.keyboard-nav) .suvo-shelf-title-btn:hover span, body:not(.keyboard-nav) .suvo-shelf-title-btn:hover div { opacity: 0.8; }
     .suvo-load-cta { cursor: pointer !important; transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease; }
     body:not(.keyboard-nav) .suvo-load-cta:hover { background: rgba(108, 92, 231,0.12) !important; border-color: rgba(108, 92, 231,0.45) !important; transform: translateY(-1px); }
+    /* Keyboard focus for the top-nav items + icon actions (WCAG 2.1.1 / 2.4.7):
+       cyan (accent2) ring, offset 2. The remote-driven index ring (isFocused)
+       still paints its own cyan affordance separately; this only fires for real
+       keyboard/DOM :focus-visible on desktop. */
+    .suvo-navlink:focus-visible, .suvo-navicon:focus-visible {
+      outline: 2px solid #22D3EE; outline-offset: 2px; border-radius: 6px;
+    }
+    /* Keyboard focus (:focus-visible) on interactive cards/pills — mirrors the
+       Aurora hover ring so Tab users get the same cyan affordance the mouse does,
+       independent of the keyboard-nav hover suppression above. */
+    .suvo-poster-card:focus-visible, .suvo-poster:focus-visible, .suvo-cw-card:focus-visible,
+    .suvo-live-card:focus-visible, .suvo-discover-pill:focus-visible,
+    .suvo-episode-row:focus-visible { outline: none; }
+    .suvo-poster-card:focus-visible .suvo-poster-box {
+      box-shadow: 0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55) !important;
+      border-color: #22D3EE !important; border-width: 2px !important; z-index: 2;
+    }
+    .suvo-poster:focus-visible .suvo-poster-box,
+    .suvo-cw-card:focus-visible .suvo-poster-box {
+      box-shadow: 0 0 0 2px #22D3EE, 0 0 24px 2px rgba(34,211,238,0.55); border-color: #22D3EE; z-index: 2;
+    }
+    .suvo-live-card:focus-visible { border-color: #22D3EE !important; border-width: 2px !important; box-shadow: 0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55) !important; }
+    .suvo-discover-pill:focus-visible { border-color: #22D3EE !important; box-shadow: 0 0 0 1px rgba(34,211,238,0.6), 0 0 24px 2px rgba(34,211,238,0.55) !important; }
+    /* Episode-list rows (SeriesDetail): web primitives drop hoverStyle, so the
+       hover/focus border is drawn here — cyan (accent2), honoring Single-Light. */
+    .suvo-episode-row { transition: border-color 0.15s ease; }
+    body:not(.keyboard-nav) .suvo-episode-row:hover { border-color: #22D3EE !important; }
+    .suvo-episode-row:focus-visible { outline: none; border-color: #22D3EE !important; }
     ${
       globalThis.__TV__
         ? `
@@ -201,7 +229,24 @@ function BrandGlyph() {
   );
 }
 
-function NavLink({ item, isActive, isFocused, onPress, fontSize }) {
+function NavLink({ item, isActive, isFocused, onPress, fontSize, isTV }) {
+  // Desktop keyboard access (WCAG 2.1.1): render as a real focusable control
+  // with Enter/Space activation + a :focus-visible ring. TV keeps its own
+  // index-based remote ring (isFocused), so it doesn't take DOM focus.
+  const kbd = isTV
+    ? {}
+    : {
+        role: "button",
+        tabIndex: 0,
+        "aria-label": item.label,
+        onKeyDown: (e) => {
+          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            onPress?.();
+          }
+        },
+        className: "suvo-navlink",
+      };
   return (
     <YStack alignItems="center">
       <YStack
@@ -210,6 +255,7 @@ function NavLink({ item, isActive, isFocused, onPress, fontSize }) {
         cursor="pointer"
         onPress={onPress}
         pressStyle={{ opacity: 0.7 }}
+        {...kbd}
       >
         <Text
           color={isFocused || isActive ? colors.text : colors.muted}
@@ -251,6 +297,22 @@ function TopNav({
   const accountsFocused = navFocused && focusedNavIdx === idxAccounts;
   const settingsFocused = navFocused && focusedNavIdx === idxSettings;
   const profileFocused = navFocused && focusedNavIdx === idxProfile;
+
+  // Desktop keyboard access for the icon-only actions (WCAG 2.1.1): Tab-focusable
+  // with Enter/Space activation + a :focus-visible ring. TV keeps its remote ring.
+  const kbdIcon = (fn) =>
+    isTV
+      ? {}
+      : {
+          tabIndex: 0,
+          className: "suvo-navicon",
+          onKeyDown: (e) => {
+            if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+              e.preventDefault();
+              fn();
+            }
+          },
+        };
 
   const S = isTV
     ? {
@@ -324,6 +386,7 @@ function TopNav({
             isFocused={navFocused && focusedNavIdx === idx}
             onPress={() => onSelect(item.id)}
             fontSize={S.navFont}
+            isTV={isTV}
           />
         ))}
       </XStack>
@@ -342,6 +405,7 @@ function TopNav({
           onPress={onAccounts}
           pressStyle={{ opacity: 0.7 }}
           {...{ role: "button", "aria-label": "Accounts", title: "Accounts" }}
+          {...kbdIcon(onAccounts)}
         >
           <YStack
             width={S.icon}
@@ -370,6 +434,7 @@ function TopNav({
           onPress={onSettings}
           pressStyle={{ opacity: 0.7 }}
           {...{ role: "button", "aria-label": "Settings", title: "Settings" }}
+          {...kbdIcon(onSettings)}
         >
           <YStack
             width={S.icon}
@@ -398,6 +463,7 @@ function TopNav({
           onPress={onSwitchProfile}
           pressStyle={{ opacity: 0.8 }}
           {...{ role: "button", "aria-label": "Switch profile", title: "Switch profile" }}
+          {...kbdIcon(onSwitchProfile)}
         >
           <YStack
             width={S.avatar}

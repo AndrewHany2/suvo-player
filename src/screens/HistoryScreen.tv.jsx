@@ -59,6 +59,10 @@ export default function HistoryScreenTV({ navigation }) {
   } = useHistory({ navigation });
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
+  // Read live inside the once-bound key listener: picks the right empty-state CTA
+  // target (no account → Accounts, empty library → Movies).
+  const activeUserIdRef = useRef(activeUserId);
+  activeUserIdRef.current = activeUserId;
 
   // ── Movie detail state ────────────────────────────────────────────────────
   const [movieDetail, setMovieDetail] = useState(null);
@@ -255,8 +259,10 @@ export default function HistoryScreenTV({ navigation }) {
       if (movieDetailRef.current) handleMovieDetailKey(k, e);
       else if (seriesDetailRef.current) handleSeriesDetailKey(k, e);
       else if (shelfCountRef.current === 0) {
-        // Empty Home: no shelf component mounted, so handle nav/back here.
+        // Empty Home / no-account: no shelf component mounted, so handle nav/back
+        // AND the StatePanel CTA (the sole focusable) here — OK fires it.
         if (k === KEY_UP) { e.preventDefault(); focusNav(); }
+        else if (k === KEY_ENTER) { e.preventDefault(); navigation.navigate(activeUserIdRef.current ? "Movies" : "Accounts"); }
         else if (KEY_BACK.has(k)) { e.preventDefault(); navigation.goBack?.(); }
       }
       // Otherwise VirtualShelvesTV owns the list keys (arrows/enter/back).
@@ -301,19 +307,25 @@ export default function HistoryScreenTV({ navigation }) {
     ];
     const maxBtn = buttons.length - 1;
 
+    // The action buttons render in a HORIZONTAL row (identical markup to
+    // MoviesScreen), so Left/Right move between them. btnIdx === -1 is the topbar
+    // Back icon above the row; Up climbs row → Back icon → global navbar, Down
+    // drops back down. Mirrors MoviesScreen.tv.jsx handleDetailDir exactly.
     switch (k) {
       case KEY_LEFT:
-        closeMovieDetail();
+        // Left on the first button is a no-op — only Back closes the detail.
+        if (d.btnIdx > 0) updMovieDetail({ ...d, btnIdx: d.btnIdx - 1 });
+        break;
+      case KEY_RIGHT:
+        if (d.btnIdx >= 0 && d.btnIdx < maxBtn) updMovieDetail({ ...d, btnIdx: d.btnIdx + 1 });
         break;
       case KEY_UP:
-        // btnIdx === -1 → topbar back icon (between first button and navbar).
-        if (d.btnIdx > 0) updMovieDetail({ ...d, btnIdx: d.btnIdx - 1 });
-        else if (d.btnIdx === 0) updMovieDetail({ ...d, btnIdx: -1 });
-        else focusNav();
+        // btnIdx === -1 → topbar back icon (between the row and the navbar).
+        if (d.btnIdx === -1) focusNav();
+        else updMovieDetail({ ...d, btnIdx: -1 });
         break;
       case KEY_DOWN:
         if (d.btnIdx === -1) updMovieDetail({ ...d, btnIdx: 0 });
-        else if (d.btnIdx < maxBtn) updMovieDetail({ ...d, btnIdx: d.btnIdx + 1 });
         break;
       case KEY_ENTER: {
         if (d.btnIdx === -1) { closeMovieDetail(); break; }
@@ -500,6 +512,7 @@ export default function HistoryScreenTV({ navigation }) {
           message={LABELS.noAccountBody}
           cta={() => navigation.navigate("Accounts")}
           ctaLabel={LABELS.noAccountCta}
+          ctaFocused
         />
       </div>
     );
@@ -751,6 +764,7 @@ export default function HistoryScreenTV({ navigation }) {
           message={LABELS.emptyBody}
           cta={() => navigation.navigate("Movies")}
           ctaLabel={LABELS.emptyCta}
+          ctaFocused
         />
       </div>
     );

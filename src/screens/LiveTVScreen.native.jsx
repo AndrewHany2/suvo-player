@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
-import { FlatList, Modal, Alert, TouchableOpacity, RefreshControl } from "react-native";
+import { FlatList, Modal, KeyboardAvoidingView, Platform, TouchableOpacity, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { YStack, XStack, Text, Input } from "../ui/primitives";
-import { colors, iconSizes } from "../ui/tokens";
+import { colors, iconSizes, fonts, radii, zIndex } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
@@ -11,6 +11,7 @@ import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { isAuthError } from "../utils/authError";
 import { isConnectivityError } from "../utils/networkError.logic.js";
+import { useIsOnline } from "../downloads/useIsOnline.js";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 
 const getAbbrev = (name) => {
@@ -88,6 +89,7 @@ export default function LiveTVScreen({ navigation }) {
     playChannel,
   } = useLiveTV({ navigation });
   const { setChannels, saveChannels } = useApp();
+  const online = useIsOnline();
   const [refreshing, setRefreshing] = useState(false);
   // Locally-injected synthetic categories (currently just "Custom" for
   // user-added channels); the hook owns the provider category list.
@@ -102,7 +104,21 @@ export default function LiveTVScreen({ navigation }) {
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [newStreamUrl, setNewStreamUrl] = useState("");
+  const [addError, setAddError] = useState(null);
+  // Categories whose channel fetch failed → render a retry rail instead of a
+  // silently-empty shelf (distinct from a genuinely empty category).
+  const [failedCats, setFailedCats] = useState({});
+  // Transient success toast (mirrors History's inline Undo toast pattern).
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
   const loadedRef = useRef(new Set());
+
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 2600);
+  }, []);
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   const fetchEpg = useCallback(async (streamId) => {
     setEpgCache((prev) => { if (prev[streamId] !== undefined) return prev; return { ...prev, [streamId]: null }; });
@@ -113,17 +129,25 @@ export default function LiveTVScreen({ navigation }) {
   }, [fetchEpgTitle]);
 
   const handleAddChannel = () => {
-    if (!newChannelName.trim() || !newStreamUrl.trim()) {
-      Alert.alert("Missing Fields", "Please enter both a channel name and stream URL.");
+    const nm = newChannelName.trim();
+    const url = newStreamUrl.trim();
+    if (!nm || !url) {
+      setAddError("Enter both a channel name and stream URL.");
       return;
     }
-    const ch = { name: newChannelName.trim(), url: newStreamUrl.trim(), id: Date.now().toString(), stream_id: Date.now().toString(), logo: null };
+    // Require a real URL scheme so a bare host / typo doesn't get saved as a
+    // channel that can never play.
+    if (!/^(https?|rtmp):\/\//i.test(url)) {
+      setAddError("Enter a valid stream URL starting with http://, https:// or rtmp://.");
+      return;
+    }
+    const ch = { name: nm, url, id: Date.now().toString(), stream_id: Date.now().toString(), logo: null };
     setChannelsByCategory((prev) => ({ ...prev, Custom: [...(prev.Custom || []), ch] }));
     setCustomCats((prev) => prev.some((c) => c.id === "Custom") ? prev : [...prev, { id: "Custom", name: "Custom" }]);
     setChannels((prev) => [...prev, ch]);
     saveChannels();
-    setNewChannelName(""); setNewStreamUrl(""); setShowAddChannel(false);
-    Alert.alert("Channel Added", `"${ch.name}" added to Custom category.`);
+    setNewChannelName(""); setNewStreamUrl(""); setAddError(null); setShowAddChannel(false);
+    showToast(`"${ch.name}" added to Custom.`);
   };
 
   // Categories load is owned by useLiveTV; reset screen-local shelf state when
@@ -132,6 +156,7 @@ export default function LiveTVScreen({ navigation }) {
     setEpgCache({});
     setChannelsByCategory({});
     setCustomCats([]);
+    setFailedCats({});
     loadedRef.current.clear();
   }, [activeUserId]);
 
@@ -145,17 +170,27 @@ export default function LiveTVScreen({ navigation }) {
       // useLiveTV returns the flat card shape and caches the fetch.
       const formatted = await getFlatChannels(catId);
       setChannelsByCategory((prev) => ({ ...prev, [catId]: formatted }));
+      setFailedCats((prev) => (prev[catId] ? { ...prev, [catId]: false } : prev));
       setChannels((prev) => { const existingIds = new Set(prev.map((c) => String(c.stream_id))); return [...prev, ...formatted.filter((c) => !existingIds.has(String(c.stream_id)))]; });
     } catch (err) {
       // Auth failures (401/403) are account-level: useLiveTV trips its breaker
       // and surfaces the error panel, so don't add per-category log noise here.
-      // Isolated failures just hide this category's rail (no retry, no loop).
+      // Isolated failures flag the category so its rail shows a retry affordance
+      // instead of silently vanishing.
       if (!isAuthError(err) && !isConnectivityError(err)) {
         console.warn(`LiveTV: channels for "${catId}" failed to load`, err);
       }
       setChannelsByCategory((prev) => ({ ...prev, [catId]: [] }));
+      setFailedCats((prev) => ({ ...prev, [catId]: true }));
     }
   }, [setChannels, getFlatChannels]);
+
+  // Retry a failed category: clear the load guard + failure flag, then re-fetch.
+  const retryCategory = useCallback((catId) => {
+    loadedRef.current.delete(catId);
+    setFailedCats((prev) => (prev[catId] ? { ...prev, [catId]: false } : prev));
+    loadChannelCategory(catId);
+  }, [loadChannelCategory]);
 
   // Eagerly warm the first few shelves once the hook delivers categories
   // (the FlatList's onViewableItemsChanged loads the rest as they scroll in).
@@ -167,6 +202,7 @@ export default function LiveTVScreen({ navigation }) {
     setRefreshing(true);
     loadedRef.current.clear();
     setChannelsByCategory({});
+    setFailedCats({});
     try { await loadChannels(); } finally { setRefreshing(false); }
   };
 
@@ -188,7 +224,18 @@ export default function LiveTVScreen({ navigation }) {
   );
 
   if (loading) {
-    return <StatePanel mode="loading" title="Loading channels..." />;
+    // Skeleton rails (a header spacer + a few placeholder shelves) read as the
+    // real screen filling in, rather than a lone centered spinner.
+    return (
+      <YStack flex={1} backgroundColor={colors.bg}>
+        <YStack paddingHorizontal={16} paddingVertical={14}>
+          <YStack height={44} backgroundColor={colors.surface2} borderRadius={10} borderWidth={1} borderColor={colors.border} />
+        </YStack>
+        {[0, 1, 2].map((i) => (
+          <ContentShelf key={i} id={`skeleton-${i}`} title="" items={null} manual hasMore={false} loadingMore={false} itemWidth={160} gap={8} />
+        ))}
+      </YStack>
+    );
   }
 
   if (!activeUserId) {
@@ -218,12 +265,17 @@ export default function LiveTVScreen({ navigation }) {
 
   return (
     <YStack flex={1} backgroundColor={colors.bg}>
+      {!online && (
+        <YStack paddingVertical={8} paddingHorizontal={16} backgroundColor={colors.surface2} borderBottomWidth={1} borderBottomColor={colors.border}>
+          <Text color={colors.muted} fontSize={13} fontWeight="600">You're offline — live channels need a connection.</Text>
+        </YStack>
+      )}
       <XStack alignItems="center" paddingHorizontal={16} paddingVertical={14} gap={10}>
         <XStack flex={1} alignItems="center" gap={8} backgroundColor={colors.surface2} borderRadius={10} paddingHorizontal={14} borderWidth={1} borderColor={colors.border}>
           <Icon name="search" size={iconSizes.sm} color={colors.muted} />
-          <Input flex={1} placeholder="Search channels..." placeholderTextColor={colors.faint} value={searchQuery} onChangeText={setSearchQuery} backgroundColor="transparent" color={colors.text} paddingVertical={10} fontSize={14} />
+          <Input flex={1} placeholder="Search channels..." placeholderTextColor={colors.muted} value={searchQuery} onChangeText={setSearchQuery} backgroundColor="transparent" color={colors.text} paddingVertical={10} fontSize={14} />
         </XStack>
-        <Button variant="primary" icon="plus" onPress={() => setShowAddChannel(true)}>Add</Button>
+        <Button variant="primary" icon="plus" onPress={() => { setAddError(null); setShowAddChannel(true); }}>Add</Button>
       </XStack>
 
       <FlatList
@@ -236,6 +288,8 @@ export default function LiveTVScreen({ navigation }) {
             count={cat.channels?.length ?? null}
             items={cat.channels}
             hasMore={false} loadingMore={false} manual={false}
+            error={!!failedCats[cat.id]}
+            onRetry={retryCategory}
             leadingIcon="tv"
             itemWidth={160} gap={8}
             onVisible={loadChannelCategory}
@@ -257,19 +311,37 @@ export default function LiveTVScreen({ navigation }) {
       />
 
       <Modal visible={showAddChannel} transparent animationType="slide" onRequestClose={() => setShowAddChannel(false)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} activeOpacity={1} onPress={() => setShowAddChannel(false)}>
-          <TouchableOpacity style={{ backgroundColor: colors.surface2, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, borderTopWidth: 1, borderColor: colors.border }} activeOpacity={1}>
-            <Text color={colors.text} fontSize={17} fontWeight="700" marginBottom={16}>Add Custom Channel</Text>
-            <Input placeholder="Channel name" placeholderTextColor={colors.faint} value={newChannelName} onChangeText={setNewChannelName} backgroundColor={colors.bg} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={14} borderWidth={1} borderColor={colors.border} marginBottom={12} />
-            <Input placeholder="Stream URL (http://... or rtmp://...)" placeholderTextColor={colors.faint} value={newStreamUrl} onChangeText={setNewStreamUrl} autoCapitalize="none" keyboardType="url" backgroundColor={colors.bg} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={14} borderWidth={1} borderColor={colors.border} marginBottom={12} />
-            <Text color={colors.faint} fontSize={12} marginBottom={20}>Supported: HLS (.m3u8), DASH (.mpd), direct video</Text>
-            <XStack gap={12}>
-              <Button variant="secondary" onPress={() => setShowAddChannel(false)} style={{ flex: 1 }}>Cancel</Button>
-              <Button variant="primary" onPress={handleAddChannel} style={{ flex: 1 }}>Add Channel</Button>
-            </XStack>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} activeOpacity={1} onPress={() => setShowAddChannel(false)}>
+            <TouchableOpacity style={{ backgroundColor: colors.surface2, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, borderTopWidth: 1, borderColor: colors.border }} activeOpacity={1}>
+              <Text color={colors.text} fontSize={17} fontWeight="700" marginBottom={16}>Add Custom Channel</Text>
+              <Input placeholder="Channel name" placeholderTextColor={colors.muted} value={newChannelName} onChangeText={(t) => { setNewChannelName(t); if (addError) setAddError(null); }} backgroundColor={colors.bg} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={14} borderWidth={1} borderColor={colors.border} marginBottom={12} />
+              <Input placeholder="Stream URL (http://... or rtmp://...)" placeholderTextColor={colors.muted} value={newStreamUrl} onChangeText={(t) => { setNewStreamUrl(t); if (addError) setAddError(null); }} autoCapitalize="none" keyboardType="url" backgroundColor={colors.bg} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={14} borderWidth={1} borderColor={colors.border} marginBottom={12} />
+              <Text color={colors.textDim} fontSize={12} marginBottom={addError ? 8 : 20}>Supported: HLS (.m3u8), DASH (.mpd), direct video</Text>
+              {addError && <Text color={colors.danger} fontSize={13} fontWeight="600" marginBottom={16}>{addError}</Text>}
+              <XStack gap={12}>
+                <Button variant="secondary" onPress={() => setShowAddChannel(false)} style={{ flex: 1 }}>Cancel</Button>
+                <Button variant="primary" onPress={handleAddChannel} style={{ flex: 1 }}>Add Channel</Button>
+              </XStack>
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
+
+      {toast && (
+        <YStack
+          position="absolute" left={0} right={0} bottom={24} zIndex={zIndex.toast}
+          alignItems="center" paddingHorizontal={16} pointerEvents="none"
+        >
+          <YStack
+            accessibilityRole="alert"
+            backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border} borderRadius={radii.md}
+            paddingVertical={10} paddingHorizontal={16}
+          >
+            <Text color={colors.text} fontFamily={fonts.body} fontSize={14} numberOfLines={1}>{toast}</Text>
+          </YStack>
+        </YStack>
+      )}
     </YStack>
   );
 }

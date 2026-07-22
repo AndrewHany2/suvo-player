@@ -5,7 +5,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, accentAlpha, fonts } from "../ui/tokens";
+import { colors, accentAlpha, fonts, overlay } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
@@ -839,7 +839,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       {showControls && (
         <YStack position="absolute" top={0} left={0} right={0} paddingTop={insets.top + topPadding} pointerEvents="box-none">
           <XStack alignItems="center" paddingHorizontal={12} paddingVertical={8} backgroundColor="rgba(0,0,0,0.7)" flexWrap="wrap" gap={8}>
-            <YStack width={44} height={44} backgroundColor={accentAlpha(0.9)} borderRadius={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel="Close player">
+            <YStack width={44} height={44} backgroundColor={overlay} borderWidth={1} borderColor={colors.border} borderRadius={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel="Close player">
               <Icon name="close" size={16} color={colors.text} />
             </YStack>
 
@@ -909,7 +909,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
             return (
               <YStack paddingHorizontal={16} paddingTop={4}>
                 <View
-                  style={{ height: 26, justifyContent: "center" }}
+                  style={{ height: 44, justifyContent: "center" }}
                   accessible
                   accessibilityRole="adjustable"
                   accessibilityLabel="Seek bar"
@@ -946,11 +946,11 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       <Modal visible={showSpeedMenu} transparent animationType={modalAnimation} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSpeedMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSpeedMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
-            <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Playback Speed</Text>
+            <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Playback Speed</Text>
             <ScrollView>
               {SPEEDS.map((rate) => (
                 <YStack key={rate} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={speed === rate ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSpeedChange(rate)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: speed === rate }} accessibilityLabel={`${rate}x speed`}>
-                  <Text color={speed === rate ? colors.accent : colors.muted} fontSize={15} fontWeight={speed === rate ? "700" : "400"}>{rate}x{rate === 1 ? " (Normal)" : ""}</Text>
+                  <Text color={speed === rate ? colors.accent : colors.text} fontSize={15} fontWeight={speed === rate ? "700" : "400"}>{rate}x{rate === 1 ? " (Normal)" : ""}</Text>
                 </YStack>
               ))}
             </ScrollView>
@@ -962,11 +962,11 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       <Modal visible={showAudioMenu} transparent animationType={modalAnimation} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAudioMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowAudioMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
-            <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Audio Track</Text>
+            <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Audio Track</Text>
             <ScrollView>
               {audioTracks.map((track, idx) => (
                 <YStack key={idx} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedAudio === track ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleAudioChange(track)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: selectedAudio === track }} accessibilityLabel={`Audio track ${track.language || track.label || idx + 1}`}>
-                  <Text color={selectedAudio === track ? colors.accent : colors.muted} fontSize={15} fontWeight={selectedAudio === track ? "700" : "400"}>{track.language || track.label || `Track ${idx + 1}`}</Text>
+                  <Text color={selectedAudio === track ? colors.accent : colors.text} fontSize={15} fontWeight={selectedAudio === track ? "700" : "400"}>{track.language || track.label || `Track ${idx + 1}`}</Text>
                 </YStack>
               ))}
             </ScrollView>
@@ -978,14 +978,14 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       <Modal visible={showSubtitleMenu} transparent animationType={modalAnimation} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSubtitleMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSubtitleMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
-            <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Subtitles</Text>
+            <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Subtitles</Text>
             <ScrollView>
               <YStack paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedSubtitle === null ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSubtitleChange(null)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: selectedSubtitle === null }} accessibilityLabel="Subtitles off">
-                <Text color={selectedSubtitle === null ? colors.accent : colors.muted} fontSize={15} fontWeight={selectedSubtitle === null ? "700" : "400"}>Off</Text>
+                <Text color={selectedSubtitle === null ? colors.accent : colors.text} fontSize={15} fontWeight={selectedSubtitle === null ? "700" : "400"}>Off</Text>
               </YStack>
               {subtitleTracks.map((track, idx) => (
                 <YStack key={idx} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedSubtitle === track ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSubtitleChange(track)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: selectedSubtitle === track }} accessibilityLabel={`Subtitle ${track.language || track.label || idx + 1}`}>
-                  <Text color={selectedSubtitle === track ? colors.accent : colors.muted} fontSize={15} fontWeight={selectedSubtitle === track ? "700" : "400"}>{track.language || track.label || `Track ${idx + 1}`}</Text>
+                  <Text color={selectedSubtitle === track ? colors.accent : colors.text} fontSize={15} fontWeight={selectedSubtitle === track ? "700" : "400"}>{track.language || track.label || `Track ${idx + 1}`}</Text>
                 </YStack>
               ))}
             </ScrollView>
@@ -1011,7 +1011,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       <Modal visible={showSleepMenu} transparent animationType={modalAnimation} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSleepMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSleepMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={400} borderWidth={1} borderColor={colors.border}>
-            <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Sleep Timer</Text>
+            <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Sleep Timer</Text>
             <ScrollView>
               {SLEEP_PRESETS.map((preset) => (
                 <YStack
@@ -1034,7 +1034,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
                   accessibilityRole="button"
                   accessibilityLabel={preset.label}
                 >
-                  <Text color={colors.muted} fontSize={15}>{preset.label}</Text>
+                  <Text color={colors.text} fontSize={15}>{preset.label}</Text>
                 </YStack>
               ))}
               {sleep.active && (
@@ -1044,7 +1044,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
               )}
             </ScrollView>
             {!brightnessAvailable && (
-              <Text color={colors.faint} fontSize={10} textAlign="center" paddingTop={6}>
+              <Text color={colors.textDim} fontSize={10} textAlign="center" paddingTop={6}>
                 Brightness gesture unavailable (expo-brightness not installed)
               </Text>
             )}

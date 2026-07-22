@@ -16,30 +16,6 @@ import DownloadsStorageLine from "../downloads/DownloadsStorageLine.jsx";
 // .web variant and is shared with the web build).
 const IS_NATIVE = Platform.OS === "ios" || Platform.OS === "android";
 
-// react-native-web's Alert is a no-op stub (Alert.alert = () => {}), so on
-// web/Electron/TV the OS Alert never renders and its button callbacks never
-// fire — delete, sign-out, and the connect prompt would all do nothing. Fall
-// back to the browser dialogs there (same idiom as useHistory's confirm/notify).
-const confirmDialog = (title, message, confirmLabel, onConfirm) => {
-  if (Platform.OS === "web") {
-    if (globalThis.confirm?.(message)) onConfirm();
-  } else {
-    Alert.alert(title, message, [
-      { text: "Cancel", style: "cancel" },
-      { text: confirmLabel, style: "destructive", onPress: onConfirm },
-    ]);
-  }
-};
-
-const alertDialog = (title, message, onOk) => {
-  if (Platform.OS === "web") {
-    globalThis.alert?.(message);
-    onOk?.();
-  } else {
-    Alert.alert(title, message, onOk ? [{ text: "OK", onPress: onOk }] : undefined);
-  }
-};
-
 const EMPTY_FORM = { type: "xtream", nickname: "", host: "", username: "", password: "", url: "" };
 
 export default function AccountsScreen({ navigation }) {
@@ -51,6 +27,31 @@ export default function AccountsScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [connectedNick, setConnectedNick] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  // Web/Electron/TV in-theme dialog state. react-native-web's Alert is a no-op
+  // stub there, so instead of the old white globalThis.confirm/alert (jarring
+  // over the dark UI) we drive our own styled confirm dialog + danger banner.
+  // Native keeps the real RN Alert path untouched (see confirmDialog/alertDialog).
+  const [confirmState, setConfirmState] = useState(null); // { title, message, confirmLabel, onConfirm }
+  const [banner, setBanner] = useState(null); // inline danger message string
+
+  const confirmDialog = (title, message, confirmLabel, onConfirm) => {
+    if (Platform.OS === "web") {
+      setConfirmState({ title, message, confirmLabel, onConfirm });
+    } else {
+      Alert.alert(title, message, [
+        { text: "Cancel", style: "cancel" },
+        { text: confirmLabel, style: "destructive", onPress: onConfirm },
+      ]);
+    }
+  };
+
+  const alertDialog = (title, message) => {
+    if (Platform.OS === "web") {
+      setBanner(message);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
 
   const isM3U = formData.type === "m3u";
 
@@ -58,6 +59,7 @@ export default function AccountsScreen({ navigation }) {
     setFormData(EMPTY_FORM);
     setEditingId(null);
     setShowForm(false);
+    setBanner(null);
   };
 
   const handleAddNew = () => {
@@ -80,6 +82,7 @@ export default function AccountsScreen({ navigation }) {
   };
 
   const handleSave = async () => {
+    setBanner(null);
     if (isM3U) {
       if (!formData.url) {
         alertDialog("Missing Fields", "Please enter a playlist URL.");
@@ -112,6 +115,7 @@ export default function AccountsScreen({ navigation }) {
   const handleConnect = async (userId) => {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
+    setBanner(null);
     setLoading(true);
     try {
       contentService.configure(user);
@@ -179,6 +183,78 @@ export default function AccountsScreen({ navigation }) {
     borderColor: colors.border,
   };
 
+  // Shared in-theme error banner (web) — replaces the old white globalThis.alert.
+  const bannerNode = banner ? (
+    <XStack
+      accessibilityLiveRegion="polite"
+      alignItems="center"
+      gap={ss(10)}
+      backgroundColor={colors.surface2}
+      marginHorizontal={ss(16)}
+      marginTop={ss(16)}
+      borderRadius={radii.md}
+      padding={ss(14)}
+      borderWidth={1}
+      borderColor={colors.danger}
+    >
+      <Icon name="warning" size={ss(20)} color={colors.danger} />
+      <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(14)} flex={1}>
+        {banner}
+      </Text>
+      <Button variant="ghost" size="sm" icon="close" onPress={() => setBanner(null)} aria-label="Dismiss" />
+    </XStack>
+  ) : null;
+
+  // Styled confirm dialog (web) — replaces the old white globalThis.confirm for
+  // destructive actions (delete account / sign out). Native uses RN Alert above.
+  const confirmNode = confirmState ? (
+    <YStack
+      position="absolute"
+      top={0}
+      left={0}
+      right={0}
+      bottom={0}
+      zIndex={50}
+      backgroundColor="rgba(0,0,0,0.7)"
+      justifyContent="center"
+      alignItems="center"
+      padding={ss(20)}
+    >
+      <YStack
+        width="100%"
+        maxWidth={ss(400)}
+        backgroundColor={colors.surface2}
+        borderRadius={radii.lg}
+        borderWidth={1}
+        borderColor={colors.border}
+        padding={ss(24)}
+        gap={ss(8)}
+      >
+        <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(18)} fontWeight={fontWeights.bold}>
+          {confirmState.title}
+        </Text>
+        <Text color={colors.textDim} fontFamily={fonts.body} fontSize={ss(14)}>
+          {confirmState.message}
+        </Text>
+        <XStack gap={ss(12)} marginTop={ss(16)} justifyContent="flex-end">
+          <Button variant="secondary" onPress={() => setConfirmState(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onPress={() => {
+              const fn = confirmState.onConfirm;
+              setConfirmState(null);
+              fn?.();
+            }}
+          >
+            {confirmState.confirmLabel}
+          </Button>
+        </XStack>
+      </YStack>
+    </YStack>
+  ) : null;
+
   // ── Form view ─────────────────────────────────────────────────────────────
   if (showForm) {
     return (
@@ -187,6 +263,7 @@ export default function AccountsScreen({ navigation }) {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView contentContainerStyle={{ padding: ss(20) }}>
+          {bannerNode}
           <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(20)} fontWeight={fontWeights.bold} marginBottom={ss(20)}>
             {editingId ? "Edit Account" : "Add New Account"}
           </Text>
@@ -207,23 +284,23 @@ export default function AccountsScreen({ navigation }) {
           </XStack>
 
           <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Nickname (optional)</Text>
-          <Input placeholder="e.g., My account" placeholderTextColor={colors.faint} value={formData.nickname} onChangeText={(v) => setFormData({ ...formData, nickname: v })} disabled={loading} {...inputStyle} />
+          <Input placeholder="e.g., My account" placeholderTextColor={colors.muted} value={formData.nickname} onChangeText={(v) => setFormData({ ...formData, nickname: v })} disabled={loading} {...inputStyle} />
 
           {isM3U ? (
             <>
               <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Playlist URL *</Text>
-              <Input placeholder="http://host/get.php?...type=m3u_plus  or  .m3u/.m3u8" placeholderTextColor={colors.faint} value={formData.url} onChangeText={(v) => setFormData({ ...formData, url: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
+              <Input placeholder="http://host/get.php?...type=m3u_plus  or  .m3u/.m3u8" placeholderTextColor={colors.muted} value={formData.url} onChangeText={(v) => setFormData({ ...formData, url: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
             </>
           ) : (
             <>
               <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Server / Host *</Text>
-              <Input placeholder="s1.example.com:8080" placeholderTextColor={colors.faint} value={formData.host} onChangeText={(v) => setFormData({ ...formData, host: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
+              <Input placeholder="s1.example.com:8080" placeholderTextColor={colors.muted} value={formData.host} onChangeText={(v) => setFormData({ ...formData, host: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
 
               <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Username *</Text>
-              <Input placeholder="your_username" placeholderTextColor={colors.faint} value={formData.username} onChangeText={(v) => setFormData({ ...formData, username: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
+              <Input placeholder="your_username" placeholderTextColor={colors.muted} value={formData.username} onChangeText={(v) => setFormData({ ...formData, username: v })} autoCapitalize="none" autoCorrect={false} disabled={loading} {...inputStyle} />
 
               <Text fontSize={ss(13)} fontFamily={fonts.body} color={colors.muted} marginBottom={ss(6)} marginTop={ss(14)}>Password *</Text>
-              <PasswordInput placeholder="your_password" placeholderTextColor={colors.faint} value={formData.password} onChangeText={(v) => setFormData({ ...formData, password: v })} disabled={loading} inputStyle={inputStyle} />
+              <PasswordInput placeholder="your_password" placeholderTextColor={colors.muted} value={formData.password} onChangeText={(v) => setFormData({ ...formData, password: v })} disabled={loading} inputStyle={inputStyle} />
             </>
           )}
 
@@ -243,6 +320,7 @@ export default function AccountsScreen({ navigation }) {
   // ── List view ─────────────────────────────────────────────────────────────
   return (
     <YStack flex={1} backgroundColor={colors.bg}>
+      {bannerNode}
       {connectedNick && (
         <XStack
           accessibilityLiveRegion="polite"
@@ -325,6 +403,7 @@ export default function AccountsScreen({ navigation }) {
           )}
         />
       )}
+      {confirmNode}
     </YStack>
   );
 }

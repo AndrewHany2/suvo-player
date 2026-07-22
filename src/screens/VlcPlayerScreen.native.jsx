@@ -5,7 +5,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, accentAlpha, fonts } from "../ui/tokens";
+import { colors, accentAlpha, fonts, overlay } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
@@ -571,7 +571,9 @@ export default function VlcPlayerScreen({ navigation }) {
             message={
               playback.fatalReason === "GONE"
                 ? "This stream is no longer available."
-                : "The stream could not be played."
+                : playback.fatalReason === "AUTH_EXPIRED"
+                  ? "Stream unavailable. The server rejected the connection."
+                  : "The stream could not be played."
             }
             onRetry={() => playback.retry()}
           />
@@ -584,7 +586,7 @@ export default function VlcPlayerScreen({ navigation }) {
       {showControls && (
         <YStack position="absolute" top={0} left={0} right={0} paddingTop={insets.top + topPadding} pointerEvents="box-none" zIndex={30}>
           <XStack alignItems="center" paddingHorizontal={12} paddingVertical={8} backgroundColor="rgba(0,0,0,0.7)" gap={8} flexWrap="wrap">
-            <YStack width={44} height={44} backgroundColor={accentAlpha(0.9)} borderRadius={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel="Close player">
+            <YStack width={44} height={44} backgroundColor={overlay} borderWidth={1} borderColor={colors.border} borderRadius={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel="Close player">
               <Icon name="close" size={16} color={colors.text} />
             </YStack>
             <Text color={colors.text} fontFamily={fonts.display} fontSize={14} fontWeight="600" flex={1} minWidth={60} numberOfLines={1}>{currentVideo.name}</Text>
@@ -617,7 +619,7 @@ export default function VlcPlayerScreen({ navigation }) {
           {progress.durationSec > 0 && (
             <YStack paddingHorizontal={16} paddingTop={4}>
               <View
-                style={{ height: 26, justifyContent: "center" }}
+                style={{ height: 44, justifyContent: "center" }}
                 accessible
                 accessibilityRole="adjustable"
                 accessibilityLabel="Seek bar"
@@ -657,11 +659,11 @@ export default function VlcPlayerScreen({ navigation }) {
       <Modal visible={showSpeedMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSpeedMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSpeedMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
-            <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Playback Speed</Text>
+            <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Playback Speed</Text>
             <ScrollView>
               {SPEEDS.map((rate) => (
-                <YStack key={rate} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={speed === rate ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSpeedChange(rate)} pressStyle={{ opacity: 0.7 }}>
-                  <Text color={speed === rate ? colors.accent : colors.muted} fontSize={15} fontWeight={speed === rate ? "700" : "400"}>{rate}x{rate === 1 ? " (Normal)" : ""}</Text>
+                <YStack key={rate} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={speed === rate ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleSpeedChange(rate)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: speed === rate }} accessibilityLabel={`${rate}x speed`}>
+                  <Text color={speed === rate ? colors.accent : colors.text} fontSize={15} fontWeight={speed === rate ? "700" : "400"}>{rate}x{rate === 1 ? " (Normal)" : ""}</Text>
                 </YStack>
               ))}
             </ScrollView>
@@ -673,11 +675,11 @@ export default function VlcPlayerScreen({ navigation }) {
       <Modal visible={showAudioMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAudioMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowAudioMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={360} borderWidth={1} borderColor={colors.border}>
-            <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Audio Track</Text>
+            <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Audio Track</Text>
             <ScrollView>
               {audioTracks.map((track) => (
-                <YStack key={track.id} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedAudio === track.id ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleAudioChange(track)} pressStyle={{ opacity: 0.7 }}>
-                  <Text color={selectedAudio === track.id ? colors.accent : colors.muted} fontSize={15}>{track.name || `Track ${track.id}`}</Text>
+                <YStack key={track.id} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedAudio === track.id ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleAudioChange(track)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: selectedAudio === track.id }} accessibilityLabel={`Audio track ${track.name || track.id}`}>
+                  <Text color={selectedAudio === track.id ? colors.accent : colors.text} fontSize={15}>{track.name || `Track ${track.id}`}</Text>
                 </YStack>
               ))}
             </ScrollView>
@@ -689,14 +691,14 @@ export default function VlcPlayerScreen({ navigation }) {
       <Modal visible={showTextMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowTextMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowTextMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={360} borderWidth={1} borderColor={colors.border}>
-            <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Subtitles</Text>
+            <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Subtitles</Text>
             <ScrollView>
-              <YStack paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedText === -1 ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleTextChange(-1)} pressStyle={{ opacity: 0.7 }}>
-                <Text color={selectedText === -1 ? colors.accent : colors.muted} fontSize={15}>Off</Text>
+              <YStack paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedText === -1 ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleTextChange(-1)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: selectedText === -1 }} accessibilityLabel="Subtitles off">
+                <Text color={selectedText === -1 ? colors.accent : colors.text} fontSize={15}>Off</Text>
               </YStack>
               {textTracks.map((track) => (
-                <YStack key={track.id} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedText === track.id ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleTextChange(track.id)} pressStyle={{ opacity: 0.7 }}>
-                  <Text color={selectedText === track.id ? colors.accent : colors.muted} fontSize={15}>{track.name || `Track ${track.id}`}</Text>
+                <YStack key={track.id} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={selectedText === track.id ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => handleTextChange(track.id)} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: selectedText === track.id }} accessibilityLabel={`Subtitle ${track.name || track.id}`}>
+                  <Text color={selectedText === track.id ? colors.accent : colors.text} fontSize={15}>{track.name || `Track ${track.id}`}</Text>
                 </YStack>
               ))}
             </ScrollView>
@@ -708,7 +710,7 @@ export default function VlcPlayerScreen({ navigation }) {
       <Modal visible={showSleepMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSleepMenu(false)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSleepMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={400} borderWidth={1} borderColor={colors.border}>
-            <Text color={colors.muted} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Sleep Timer</Text>
+            <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Sleep Timer</Text>
             <ScrollView>
               {SLEEP_PRESETS.map((preset) => (
                 <YStack
@@ -727,18 +729,20 @@ export default function VlcPlayerScreen({ navigation }) {
                     setShowSleepMenu(false);
                   }}
                   pressStyle={{ opacity: 0.7 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={preset.label}
                 >
-                  <Text color={colors.muted} fontSize={15}>{preset.label}</Text>
+                  <Text color={colors.text} fontSize={15}>{preset.label}</Text>
                 </YStack>
               ))}
               {sleep.active && (
-                <YStack paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={accentAlpha(0.2)} cursor="pointer" onPress={() => { sleep.cancel(); setShowSleepMenu(false); }} pressStyle={{ opacity: 0.7 }}>
+                <YStack paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={accentAlpha(0.2)} cursor="pointer" onPress={() => { sleep.cancel(); setShowSleepMenu(false); }} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityLabel="Cancel sleep timer">
                   <Text color={colors.accent} fontSize={15} fontWeight="700">Cancel timer ({formatRemaining(sleep.secondsLeft)})</Text>
                 </YStack>
               )}
             </ScrollView>
             {!brightnessAvailable && (
-              <Text color={colors.faint} fontSize={10} textAlign="center" paddingTop={6}>
+              <Text color={colors.textDim} fontSize={10} textAlign="center" paddingTop={6}>
                 Brightness gesture unavailable (expo-brightness not installed)
               </Text>
             )}

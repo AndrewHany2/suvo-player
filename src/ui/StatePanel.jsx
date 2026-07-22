@@ -22,6 +22,7 @@ import Button from "./Button";
 import Icon from "./Icon";
 import { colors, fonts, fontWeights, iconSizes } from "./tokens";
 import { ss } from "../utils/scaleSize";
+import LABELS from "./labels";
 
 export default function StatePanel({
   mode,
@@ -29,9 +30,14 @@ export default function StatePanel({
   message,
   icon,
   onRetry,
-  retryLabel = "Retry",
+  retryLabel = LABELS.retry,
   cta,
   ctaLabel,
+  // TV D-pad: the screen's key router owns focus, so it tells the panel when its
+  // Retry / CTA button is the focused target. Drives Button's cyan focus ring
+  // (isFocused). Defaults false → no change on web/native (which focus natively).
+  retryFocused = false,
+  ctaFocused = false,
 }) {
   // Full-flex centered shell shared by every mode: midnight bg, generous pad so
   // the panel reads as a deliberate empty-state rather than a stranded widget.
@@ -86,7 +92,7 @@ export default function StatePanel({
         ) : null}
         {message ? <Text {...mutedText}>{message}</Text> : null}
         {onRetry ? (
-          <Button variant="primary" onPress={onRetry} style={{ marginTop: ss(8) }}>
+          <Button variant="primary" isFocused={retryFocused} onPress={onRetry} style={{ marginTop: ss(8) }}>
             {retryLabel}
           </Button>
         ) : null}
@@ -111,7 +117,7 @@ export default function StatePanel({
       ) : null}
       {message ? <Text {...mutedText}>{message}</Text> : null}
       {cta ? (
-        <Button variant="primary" onPress={cta} style={{ marginTop: ss(8) }}>
+        <Button variant="primary" isFocused={ctaFocused} onPress={cta} style={{ marginTop: ss(8) }}>
           {ctaLabel}
         </Button>
       ) : null}

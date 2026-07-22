@@ -1,7 +1,7 @@
 import { memo, useCallback, useRef } from "react";
 import { View, Text, ActivityIndicator, Pressable, useWindowDimensions } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import { colors, fonts, fontWeights } from "../../ui/tokens";
+import { colors, fonts, fontWeights, radii } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
 import { isLowEndDevice } from "../../utils/deviceTier";
 import { posterShelfWidth, SHELF_TARGET_W } from "../../utils/posterLayout";
@@ -28,7 +28,7 @@ import SkeletonPoster from "./SkeletonPoster.native";
 function ContentShelf({
   id, title, count, items, hasMore, loadingMore, manual,
   onVisible, onPress, onTitlePress, onLoadMore, renderItem,
-  itemWidth, gap, leadingIcon,
+  itemWidth, gap, leadingIcon, error, onRetry,
 }) {
   const hasLoaded = useRef(false);
   const { width: winW } = useWindowDimensions();
@@ -71,7 +71,9 @@ function ContentShelf({
   // gap between cards comes from a separator rather than a `gap` style.
   const Separator = useCallback(() => <View style={{ width: effGap }} />, [effGap]);
 
-  if (items !== null && !items.length) return null;
+  // A per-category fetch failure keeps the rail (with a retry affordance) rather
+  // than silently vanishing; a genuinely empty loaded category still collapses.
+  if (!error && items !== null && !items.length) return null;
 
   return (
     <View style={{ paddingTop: ss(20), paddingBottom: ss(8) }} onLayout={handleLayout}>
@@ -81,15 +83,33 @@ function ContentShelf({
           style={{ flexDirection: "row", alignItems: "center", gap: ss(4) }}
         >
           {leadingIcon && <Icon name={leadingIcon} size={ss(18)} color={colors.muted} />}
-          <Text style={{ color: colors.text, fontFamily: fonts.display, fontSize: ss(20), fontWeight: fontWeights.bold, letterSpacing: -0.3 }}>
-            {title}
-          </Text>
+          {title ? (
+            <Text style={{ color: colors.text, fontFamily: fonts.display, fontSize: ss(20), fontWeight: fontWeights.bold, letterSpacing: -0.3 }}>
+              {title}
+            </Text>
+          ) : (
+            // Skeleton title bar: keeps the header footprint while a loading gate
+            // renders placeholder rails (title-less shelves).
+            <View style={{ width: ss(140), height: ss(18), borderRadius: radii.sm / 2, backgroundColor: colors.surface }} />
+          )}
           {onTitlePress && <Icon name="chevron-right" size={ss(18)} color={colors.muted} />}
         </Pressable>
-        {count != null && <Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: ss(13), fontWeight: fontWeights.medium }}>{count}</Text>}
+        {!error && count != null && <Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: ss(13), fontWeight: fontWeights.medium }}>{count.toLocaleString()}</Text>}
       </View>
 
-      {items === null ? (
+      {error ? (
+        // Per-category fetch failed: a compact, tappable retry rail so the shelf
+        // stays visible instead of silently disappearing.
+        <Pressable
+          onPress={() => onRetry?.(id)}
+          style={{ marginHorizontal: ss(16), paddingVertical: ss(14), paddingHorizontal: ss(16), borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", gap: ss(8) }}
+          accessibilityRole="button"
+          accessibilityLabel={`Retry loading ${title}`}
+        >
+          <Icon name="warning" size={ss(16)} color={colors.muted} />
+          <Text style={{ color: colors.textDim, fontFamily: fonts.body, fontSize: ss(14), fontWeight: fontWeights.medium }}>Couldn't load — Tap to retry</Text>
+        </Pressable>
+      ) : items === null ? (
         // Skeleton rail: a row of poster-shaped placeholders sized like the real
         // cards. overflow:hidden clips the ones past the right edge.
         <View style={{ flexDirection: "row", paddingHorizontal: ss(16), gap: effGap, overflow: "hidden" }}>

@@ -107,7 +107,7 @@ function ToggleRow({ label, value, onChange, focused = false }) {
 function ChipRow({ label, options, value, onChange, focusedValue = null }) {
   return (
     <YStack paddingVertical={ss(14)} borderBottomWidth={1} borderBottomColor={colors.border}>
-      <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(13)} marginBottom={ss(10)}>
+      <Text color={colors.textDim} fontFamily={fonts.body} fontSize={ss(13)} marginBottom={ss(10)}>
         {label}
       </Text>
       <XStack gap={ss(8)} flexWrap="wrap">
@@ -124,7 +124,7 @@ function ChipRow({ label, options, value, onChange, focusedValue = null }) {
               style={{
                 borderColor: selected ? colors.accent : colors.border,
                 backgroundColor: selected ? accentAlpha(0.12) : "transparent",
-                color: selected ? colors.accentText : colors.muted,
+                color: selected ? colors.accentText : colors.textDim,
                 fontWeight: selected ? fontWeights.bold : fontWeights.regular,
               }}
             >

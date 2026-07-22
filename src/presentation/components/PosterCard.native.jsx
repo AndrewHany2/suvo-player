@@ -9,8 +9,16 @@ import Icon from "../../ui/Icon";
 import { LABELS } from "../../ui/labels";
 
 // Device tier is frozen at first read, so resolve it once at module scope.
-// Low-end: no image crossfade, static (non-pulsing) placeholder, no HD badge.
+// Low-end: no image crossfade, static (non-pulsing) placeholder.
 const LOW_END = isLowEndDevice();
+
+// Compact "Nh Mm" duration readout for the Continue-Watching resume chip.
+const fmtDur = (s) => {
+  const t = Math.max(0, Math.round(s));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+};
 
 /**
  * Poster card — native. Shared across Movies/Series/LiveTV grids and shelves.
@@ -31,6 +39,12 @@ function PosterCardNative({ item, onPress, onRemove, isFocused = false, width = 
     ? (typeof ratingValue === "number" ? ratingValue.toFixed(1) : ratingValue)
     : null;
   const height = (width * 3) / 2;
+
+  // Resume progress for Continue-Watching cards (History). Catalog items carry
+  // no currentTime/duration, so the bar + chip never show on plain grids/shelves.
+  const watched = item.currentTime || 0;
+  const duration = item.duration || 0;
+  const watchedPct = duration > 0 ? Math.min((watched / duration) * 100, 100) : 0;
 
   // Skeleton shimmer while THIS poster's image decodes: a native-driver opacity
   // pulse (UI thread, so it stays smooth while JS parses the catalog), hidden
@@ -88,11 +102,6 @@ function PosterCardNative({ item, onPress, onRemove, isFocused = false, width = 
                   <Icon name="film" size={ss(34)} color={colors.faint} />
                 </View>
               )}
-              {!LOW_END && (
-                <View style={[styles.badge, styles.hdBadge]}>
-                  <Text style={styles.badgeText}>HD</Text>
-                </View>
-              )}
               {ratingLabel && (
                 <View style={[styles.badge, styles.ratingBadge]}>
                   <Icon name="star" size={ss(11)} color={colors.rating} />
@@ -114,6 +123,16 @@ function PosterCardNative({ item, onPress, onRemove, isFocused = false, width = 
                     <Icon name="close" size={ss(11)} color={colors.text} />
                   </View>
                 </Pressable>
+              )}
+              {watchedPct > 0 && watchedPct < 100 && (
+                <>
+                  <View style={styles.resumeChip}>
+                    <Text style={styles.resumeChipText}>
+                      {fmtDur(watched)}{duration > 0 ? ` / ${fmtDur(duration)}` : ""}
+                    </Text>
+                  </View>
+                  <View style={[styles.resumeBar, { width: `${watchedPct}%` }]} />
+                </>
               )}
             </View>
             <Text numberOfLines={2} style={styles.title}>{item.name}</Text>
@@ -172,20 +191,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  hdBadge: { right: ss(8) },
   ratingBadge: { left: ss(8), gap: ss(3) },
-  badgeText: {
-    color: colors.muted,
-    fontFamily: fonts.body,
-    fontSize: ss(9),
-    fontWeight: fontWeights.bold,
-    letterSpacing: 0.5,
-  },
   ratingText: {
     color: colors.rating,
     fontFamily: fonts.body,
     fontSize: ss(9),
     fontWeight: fontWeights.bold,
+  },
+  // Continue-Watching resume readout + accent progress bar (mirrors the web card).
+  resumeChip: {
+    position: "absolute",
+    left: ss(8),
+    bottom: ss(8),
+    zIndex: 4,
+    backgroundColor: overlay,
+    borderRadius: radii.sm / 2,
+    paddingHorizontal: ss(6),
+    paddingVertical: ss(2),
+  },
+  resumeChipText: {
+    color: colors.text,
+    fontFamily: fonts.body,
+    fontSize: ss(10),
+    fontWeight: fontWeights.bold,
+  },
+  resumeBar: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    zIndex: 4,
+    height: ss(6),
+    backgroundColor: colors.accent,
   },
   title: {
     color: colors.text,

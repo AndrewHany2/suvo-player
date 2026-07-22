@@ -56,6 +56,12 @@ export default function SeriesScreenTV({ navigation, route }) {
   useEffect(() => { browseAllRef.current = browseAll; }, [browseAll]);
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
+  // Live mirrors for the once-bound key handler so the terminal top-level panels
+  // (load error Retry, no-account CTA) become D-pad targets.
+  const errorRef = useRef(false);
+  errorRef.current = error;
+  const noAccountRef = useRef(false);
+  noAccountRef.current = !activeUserId;
 
   const [catFocus, setCatFocus] = useState(0);
   const [grid, setGrid] = useState(null);
@@ -411,6 +417,13 @@ export default function SeriesScreenTV({ navigation, route }) {
       else { navigation.goBack?.(); }
       return;
     }
+    // Terminal top-level panels (load error / no-account): the sole focusable is
+    // the StatePanel Retry / CTA — OK fires it, Up escapes to the navbar.
+    if (errorRef.current || noAccountRef.current) {
+      if (k === KEY_UP) focusNav();
+      else if (k === KEY_ENTER) { if (errorRef.current) reload(); else navigation.navigate("Accounts"); }
+      return;
+    }
     // Shelves own the browse view — VirtualShelves.tv handles its own D-pad.
     if (tvUseShelvesRef.current && !browseAllRef.current) return;
     if (catZoneRef.current === "search") { handleSearchKey(k); return; }
@@ -571,6 +584,12 @@ export default function SeriesScreenTV({ navigation, route }) {
       return;
     }
     const g = gridRef.current;
+    // Drill-in fetch failed: the grid zone's sole target is the StatePanel Retry.
+    if (g?.failed) {
+      if (k === KEY_UP) { filterZoneRef.current = "search"; setFilterZone("search"); }
+      else if (k === KEY_ENTER) openGrid({ id: g.catId, name: g.name });
+      return;
+    }
     if (!g?.items) return;
     switch (k) {
       case KEY_LEFT: onGridLeft(g); break;
@@ -751,6 +770,7 @@ export default function SeriesScreenTV({ navigation, route }) {
           title="Couldn't load series"
           message={errorMessage || "Something went wrong. Please try again."}
           onRetry={reload}
+          retryFocused={!navActive}
         />
       </div>
     );
@@ -766,6 +786,7 @@ export default function SeriesScreenTV({ navigation, route }) {
           message="Add your media service in Accounts to start watching."
           cta={() => navigation.navigate("Accounts")}
           ctaLabel="Add Account"
+          ctaFocused={!navActive}
         />
       </div>
     );
@@ -881,6 +902,8 @@ export default function SeriesScreenTV({ navigation, route }) {
                 <div
                   key={s}
                   ref={section === "seasons" && i === seasonIdx ? snElRef : null}
+                  role="button"
+                  aria-label={`Season ${s}`}
                   className={section === "seasons" && i === seasonIdx ? "tvl-season-btn tvl-season-btn--on" : "tvl-season-btn"}
                 >
                   Season {s}
@@ -920,6 +943,8 @@ export default function SeriesScreenTV({ navigation, route }) {
                   <div
                     key={ep.id}
                     ref={section === "episodes" && i === epIdx ? epElRef : null}
+                    role="button"
+                    aria-label={ep.title || `Episode ${ep.episode_num}`}
                     className={section === "episodes" && i === epIdx ? "tvl-episode tvl-episode--on" : "tvl-episode"}
                   >
                     <span className="tvl-ep-badge">E{ep.episode_num}</span>
@@ -1001,7 +1026,9 @@ export default function SeriesScreenTV({ navigation, route }) {
           })}
         </div>
         {!filteredItems && !grid.failed && (
-          <StatePanel mode="loading" title="Loading series…" />
+          <div className="tvl-ser-grid" aria-hidden="true">
+            {Array.from({ length: SER_COLS * 2 }).map((_, i) => <div key={i} className="tvl-skel" />)}
+          </div>
         )}
         {grid.failed && (
           <StatePanel
@@ -1009,6 +1036,7 @@ export default function SeriesScreenTV({ navigation, route }) {
             title="Couldn't load series"
             message={gridErrorMsg || "Something went wrong fetching this category."}
             onRetry={() => openGrid({ id: grid.catId, name: grid.name })}
+            retryFocused={filterZone === "grid" && !navActive}
           />
         )}
         {!grid.failed && filteredItems?.length === 0 && (

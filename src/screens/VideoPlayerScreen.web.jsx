@@ -1029,12 +1029,15 @@ export default function VideoPlayerScreen() {
         </IconButton>
         </div>
 
-        {tvDuration > 0 && (
-          <div style={S.ctrlBar}>
+        {/* Transport row. Play/pause + mute + volume render for EVERY stream type
+            (incl. live, which reports duration 0); only the seek track + time
+            readout are gated on a known duration. This guarantees a pointer
+            mute/volume affordance on live, where ↑/↓ are remapped to channels. */}
+        <div style={S.ctrlBar}>
             <IconButton style={S.playBtn} onPress={togglePlayWeb} title="Play / Pause (Space)" aria-label={tvPaused ? "Play" : "Pause"}>
               <Icon name={tvPaused ? "play" : "pause"} size={20} color="currentColor" />
             </IconButton>
-            {(() => {
+            {tvDuration > 0 ? (() => {
               // During a drag the thumb/fill follow the pointer (scrubPct);
               // otherwise they follow playback (pct).
               const displayPct = scrubPct != null ? scrubPct : pct;
@@ -1075,8 +1078,14 @@ export default function VideoPlayerScreen() {
                   </div>
                 </div>
               );
-            })()}
-            <span style={S.timeText}>{fmtTime(tvCurrentTime)} / {fmtTime(tvDuration)}</span>
+            })() : (
+              // No known duration (live): a flexible spacer keeps play/pause on
+              // the left and the mute/volume cluster pinned to the right.
+              <span style={{ flex: 1 }} />
+            )}
+            {tvDuration > 0 && (
+              <span style={S.timeText}>{fmtTime(tvCurrentTime)} / {fmtTime(tvDuration)}</span>
+            )}
             <IconButton style={S.playBtn} onPress={toggleMuteWeb} title="Mute" aria-label="Mute">
               <Icon name={muted || volume === 0 ? "mute" : "audio"} size={18} color="currentColor" />
             </IconButton>
@@ -1091,7 +1100,6 @@ export default function VideoPlayerScreen() {
               aria-label="Volume"
             />
           </div>
-        )}
         </div>
         )}
       </div>

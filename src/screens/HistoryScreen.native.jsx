@@ -14,6 +14,7 @@ import HeroNative from "../presentation/components/Hero.native";
 import PosterCard from "../presentation/components/PosterCard.native";
 import { LABELS } from "../ui/labels";
 import { useApp } from "../context/AppContext";
+import { useIsOnline } from "../downloads/useIsOnline.js";
 import { useHistory } from "../domain/hooks/useHistory";
 import { useDeferredRemove } from "../hooks/useDeferredRemove";
 import MovieDetail from "../components/MovieDetail";
@@ -107,6 +108,7 @@ function SectionTitle({ children }) {
 /* ── Screen ── */
 export default function HistoryScreen({ navigation }) {
   const { activeUserId } = useApp();
+  const online = useIsOnline();
   const { watchedHistory, removeFromWatchHistory, playLive, playVideoObject, myList, removeFromMyList } = useHistory({ navigation });
   const insets = useSafeAreaInsets();
   const [currentDetail, setCurrentDetail] = useState(null);
@@ -168,7 +170,13 @@ export default function HistoryScreen({ navigation }) {
     : null;
 
   return (
-    <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingTop: ss(24), paddingBottom: insets.bottom + ss(80) }} showsVerticalScrollIndicator={false}>
+    <YStack flex={1} backgroundColor={colors.bg}>
+      {!online && (
+        <YStack paddingVertical={ss(8)} paddingHorizontal={ss(16)} backgroundColor={colors.surface2} borderBottomWidth={1} borderBottomColor={colors.border}>
+          <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(13)} fontWeight={fontWeights.medium}>You're offline — only downloaded titles will play.</Text>
+        </YStack>
+      )}
+      <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingTop: ss(24), paddingBottom: insets.bottom + ss(80) }} showsVerticalScrollIndicator={false}>
       {featured && (
         <HeroNative
           backdrop={featured.cover || featured.movie_image || featured.stream_icon || null}
@@ -241,7 +249,7 @@ export default function HistoryScreen({ navigation }) {
           >
             <Text color={colors.text} fontFamily={fonts.body} fontSize={ss(14)} numberOfLines={1}>Removed</Text>
             <YStack
-              cursor="pointer" onPress={undoRemove} pressStyle={{ opacity: 0.7 }} hitSlop={8}
+              cursor="pointer" onPress={undoRemove} pressStyle={{ opacity: 0.7 }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               paddingVertical={ss(6)} paddingHorizontal={ss(12)}
               accessibilityRole="button" accessibilityLabel="Undo remove"
             >
@@ -250,6 +258,7 @@ export default function HistoryScreen({ navigation }) {
           </YStack>
         </YStack>
       )}
-    </ScrollView>
+      </ScrollView>
+    </YStack>
   );
 }

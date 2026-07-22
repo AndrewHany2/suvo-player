@@ -104,12 +104,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
         <GradientOverlay />
 
-        <YStack position="absolute" top={insets.top + 8} left={16} zIndex={10} minHeight={44} justifyContent="center" paddingVertical={8} paddingHorizontal={14} backgroundColor="rgba(0,0,0,0.55)" borderRadius={8} cursor="pointer" onPress={onBack} pressStyle={{ opacity: 0.8 }} role="button" aria-label="Go back" tabIndex={0}>
-          <XStack alignItems="center" gap={6}>
-            <Icon name="back" color={colors.accent} size={14} />
-            <Text color={colors.accentText} fontSize={14} fontWeight="600">Back</Text>
-          </XStack>
-        </YStack>
+        <Button variant="ghost" size="sm" icon="back" onPress={onBack} style={{ position: "absolute", top: insets.top + 8, left: 16, zIndex: 10 }}>Back</Button>
 
         <YStack position="absolute" bottom={0} left={16} right={16} zIndex={5} paddingBottom={24}>
           <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(26)} fontWeight="700" lineHeight={ss(32)} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{name}</Text>

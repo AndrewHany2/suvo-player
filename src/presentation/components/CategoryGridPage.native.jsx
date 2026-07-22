@@ -5,6 +5,7 @@ import Button from "../../ui/Button";
 import { colors, fonts, fontWeights } from "../../ui/tokens";
 import { posterGrid, GRID_TARGET_W } from "../../utils/posterLayout";
 import PosterCard from "./PosterCard.native";
+import SkeletonPoster from "./SkeletonPoster.native";
 
 const GRID_PAGE = 40;
 const GRID_OUTER = 16; // equal left/right screen margin
@@ -60,13 +61,21 @@ export default function CategoryGridPage({ name, items, onBack, onSelect, onLoad
         )}
       </XStack>
       <Input
-        margin={12} placeholder="Search titles..." placeholderTextColor={colors.faint}
+        margin={12} placeholder="Search titles..." placeholderTextColor={colors.muted}
         value={search} onChangeText={setSearch}
         backgroundColor={colors.surface2} color={colors.text} borderRadius={10}
         paddingHorizontal={14} paddingVertical={10} fontSize={14} borderWidth={1} borderColor={colors.border}
       />
       {!displayed ? (
-        <YStack flex={1} justifyContent="center" alignItems="center"><Spinner size="large" color={colors.accent} /></YStack>
+        // Skeleton grid: poster-shaped placeholders sized like the real cells,
+        // so the drill-in reads as content loading rather than a bare spinner.
+        <YStack flex={1} paddingHorizontal={GRID_OUTER} paddingVertical={12}>
+          <XStack flexWrap="wrap" gap={GRID_GAP}>
+            {Array.from({ length: cols * 3 }).map((_, i) => (
+              <SkeletonPoster key={i} width={cardW} />
+            ))}
+          </XStack>
+        </YStack>
       ) : (
         <FlatList
           key={`grid-${cols}`}

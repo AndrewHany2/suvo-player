@@ -3,6 +3,7 @@ import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitiv
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
+import { LABELS } from "../ui/labels";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import { useApp } from "../context/AppContext";
@@ -16,6 +17,7 @@ import { getShelfConfig } from "../presentation/virtualization/shelfConfig.js";
 // ponytail: match Movies shelf card size — same source (ContentShelf.web uses this too)
 const SHELF_CARD_W = getShelfConfig("web").posterWidth;
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
+import { SkeletonPosterGrid } from "../presentation/components/SkeletonPoster.web";
 import { useCategoryGridNav } from "../hooks/useCategoryGridNav";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import { useShelfWindow } from "../presentation/virtualization/useShelfWindow.js";
@@ -276,7 +278,7 @@ function CategoryPage({
         <Input
           flex={1}
           placeholder="Search titles..."
-          placeholderTextColor={colors.faint}
+          placeholderTextColor={colors.muted}
           value={search}
           onChangeText={setSearch}
           backgroundColor={colors.surface2}
@@ -318,8 +320,8 @@ function CategoryPage({
           />
         </YStack>
       ) : (
-        <YStack flex={1} justifyContent="center" alignItems="center">
-          <Spinner size="large" color={colors.accent} />
+        <YStack flex={1} minHeight={0}>
+          <SkeletonPosterGrid width={CARD_W} gap={GAP} paddingH={ss(96)} paddingV={ss(32)} />
         </YStack>
       )}
     </YStack>
@@ -385,10 +387,10 @@ export default function SeriesScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="tv"
-        title="No account"
-        message="Add your media service from Settings"
+        title={LABELS.noAccountTitle}
+        message={LABELS.noAccountBody}
         cta={() => navigation.navigate("Accounts")}
-        ctaLabel="Add Account"
+        ctaLabel={LABELS.noAccountCta}
       />
     );
   }

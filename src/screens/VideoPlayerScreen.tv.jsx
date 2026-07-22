@@ -253,6 +253,15 @@ export default function VideoPlayerScreen() {
 
   // ── TV-only view state (10-foot controls visibility + D-pad settings nav) ────
   const [tvControlsVisible, setTvControlsVisible] = useState(true);
+  // Fatal-error overlay focus: 0 = Retry, 1 = Close (the only two interactive
+  // elements in that state). Refs mirror them for the once-bound keydown listener.
+  const [fatalFocus, setFatalFocus] = useState(0);
+  const isFatalRef = useRef(false);
+  isFatalRef.current = isFatal;
+  const fatalFocusRef = useRef(0);
+  fatalFocusRef.current = fatalFocus;
+  // Default focus to Retry each time the fatal overlay appears.
+  useEffect(() => { if (isFatal) setFatalFocus(0); }, [isFatal]);
   const [tvNav, setTvNav] = useState(INITIAL_TV_NAV);
   const tvNavRef = useRef(INITIAL_TV_NAV);
   const tvSettingsItemsRef = useRef([]);
@@ -281,6 +290,22 @@ export default function VideoPlayerScreen() {
       if (!currentVideo || !videoRef.current) return;
       const video = videoRef.current;
       const k = e.keyCode || e.which;
+
+      // Fatal-error overlay owns the remote: Left/Right toggle Retry↔Close, OK
+      // fires the focused one, Back closes. All other keys are swallowed —
+      // transport is dead in this state. (Runs before showTvControls so the
+      // hidden transport controls' hide-timer isn't churned.)
+      if (isFatalRef.current) {
+        e.preventDefault();
+        if (TV_KEYS.BACK.has(k)) { handleClose(); return; }
+        if (k === 37) { setFatalFocus(0); return; }
+        if (k === 39) { setFatalFocus(1); return; }
+        if (k === 13 || e.key === "Enter") {
+          fatalFocusRef.current === 0 ? handleRetry() : handleClose();
+          return;
+        }
+        return;
+      }
 
       showTvControls();
 
@@ -435,7 +460,7 @@ export default function VideoPlayerScreen() {
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [currentVideo, videoRef, handleClose, showTvControls, isLive, handleChannelUp, handleChannelDown, applySpeed, setShowStats, tvControlsVisible]);
+  }, [currentVideo, videoRef, handleClose, handleRetry, showTvControls, isLive, handleChannelUp, handleChannelDown, applySpeed, setShowStats, tvControlsVisible]);
 
   if (!currentVideo) return null;
 
@@ -716,9 +741,10 @@ export default function VideoPlayerScreen() {
             title="Failed to load stream"
             message={fatalMessage}
             onRetry={handleRetry}
+            retryFocused={fatalFocus === 0}
           />
           <div style={{ display: "flex", justifyContent: "center", paddingBottom: 48 }}>
-            <Button variant="secondary" size="lg" icon="close" onPress={handleClose}>
+            <Button variant="secondary" size="lg" icon="close" isFocused={fatalFocus === 1} onPress={handleClose}>
               Close
             </Button>
           </div>

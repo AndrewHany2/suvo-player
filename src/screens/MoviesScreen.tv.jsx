@@ -67,6 +67,11 @@ export default function MoviesScreenTV({ navigation, route }) {
   const btnElRef = useRef(null);
   const catZoneRef = useRef("grid");
   const searchInputRef = useRef(null);
+  // Terminal empty/error panels (no-account, top-level load error) expose a
+  // single StatePanel CTA/Retry button. This ref carries its action so the D-pad
+  // router can fire it on OK — set during render below, read live by the once-
+  // bound key handlers.
+  const panelActionRef = useRef(null);
 
   const [filterZone, setFilterZone] = useState("grid");
   const filterZoneRef = useRef("grid");
@@ -257,6 +262,7 @@ export default function MoviesScreenTV({ navigation, route }) {
       {
         left: () => {
           if (currentVideoRef.current || inputFocused()) return;
+          if (panelActionRef.current) return; // terminal panel: Left is a no-op
           // In the detail view the action buttons are vertical (up/down), so
           // Left is a no-op — only Back closes the detail. Route it like the
           // other directions instead of closing.
@@ -286,6 +292,27 @@ export default function MoviesScreenTV({ navigation, route }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [register]);
 
+  // Fast alpha-filter stepping: the FF / REW remote keys jump ±5 letters so
+  // reaching Z from ALL isn't 26 single Right presses. Only active while the
+  // letter bar is focused; FF/REW resolve to null in useTVInput, so this
+  // supplementary listener doesn't collide with the register() handler.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (currentVideoRef.current || inputFocused()) return;
+      if (filterZoneRef.current !== "filter") return;
+      const k = e.keyCode || e.which;
+      if (k !== 417 && k !== 412) return; // 417 = FF, 412 = REW
+      e.preventDefault();
+      const step = k === 417 ? 5 : -5;
+      const next = Math.min(ALPHA.length - 1, Math.max(0, filterIdxRef.current + step));
+      filterIdxRef.current = next;
+      setFilterIdx(next);
+    };
+    globalThis.addEventListener("keydown", onKey);
+    return () => globalThis.removeEventListener("keydown", onKey);
+    // Bound once; reads live state via refs (filterZoneRef/filterIdxRef), by design.
+  }, []);
+
   // Track navbar focus so the grid ring clears while the top nav has the remote.
   useEffect(() => {
     const onNavFocus = () => setNavActive(true);
@@ -300,6 +327,13 @@ export default function MoviesScreenTV({ navigation, route }) {
 
   // Direction dispatch across the three zones.
   const routeDir = (dir) => {
+    // Terminal empty/error panel: the sole target is the StatePanel CTA/Retry —
+    // OK fires it, Up escapes to the global navbar.
+    if (panelActionRef.current) {
+      if (dir === "enter") panelActionRef.current();
+      else if (dir === "up") yieldFocusToNav();
+      return;
+    }
     if (detailRef.current) return handleDetailDir(dir);
     if (pageRef.current) return onMovOrFilter(dir);
     // Shelves own the browse view — VirtualShelves.tv handles its own D-pad.
@@ -339,6 +373,11 @@ export default function MoviesScreenTV({ navigation, route }) {
       return;
     }
     const pg = pageRef.current;
+    // Drill-in fetch failed: the grid zone's sole target is the StatePanel Retry.
+    if (pg?.failed) {
+      if (dir === "enter") openCat({ id: pg.catId, name: pg.name });
+      return;
+    }
     if (!pg?.items) return;
     if (dir === "left") return onMovLeft(pg);
     if (dir === "right") return onMovRight(pg);
@@ -395,6 +434,13 @@ export default function MoviesScreenTV({ navigation, route }) {
   useEffect(() => { btnElRef.current?.scrollIntoView({ block: "nearest" }); }, [detail?.btnIdx]);
 
   // ── Render ────────────────────────────────────────────────────────────────
+  // Terminal-state CTA/Retry action the D-pad router fires on OK (set every
+  // render so the once-bound key handler reads it live). null when a normal
+  // browse surface is showing.
+  panelActionRef.current = error
+    ? reload
+    : (!activeUserId ? () => navigation.navigate("Accounts") : null);
+
   if (loading) {
     return <div className="tvl-screen"><StatePanel mode="loading" title="Loading…" /></div>;
   }
@@ -407,6 +453,7 @@ export default function MoviesScreenTV({ navigation, route }) {
           title="Couldn't load movies"
           message={errorMessage || "Something went wrong. Please try again."}
           onRetry={reload}
+          retryFocused={!navActive}
         />
       </div>
     );
@@ -422,6 +469,7 @@ export default function MoviesScreenTV({ navigation, route }) {
           message="Add your media service from Settings"
           cta={() => navigation.navigate("Accounts")}
           ctaLabel="Add Account"
+          ctaFocused={!navActive}
         />
       </div>
     );
@@ -555,13 +603,18 @@ export default function MoviesScreenTV({ navigation, route }) {
             );
           })}
         </div>
-        {!filteredItems && !page.failed && <StatePanel mode="loading" title="Loading movies…" />}
+        {!filteredItems && !page.failed && (
+          <div className="tvl-mov-grid" aria-hidden="true">
+            {Array.from({ length: MOV_COLS * 2 }).map((_, i) => <div key={i} className="tvl-skel" />)}
+          </div>
+        )}
         {page.failed && (
           <StatePanel
             mode="error"
             title="Couldn't load movies"
             message={pageErrorMsg || "Something went wrong fetching this category."}
             onRetry={() => openCat({ id: page.catId, name: page.name })}
+            retryFocused={filterZone === "grid" && !navActive}
           />
         )}
         {!page.failed && filteredItems?.length === 0 && (

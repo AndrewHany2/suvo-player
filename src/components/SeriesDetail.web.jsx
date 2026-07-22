@@ -254,8 +254,23 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
               cursor="pointer"
               onPress={() => handleEpisodePress(ep, section.seasonNum)}
               pressStyle={{ opacity: 0.8 }}
-              hoverStyle={{ borderColor: colors.accent }}
+              // hoverStyle is dropped by the web primitives here, so the real
+              // hover/focus border is drawn by the `.suvo-episode-row` CSS rule
+              // (cyan accent2, per Single-Light). Kept for native parity.
+              hoverStyle={{ borderColor: colors.accent2 }}
               animation="quick"
+              // Desktop keyboard access (WCAG 2.1.1): focusable control with
+              // Enter/Space activation; the cyan focus ring comes from the CSS rule.
+              role="button"
+              tabIndex={0}
+              aria-label={ep.title || "Episode"}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                  e.preventDefault();
+                  handleEpisodePress(ep, section.seasonNum);
+                }
+              }}
+              {...{ className: "suvo-episode-row" }}
             >
               <XStack
                 alignItems="center"
@@ -283,7 +298,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
                   </Text>
                   {!!ep.info?.duration && (
                     <Text
-                      color={colors.muted}
+                      color={colors.textDim}
                       fontSize={epDurationSize}
                       marginTop={ss(isTV ? 6 : 2)}
                     >

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { Modal, TouchableOpacity } from "react-native";
-import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
+import { YStack, XStack, Text, Input, ScrollView } from "../ui/primitives";
 import { colors, fonts, fontWeights, iconSizes } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { LABELS } from "../ui/labels";
+import { ensureSkeletonKeyframes } from "../presentation/components/SkeletonPoster.web";
 import { useApp } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
@@ -181,6 +182,58 @@ const SHELF_FETCH_CONCURRENCY = 3;
 // the shelf is treated as genuinely empty, so a blip doesn't hide a category.
 const SHELF_FETCH_RETRIES = 2;
 
+/* ─── Live Shelf skeleton ─── */
+// Loading placeholder that matches the live-card geometry (width 270, short
+// card) so the shelf reserves the right footprint and swaps in with no layout
+// shift — the same skeleton vocabulary as the poster rails, instead of a lone
+// spinner. Reuses the shared sweep keyframes from SkeletonPoster.web.
+function LiveShelfSkeleton() {
+  ensureSkeletonKeyframes();
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        display: "flex",
+        gap: ss(8),
+        paddingLeft: ss(48),
+        paddingRight: ss(48),
+        paddingTop: ss(10),
+        paddingBottom: ss(10),
+        overflow: "hidden",
+      }}
+    >
+      {Array.from({ length: SHELF_PAGE }).map((_, i) => (
+        <div
+          key={i}
+          style={{
+            width: ss(270),
+            height: ss(72),
+            flexShrink: 0,
+            borderRadius: ss(8),
+            backgroundColor: colors.surface2,
+            border: `1px solid ${colors.border}`,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              background: `linear-gradient(100deg, transparent 20%, ${colors.surface} 50%, transparent 80%)`,
+              animation: "_skel_sweep 1.4s ease-in-out infinite",
+              willChange: "transform",
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─── Live Shelf ─── */
 function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
   const sentinelRef = useRef(null);
@@ -299,9 +352,7 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
         )}
       </XStack>
       {displayed === null ? (
-        <YStack paddingHorizontal={ss(48)} paddingVertical={ss(18)}>
-          <Spinner size="small" color={colors.accent} />
-        </YStack>
+        <LiveShelfSkeleton />
       ) : (
         <div style={{ position: "relative" }} className="suvo-shelf-rail">
           <button
@@ -609,10 +660,10 @@ export default function LiveTVScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="tv"
-        title="No account"
-        message='Tap "Accounts" to add your media service'
+        title={LABELS.noAccountTitle}
+        message={LABELS.noAccountBody}
         cta={() => navigation.navigate("Accounts")}
-        ctaLabel="Add Account"
+        ctaLabel={LABELS.noAccountCta}
       />
     );
   }
@@ -649,7 +700,7 @@ export default function LiveTVScreen({ navigation }) {
           <Input
             flex={1}
             placeholder="Search channels..."
-            placeholderTextColor={colors.faint}
+            placeholderTextColor={colors.muted}
             value={searchQuery}
             onChangeText={setSearchQuery}
             backgroundColor="transparent"
@@ -720,7 +771,7 @@ export default function LiveTVScreen({ navigation }) {
             <Input
               ref={nameInputRef}
               placeholder="Channel name"
-              placeholderTextColor={colors.faint}
+              placeholderTextColor={colors.muted}
               value={newChannelName}
               onChangeText={setNewChannelName}
               backgroundColor={colors.bg}
@@ -736,7 +787,7 @@ export default function LiveTVScreen({ navigation }) {
             <Input
               ref={urlInputRef}
               placeholder="Stream URL (https://...)"
-              placeholderTextColor={colors.faint}
+              placeholderTextColor={colors.muted}
               value={newStreamUrl}
               onChangeText={setNewStreamUrl}
               autoCapitalize="none"

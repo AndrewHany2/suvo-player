@@ -23,6 +23,33 @@ export function ensureSkeletonKeyframes() {
   document.head.appendChild(el);
 }
 
+/**
+ * A skeleton grid — a flex-wrap of SkeletonPoster laid out in the same geometry
+ * as the real poster grid, so a full-screen/category grid load shows the same
+ * loading vocabulary as the shelf rails (instead of a lone centered spinner).
+ */
+export function SkeletonPosterGrid({ width = 200, count = 18, gap = 16, paddingH = 96, paddingV = 32 }) {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap,
+        paddingLeft: paddingH,
+        paddingRight: paddingH,
+        paddingTop: paddingV,
+        paddingBottom: paddingV,
+        overflow: "hidden",
+      }}
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonPoster key={i} width={width} />
+      ))}
+    </div>
+  );
+}
+
 export default function SkeletonPoster({ width = 200 }) {
   ensureSkeletonKeyframes();
   const posterH = Math.round(width * 1.5);

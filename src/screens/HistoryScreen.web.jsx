@@ -153,6 +153,15 @@ function MyListCard({ item, onPress, onRemove }) {
       cursor="pointer"
       onPress={onPress}
       pressStyle={{ opacity: 0.8 }}
+      role="button"
+      tabIndex={0}
+      aria-label={item.name}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          onPress?.();
+        }
+      }}
       {...{ className: "suvo-poster" }}
     >
       <YStack
@@ -222,6 +231,15 @@ function CWCard({ item, onPress, onRemove }) {
       cursor="pointer"
       onPress={onPress}
       pressStyle={{ opacity: 0.85 }}
+      role="button"
+      tabIndex={0}
+      aria-label={showTitle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          onPress?.();
+        }
+      }}
       {...{ className: "suvo-cw-card" }}
     >
       <YStack

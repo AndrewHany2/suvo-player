@@ -34,7 +34,9 @@ function variantStyle(variant) {
     case "secondary":
       return { backgroundColor: colors.surface2, color: colors.text, borderColor: colors.border, borderWidth: 1 };
     case "ghost":
-      return { backgroundColor: "transparent", color: colors.accent, borderColor: "transparent", borderWidth: 1 };
+      // Resting label sits on the ink ladder: accent (#6C5CE7) as text is 3.3–4:1
+      // (fails AA) AND breaks the Single-Light rule. Promoted to accentText when focused.
+      return { backgroundColor: "transparent", color: colors.text, borderColor: "transparent", borderWidth: 1 };
     case "primary":
     default:
       // AA: white label (~5:1) on the indigo fill; colors.text (#EAF0FF) was ~4.26:1 (< 4.5).
@@ -48,6 +50,8 @@ const Button = forwardRef(function Button(
 ) {
   const sz = SIZES[size] || SIZES.md;
   const v = variantStyle(variant);
+  // Ghost promotes its label to accentText only while focused (mirrors Button.web).
+  const labelColor = variant === "ghost" && isFocused && !disabled ? colors.accentText : v.color;
 
   const base = {
     flexDirection: "row",
@@ -82,11 +86,11 @@ const Button = forwardRef(function Button(
       style={({ pressed }) => [base, pressed && !disabled ? { opacity: 0.8 } : null, style]}
       {...rest}
     >
-      {icon ? <Icon name={icon} size={ss(sz.icon)} color={v.color} /> : null}
+      {icon ? <Icon name={icon} size={ss(sz.icon)} color={labelColor} /> : null}
       {children != null ? (
         <Text
           style={{
-            color: v.color,
+            color: labelColor,
             fontFamily: fonts.body,
             fontWeight: fontWeights.medium,
             fontSize: ss(sz.font),

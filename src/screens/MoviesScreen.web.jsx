@@ -7,9 +7,11 @@ import { ss, useScale } from "../utils/scaleSize";
 import { colors, fonts } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
+import { LABELS } from "../ui/labels";
 import Button from "../ui/Button";
 import ContentShelf from "../presentation/components/ContentShelf.web";
 import PosterCard from "../presentation/components/PosterCard.web";
+import { SkeletonPosterGrid } from "../presentation/components/SkeletonPoster.web";
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import MovieDetail from "../components/MovieDetail.web";
@@ -42,7 +44,7 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
           </YStack>
         )}
         <Input
-          flex={1} placeholder="Search titles..." placeholderTextColor={colors.faint}
+          flex={1} placeholder="Search titles..." placeholderTextColor={colors.muted}
           value={search} onChangeText={setSearch}
           backgroundColor={colors.surface2} color={colors.text} borderRadius={ss(10)}
           paddingHorizontal={ss(14)} paddingVertical={ss(10)} fontSize={ss(14)} borderWidth={1} borderColor={colors.border}
@@ -69,7 +71,9 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
           />
         </YStack>
       ) : (
-        <YStack flex={1} justifyContent="center" alignItems="center"><Spinner size="large" color={colors.accent} /></YStack>
+        <YStack flex={1} minHeight={0}>
+          <SkeletonPosterGrid width={CARD_W} gap={GAP} paddingH={ss(96)} paddingV={ss(32)} />
+        </YStack>
       )}
     </YStack>
   );
@@ -135,10 +139,10 @@ export default function MoviesScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="film"
-        title="No account"
-        message="Add your media service from Settings"
+        title={LABELS.noAccountTitle}
+        message={LABELS.noAccountBody}
         cta={() => navigation.navigate("Accounts")}
-        ctaLabel="Add Account"
+        ctaLabel={LABELS.noAccountCta}
       />
     );
   }

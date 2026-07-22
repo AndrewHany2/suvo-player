@@ -41,6 +41,12 @@ export default function LiveTVScreenTV({ navigation }) {
   const { currentVideo } = usePlayback();
   const currentVideoRef = useRef(null);
   useEffect(() => { currentVideoRef.current = currentVideo; }, [currentVideo]);
+  // Live mirrors for the once-bound key handler so the terminal empty/error
+  // panels (no-account CTA, category load error Retry) become D-pad targets.
+  const noAccountRef = useRef(false);
+  noAccountRef.current = !activeUserId;
+  const catsFailedRef = useRef(false);
+  catsFailedRef.current = catsFailed;
 
   const [catFocus, setCatFocus] = useState(0);
   const [page, setPage] = useState(null);
@@ -222,7 +228,20 @@ export default function LiveTVScreenTV({ navigation }) {
     }
     e.preventDefault();
     if (KEY_BACK.has(k)) { navigation.goBack?.(); return; }
+    // No-account terminal panel: the only target is the "Add Account" CTA.
+    if (noAccountRef.current) {
+      if (k === KEY_UP) focusNav();
+      else if (k === KEY_ENTER) navigation.navigate("Accounts");
+      return;
+    }
     if (catZoneRef.current === "search") { handleSearchKey(k); return; }
+    // Category load failed: the grid zone's sole target is Retry (search still
+    // works above via the "search" zone).
+    if (catsFailedRef.current) {
+      if (k === KEY_UP) setCatZoneBoth("search");
+      else if (k === KEY_ENTER) loadCats();
+      return;
+    }
     switch (k) {
       case KEY_LEFT:
         onCatLeft();
@@ -313,6 +332,12 @@ export default function LiveTVScreenTV({ navigation }) {
     }
     if (gridZoneRef.current === "back") { handleGridBackKey(k); return; }
     if (gridZoneRef.current === "search") { handleGridSearchKey(k); return; }
+    // Drill-in fetch failed: the grid zone's sole target is the StatePanel Retry.
+    if (pg?.failed) {
+      if (k === KEY_UP) setGridZoneBoth("search");
+      else if (k === KEY_ENTER) openCat({ id: pg.catId, name: pg.name });
+      return;
+    }
     if (!pg?.items) return;
     switch (k) {
       case KEY_LEFT:
@@ -365,6 +390,7 @@ export default function LiveTVScreenTV({ navigation }) {
           message="Add your media service in Accounts to start watching."
           cta={() => navigation.navigate("Accounts")}
           ctaLabel="Add Account"
+          ctaFocused={!navActive}
         />
       </div>
     );
@@ -406,7 +432,9 @@ export default function LiveTVScreenTV({ navigation }) {
           />
         </div>
         {!filteredItems && !page.failed && (
-          <StatePanel mode="loading" title="Loading channels…" />
+          <div className="tvl-ch-grid" aria-hidden="true">
+            {Array.from({ length: CH_COLS * 2 }).map((_, i) => <div key={i} className="tvl-skel tvl-skel--wide" />)}
+          </div>
         )}
         {page.failed && (
           <StatePanel
@@ -414,6 +442,7 @@ export default function LiveTVScreenTV({ navigation }) {
             title="Couldn't load channels"
             message={pageErrorMsg || "Something went wrong fetching this category."}
             onRetry={() => openCat({ id: page.catId, name: page.name })}
+            retryFocused={gridZone === "grid"}
           />
         )}
         {!page.failed && filteredItems?.length === 0 && (
@@ -474,6 +503,7 @@ export default function LiveTVScreenTV({ navigation }) {
             title="Couldn't load channels"
             message={errorMessage || "Something went wrong fetching the channel categories."}
             onRetry={loadCats}
+            retryFocused={catZone === "grid" && !navActive}
           />
         ) : (
           <div className="tvl-cat-grid">
@@ -520,7 +550,6 @@ const ChannelCard = memo(function ChannelCard({ item, isFocused }) {
             <Icon name="tv" size={ss(iconSizes.lg)} color={colors.border} />
           </div>
         )}
-        <span className="tvl-ch-live">LIVE</span>
       </div>
       <div className="tvl-ch-name">{item.name}</div>
     </div>

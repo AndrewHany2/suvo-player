@@ -173,7 +173,7 @@ export default function AuthScreen() {
           <Text {...labelStyle}>Email</Text>
           <Input
             placeholder="you@example.com"
-            placeholderTextColor={colors.faint}
+            placeholderTextColor={colors.muted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -186,7 +186,7 @@ export default function AuthScreen() {
           <Text {...labelStyle}>Password</Text>
           <PasswordInput
             placeholder="••••••••"
-            placeholderTextColor={colors.faint}
+            placeholderTextColor={colors.muted}
             value={password}
             onChangeText={setPassword}
             disabled={loading}

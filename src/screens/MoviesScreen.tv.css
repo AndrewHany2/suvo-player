@@ -40,7 +40,8 @@
   min-width: 36px;
   background: transparent;
   border: 1.5px solid transparent;
-  border-radius: 6px;
+  /* radii.sm (8px) */
+  border-radius: 8px;
   color: var(--a-text);
   font-size: 15px;
   font-weight: 600;
@@ -48,10 +49,15 @@
   cursor: pointer;
   transition: none;
 }
+/* Enlarge the active letter so the current filter reads from the couch. */
 .tvl-letter-btn--active {
   border-color: var(--a-indigo);
   color: var(--a-indigo-text);
   background: var(--a-surface-2);
+  font-size: 20px;
+  font-weight: 700;
+  min-width: 46px;
+  padding: 6px 14px;
 }
 
 /* Trailer */

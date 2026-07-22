@@ -246,7 +246,7 @@ export default function ProfilesScreen() {
             <Input
               ref={nameInputRef}
               placeholder="e.g. Dad, Kids…"
-              placeholderTextColor={colors.faint}
+              placeholderTextColor={colors.muted}
               value={formData.name}
               onChangeText={(v) => setFormData({ ...formData, name: v })}
               autoCapitalize="words"

@@ -346,7 +346,7 @@ export default function AccountsScreenTV({ navigation }) {
                 <button
                   key={opt.key}
                   type="button"
-                  className={form.type === opt.key ? "tvl-btn tvl-btn--on" : "tvl-btn tvl-btn-ghost"}
+                  className={form.type === opt.key ? "tvl-btn tvl-seg-btn--active" : "tvl-btn tvl-btn-ghost"}
                   onClick={(e) => { e.stopPropagation(); setFormType(opt.key); }}
                   disabled={loading}
                 >
@@ -439,12 +439,17 @@ export default function AccountsScreenTV({ navigation }) {
           {users.map((user, i) => {
             const rowIdx = i + 1;
             const isFocused = focus === rowIdx;
+            // col 0 = whole-row connect (owns the cyan focus ring); col>0 hands
+            // the ring to the focused action button and the row shows a quieter
+            // indigo "active context" affordance instead of a second cyan ring.
+            let rowClass = "tvl-acc-item";
+            if (isFocused) rowClass += col === 0 ? " tvl-acc-item--on" : " tvl-acc-item--rowfocus";
             return (
               <div
                 key={user.id}
                 role="none"
                 ref={isFocused ? elRef : null}
-                className={isFocused ? "tvl-acc-item tvl-acc-item--on" : "tvl-acc-item"}
+                className={rowClass}
                 onClick={() => connectUser(user.id)}
               >
                 <div className="tvl-acc-info">

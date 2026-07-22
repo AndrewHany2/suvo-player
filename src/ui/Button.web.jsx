@@ -38,7 +38,10 @@ function variantStyle(variant) {
     case "secondary":
       return { backgroundColor: colors.surface2, color: colors.text, border: `1px solid ${colors.border}` };
     case "ghost":
-      return { backgroundColor: "transparent", color: colors.accent, border: "1px solid transparent" };
+      // Resting label sits on the ink ladder: accent (#6C5CE7) as text is 3.3–4:1
+      // (fails AA) AND breaks the Single-Light rule (indigo is the active-path
+      // light, not a resting tint). Promoted to accentText on focus/hover below.
+      return { backgroundColor: "transparent", color: colors.text, border: "1px solid transparent" };
     case "primary":
     default:
       // AA: white label (~5:1) on the indigo fill; colors.text (#EAF0FF) was ~4.26:1 (< 4.5).
@@ -59,6 +62,9 @@ const Button = forwardRef(function Button(
 
   const sz = SIZES[size] || SIZES.md;
   const v = variantStyle(variant);
+  // Ghost promotes its label to the lighter accentText (#A99BF5, ~6.5–8:1) only
+  // while active — interaction lights up the active path, rest stays on the ink ladder.
+  const labelColor = variant === "ghost" && active ? colors.accentText : v.color;
 
   const css = {
     display: "flex",
@@ -77,6 +83,7 @@ const Button = forwardRef(function Button(
     cursor: disabled ? "default" : "pointer",
     opacity: disabled ? 0.5 : 1,
     ...v,
+    color: labelColor,
     // Focus ring + glow are interaction-only. TV: ring stays (instant, no shadow);
     // desktop/web also gets the soft cyan glow. Never shown at rest.
     outline: active ? `${focusRing.width}px solid ${focusRing.color}` : "none",
@@ -100,7 +107,7 @@ const Button = forwardRef(function Button(
       style={css}
       {...rest}
     >
-      {icon ? <Icon name={icon} size={ss(sz.icon)} color={v.color} /> : null}
+      {icon ? <Icon name={icon} size={ss(sz.icon)} color={labelColor} /> : null}
       {children}
     </button>
   );

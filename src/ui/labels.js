@@ -30,11 +30,16 @@ export const LABELS = Object.freeze({
     "Play a movie, series, or channel and it appears here — and follows you to every device on your account. Browse Movies or Series to get started.",
   emptyCta: "Browse Movies",
 
-  // No IPTV account connected.
+  // No IPTV account connected. One title/body/CTA for every surface (Movies,
+  // Series, LiveTV, History) so the no-account empty state can't drift again —
+  // and the CTA points at the Accounts dialog, the only place accounts are added.
   noAccountTitle: "No account connected",
   noAccountBody:
     "Connect an IPTV account to save your list and keep watching across devices.",
   noAccountCta: "Connect account",
+
+  // Shared retry affordance (StatePanel error mode + any inline retry).
+  retry: "Retry",
 });
 
 export default LABELS;

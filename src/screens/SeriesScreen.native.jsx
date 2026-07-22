@@ -39,7 +39,19 @@ export default function SeriesScreen({ navigation }) {
   };
 
   if (loading) {
-    return <StatePanel mode="loading" title="Loading series..." />;
+    // Header + placeholder shelves read as the real screen filling in, rather
+    // than a lone centered spinner (ContentShelf renders its skeleton rail when
+    // items===null; `manual` keeps these placeholders from firing a load).
+    return (
+      <YStack flex={1} backgroundColor={colors.bg}>
+        <YStack paddingHorizontal={16} paddingTop={20} paddingBottom={4}>
+          <Text color={colors.text} fontFamily={fonts.display} fontSize={20} fontWeight={fontWeights.bold} letterSpacing={-0.3} marginBottom={12}>Discover</Text>
+        </YStack>
+        {[0, 1, 2].map((i) => (
+          <ContentShelf key={i} id={`skeleton-${i}`} title="" items={null} manual hasMore={false} loadingMore={false} />
+        ))}
+      </YStack>
+    );
   }
 
   if (!activeUserId) {

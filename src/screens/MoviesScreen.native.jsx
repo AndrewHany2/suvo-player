@@ -35,7 +35,19 @@ export default function MoviesScreen({ navigation }) {
   const vcfg = getShelfConfig("native");
 
   if (loading) {
-    return <StatePanel mode="loading" title="Loading movies..." />;
+    // Header + placeholder shelves read as the real screen filling in, rather
+    // than a lone centered spinner (ContentShelf renders its skeleton rail when
+    // items===null; `manual` keeps these placeholders from firing a load).
+    return (
+      <YStack flex={1} backgroundColor={colors.bg}>
+        <YStack paddingHorizontal={16} paddingTop={20} paddingBottom={4}>
+          <Text color={colors.text} fontFamily={fonts.display} fontSize={20} fontWeight="700" letterSpacing={-0.3} marginBottom={12}>Discover</Text>
+        </YStack>
+        {[0, 1, 2].map((i) => (
+          <ContentShelf key={i} id={`skeleton-${i}`} title="" items={null} manual hasMore={false} loadingMore={false} />
+        ))}
+      </YStack>
+    );
   }
 
   if (!activeUserId) {
@@ -68,27 +80,28 @@ export default function MoviesScreen({ navigation }) {
       <YStack paddingHorizontal={16} paddingTop={20} paddingBottom={4}>
         <Text color={colors.text} fontFamily={fonts.display} fontSize={20} fontWeight="700" letterSpacing={-0.3} marginBottom={12}>Discover</Text>
         <XStack gap={10} flexWrap="wrap">
-          {discoverItems.map((pill, idx) => (
+          {discoverItems.map((pill) => (
             <XStack
               key={pill.id} alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
               backgroundColor={colors.surface2} borderWidth={1}
               borderColor={colors.border}
               borderRadius={999} cursor="pointer" onPress={() => openCategory(pill.id, pill.label)}
               accessibilityRole="button" accessibilityLabel={pill.label}
-              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }}
+              pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }} animation="quick"
             >
-              <Icon name={pill.id === "all" ? "film" : "star"} size={14} color={colors.muted} />
+              <Icon name={pill.id === "all" ? "film" : "star"} size={16} color={colors.muted} />
               <Text color={colors.text} fontSize={12} fontWeight="600">{pill.label}</Text>
-              <Icon name="chevron-right" size={14} color={colors.muted} />
+              <Icon name="chevron-right" size={16} color={colors.muted} />
             </XStack>
           ))}
           <XStack
             alignItems="center" gap={8} paddingHorizontal={16} paddingVertical={10}
             backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border}
-            borderRadius={999} onPress={() => setShowDownloaded(true)}
+            borderRadius={999} cursor="pointer" onPress={() => setShowDownloaded(true)}
             accessibilityRole="button" accessibilityLabel="Downloaded"
+            pressStyle={{ opacity: 0.75 }} hoverStyle={{ borderColor: colors.accent2 }} animation="quick"
           >
-            <Icon name="download" size={14} color={colors.muted} />
+            <Icon name="download" size={16} color={colors.muted} />
             <Text color={colors.text} fontSize={12} fontWeight="600">Downloaded</Text>
             {downloadedMovies.length > 0 && (
               <Text color={colors.muted} fontSize={12} fontWeight="700">{downloadedMovies.length}</Text>

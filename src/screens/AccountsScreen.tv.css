@@ -37,6 +37,14 @@
   cursor: pointer;
 }
 
+/* Row focused but the cursor has moved onto an action button (col>0): the
+   button owns the cyan focus ring, so the row drops --on and shows a quieter
+   indigo "active context" affordance instead of a second cyan ring. */
+.tvl-acc-item--rowfocus {
+  border-color: var(--a-indigo);
+  background: rgba(108, 92, 231, 0.10);
+}
+
 .tvl-acc-info { flex: 1; min-width: 0; }
 .tvl-acc-name {
   font-size: 17px;
@@ -71,7 +79,10 @@
   cursor: pointer;
   font-family: inherit;
 }
-.tvl-acc-btn-danger { border-color: var(--a-danger); color: var(--a-danger); }
+/* Filled danger at rest with near-white label: #E5484D-as-text on the #28324E
+   button bg was ~3.1:1 (fails AA at 14px, at 10 feet). The confirm dialog stays
+   the safety gate; this is just the row action. */
+.tvl-acc-btn-danger { background: var(--a-danger); border-color: var(--a-danger); color: #EAF0FF; }
 
 .tvl-acc-error {
   display: flex;
@@ -130,7 +141,15 @@
   border: none;
   cursor: pointer;
 }
-.tvl-field--on { background: rgba(255,255,255,0.03); border-radius: 6px; padding: 6px 8px; margin: -6px -8px; }
+/* Canonical focus ring (4px cyan outline + offset + focus fill) on the focused
+   field wrapper — matches every other TV focus target; the old 2px cyan border
+   read far weaker at 10 feet. */
+.tvl-field--on {
+  outline: 4px solid var(--a-focus-ring);
+  outline-offset: 3px;
+  border-radius: 6px;
+  background: var(--a-focus-fill);
+}
 .tvl-field--on input { border-color: var(--a-cyan); }
 
 .tvl-btn--on { outline: 4px solid var(--a-cyan); outline-offset: 3px; }
@@ -138,6 +157,14 @@
 /* Source-type segmented control (Xtream / M3U). */
 .tvl-seg { display: flex; gap: 12px; }
 .tvl-seg .tvl-btn { flex: 1; }
+/* Selected segment at rest → indigo active-path tint (cyan is focus-only; the
+   focus ring lives on the .tvl-field--on wrapper). Mirrors the --saved treatment
+   on detail buttons: indigo border + soft indigo fill + accentText label. */
+.tvl-seg-btn--active {
+  background: rgba(108, 92, 231, 0.18);
+  border: 2px solid var(--a-indigo);
+  color: var(--a-indigo-text);
+}
 
 .tvl-form-actions { display: flex; gap: 12px; padding-top: 4px; }
 

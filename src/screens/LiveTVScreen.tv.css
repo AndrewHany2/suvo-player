@@ -76,22 +76,6 @@
   }
 }
 
-.tvl-ch-live {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  /* Online/live state = success green (#6ABF69) per DESIGN; not the
-     Single-Light indigo, which is reserved for active/selected chrome.
-     Dark midnight text (#0A0E1A) for contrast on the bright fill. */
-  background: #6ABF69;
-  color: #0A0E1A;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.05em;
-}
-
 .tvl-ch-name {
   padding: 6px 6px 4px;
   font-size: 15px;

@@ -73,7 +73,6 @@ export default function DiscoverPills({ items, focusedCol = -1, onSelect }) {
           >
             <Icon name={iconFor(pill.id)} size={ss(tv ? 22 : 16)} color={focused ? colors.accent2 : colors.muted} />
             <Text color={colors.text} fontSize={ss(tv ? 18 : 13)} fontWeight={fontWeights.medium} fontFamily={fonts.body} letterSpacing={0.1}>{pill.label}</Text>
-            <Icon name="chevron-right" size={ss(tv ? 22 : 16)} color={focused ? colors.accent2 : colors.muted} />
           </XStack>
         );
       })}
