@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
-import { colors, fonts, fontWeights } from "../ui/tokens";
+import { colors, fonts, fontWeights, radii } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import { LABELS } from "../ui/labels";
@@ -17,7 +17,7 @@ import { getShelfConfig } from "../presentation/virtualization/shelfConfig.js";
 // ponytail: match Movies shelf card size — same source (ContentShelf.web uses this too)
 const SHELF_CARD_W = getShelfConfig("web").posterWidth;
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
-import { SkeletonPosterGrid } from "../presentation/components/SkeletonPoster.web";
+import { SkeletonPosterGrid, SkeletonLine, SkeletonShelfRow } from "../presentation/components/SkeletonPoster.web";
 import { useCategoryGridNav } from "../hooks/useCategoryGridNav";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import { useShelfWindow } from "../presentation/virtualization/useShelfWindow.js";
@@ -411,7 +411,26 @@ export default function SeriesScreen({ navigation }) {
   }, [detailOpen]);
 
   if (loading) {
-    return <StatePanel mode="loading" title="Loading series..." />;
+    // Skeleton browse (Discover heading + pill placeholders + poster rails)
+    // instead of a lone centered spinner — same geometry as the real shelves
+    // (ss(SHELF_CARD_W) cards, ss(48) inset) so content swaps in with no shift.
+    return (
+      <YStack flex={1} minHeight={0} backgroundColor={colors.bg}>
+        <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
+          <YStack paddingHorizontal={ss(48)} paddingTop={ss(24)} paddingBottom={ss(4)}>
+            <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(22)} fontWeight="700" letterSpacing={-0.3} marginBottom={ss(12)} role="heading" aria-level={2}>Discover</Text>
+            <XStack gap={ss(10)} flexWrap="wrap">
+              {[96, 120, 104, 132, 88].map((w, i) => (
+                <SkeletonLine key={i} width={ss(w)} height={ss(42)} radius={radii.pill} />
+              ))}
+            </XStack>
+          </YStack>
+          {[0, 1, 2].map((i) => (
+            <SkeletonShelfRow key={i} cardWidth={ss(SHELF_CARD_W)} gap={ss(getShelfConfig("web").posterGap)} paddingH={ss(48)} />
+          ))}
+        </YStack>
+      </YStack>
+    );
   }
 
   if (error) {

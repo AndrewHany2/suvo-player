@@ -6,7 +6,7 @@ import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { LABELS } from "../ui/labels";
-import { ensureSkeletonKeyframes } from "../presentation/components/SkeletonPoster.web";
+import { ensureSkeletonKeyframes, SkeletonLine } from "../presentation/components/SkeletonPoster.web";
 import { useApp, useChannels, useSearch } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
@@ -298,6 +298,34 @@ function LiveShelfSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+/* ─── Live browse skeleton (initial load) ─── */
+// The full-screen initial-load placeholder: a search-bar stand-in over a few
+// title-line + live-rail rows, matching the real screen's chrome so content
+// swaps in with no layout shift — the skeleton vocabulary the register asks for
+// instead of a lone centered spinner.
+function LiveBrowseSkeleton() {
+  return (
+    <YStack flex={1} backgroundColor={colors.bg} aria-hidden>
+      <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
+        <XStack alignItems="center" paddingHorizontal={ss(48)} paddingVertical={ss(20)} gap={ss(10)}>
+          <YStack flex={1}>
+            <SkeletonLine width="100%" height={ss(44)} radius={radii.card} />
+          </YStack>
+          <SkeletonLine width={ss(96)} height={ss(44)} radius={radii.card} />
+        </XStack>
+        {[0, 1, 2].map((i) => (
+          <YStack key={i} paddingTop={ss(18)}>
+            <YStack paddingHorizontal={ss(48)} paddingBottom={ss(10)}>
+              <SkeletonLine width={ss(200)} height={ss(20)} />
+            </YStack>
+            <LiveShelfSkeleton />
+          </YStack>
+        ))}
+      </YStack>
+    </YStack>
   );
 }
 
@@ -690,7 +718,7 @@ export default function LiveTVScreen({ navigation }) {
   );
 
   if (loading) {
-    return <StatePanel mode="loading" title="Loading channels..." />;
+    return <LiveBrowseSkeleton />;
   }
 
   if (error) {

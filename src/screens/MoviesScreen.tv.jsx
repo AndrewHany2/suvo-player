@@ -8,6 +8,7 @@ import { yieldFocusToNav } from "../platform/adapters/input/keys";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import PosterCard from "../presentation/components/PosterCard.web";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
+import SkeletonShelvesTV from "../presentation/components/SkeletonShelvesTV";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
@@ -459,7 +460,7 @@ export default function MoviesScreenTV({ navigation, route }) {
     : (!activeUserId ? () => navigation.navigate("Accounts") : null);
 
   if (loading) {
-    return <div className="tvl-screen"><StatePanel mode="loading" title="Loading…" /></div>;
+    return <div className="tvl-screen"><SkeletonShelvesTV /></div>;
   }
 
   if (error) {
@@ -670,7 +671,7 @@ export default function MoviesScreenTV({ navigation, route }) {
         {shelves.length === 0
           ? (loaded
               ? <StatePanel mode="empty" {...emptyContentProps("movies")} />
-              : <StatePanel mode="loading" title="Loading movies…" />)
+              : <SkeletonShelvesTV />)
           : (
             <VirtualShelvesTV
               shelves={shelves}

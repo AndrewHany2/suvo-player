@@ -240,6 +240,53 @@ Deno.serve(async (req) => {
           .eq("entry_id", payload.entryId);
         return json({ ok: true });
       }
+      // ─── Batched reads ───────────────────────────────────────────────────
+      // Both actions below sit AFTER the full request preamble
+      // (assertBoundDevice → assertAccountActive → assertEntitled), exactly like
+      // the individual actions they replace. A suspended / expired / unentitled
+      // caller is denied at the preamble and never reaches this code, so batching
+      // reduces round-trips WITHOUT relaxing the gate. Note: entitlement.fetch is
+      // deliberately NOT folded in here — it must stay a separate action allowed
+      // past assertEntitled so a trial-expired user can still read their reason.
+      case "bootstrap.fetch": {
+        // Cold-start identity load: profiles.fetch + appProfiles.list in one call.
+        const [profileRes, appProfilesRes] = await Promise.all([
+          db("profiles").select("name, email").eq("user_id", userId).maybeSingle(),
+          db("app_profiles")
+            .select("id, name, avatar, created_at")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: true }),
+        ]);
+        const p = profileRes.data;
+        return json({
+          // Keep the `username` alias for older clients (see profiles.fetch).
+          profile: p ? { name: p.name, username: p.name, email: p.email } : null,
+          appProfiles: appProfilesRes.data ?? [],
+        });
+      }
+      case "library.fetch": {
+        // Per-account library load: history.fetch + favorites.fetch in one call.
+        // Same ownership check as the individual actions.
+        await assertOwnsUserKey(admin, userId, payload.userKey);
+        const accountKey = payload.accountKey ?? "";
+        const [historyRes, favoritesRes] = await Promise.all([
+          db("watch_history")
+            .select("entry")
+            .eq("user_key", payload.userKey)
+            .eq("account_key", accountKey)
+            .order("watched_at", { ascending: false })
+            .limit(MAX_HISTORY),
+          db("favorites")
+            .select("entry")
+            .eq("user_key", payload.userKey)
+            .eq("account_key", accountKey)
+            .order("added_at", { ascending: false }),
+        ]);
+        return json({
+          history: (historyRes.data ?? []).map((r: any) => r.entry),
+          favorites: (favoritesRes.data ?? []).map((r: any) => r.entry),
+        });
+      }
       default:
         return json({ error: "UNKNOWN_ACTION" }, 400);
     }

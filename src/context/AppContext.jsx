@@ -3,12 +3,12 @@ import { AppState } from 'react-native';
 import storage from '../utils/storage';
 import { contentService } from '../domain/services/ContentService';
 import {
-  fetchRemoteHistory, upsertHistoryEntry, deleteHistoryEntry,
-  fetchFavorites, upsertFavorite, deleteFavorite,
+  fetchLibrary, upsertHistoryEntry, deleteHistoryEntry,
+  upsertFavorite, deleteFavorite,
   isSupabaseConfigured, getSession, claimDevice,
   signIn as supabaseSignIn, signUp as supabaseSignUp, signOut as supabaseSignOut,
-  onAuthStateChange, fetchProfile, fetchEntitlement,
-  fetchAppProfiles, insertAppProfile, updateAppProfile, deleteAppProfile,
+  onAuthStateChange, fetchBootstrap, fetchEntitlement,
+  insertAppProfile, updateAppProfile, deleteAppProfile,
   fetchIptvAccounts, insertIptvAccount,
   updateIptvAccount as supabaseUpdateIptvAccount,
   deleteIptvAccount as supabaseDeleteIptvAccount,
@@ -20,6 +20,9 @@ import { getDeviceSignature } from '../security/deviceSignature';
 import { setDeviceId } from '../services/deviceHeader';
 
 const AppContext = createContext();
+// Minimum gap between opportunistic library refetches (foreground). Explicit
+// account/profile switches bypass this and always reload.
+const REFETCH_MIN_INTERVAL_MS = 45000;
 // Playback (currentVideo + play/close) and watch history live in their OWN
 // contexts, split out of the main app value. currentVideo changes on play/close
 // and watchHistory is rewritten ~once/second by progress writes during
@@ -84,6 +87,11 @@ export const AppProvider = ({ children }) => {
   // ─── App profiles ──────────────────────────────────────────────────────────
   const [appProfiles, setAppProfiles]       = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
+  // True while the profile list is being fetched from the server so the picker
+  // ("Who's watching?") can show skeleton tiles instead of a blank grid that
+  // pops in. Seeded true only when Supabase will actually fetch; the local
+  // (no-Supabase) path loads from storage and never flips it on.
+  const [appProfilesLoading, setAppProfilesLoading] = useState(isSupabaseConfigured());
 
   // ─── Content ───────────────────────────────────────────────────────────────
   const [channels, setChannels]       = useState([]);
@@ -123,6 +131,10 @@ export const AppProvider = ({ children }) => {
   // the base when loading a different profile (which would cross-contaminate
   // favorites/history across profiles).
   const libraryKeyRef = useRef(null);
+  // Timestamp (ms) of the last library load, used to throttle foreground
+  // refetches so rapid background↔active flips (common on web tab-switching)
+  // don't re-hit the server every time.
+  const lastLibraryLoadRef = useRef(0);
 
   // ─── UI ────────────────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -396,18 +408,28 @@ export const AppProvider = ({ children }) => {
     }
 
     setIsSyncing(true);
+    // Stamp before the round-trip so the foreground throttle measures from load
+    // start (see refetchLibrary). A concurrent switch/initial load resets it too.
+    lastLibraryLoadRef.current = Date.now();
     try {
-      const [historyRes, favoritesRes] = await Promise.all([
-        fetchRemoteHistory(key, accountKey).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
-        fetchFavorites(key, accountKey).then((data) => ({ ok: true, data }), () => ({ ok: false, data: null })),
-      ]);
+      // One batched round-trip (library.fetch) instead of two. History and
+      // favorites now share a single success/fail verdict, which is more correct:
+      // the server gate either passes (both usable) or fails (neither is), so a
+      // partial "history ok, favorites failed" state can no longer occur.
+      let lib = null;
+      let fetchOk = true;
+      try {
+        lib = await fetchLibrary(key, accountKey);
+      } catch {
+        fetchOk = false;
+      }
       const nextHistory = resolveAuthoritative({
-        localBase: watchHistoryRef.current, remote: historyRes.data, fetchOk: historyRes.ok,
+        localBase: watchHistoryRef.current, remote: lib?.history ?? null, fetchOk,
         tsField: 'watchedAt', cap: MAX_HISTORY,
       });
       setWatchHistory(nextHistory);
       const nextFavorites = resolveAuthoritative({
-        localBase: baseFavorites, remote: favoritesRes.data, fetchOk: favoritesRes.ok,
+        localBase: baseFavorites, remote: lib?.favorites ?? null, fetchOk,
         tsField: 'addedAt',
       });
       setMyList(nextFavorites);
@@ -417,12 +439,16 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
-  const refetchLibrary = useCallback(() => {
+  const refetchLibrary = useCallback((force = false) => {
     // No-op unless a loadable library context is already active. libraryKeyRef
     // is only set once the device-gated library effect has run (user + account
     // + deviceStatus 'ok'), so this keeps every refetch trigger — foreground,
     // tab focus, etc. — behind the same device gate as the initial load.
     if (!libraryKeyRef.current) return;
+    // Throttle: skip a refetch that lands within REFETCH_MIN_INTERVAL_MS of the
+    // last load. Account/profile switches call loadLibrary directly (no throttle)
+    // so they always reload; only opportunistic refetches (foreground) are gated.
+    if (!force && Date.now() - lastLibraryLoadRef.current < REFETCH_MIN_INTERVAL_MS) return;
     loadLibrary(userKeyRef.current, accountKeyOf(activeAccountRef.current));
   }, [loadLibrary]);
 
@@ -488,10 +514,20 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (!authUser || deviceStatus !== 'ok') return;
     // Email-only auth: there is no username in signup metadata anymore, so
-    // always fetch the profile from the server (name/email now live in the
-    // `profiles` row, set server-side by the `admin`/`data` functions).
-    fetchProfile(authUser.id).then((p) => { if (p) setProfile(p); }).catch(() => {});
-    fetchAppProfiles(authUser.id).then(setAppProfiles).catch(() => {});
+    // always fetch from the server (name/email live in the `profiles` row, set
+    // server-side by the `admin`/`data` functions). profile + app profiles come
+    // back in ONE device-gated round-trip (bootstrap.fetch). Entitlement stays a
+    // SEPARATE call: the edge fn deliberately lets entitlement.fetch through the
+    // entitlement gate so a trial-expired user can still read their reason —
+    // folding it into the gated bootstrap would break that.
+    setAppProfilesLoading(true);
+    fetchBootstrap(authUser.id)
+      .then(({ profile: p, appProfiles: aps }) => {
+        if (p) setProfile(p);
+        setAppProfiles(aps ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setAppProfilesLoading(false));
     fetchEntitlement().then((e) => setAllowSelfLines(e?.allowSelfLines !== false)).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.id, deviceStatus]);
@@ -601,7 +637,7 @@ export const AppProvider = ({ children }) => {
   // ─── Context value ─────────────────────────────────────────────────────────
   const value = useMemo(() => ({
     authUser, authLoading, profile, deviceStatus, signIn, signUp, signOut,
-    appProfiles, activeProfileId, activeProfile, switchProfile, addProfile, updateProfile, removeProfile,
+    appProfiles, appProfilesLoading, activeProfileId, activeProfile, switchProfile, addProfile, updateProfile, removeProfile,
     users, setUsers, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser,
     activeAccountId,
     currentSeries, setCurrentSeries,
@@ -611,7 +647,7 @@ export const AppProvider = ({ children }) => {
     tvUseShelves, setTvUseShelves,
     allowSelfLines,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [authUser, authLoading, profile, deviceStatus, appProfiles, activeProfileId, activeProfile,
+  }), [authUser, authLoading, profile, deviceStatus, appProfiles, appProfilesLoading, activeProfileId, activeProfile,
     tvUseShelves,
     users, activeUserId, isSyncing, myList,
     activeAccountId,

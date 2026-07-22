@@ -4,14 +4,14 @@ import { useSearch } from "../context/AppContext";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useTVNavigation } from "../hooks/useTVNavigation";
 import { ss, useScale } from "../utils/scaleSize";
-import { colors, fonts } from "../ui/tokens";
+import { colors, fonts, radii } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import { LABELS } from "../ui/labels";
 import Button from "../ui/Button";
 import ContentShelf from "../presentation/components/ContentShelf.web";
 import PosterCard from "../presentation/components/PosterCard.web";
-import { SkeletonPosterGrid } from "../presentation/components/SkeletonPoster.web";
+import { SkeletonPosterGrid, SkeletonLine, SkeletonShelfRow } from "../presentation/components/SkeletonPoster.web";
 import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import MovieDetail from "../components/MovieDetail.web";
@@ -161,7 +161,28 @@ export default function MoviesScreen({ navigation }) {
   }, [detailOpen]);
 
   if (loading) {
-    return <StatePanel mode="loading" title="Loading movies..." />;
+    // Skeleton browse (Discover heading + pill placeholders + poster rails) reads
+    // as the real screen filling in, not a lone centered spinner — the product
+    // register's "skeleton states, not spinners in the middle of content". The
+    // rails match ContentShelf.web's geometry (ss(vcfg.posterWidth) cards, ss(48)
+    // inset), so real shelves swap in with no layout shift.
+    return (
+      <YStack flex={1} minHeight={0} backgroundColor={colors.bg}>
+        <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
+          <YStack paddingHorizontal={ss(48)} paddingTop={ss(24)} paddingBottom={ss(4)}>
+            <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(22)} fontWeight="700" letterSpacing={-0.3} marginBottom={ss(12)} role="heading" aria-level={2}>Discover</Text>
+            <XStack gap={ss(10)} flexWrap="wrap">
+              {[96, 120, 104, 132, 88].map((w, i) => (
+                <SkeletonLine key={i} width={ss(w)} height={ss(42)} radius={radii.pill} />
+              ))}
+            </XStack>
+          </YStack>
+          {[0, 1, 2].map((i) => (
+            <SkeletonShelfRow key={i} cardWidth={ss(vcfg.posterWidth)} gap={ss(vcfg.posterGap)} paddingH={ss(48)} />
+          ))}
+        </YStack>
+      </YStack>
+    );
   }
 
   if (error) {

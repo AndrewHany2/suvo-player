@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { View } from "react-native";
-import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, fonts, playerScrim } from "../ui/tokens";
+import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
+import { colors, fonts, playerScrim, radii } from "../ui/tokens";
+import SkeletonBox from "../presentation/components/SkeletonBox";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import { contentService } from "../domain/services/ContentService";
@@ -192,7 +193,14 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           </Text>
 
           {isLoading ? (
-            <Spinner color={colors.accent} marginVertical={ss(12)} />
+            // Chip-row skeleton in place of a spinner: stands in for the
+            // year / rating / duration meta chips being enriched, so the row
+            // holds its shape and swaps in with no jump when metadata arrives.
+            <XStack gap={ss(8)} marginVertical={ss(12)} aria-hidden>
+              {[70, 54, 92].map((w, i) => (
+                <SkeletonBox key={i} width={ss(w)} height={ss(28)} radius={radii.sm} />
+              ))}
+            </XStack>
           ) : (
             <XStack
               alignItems="center"

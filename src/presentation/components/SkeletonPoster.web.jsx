@@ -27,6 +27,55 @@ export function ensureSkeletonKeyframes() {
 }
 
 /**
+ * A flat, static placeholder bar for a single line of text (a shelf title, a
+ * pill, a metadata line). No sweep — it reads as structure, not a spinner, and
+ * pairs with the sweeping poster/box skeletons without competing for attention.
+ * Sizes are raw px; callers pass ss()-scaled values.
+ */
+export function SkeletonLine({ width = 160, height = 16, radius = radii.sm, style }) {
+  return (
+    <div
+      aria-hidden="true"
+      style={{ width, height, borderRadius: radius, backgroundColor: colors.surface, ...style }}
+    />
+  );
+}
+
+/**
+ * One skeleton browse row: a title-line placeholder above a single clipped rail
+ * of poster skeletons — the exact geometry of a real ContentShelf.web (title +
+ * horizontal rail) so the initial-load screen fills in with no layout shift when
+ * the real shelves mount. overflow:hidden drops cards past the right edge so we
+ * don't need to measure how many fit. Sizes are raw px (ss()-applied by caller).
+ */
+export function SkeletonShelfRow({ cardWidth = 240, gap = 8, paddingH = 48, count = 8 }) {
+  return (
+    <div aria-hidden="true" style={{ paddingTop: 28, paddingBottom: 8 }}>
+      <div style={{ paddingLeft: paddingH, paddingRight: paddingH, marginBottom: 14 }}>
+        <SkeletonLine width={Math.round(cardWidth * 0.75)} height={20} />
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap,
+          paddingLeft: paddingH,
+          paddingRight: paddingH,
+          paddingTop: 10,
+          paddingBottom: 10,
+          overflow: "hidden",
+        }}
+      >
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} style={{ flex: `0 0 ${cardWidth}px` }}>
+            <SkeletonPoster width={cardWidth} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * A skeleton grid — a flex-wrap of SkeletonPoster laid out in the same geometry
  * as the real poster grid, so a full-screen/category grid load shows the same
  * loading vocabulary as the shelf rails (instead of a lone centered spinner).

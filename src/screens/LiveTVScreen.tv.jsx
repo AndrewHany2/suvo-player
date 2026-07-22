@@ -2,6 +2,7 @@ import { memo, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { usePlayback } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
+import SkeletonShelvesTV from "../presentation/components/SkeletonShelvesTV";
 import StatePanel from "../ui/StatePanel";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
@@ -392,7 +393,7 @@ export default function LiveTVScreenTV({ navigation }) {
   if (loading) {
     return (
       <div className="tvl-screen">
-        <StatePanel mode="loading" title="Loading channels…" />
+        <SkeletonShelvesTV wide />
       </div>
     );
   }

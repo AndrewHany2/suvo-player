@@ -5,11 +5,13 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
 import { LinearGradient } from "expo-linear-gradient";
-import { YStack, Text, ScrollView } from "../ui/primitives";
+import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
 import { colors, fonts, fontWeights, radii, zIndex, heroHeights, overlay } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
+import SkeletonPoster from "../presentation/components/SkeletonPoster.native";
+import SkeletonBox from "../presentation/components/SkeletonBox";
 import HeroNative from "../presentation/components/Hero.native";
 import PosterCard from "../presentation/components/PosterCard.native";
 import { LABELS } from "../ui/labels";
@@ -106,8 +108,47 @@ function SectionTitle({ children }) {
 }
 
 /* ── Screen ── */
+// Home initial-load skeleton (native): hero block + My-List poster rail +
+// Continue-Watching landscape rail, matching the real layout so the screen fills
+// in with no jump when the Supabase library sync lands, instead of flashing the
+// empty state.
+function HomeSkeleton() {
+  return (
+    <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingTop: ss(20), paddingBottom: ss(40) }}>
+      <YStack paddingHorizontal={ss(16)} marginBottom={ss(24)}>
+        <SkeletonBox width="100%" height={ss(heroHeights.native)} radius={radii.lg} />
+      </YStack>
+
+      <YStack marginBottom={ss(24)}>
+        <YStack paddingHorizontal={ss(16)} marginBottom={ss(12)}>
+          <SkeletonBox width={ss(120)} height={ss(20)} radius={radii.sm} />
+        </YStack>
+        <XStack paddingHorizontal={ss(16)} gap={ss(12)} overflow="hidden">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <SkeletonPoster key={i} width={ss(120)} />
+          ))}
+        </XStack>
+      </YStack>
+
+      <YStack marginBottom={ss(24)}>
+        <YStack paddingHorizontal={ss(16)} marginBottom={ss(12)}>
+          <SkeletonBox width={ss(170)} height={ss(20)} radius={radii.sm} />
+        </YStack>
+        <XStack paddingHorizontal={ss(16)} gap={ss(12)} overflow="hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <YStack key={i}>
+              <SkeletonBox width={ss(CW_W)} height={ss(Math.round((CW_W * 9) / 16))} radius={radii.card} />
+              <SkeletonBox width={ss(160)} height={ss(12)} radius={radii.sm} style={{ marginTop: ss(8) }} />
+            </YStack>
+          ))}
+        </XStack>
+      </YStack>
+    </ScrollView>
+  );
+}
+
 export default function HistoryScreen({ navigation }) {
-  const { activeUserId } = useApp();
+  const { activeUserId, isSyncing } = useApp();
   const online = useIsOnline();
   const { watchedHistory, removeFromWatchHistory, playLive, playVideoObject, myList, removeFromMyList } = useHistory({ navigation });
   const insets = useSafeAreaInsets();
@@ -170,6 +211,10 @@ export default function HistoryScreen({ navigation }) {
 
   if (currentDetail?.type === "movies") return <MovieDetail item={currentDetail} onBack={closeDetail} onPlay={handlePlay} />;
   if (currentDetail?.type === "series") return <SeriesDetail item={currentDetail} onBack={closeDetail} onPlayEpisode={handlePlay} />;
+
+  if (isSyncing && myList.length === 0 && watchedHistory.length === 0) {
+    return <HomeSkeleton />;
+  }
 
   if (myList.length === 0 && watchedHistory.length === 0) {
     return (

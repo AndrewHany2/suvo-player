@@ -20,6 +20,7 @@ import { ss, useScale } from "../utils/scaleSize";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
+import SkeletonBox from "../presentation/components/SkeletonBox";
 import { useApp } from "../context/AppContext";
 
 // Avatar choices are profile *identity data* (persisted as p.avatar), not UI
@@ -34,6 +35,7 @@ export default function ProfilesScreen() {
   useScale(); // re-render + recompute ss() when the scale corrects (webOS cold start)
   const {
     appProfiles,
+    appProfilesLoading,
     activeProfileId,
     switchProfile,
     addProfile,
@@ -475,6 +477,20 @@ export default function ProfilesScreen() {
         </Text>
 
         <XStack flexWrap="wrap" justifyContent="center" gap={ss(24)} paddingHorizontal={ss(20)}>
+          {appProfilesLoading && appProfiles.length === 0 ? (
+            // Skeleton tiles while the profile list is fetched from the server —
+            // avatar-sized placeholders + a name-line stand-in in the same
+            // geometry as a real tile, so they swap in with no layout shift and
+            // the picker never flashes an empty grid. The Add tile is withheld
+            // until the real profiles land so this reads purely as loading.
+            [0, 1, 2].map((i) => (
+              <YStack key={`skeleton-${i}`} alignItems="center" width={ss(110)}>
+                <SkeletonBox width={ss(90)} height={ss(90)} radius={radii.md} style={{ marginBottom: ss(10) }} />
+                <SkeletonBox width={ss(64)} height={ss(14)} radius={radii.sm} />
+              </YStack>
+            ))
+          ) : (
+          <>
           {appProfiles.map((p, idx) => {
             const focused = focusedRow === 0 && focusedCol === idx;
             return (
@@ -545,6 +561,8 @@ export default function ProfilesScreen() {
               </YStack>
             );
           })()}
+          </>
+          )}
         </XStack>
       </YStack>
 

@@ -1,7 +1,9 @@
 import { memo, useRef, useEffect, useCallback, useState } from "react";
 import { Image, View } from "react-native";
 import { YStack, Text, ScrollView } from "../ui/primitives";
-import { colors, fonts, fontWeights, overlay, heroHeights, zIndex } from "../ui/tokens";
+import { colors, fonts, fontWeights, overlay, heroHeights, zIndex, radii } from "../ui/tokens";
+import SkeletonPoster, { SkeletonLine } from "../presentation/components/SkeletonPoster.web";
+import SkeletonBox from "../presentation/components/SkeletonBox";
 import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
@@ -360,8 +362,51 @@ const CWCard = memo(function CWCard({ item, onSelect, onRemove }) {
   );
 });
 
+// Home initial-load skeleton: a hero block over a My-List poster rail and a
+// Continue-Watching landscape rail, in the same geometry as the real Home, so
+// the screen fills in with no layout jump when the Supabase library sync lands
+// (instead of flashing the empty state before the data arrives).
+function HomeSkeleton() {
+  return (
+    <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingTop: ss(40), paddingBottom: ss(80) }}>
+      <YStack maxWidth={MAX_W} width="100%" alignSelf="center" aria-hidden>
+        <YStack paddingHorizontal={ss(48)} marginBottom={ss(48)}>
+          <SkeletonBox width="100%" height={ss(heroHeights.web)} radius={radii.lg} />
+        </YStack>
+
+        <YStack paddingBottom={ss(48)}>
+          <YStack paddingHorizontal={ss(48)} marginBottom={ss(20)}>
+            <SkeletonLine width={ss(160)} height={ss(26)} />
+          </YStack>
+          <div style={{ display: "flex", gap: ss(12), paddingLeft: ss(48), paddingRight: ss(48), paddingTop: ss(10), paddingBottom: ss(10), overflow: "hidden" }}>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} style={{ flex: `0 0 ${ss(200)}px` }}>
+                <SkeletonPoster width={ss(200)} />
+              </div>
+            ))}
+          </div>
+        </YStack>
+
+        <YStack paddingBottom={ss(48)}>
+          <YStack paddingHorizontal={ss(48)} marginBottom={ss(20)}>
+            <SkeletonLine width={ss(220)} height={ss(26)} />
+          </YStack>
+          <div style={{ display: "flex", gap: ss(12), paddingLeft: ss(48), paddingRight: ss(48), paddingTop: ss(10), paddingBottom: ss(10), overflow: "hidden" }}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} style={{ flex: `0 0 ${ss(320)}px` }}>
+                <SkeletonBox width={ss(320)} height={ss(180)} radius={radii.card} />
+                <SkeletonLine width={ss(200)} height={ss(14)} style={{ marginTop: ss(10) }} />
+              </div>
+            ))}
+          </div>
+        </YStack>
+      </YStack>
+    </ScrollView>
+  );
+}
+
 export default function HistoryScreen({ navigation }) {
-  const { activeUserId } = useApp();
+  const { activeUserId, isSyncing } = useApp();
   const {
     watchedHistory,
     removeFromWatchHistory,
@@ -452,6 +497,12 @@ export default function HistoryScreen({ navigation }) {
         onPlayEpisode={handlePlay}
       />
     );
+
+  // Still syncing the library from Supabase and nothing cached yet — show the
+  // Home skeleton rather than flashing the empty state before data arrives.
+  if (isSyncing && myList.length === 0 && watchedHistory.length === 0) {
+    return <HomeSkeleton />;
+  }
 
   if (myList.length === 0 && watchedHistory.length === 0) {
     return (

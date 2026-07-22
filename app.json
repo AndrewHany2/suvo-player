@@ -7,11 +7,6 @@
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0A0E1A"
-    },
     "web": {
       "bundler": "metro",
       "output": "single",
@@ -47,6 +42,15 @@
         }
       ],
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0A0E1A"
+        }
+      ],
       "@kesha-antonov/react-native-background-downloader",
       "react-native-vlc-media-player",
       "./plugins/withAndroidNetworkSecurity.js"

@@ -5,6 +5,7 @@ import Icon from "../ui/Icon";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
 import ContinueCardTV from "../presentation/components/ContinueCard.tv";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
+import SkeletonShelvesTV from "../presentation/components/SkeletonShelvesTV";
 import StatePanel from "../ui/StatePanel";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
@@ -39,6 +40,7 @@ const CW_ROW_H = 40 + Math.round((CW_CARD_W * 9) / 16) + 120;
 export default function HistoryScreenTV({ navigation }) {
   const {
     activeUserId,
+    isSyncing,
     myList,
     removeFromMyList,
     addToMyList,
@@ -769,6 +771,17 @@ export default function HistoryScreenTV({ navigation }) {
 
   // ── Render: home (horizontal poster shelves) ──────────────────────────────
   const isEmpty = shelves.length === 0;
+
+  if (isSyncing && isEmpty) {
+    return (
+      <div className="tvl-screen">
+        <div className="tvl-topbar">
+          <span className="tvl-topbar-title" role="heading" aria-level={1}>{LABELS.home}</span>
+        </div>
+        <SkeletonShelvesTV />
+      </div>
+    );
+  }
 
   if (isEmpty) {
     return (

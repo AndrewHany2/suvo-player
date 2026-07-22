@@ -4,6 +4,7 @@ import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import { useSeries } from "../domain/hooks/useSeries";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
+import SkeletonShelvesTV from "../presentation/components/SkeletonShelvesTV";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
@@ -779,7 +780,7 @@ export default function SeriesScreenTV({ navigation, route }) {
   if (loading)
     return (
       <div className="tvl-screen">
-        <StatePanel mode="loading" title="Loading series…" />
+        <SkeletonShelvesTV />
       </div>
     );
 
@@ -1104,7 +1105,7 @@ export default function SeriesScreenTV({ navigation, route }) {
         {shelves.length === 0
           ? (loaded
               ? <StatePanel mode="empty" {...emptyContentProps("series")} />
-              : <StatePanel mode="loading" title="Loading series…" />)
+              : <SkeletonShelvesTV />)
           : (
             <VirtualShelvesTV
               shelves={shelves}

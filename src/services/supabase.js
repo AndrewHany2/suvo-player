@@ -159,6 +159,25 @@ export async function deleteAppProfile(profileId) {
   return invokeData("appProfiles.delete", { id: profileId });
 }
 
+// Cold-start identity load: profile + app profiles in ONE device-gated round-trip
+// instead of two. `entitlement` is intentionally NOT bundled here — it stays a
+// separate fetchEntitlement() call because the edge fn deliberately allows
+// entitlement.fetch past the entitlement gate (so a trial-expired user can read
+// their reason); folding it in would block that. Falls back to the individual
+// actions if the edge fn hasn't been redeployed with `bootstrap.fetch` yet.
+export async function fetchBootstrap(userId) {
+  try {
+    return await invokeData("bootstrap.fetch");
+  } catch (error) {
+    if (error?.message !== "UNKNOWN_ACTION") throw error;
+    const [profile, appProfiles] = await Promise.all([
+      fetchProfile(userId).catch(() => null),
+      fetchAppProfiles(userId).catch(() => []),
+    ]);
+    return { profile, appProfiles };
+  }
+}
+
 // ─── IPTV Accounts ───────────────────────────────────────────────────────────
 
 export async function fetchIptvAccounts(profileId) {
@@ -220,6 +239,25 @@ export async function deleteHistoryEntry(userKey, accountKey, entryId) {
 
 export async function fetchFavorites(userKey, accountKey) {
   return invokeData("favorites.fetch", { userKey, accountKey });
+}
+
+// ─── Library (history + favorites) ─────────────────────────────────────────────
+
+// Per-account library load: watch history + favorites in ONE device-gated
+// round-trip. Fires on every account switch AND every app foreground, so this is
+// the highest-frequency batch. Returns { history, favorites }. Falls back to the
+// individual fetches if the edge fn hasn't been redeployed with `library.fetch`.
+export async function fetchLibrary(userKey, accountKey) {
+  try {
+    return await invokeData("library.fetch", { userKey, accountKey });
+  } catch (error) {
+    if (error?.message !== "UNKNOWN_ACTION") throw error;
+    const [history, favorites] = await Promise.all([
+      fetchRemoteHistory(userKey, accountKey),
+      fetchFavorites(userKey, accountKey),
+    ]);
+    return { history, favorites };
+  }
 }
 
 export async function upsertFavorite(userKey, accountKey, entry) {

@@ -4,8 +4,9 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ss } from "../utils/scaleSize";
-import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, fonts } from "../ui/tokens";
+import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
+import { colors, fonts, radii } from "../ui/tokens";
+import SkeletonBox from "../presentation/components/SkeletonBox";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import { LABELS } from "../ui/labels";
@@ -116,7 +117,13 @@ export default function MovieDetail({ item, onBack, onPlay }) {
           <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(26)} fontWeight="700" lineHeight={ss(32)} marginBottom={10} numberOfLines={2} ellipsizeMode="tail">{name}</Text>
 
           {isLoading ? (
-            <Spinner color={colors.accent} marginVertical={12} />
+            // Chip-row skeleton (year / rating / duration) instead of a spinner,
+            // so the meta row holds its shape until enrichment lands.
+            <XStack gap={8} marginVertical={12} aria-hidden>
+              {[70, 54, 92].map((w, i) => (
+                <SkeletonBox key={i} width={w} height={28} radius={radii.sm} />
+              ))}
+            </XStack>
           ) : (
             <XStack alignItems="center" gap={8} marginBottom={16} flexWrap="wrap">
               {year ? <YStack borderWidth={1} borderColor={colors.border} borderRadius={4} paddingHorizontal={8} paddingVertical={3}><Text color={colors.muted} fontSize={12}>{year}</Text></YStack> : null}
