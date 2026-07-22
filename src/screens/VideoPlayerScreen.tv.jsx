@@ -2,13 +2,16 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { usePlayer, SPEEDS, ASPECT_RATIOS } from "../playback/usePlayer";
 import { ADJUST_LEVELS } from "../playback/videoAdjust";
 import { INITIAL_TV_NAV, tvNavReduce } from "../playback/tvSettingsNav";
+import { SLEEP_PRESETS, formatRemaining } from "../playback/useSleepTimer";
+import { FATAL_TITLE, FATAL_HEADLINE } from "../playback/playerCopy";
+import { controlIcon, controlLabel } from "../playback/playerControls";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import StatsOverlay from "../playback/components/StatsOverlay";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import { formatDuration as fmtTime } from "../utils/formatDuration";
-import { colors, accentAlpha, accent2Alpha, radii, fonts } from "../ui/tokens";
+import { colors, accentAlpha, accent2Alpha, radii, fonts, zIndex } from "../ui/tokens";
 
 // LG webOS remote key codes
 const TV_KEYS = {
@@ -29,7 +32,7 @@ const TV = {
     right: 0,
     bottom: 0,
     backgroundColor: "#000",
-    zIndex: 9999,
+    zIndex: zIndex.playerOverlay,
     overflow: "hidden",
   },
   controls: (visible) => ({
@@ -77,19 +80,6 @@ const TV = {
     overflow: "hidden",
     whiteSpace: "nowrap",
     textOverflow: "ellipsis",
-  },
-  nextBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    background: accentAlpha(0.9),
-    border: "none",
-    color: colors.text,
-    borderRadius: radii.sm,
-    padding: "12px 24px",
-    fontSize: 18,
-    fontWeight: 700,
-    cursor: "pointer",
   },
   center: {
     display: "flex",
@@ -237,6 +227,7 @@ export default function VideoPlayerScreen() {
     startTime,
     nowNext,
     nextEpisode,
+    sleep,
     handleNextEpisode,
     handleClose,
     handleRetry,
@@ -491,6 +482,8 @@ export default function VideoPlayerScreen() {
         backgroundColor: "rgba(0,0,0,0.35)",
         pointerEvents: "none",
       }}
+      role="status"
+      aria-live="polite"
     >
       <div
         className="tv-busy-spinner"
@@ -516,37 +509,70 @@ export default function VideoPlayerScreen() {
     .map((l, i) => ({ l, i }))
     .sort((a, b) => (b.l.height || 0) - (a.l.height || 0));
   const tvSettingsItems = [
-    {
-      key: "speed",
-      icon: "speed",
-      name: "Speed",
-      label: `${playbackRate}x`,
-      items: SPEEDS.map((r) => ({ label: `${r}x${r === 1 ? " (Normal)" : ""}`, active: playbackRate === r, run: () => applySpeed(r) })),
-      selected: Math.max(0, SPEEDS.indexOf(playbackRate)),
+    // Start over / Next are focusable action chips (not dead top-bar buttons) so
+    // the D-pad can actually reach them — OK on an item with no `items` fires
+    // its action directly (see the keydown reducer).
+    !isLive && resume.hasResume && startTime > 0 && {
+      key: "startover",
+      icon: controlIcon.startOver,
+      name: controlLabel.startOver,
+      action: handleStartOver,
     },
-    audioTracks.length > 1 && {
-      key: "audio",
-      icon: "audio",
-      name: "Audio",
-      items: audioTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, active: selectedAudio === i, run: () => applyAudio(i) })),
-      selected: Math.max(0, selectedAudio),
+    nextEpisode && {
+      key: "next",
+      icon: controlIcon.nextEpisode,
+      name: `Next S${String(nextEpisode.seasonNum).padStart(2, "0")}E${String(nextEpisode.episode.episode_num).padStart(2, "0")}`,
+      action: handleNextEpisode,
     },
+    // Everyday controls first (Subtitles → Audio → Speed → Fit), matching the
+    // primary-then-More ordering the touch and web players use, so the same
+    // functions sit in the same place whichever screen the viewer is on. The
+    // rarer picture/quality/stats controls trail behind them.
     subtitleTracks.length > 0 && {
       key: "subtitle",
-      icon: "cc",
-      name: "Subtitles",
+      icon: controlIcon.subtitles,
+      name: controlLabel.subtitles,
       items: [
         { label: "Off", active: selectedSubtitle === -1, run: () => applySubtitle(-1) },
         ...subtitleTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, active: selectedSubtitle === i, run: () => applySubtitle(i) })),
       ],
       selected: selectedSubtitle === -1 ? 0 : selectedSubtitle + 1,
     },
+    audioTracks.length > 1 && {
+      key: "audio",
+      icon: controlIcon.audio,
+      name: controlLabel.audio,
+      items: audioTracks.map((t, i) => ({ label: t.name || `Track ${i + 1}`, active: selectedAudio === i, run: () => applyAudio(i) })),
+      selected: Math.max(0, selectedAudio),
+    },
+    {
+      key: "speed",
+      icon: controlIcon.speed,
+      name: controlLabel.speed,
+      label: `${playbackRate}x`,
+      items: SPEEDS.map((r) => ({ label: `${r}x${r === 1 ? " (Normal)" : ""}`, active: playbackRate === r, run: () => applySpeed(r) })),
+      selected: Math.max(0, SPEEDS.indexOf(playbackRate)),
+    },
     {
       key: "aspect",
-      icon: "aspect",
-      name: "Aspect",
+      icon: controlIcon.fit,
+      name: controlLabel.fit,
       items: ASPECT_RATIOS.map(({ value, label }) => ({ label, active: aspectRatio === value, run: () => applyAspect(value) })),
       selected: Math.max(0, ASPECT_RATIOS.findIndex(({ value }) => value === aspectRatio)),
+    },
+    {
+      key: "sleep",
+      icon: controlIcon.sleep,
+      name: sleep.active ? `${controlLabel.sleep} ${formatRemaining(sleep.secondsLeft)}` : controlLabel.sleep,
+      items: [
+        ...SLEEP_PRESETS.map((p) => ({
+          label: p.label,
+          active: false,
+          run: () => (p.kind === "end-of-episode" ? sleep.cancel() : sleep.start(p.minutes)),
+        })),
+        ...(sleep.active ? [{ label: "Cancel timer", active: true, run: () => sleep.cancel() }] : []),
+      ],
+      selected: 0,
     },
     {
       key: "brightness",
@@ -572,8 +598,8 @@ export default function VideoPlayerScreen() {
     },
     qualityLevels.length > 1 && {
       key: "quality",
-      icon: "settings",
-      name: "Quality",
+      icon: controlIcon.quality,
+      name: controlLabel.quality,
       items: [
         { label: "Auto", active: selectedLevel === -1, run: () => handleSelectLevel(-1) },
         ...tvSortedLevels.map(({ l, i }) => ({ label: getLevelLabel(l, qualityLevels), active: selectedLevel === i, run: () => handleSelectLevel(i) })),
@@ -582,8 +608,8 @@ export default function VideoPlayerScreen() {
     },
     {
       key: "stats",
-      icon: "info",
-      name: "Stats",
+      icon: controlIcon.stats,
+      name: controlLabel.stats,
       action: () => setShowStats((v) => !v),
     },
   ].filter(Boolean);
@@ -620,7 +646,7 @@ export default function VideoPlayerScreen() {
         {/* Top bar */}
         <div style={TV.topBar}>
           <button style={TV.closeBtn} tabIndex={-1} onClick={handleClose} aria-label="Close player">
-            <Icon name="back" size={26} color={colors.text} />
+            <Icon name="close" size={26} color={colors.text} />
           </button>
           <span style={TV.title}>
             {currentVideo.name}
@@ -631,22 +657,10 @@ export default function VideoPlayerScreen() {
               </span>
             )}
           </span>
-          {/* Start over — VOD only, shown when we auto-resumed (TV has no prompt). */}
-          {!isLive && resume.hasResume && startTime > 0 && (
-            <button
-              style={{ ...TV.nextBtn, background: "rgba(255,255,255,0.15)" }}
-              tabIndex={-1}
-              onClick={handleStartOver}
-            >
-              <Icon name="back" size={18} color={colors.text} /> Start over
-            </button>
-          )}
-          {nextEpisode && (
-            <button style={TV.nextBtn} tabIndex={-1} onClick={handleNextEpisode}>
-              <Icon name="play" size={18} color={colors.text} />
-              {`Next  S${String(nextEpisode.seasonNum).padStart(2, "0")}E${String(nextEpisode.episode.episode_num).padStart(2, "0")}`}
-            </button>
-          )}
+          {/* Start over (auto-resumed VOD) and Next episode are now D-pad-reachable
+              chips in the settings row below — see tvSettingsItems — so the remote
+              can actually trigger them (the old top-bar buttons responded only to
+              onClick, which never fires on a pointerless TV). */}
         </div>
 
         {/* Center — play/pause icon (spinner is handled by the busy overlay) */}
@@ -656,10 +670,7 @@ export default function VideoPlayerScreen() {
               {tvPaused ? (
                 <Icon name="play" size={80} color="rgba(255,255,255,0.9)" />
               ) : (
-                <span style={{ display: "flex", gap: 14 }}>
-                  <span style={{ width: 22, height: 72, background: "rgba(255,255,255,0.9)", borderRadius: 4 }} />
-                  <span style={{ width: 22, height: 72, background: "rgba(255,255,255,0.9)", borderRadius: 4 }} />
-                </span>
+                <Icon name="pause" size={80} color="rgba(255,255,255,0.9)" />
               )}
             </span>
           )}
@@ -719,13 +730,13 @@ export default function VideoPlayerScreen() {
               <div style={TV.timeRow}>
                 <span>{fmtTime(tvCurrentTime)}</span>
                 <span style={TV.seekHint}>
-                  ◀◀ -10s · OK: play/pause · +10s ▶▶
+                  ▲ Settings · ◀◀ -10s · OK: play/pause · +10s ▶▶
                 </span>
                 <span>{fmtTime(tvDuration)}</span>
               </div>
             </>
           ) : (
-            <div style={TV.seekHint}>▲▼ Channel · OK: play/pause</div>
+            <div style={TV.seekHint}>▲ Settings · ▼ Channel · OK: play/pause</div>
           )}
         </div>
       </div>
@@ -738,12 +749,18 @@ export default function VideoPlayerScreen() {
         <div style={{ ...TV.stateOverlay, zIndex: 20, backgroundColor: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column" }}>
           <StatePanel
             mode="error"
-            title="Failed to load stream"
-            message={fatalMessage}
+            title={FATAL_TITLE}
+            message={FATAL_HEADLINE}
             onRetry={handleRetry}
             retryFocused={fatalFocus === 0}
           />
-          <div style={{ display: "flex", justifyContent: "center", paddingBottom: 48 }}>
+          {/* Raw engine reason as quiet secondary detail — matches web/native. */}
+          {fatalMessage ? (
+            <div style={{ textAlign: "center", color: colors.muted, fontFamily: fonts.body, fontSize: 16, padding: "0 48px" }}>
+              {fatalMessage}
+            </div>
+          ) : null}
+          <div style={{ display: "flex", justifyContent: "center", paddingTop: 16, paddingBottom: 48 }}>
             <Button variant="secondary" size="lg" icon="close" isFocused={fatalFocus === 1} onPress={handleClose}>
               Close
             </Button>

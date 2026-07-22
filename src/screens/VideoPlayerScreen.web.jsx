@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { usePlayer, SPEEDS, ASPECT_RATIOS } from "../playback/usePlayer";
 import { ADJUST_MIN, ADJUST_MAX, ADJUST_STEP } from "../playback/videoAdjust";
 import { SLEEP_PRESETS, formatRemaining } from "../playback/useSleepTimer";
+import { FATAL_TITLE, FATAL_HEADLINE } from "../playback/playerCopy";
+import { controlIcon, controlLabel } from "../playback/playerControls";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import ResumePrompt from "../playback/components/ResumePrompt";
 import SubtitleSettings from "../playback/components/SubtitleSettings";
@@ -17,6 +19,7 @@ import {
   accent2Alpha,
   radii,
   fonts,
+  zIndex,
 } from "../ui/tokens";
 
 const S = {
@@ -27,7 +30,7 @@ const S = {
     right: 0,
     bottom: 0,
     backgroundColor: "#000",
-    zIndex: 9999,
+    zIndex: zIndex.playerOverlay,
     display: "flex",
     flexDirection: "column",
   },
@@ -108,7 +111,9 @@ const S = {
     borderRadius: radii.sm,
     cursor: "pointer",
     fontSize: 14,
-    color: active ? colors.accentText : colors.muted,
+    // textDim (not muted) for the inactive state: #7A86A8 on surface2 is only
+    // ~4.37:1 (under AA); #B8C0DA clears 4.5:1.
+    color: active ? colors.accentText : colors.textDim,
     fontWeight: active ? 700 : 400,
     backgroundColor: active ? accentAlpha(0.12) : "transparent",
   }),
@@ -159,7 +164,9 @@ const S = {
   seekTrack: {
     position: "relative",
     flex: 1,
-    height: 20,
+    // 44px hit target (the visible rail stays 6px, centered inside) so a touch
+    // browser gets a comfortable grab area without changing the visual.
+    height: 44,
     display: "flex",
     alignItems: "center",
     cursor: "pointer",
@@ -264,7 +271,9 @@ const S = {
     padding: 0,
     minWidth: 300,
     zIndex: 100,
-    maxHeight: 520,
+    // Clamp to the space above the bar so the top sections can't scroll off the
+    // top of a short window (the inner overflow only scrolls within the box).
+    maxHeight: "min(520px, calc(100vh - 120px))",
     overflowY: "auto",
   },
   // A labelled section inside the settings menu (hairline-separated).
@@ -274,7 +283,8 @@ const S = {
   },
   // Eyebrow header for a settings section (display face, per the type ramp).
   sectionLabel: {
-    color: colors.muted,
+    // textDim, not muted — 11px labels must clear AA (4.5:1) on surface2.
+    color: colors.textDim,
     fontFamily: fonts.display,
     fontSize: 11,
     fontWeight: 700,
@@ -333,13 +343,10 @@ const S = {
   },
 };
 
-// Fatal-error copy. The recovery machine hands us `fatalMessage`, which can be
-// terse or lean technical (e.g. "…the server rejected the connection."). The
-// overlay never headlines that: the primary line is always this calm,
-// benefit-first sentence, and the raw message rides underneath as secondary
-// diagnostic detail for anyone who wants it.
-const FATAL_HEADLINE =
-  "This stream won't play right now — it may be offline, or the connection dropped. Try again, or head back and pick something else.";
+// Fatal-error copy is shared across all surfaces (see ../playback/playerCopy):
+// the overlay never headlines the raw `fatalMessage`; the primary line is always
+// the calm, benefit-first FATAL_HEADLINE, and the raw message rides underneath as
+// secondary diagnostic detail for anyone who wants it.
 
 export default function VideoPlayerScreen() {
   const player = usePlayer({ isTV: false });
@@ -569,6 +576,10 @@ export default function VideoPlayerScreen() {
             : rootRef.current?.requestFullscreen?.();
           break;
         case "Escape":
+          e.preventDefault();
+          // Esc first dismisses an open menu; only closes the whole player when
+          // nothing is open. Read the ref so this handler need not re-subscribe.
+          if (openMenuRef.current) { setOpenMenu(null); break; }
           handleClose();
           break;
         case "ArrowLeft":
@@ -622,7 +633,7 @@ export default function VideoPlayerScreen() {
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [currentVideo, videoRef, handleClose, isLive, handleChannelUp, handleChannelDown, applySpeed, handleTogglePip, setShowStats]);
+  }, [currentVideo, videoRef, handleClose, isLive, handleChannelUp, handleChannelDown, applySpeed, handleTogglePip, setShowStats, openMenuRef, setOpenMenu]);
 
   const getVideoStyle = useMemo(() => {
     // `filter` carries the brightness/contrast picture adjustment; undefined when
@@ -700,13 +711,17 @@ export default function VideoPlayerScreen() {
       }}
     >
       <div
+        className="suvo-spinner"
         style={{
           width: 72,
           height: 72,
           border: "6px solid rgba(255,255,255,0.22)",
           borderTopColor: colors.accent2,
           borderRadius: "50%",
-          animation: "spin 0.8s linear infinite",
+          // The `animation` lives on the .suvo-spinner CLASS (in the <style>
+          // block), NOT inline: an inline animation would beat the
+          // prefers-reduced-motion stylesheet override and the reduce path would
+          // never fire. Mirrors the TV .tv-busy-spinner pattern.
           willChange: "transform",
         }}
       />
@@ -731,10 +746,23 @@ export default function VideoPlayerScreen() {
           transition: "opacity 250ms ease",
         }}
       >
-        <IconButton style={S.closeBtn} onPress={handleClose} title="Close (Esc)" aria-label="Close">
+        <IconButton style={S.closeBtn} onPress={handleClose} title={`${controlLabel.close} (Esc)`} aria-label={controlLabel.close}>
           <Icon name="close" size={16} color={colors.text} />
         </IconButton>
         <span style={S.title}>{currentVideo.name}</span>
+
+        {/* Live channel zap — pointer affordance for mouse-only web/Electron users
+            (keyboard ↑/↓ also work, but were the only way before). */}
+        {isLive && (
+          <>
+            <IconButton style={S.closeBtn} onPress={handleChannelDown} title={controlLabel.prevChannel} aria-label={controlLabel.prevChannel}>
+              <Icon name="back" size={16} color={colors.text} />
+            </IconButton>
+            <IconButton style={S.closeBtn} onPress={handleChannelUp} title={controlLabel.nextChannel} aria-label={controlLabel.nextChannel}>
+              <Icon name="chevron-right" size={16} color={colors.text} />
+            </IconButton>
+          </>
+        )}
 
         {nextEpisode && (
           <IconButton
@@ -808,7 +836,7 @@ export default function VideoPlayerScreen() {
           <div style={{ ...S.stateOverlay, backgroundColor: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column" }}>
             <StatePanel
               mode="error"
-              title="Can't play this stream"
+              title={FATAL_TITLE}
               message={FATAL_HEADLINE}
               onRetry={handleRetry}
             />
@@ -854,16 +882,16 @@ export default function VideoPlayerScreen() {
         <div style={S.bottomBar}>
         {subtitleTracks.length > 0 && (
           <div style={S.dropdown} ref={subtitleRef}>
-            <IconButton style={S.iconBtn(openMenu === "subtitle")} onPress={() => setOpenMenu((m) => (m === "subtitle" ? null : "subtitle"))} title="Subtitles" aria-label="Subtitles">
-              <Icon name="cc" size={18} color="currentColor" />
+            <IconButton style={S.iconBtn(openMenu === "subtitle")} onPress={() => setOpenMenu((m) => (m === "subtitle" ? null : "subtitle"))} title={controlLabel.subtitles} aria-label={controlLabel.subtitles}>
+              <Icon name={controlIcon.subtitles} size={18} color="currentColor" />
             </IconButton>
             {openMenu === "subtitle" && (
               <div style={S.menuUp}>
-                <button style={S.menuItem(selectedSubtitle === -1)} onClick={() => { applySubtitle(-1); setOpenMenu(null); }}>
+                <button className="suvo-menuitem" style={S.menuItem(selectedSubtitle === -1)} onClick={() => { applySubtitle(-1); setOpenMenu(null); }}>
                   Off
                 </button>
                 {subtitleTracks.map((t, i) => (
-                  <button key={t.id ?? i} style={S.menuItem(selectedSubtitle === i)} onClick={() => { applySubtitle(i); setOpenMenu(null); }}>
+                  <button key={t.id ?? i} className="suvo-menuitem" style={S.menuItem(selectedSubtitle === i)} onClick={() => { applySubtitle(i); setOpenMenu(null); }}>
                     {t.name || `Track ${i + 1}`}
                   </button>
                 ))}
@@ -872,12 +900,13 @@ export default function VideoPlayerScreen() {
           </div>
         )}
 
-        {/* Settings: the single grouping affordance for every secondary control
-            (speed, audio, quality, aspect, stats, PiP, cast, subtitle tuning,
-            picture, sleep). */}
+        {/* More: the single grouping affordance for every secondary control
+            (speed, audio, quality, fit, stats, PiP, cast, subtitle tuning,
+            picture, sleep). Labeled "More" — matching TV and both native players —
+            rather than "Settings", which reads as configuration to a casual viewer. */}
         <div style={S.dropdown} ref={moreRef}>
-          <IconButton style={S.iconBtn(openMenu === "more" || sleep.active)} onPress={() => setOpenMenu((m) => (m === "more" ? null : "more"))} title="Settings" aria-label="Settings">
-            <Icon name="tune" size={18} color="currentColor" />
+          <IconButton style={S.iconBtn(openMenu === "more" || sleep.active)} onPress={() => setOpenMenu((m) => (m === "more" ? null : "more"))} title={controlLabel.more} aria-label={controlLabel.more}>
+            <Icon name={controlIcon.more} size={18} color="currentColor" />
             {sleep.active ? ` ${formatRemaining(sleep.secondsLeft)}` : ""}
           </IconButton>
           {openMenu === "more" && (
@@ -928,9 +957,9 @@ export default function VideoPlayerScreen() {
                 </div>
               )}
 
-              {/* Aspect ratio */}
+              {/* Fit to screen (aspect ratio) */}
               <div style={S.menuSection}>
-                <div style={S.sectionLabel}>Aspect ratio</div>
+                <div style={S.sectionLabel}>{controlLabel.fit}</div>
                 <div style={S.optionRow}>
                   {ASPECT_RATIOS.map(({ value, label }) => (
                     <IconButton key={value} style={S.optionChip(aspectRatio === value)} onPress={() => applyAspect(value)}>
@@ -943,20 +972,20 @@ export default function VideoPlayerScreen() {
               {/* Display toggles / one-off actions */}
               <div style={S.menuSection}>
                 <div style={S.sectionLabel}>Display</div>
-                <button style={S.toggleRow(showStats)} onClick={() => setShowStats((v) => !v)} aria-pressed={showStats}>
-                  <Icon name="info" size={18} color="currentColor" />
-                  <span style={{ flex: 1 }}>Stats for nerds</span>
-                  <span style={{ fontSize: 12, color: showStats ? colors.accentText : colors.muted }}>{showStats ? "On" : "Off"}</span>
+                <button className="suvo-menuitem" style={S.toggleRow(showStats)} onClick={() => setShowStats((v) => !v)} aria-pressed={showStats}>
+                  <Icon name="signal" size={18} color="currentColor" />
+                  <span style={{ flex: 1 }}>{controlLabel.stats}</span>
+                  <span style={{ fontSize: 12, color: showStats ? colors.accentText : colors.textDim }}>{showStats ? "On" : "Off"}</span>
                 </button>
                 {pipSupported && (
-                  <button style={S.toggleRow(pipActive)} onClick={() => { handleTogglePip(); setOpenMenu(null); }} aria-pressed={pipActive}>
+                  <button className="suvo-menuitem" style={S.toggleRow(pipActive)} onClick={() => { handleTogglePip(); setOpenMenu(null); }} aria-pressed={pipActive}>
                     <Icon name="pip" size={18} color="currentColor" />
                     <span style={{ flex: 1 }}>Picture-in-picture</span>
-                    <span style={{ fontSize: 12, color: pipActive ? colors.accentText : colors.muted }}>{pipActive ? "On" : "Off"}</span>
+                    <span style={{ fontSize: 12, color: pipActive ? colors.accentText : colors.textDim }}>{pipActive ? "On" : "Off"}</span>
                   </button>
                 )}
                 {castSupported && (
-                  <button style={S.toggleRow(false)} onClick={() => { handleCast(); setOpenMenu(null); }}>
+                  <button className="suvo-menuitem" style={S.toggleRow(false)} onClick={() => { handleCast(); setOpenMenu(null); }}>
                     <Icon name="cast" size={18} color="currentColor" />
                     <span style={{ flex: 1 }}>Cast / AirPlay</span>
                   </button>
@@ -974,6 +1003,7 @@ export default function VideoPlayerScreen() {
                   <span style={S.sectionLabel}>Picture</span>
                   {(videoAdjust.brightness !== 100 || videoAdjust.contrast !== 100) && (
                     <button
+                      className="suvo-menuitem"
                       style={{ ...S.menuItem(false), width: "auto", padding: "2px 8px", fontSize: 12 }}
                       onClick={resetVideoAdjust}
                     >
@@ -1024,7 +1054,7 @@ export default function VideoPlayerScreen() {
           )}
         </div>
 
-        <IconButton style={S.iconBtn(isFsWeb)} onPress={toggleFullscreenWeb} title="Fullscreen (f)" aria-label="Fullscreen">
+        <IconButton style={S.iconBtn(isFsWeb)} onPress={toggleFullscreenWeb} title={`${isFsWeb ? controlLabel.exitFullscreen : controlLabel.fullscreen} (f)`} aria-label={isFsWeb ? controlLabel.exitFullscreen : controlLabel.fullscreen}>
           <Icon name={isFsWeb ? "fullscreen-exit" : "fullscreen"} size={18} color="currentColor" />
         </IconButton>
         </div>
@@ -1034,8 +1064,8 @@ export default function VideoPlayerScreen() {
             readout are gated on a known duration. This guarantees a pointer
             mute/volume affordance on live, where ↑/↓ are remapped to channels. */}
         <div style={S.ctrlBar}>
-            <IconButton style={S.playBtn} onPress={togglePlayWeb} title="Play / Pause (Space)" aria-label={tvPaused ? "Play" : "Pause"}>
-              <Icon name={tvPaused ? "play" : "pause"} size={20} color="currentColor" />
+            <IconButton style={S.playBtn} onPress={togglePlayWeb} title={`${controlLabel.play} / ${controlLabel.pause} (Space)`} aria-label={tvPaused ? controlLabel.play : controlLabel.pause}>
+              <Icon name={tvPaused ? controlIcon.play : controlIcon.pause} size={20} color="currentColor" />
             </IconButton>
             {tvDuration > 0 ? (() => {
               // During a drag the thumb/fill follow the pointer (scrubPct);
@@ -1054,7 +1084,6 @@ export default function VideoPlayerScreen() {
                   aria-valuemax={Math.round(tvDuration)}
                   aria-valuenow={Math.round(nowTime)}
                   aria-valuetext={`${fmtTime(nowTime)} of ${fmtTime(tvDuration)}`}
-                  onClick={(e) => seekWebToClientX(e.clientX, e.currentTarget)}
                   onPointerDown={handleScrubDown}
                   onPointerMove={handleScrubMove}
                   onPointerUp={handleScrubUp}
@@ -1086,7 +1115,13 @@ export default function VideoPlayerScreen() {
             {tvDuration > 0 && (
               <span style={S.timeText}>{fmtTime(tvCurrentTime)} / {fmtTime(tvDuration)}</span>
             )}
-            <IconButton style={S.playBtn} onPress={toggleMuteWeb} title="Mute" aria-label="Mute">
+            <IconButton
+              style={S.playBtn}
+              onPress={toggleMuteWeb}
+              title={muted || volume === 0 ? controlLabel.unmute : controlLabel.mute}
+              aria-label={muted || volume === 0 ? controlLabel.unmute : controlLabel.mute}
+              aria-pressed={muted || volume === 0}
+            >
               <Icon name={muted || volume === 0 ? "mute" : "audio"} size={18} color="currentColor" />
             </IconButton>
             <input
@@ -1119,7 +1154,10 @@ export default function VideoPlayerScreen() {
       <style>{`@keyframes spin { from { transform: translateZ(0) rotate(0deg); } to { transform: translateZ(0) rotate(360deg); } }
         .suvo-seek:focus { outline: none; }
         .suvo-seek:hover .suvo-seek-handle,
-        .suvo-seek:focus-visible .suvo-seek-handle { background: ${colors.accent2}; border-color: ${colors.accent2}; box-shadow: 0 0 0 4px ${accent2Alpha(0.35)}; }`}</style>
+        .suvo-seek:focus-visible .suvo-seek-handle { background: ${colors.accent2}; border-color: ${colors.accent2}; box-shadow: 0 0 0 4px ${accent2Alpha(0.35)}; }
+        .suvo-menuitem:focus-visible { outline: 2px solid ${colors.accent2}; outline-offset: 2px; }
+        .suvo-spinner { animation: spin 0.8s linear infinite; }
+        @media (prefers-reduced-motion: reduce) { .suvo-spinner { animation: none; } }`}</style>
     </div>
   );
 }
@@ -1127,8 +1165,8 @@ export default function VideoPlayerScreen() {
 // A labelled −/＋ stepper row for a picture-adjustment value (brightness/contrast).
 function AdjustRow({ label, value, onDec, onInc }) {
   const btn = {
-    width: 30,
-    height: 30,
+    width: 44,
+    height: 44,
     borderRadius: radii.sm,
     border: `1px solid ${colors.border}`,
     background: colors.surface,
@@ -1143,11 +1181,11 @@ function AdjustRow({ label, value, onDec, onInc }) {
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
       <span style={{ color: colors.text, fontFamily: fonts.body, fontSize: 14 }}>{label}</span>
       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <button style={btn} onClick={onDec} disabled={value <= ADJUST_MIN} aria-label={`Decrease ${label}`}>−</button>
+        <button className="suvo-menuitem" style={btn} onClick={onDec} disabled={value <= ADJUST_MIN} aria-label={`Decrease ${label}`}>−</button>
         <span style={{ color: colors.text, fontFamily: fonts.body, fontSize: 14, minWidth: 44, textAlign: "center" }}>
           {value}%
         </span>
-        <button style={btn} onClick={onInc} disabled={value >= ADJUST_MAX} aria-label={`Increase ${label}`}>+</button>
+        <button className="suvo-menuitem" style={btn} onClick={onInc} disabled={value >= ADJUST_MAX} aria-label={`Increase ${label}`}>+</button>
       </span>
     </div>
   );

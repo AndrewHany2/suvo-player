@@ -67,7 +67,10 @@ export const lineHeights = { tight: 1.2, normal: 1.4, relaxed: 1.6 };
 
 // Stacking order for layered surfaces. Keep gaps so ad-hoc values can slot
 // between tiers without renumbering.
-export const zIndex = { base: 0, dropdown: 100, overlay: 1000, modal: 1100, toast: 1200 };
+// `playerOverlay` is the fullscreen video surface — deliberately the topmost
+// tier (above toasts) so nothing in the app chrome can paint over an active
+// player. Named here so screens stop hardcoding a magic 9999.
+export const zIndex = { base: 0, dropdown: 100, overlay: 1000, modal: 1100, toast: 1200, playerOverlay: 9000 };
 
 /** Elevation presets. Platform-aware: native uses iOS shadow* + Android
  *  elevation; web/TV return an empty object because the legacy CSS owns box-shadow
@@ -155,9 +158,29 @@ export const iconSizes = { sm: 16, md: 20, lg: 28 };
 /** Translucent dark wash for scrims/badges over art (bg #0A0E1A → 10,14,26). */
 export const overlay = "rgba(10,14,26,0.72)";
 
+/** Player-surface scrims. Pure BLACK (not midnight) by design — the video
+ *  letterbox is black, and these washes sit over arbitrary decoded frames. One
+ *  shared ladder so both native engines (expo + VLC) stop scattering literal
+ *  alphas that could drift apart. Values unchanged from the prior inline hexes. */
+export const playerScrim = {
+  bar: "rgba(0,0,0,0.7)",     // top/bottom control bars
+  panel: "rgba(0,0,0,0.55)",  // center transport button, EPG now/next strip
+  busy: "rgba(0,0,0,0.35)",   // buffering/reconnect wash (keeps last frame visible)
+  hint: "rgba(0,0,0,0.6)",    // transient gesture indicator pill + modal backdrops
+  legend: "rgba(0,0,0,0.82)", // one-time gesture legend backdrop
+  fatal: "rgba(0,0,0,0.85)",  // fatal-error backdrop
+};
+
+/** Seek-bar track fills. White alphas (not the ink ladder) because they render
+ *  over unpredictable video frames, where a tinted neutral would vanish. */
+export const seekTrack = {
+  track: "rgba(255,255,255,0.25)",    // unplayed
+  buffered: "rgba(255,255,255,0.4)",  // buffered-ahead
+};
+
 export default {
   colors, gradient, radii, space, fonts,
   fontSizes, fontWeights, lineHeights, zIndex, shadows, accentAlpha,
   accent2Alpha, scrim, glow, GLOW_WEB, focusRing, motion, easing,
-  heroHeights, iconSizes, overlay,
+  heroHeights, iconSizes, overlay, playerScrim, seekTrack,
 };

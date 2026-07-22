@@ -5,14 +5,17 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, accentAlpha, fonts, overlay } from "../ui/tokens";
+import { colors, accentAlpha, fonts, overlay, playerScrim, seekTrack } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
 import { usePlayback, useWatchHistory } from "../context/AppContext";
+import storage from "../utils/storage";
 import { contentService } from "../domain/services/ContentService";
 import { reportFatalPlayback } from "../services/observability";
 import { createVlcDriver } from "../playback/drivers/vlcDriver";
+import { FATAL_TITLE, FATAL_HEADLINE, fatalDetail } from "../playback/playerCopy";
+import { controlIcon, controlLabel, fitLabel } from "../playback/playerControls";
 import { findNextEpisode, buildNextEpisodeVideo } from "../playback/episodeNav";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
 import { useResumePosition } from "../playback/useResumePosition";
@@ -26,6 +29,9 @@ import { useReducedMotion } from "../hooks/useReducedMotion";
 const MODAL_ORIENTATIONS = ["portrait", "landscape"];
 // VLCPlayer resizeMode values; cycled by the aspect button.
 const RESIZE_MODES = ["contain", "cover", "fill"];
+// Shared with the expo screen so the one-time gesture legend shows once across
+// either native engine (both implement the identical gesture set).
+const GESTURE_HINT_KEY = "player_gesture_hint_seen";
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
 // Gesture tuning (mirrors the expo player).
@@ -73,6 +79,9 @@ export default function VlcPlayerScreen({ navigation }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [boost, setBoost] = useState(false);
   const [showSleepMenu, setShowSleepMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  // One-time gesture legend (shared flag with the expo engine).
+  const [showGestureHint, setShowGestureHint] = useState(false);
 
   // Volume: VLC's `volume` prop scale is engine-dependent, so we only send it
   // AFTER the user gestures (never touching the default full-volume playback).
@@ -133,9 +142,13 @@ export default function VlcPlayerScreen({ navigation }) {
   const isRecovering = playback.isRecovering;
   const isFatal = playback.isFatal;
 
-  // Refs mirroring latest progress for lifecycle writes + gesture math.
-  const progressRef = useRef(progress);
-  progressRef.current = progress;
+  // Latest progress lives in a ref, updated on EVERY onProgress tick, so
+  // lifecycle writes + gesture math always read a fresh value without
+  // re-rendering the player. The `progress` STATE (above) drives only the seek
+  // bar and is updated solely while the controls are on screen — otherwise
+  // VLC's ~4 Hz progress event would re-render the whole screen while the
+  // viewer is just watching with the chrome hidden. Primed on reveal below.
+  const progressRef = useRef({ position: 0, currentTimeSec: 0, durationSec: 0 });
 
   const resetControlsTimer = useCallback(() => {
     setShowControls(true);
@@ -147,6 +160,13 @@ export default function VlcPlayerScreen({ navigation }) {
     return () => clearTimeout(controlsTimerRef.current);
   }, [resetControlsTimer]);
 
+  // Prime the seek bar with the live position the instant controls re-appear —
+  // the onProgress → setProgress path only runs while controls are shown, so
+  // without this the bar would show the last frozen value until the next tick.
+  useEffect(() => {
+    if (showControls) setProgress(progressRef.current);
+  }, [showControls]);
+
   // Transient gesture indicator helper.
   const flashHint = useCallback((kind, label) => {
     setGestureHint({ kind, label });
@@ -154,6 +174,20 @@ export default function VlcPlayerScreen({ navigation }) {
     gestureHintTimerRef.current = setTimeout(() => setGestureHint(null), 700);
   }, []);
   useEffect(() => () => clearTimeout(gestureHintTimerRef.current), []);
+
+  // Show the one-time gesture legend on first playback (persisted; shared flag
+  // with the expo engine so it appears once across either native player).
+  useEffect(() => {
+    let cancelled = false;
+    storage.getItem(GESTURE_HINT_KEY).then((seen) => {
+      if (!cancelled && !seen) setShowGestureHint(true);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const dismissGestureHint = useCallback(() => {
+    setShowGestureHint(false);
+    storage.setItem(GESTURE_HINT_KEY, "1").catch(() => {});
+  }, []);
 
   // Keep awake while playing (mirrors the expo screen). We deliberately do NOT
   // force a PORTRAIT_UP lock on mount/unmount — that pinned the whole app to
@@ -181,6 +215,7 @@ export default function VlcPlayerScreen({ navigation }) {
     setResolvedStart(0);
     setSpeed(1);
     setBoost(false);
+    progressRef.current = { position: 0, currentTimeSec: 0, durationSec: 0 };
     setProgress({ position: 0, currentTimeSec: 0, durationSec: 0 });
   }, [currentVideo?.url]);
 
@@ -271,6 +306,16 @@ export default function VlcPlayerScreen({ navigation }) {
     resume.decide("startOver");
     setResolvedStart(0);
   }, [resume]);
+
+  // Play/pause routed through the driver (NOT setPaused directly) so the recovery
+  // machine's play-intent stays consistent — a manual pause won't be undone by a
+  // reconnect reload. Mirrors the expo screen's togglePlayPause.
+  const togglePlayPause = useCallback(() => {
+    if (!driver) return;
+    if (paused) driver.play();
+    else driver.pause();
+    resetControlsTimer();
+  }, [driver, paused, resetControlsTimer]);
 
   const cycleResizeMode = useCallback(() => {
     setResizeMode((cur) => {
@@ -481,7 +526,6 @@ export default function VlcPlayerScreen({ navigation }) {
   const topPadding = Platform.OS === "ios" ? 12 : 8;
   const shownFrac = scrubFrac != null ? scrubFrac : progress.position;
   const playedPct = Math.max(0, Math.min(100, shownFrac * 100));
-  const brightnessAvailable = !!brightnessRef.current;
 
   return (
     <YStack flex={1} backgroundColor="#000">
@@ -509,11 +553,15 @@ export default function VlcPlayerScreen({ navigation }) {
             volume={volumeAdjusted ? volume : undefined}
             onProgress={(e) => {
               ingest.progress(e);
-              setProgress({
+              const next = {
                 position: typeof e?.position === "number" ? e.position : 0,
                 currentTimeSec: (e?.currentTime || 0) / 1000,
                 durationSec: (e?.duration || 0) / 1000,
-              });
+              };
+              // Always refresh the ref (lifecycle/gestures read it); only touch
+              // state — the seek bar — while the controls are actually visible.
+              progressRef.current = next;
+              if (showControls) setProgress(next);
             }}
             onPlaying={(e) => ingest.playing(e)}
             onPaused={() => ingest.paused()}
@@ -540,7 +588,7 @@ export default function VlcPlayerScreen({ navigation }) {
       {/* Transient gesture indicator */}
       {gestureHint && (
         <YStack position="absolute" top="45%" left={0} right={0} alignItems="center" pointerEvents="none" zIndex={50}>
-          <Text color={colors.text} fontSize={20} fontWeight="700" backgroundColor="rgba(0,0,0,0.6)" paddingHorizontal={18} paddingVertical={10} borderRadius={10}>
+          <Text color={colors.text} fontSize={20} fontWeight="700" backgroundColor={playerScrim.hint} paddingHorizontal={18} paddingVertical={10} borderRadius={10}>
             {gestureHint.label}
           </Text>
         </YStack>
@@ -554,9 +602,20 @@ export default function VlcPlayerScreen({ navigation }) {
         onStartOver={handleStartOver}
       />
 
+      {/* Center play/pause transport — a prominent 72px target, matching the expo
+          screen so the primary action is identical across native engines (was a
+          tiny button buried in the wrapping row). */}
+      {showControls && !isLoading && !isRecovering && !isFatal && !needsResumeChoice && (
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} justifyContent="center" alignItems="center" pointerEvents="box-none" zIndex={30}>
+          <YStack width={72} height={72} backgroundColor={playerScrim.panel} borderRadius={36} justifyContent="center" alignItems="center" cursor="pointer" onPress={togglePlayPause} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel={paused ? "Play" : "Pause"}>
+            <Icon name={paused ? "play" : "pause"} size={34} color={colors.text} />
+          </YStack>
+        </YStack>
+      )}
+
       {(isLoading || isRecovering) && !isFatal && !needsResumeChoice && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0} justifyContent="center" alignItems="center" gap={16} backgroundColor="rgba(0,0,0,0.35)" pointerEvents="none" zIndex={35}>
-          <Spinner size="large" color={colors.accent} />
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} justifyContent="center" alignItems="center" gap={16} backgroundColor={playerScrim.busy} pointerEvents="none" zIndex={35}>
+          <Spinner size="large" color={colors.accent2} />
           <Text color={colors.text} fontFamily={fonts.body} fontSize={16} fontWeight="600">
             {isRecovering ? "Reconnecting…" : "Loading…"}
           </Text>
@@ -564,56 +623,49 @@ export default function VlcPlayerScreen({ navigation }) {
       )}
 
       {isFatal && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0} backgroundColor="rgba(0,0,0,0.85)" zIndex={40}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} backgroundColor={playerScrim.fatal} zIndex={40}>
           <StatePanel
             mode="error"
-            title="Failed to load stream"
-            message={
-              playback.fatalReason === "GONE"
-                ? "This stream is no longer available."
-                : playback.fatalReason === "AUTH_EXPIRED"
-                  ? "Stream unavailable. The server rejected the connection."
-                  : "The stream could not be played."
-            }
+            title={FATAL_TITLE}
+            message={FATAL_HEADLINE}
             onRetry={() => playback.retry()}
           />
-          <XStack justifyContent="center" paddingBottom={32}>
+          {/* Raw reason as quiet secondary detail — matches web/expo tone. */}
+          <Text color={colors.textDim} fontFamily={fonts.body} fontSize={12} textAlign="center" paddingHorizontal={24}>
+            {fatalDetail(playback.fatalReason)}
+          </Text>
+          <XStack justifyContent="center" paddingTop={16} paddingBottom={32}>
             <Button variant="secondary" size="md" icon="close" onPress={handleClose}>Close</Button>
           </XStack>
         </YStack>
       )}
 
       {showControls && (
-        <YStack position="absolute" top={0} left={0} right={0} paddingTop={insets.top + topPadding} pointerEvents="box-none" zIndex={30}>
-          <XStack alignItems="center" paddingHorizontal={12} paddingVertical={8} backgroundColor="rgba(0,0,0,0.7)" gap={8} flexWrap="wrap">
-            <YStack width={44} height={44} backgroundColor={overlay} borderWidth={1} borderColor={colors.border} borderRadius={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel="Close player">
-              <Icon name="close" size={16} color={colors.text} />
+        <YStack position="absolute" top={0} left={0} right={0} paddingTop={insets.top + topPadding} paddingLeft={insets.left} paddingRight={insets.right} pointerEvents="box-none" zIndex={30}>
+          <XStack alignItems="center" paddingHorizontal={12} paddingVertical={8} backgroundColor={playerScrim.bar} gap={8} flexWrap="wrap">
+            <YStack width={44} height={44} backgroundColor={overlay} borderWidth={1} borderColor={colors.border} borderRadius={22} justifyContent="center" alignItems="center" cursor="pointer" onPress={handleClose} pressStyle={{ opacity: 0.8 }} accessibilityRole="button" accessibilityLabel={controlLabel.close}>
+              <Icon name={controlIcon.close} size={16} color={colors.text} />
             </YStack>
             <Text color={colors.text} fontFamily={fonts.display} fontSize={14} fontWeight="600" flex={1} minWidth={60} numberOfLines={1}>{currentVideo.name}</Text>
-            {nextEpisode && <Button variant="primary" size="sm" icon="play" onPress={handleNextEpisode} accessibilityLabel="Next episode">Next</Button>}
+            {nextEpisode && <Button variant="primary" size="sm" icon={controlIcon.nextEpisode} onPress={handleNextEpisode} accessibilityLabel={controlLabel.nextEpisode}>Next</Button>}
           </XStack>
         </YStack>
       )}
 
       {showControls && (
-        <YStack position="absolute" bottom={0} left={0} right={0} paddingBottom={insets.bottom + 12} backgroundColor="rgba(0,0,0,0.7)" zIndex={30}>
-          {/* Secondary control row — wraps so every control stays visible without
-              horizontal scrolling. Everyday controls (play/pause, speed, audio,
-              subtitles, aspect, fullscreen) lead; the rarer sleep timer trails
-              with the subtler ghost treatment. Active toggles use the indigo
-              primary fill. */}
+        <YStack position="absolute" bottom={0} left={0} right={0} paddingBottom={insets.bottom + 12} paddingLeft={insets.left} paddingRight={insets.right} backgroundColor={playerScrim.bar} zIndex={30}>
+          {/* Ruthlessly small primary row — identical to every other Suvo player:
+              Subtitles, Fullscreen, More. Speed, audio, fit-to-screen and the
+              sleep timer all live behind the single "More" sheet below, so a
+              non-technical viewer sees the same three obvious controls here as on
+              phone-expo, TV, and desktop. Subtitles only shows when the stream has
+              any; More takes the indigo fill while the sleep timer is running. */}
           <XStack flexWrap="wrap" justifyContent="center" alignItems="center" gap={8} paddingHorizontal={12} paddingVertical={8}>
-            <Button variant="secondary" size="sm" icon={paused ? "play" : "pause"} onPress={() => setPaused((p) => !p)} accessibilityLabel={paused ? "Play" : "Pause"} />
-            <Button variant="secondary" size="sm" icon="speed" onPress={() => { setShowSpeedMenu(true); setShowAudioMenu(false); setShowTextMenu(false); setShowSleepMenu(false); }} accessibilityLabel="Playback speed">{`${speed}x`}</Button>
-            {audioTracks.length > 1 && (
-              <Button variant="secondary" size="sm" icon="audio" onPress={() => { setShowAudioMenu(true); setShowTextMenu(false); setShowSpeedMenu(false); setShowSleepMenu(false); }} accessibilityLabel="Audio track" />
-            )}
             {textTracks.length > 0 && (
-              <Button variant="secondary" size="sm" icon="cc" onPress={() => { setShowTextMenu(true); setShowAudioMenu(false); setShowSpeedMenu(false); setShowSleepMenu(false); }} accessibilityLabel="Subtitles" />
+              <Button variant="secondary" size="sm" icon={controlIcon.subtitles} onPress={() => { setShowTextMenu(true); setShowAudioMenu(false); setShowSpeedMenu(false); setShowSleepMenu(false); }} accessibilityLabel={controlLabel.subtitles} />
             )}
-            <Button variant="secondary" size="sm" icon="aspect" onPress={cycleResizeMode} accessibilityLabel="Aspect ratio" />
-            <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" icon="fullscreen" onPress={toggleFullscreen} accessibilityLabel="Toggle fullscreen" />
-            <Button variant={sleep.active ? "primary" : "ghost"} size="sm" icon="timer" onPress={() => { setShowSleepMenu(true); setShowSpeedMenu(false); setShowAudioMenu(false); setShowTextMenu(false); }} accessibilityLabel="Sleep timer">{sleep.active ? formatRemaining(sleep.secondsLeft) : undefined}</Button>
+            <Button variant={isFullscreen ? "primary" : "secondary"} size="sm" icon={controlIcon.fullscreen} onPress={toggleFullscreen} accessibilityLabel={isFullscreen ? controlLabel.exitFullscreen : controlLabel.fullscreen} />
+            <Button variant={sleep.active ? "primary" : "secondary"} size="sm" icon={controlIcon.more} onPress={() => setShowMoreMenu(true)} accessibilityLabel={controlLabel.more}>{sleep.active ? formatRemaining(sleep.secondsLeft) : controlLabel.more}</Button>
           </XStack>
 
           {progress.durationSec > 0 && (
@@ -642,22 +694,44 @@ export default function VlcPlayerScreen({ navigation }) {
                 onResponderRelease={commitScrub}
                 onResponderTerminate={commitScrub}
               >
-                <View style={{ height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.25)" }} />
+                {/* No buffered segment (unlike the expo seek bar): the VLC engine
+                    exposes no buffered-position value via onProgress / the driver's
+                    buffered() returns 0, so there is nothing truthful to shade. */}
+                <View style={{ height: 4, borderRadius: 2, backgroundColor: seekTrack.track }} />
                 <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${playedPct}%`, backgroundColor: colors.accent }} />
                 <View style={{ position: "absolute", left: `${playedPct}%`, width: 14, height: 14, borderRadius: 7, marginLeft: -7, backgroundColor: colors.accent }} />
               </View>
               <XStack justifyContent="space-between" marginTop={4}>
                 <Text color={colors.text} fontSize={12} fontWeight="600">{formatTime(shownFrac * progress.durationSec)}</Text>
-                <Text color={colors.muted} fontSize={12}>{formatTime(progress.durationSec)}</Text>
+                {/* textDim (not muted) so the duration holds AA over bright frames. */}
+                <Text color={colors.textDim} fontSize={12}>{formatTime(progress.durationSec)}</Text>
               </XStack>
             </YStack>
           )}
         </YStack>
       )}
 
+      {/* One-time gesture legend — mirrors the expo screen so both native engines
+          teach the identical (otherwise invisible) touch gestures once. */}
+      {showGestureHint && !isLoading && !isRecovering && !needsResumeChoice && !isFatal && (
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} justifyContent="center" alignItems="center" backgroundColor={playerScrim.legend} zIndex={60} padding={24} gap={16}>
+          <Text color={colors.text} fontFamily={fonts.display} fontSize={18} fontWeight="700">Gesture controls</Text>
+          <YStack gap={8} alignItems="flex-start" maxWidth={320}>
+            <Text color={colors.textDim} fontSize={14}>• Drag left / right — seek</Text>
+            <Text color={colors.textDim} fontSize={14}>• Double-tap left / right — skip back / forward 10s</Text>
+            <Text color={colors.textDim} fontSize={14}>• Press &amp; hold — 2× speed</Text>
+            <Text color={colors.textDim} fontSize={14}>• Swipe right side up / down — volume</Text>
+            {!!brightnessRef.current && (
+              <Text color={colors.textDim} fontSize={14}>• Swipe left side up / down — brightness</Text>
+            )}
+          </YStack>
+          <Button variant="primary" size="md" onPress={dismissGestureHint}>Got it</Button>
+        </YStack>
+      )}
+
       {/* Speed menu */}
       <Modal visible={showSpeedMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSpeedMenu(false)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSpeedMenu(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: playerScrim.hint, justifyContent: "center", alignItems: "center" }} activeOpacity={1} accessible={false} onPress={() => setShowSpeedMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={220} maxHeight={350} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Playback Speed</Text>
             <ScrollView>
@@ -673,7 +747,7 @@ export default function VlcPlayerScreen({ navigation }) {
 
       {/* Audio menu */}
       <Modal visible={showAudioMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAudioMenu(false)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowAudioMenu(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: playerScrim.hint, justifyContent: "center", alignItems: "center" }} activeOpacity={1} accessible={false} onPress={() => setShowAudioMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={360} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Audio Track</Text>
             <ScrollView>
@@ -689,7 +763,7 @@ export default function VlcPlayerScreen({ navigation }) {
 
       {/* Subtitle menu */}
       <Modal visible={showTextMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowTextMenu(false)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowTextMenu(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: playerScrim.hint, justifyContent: "center", alignItems: "center" }} activeOpacity={1} accessible={false} onPress={() => setShowTextMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={360} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Subtitles</Text>
             <ScrollView>
@@ -708,7 +782,7 @@ export default function VlcPlayerScreen({ navigation }) {
 
       {/* Sleep-timer menu */}
       <Modal visible={showSleepMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowSleepMenu(false)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" }} activeOpacity={1} onPress={() => setShowSleepMenu(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: playerScrim.hint, justifyContent: "center", alignItems: "center" }} activeOpacity={1} accessible={false} onPress={() => setShowSleepMenu(false)}>
           <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={240} maxHeight={400} borderWidth={1} borderColor={colors.border}>
             <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>Sleep Timer</Text>
             <ScrollView>
@@ -741,11 +815,39 @@ export default function VlcPlayerScreen({ navigation }) {
                 </YStack>
               )}
             </ScrollView>
-            {!brightnessAvailable && (
-              <Text color={colors.textDim} fontSize={10} textAlign="center" paddingTop={6}>
-                Brightness gesture unavailable (expo-brightness not installed)
-              </Text>
+          </YStack>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* "More" sheet — the single home for every secondary control, matching the
+          expo/web/TV players so the grouping is identical across engines. VLC has
+          no PiP / stats / subtitle-tuning, so those rows simply don't appear; the
+          rows it does show keep the shared order (speed → audio → fit → sleep). */}
+      <Modal visible={showMoreMenu} transparent animationType={reducedMotion ? "none" : "fade"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowMoreMenu(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: playerScrim.hint, justifyContent: "center", alignItems: "center" }} activeOpacity={1} accessible={false} onPress={() => setShowMoreMenu(false)}>
+          <YStack backgroundColor={colors.surface2} borderRadius={14} padding={8} width={280} borderWidth={1} borderColor={colors.border}>
+            <Text color={colors.textDim} fontSize={12} fontWeight="600" textAlign="center" paddingVertical={8} borderBottomWidth={1} borderBottomColor={colors.border} marginBottom={4}>{controlLabel.more}</Text>
+            <XStack alignItems="center" gap={12} paddingVertical={12} paddingHorizontal={16} borderRadius={8} cursor="pointer" onPress={() => { setShowMoreMenu(false); setShowSpeedMenu(true); }} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityLabel={controlLabel.speed}>
+              <Icon name={controlIcon.speed} size={20} color={colors.text} />
+              <Text color={colors.text} fontSize={15} flex={1}>{controlLabel.speed}</Text>
+              <Text color={colors.textDim} fontSize={13}>{`${speed}x`}</Text>
+            </XStack>
+            {audioTracks.length > 1 && (
+              <XStack alignItems="center" gap={12} paddingVertical={12} paddingHorizontal={16} borderRadius={8} cursor="pointer" onPress={() => { setShowMoreMenu(false); setShowAudioMenu(true); }} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityLabel={controlLabel.audio}>
+                <Icon name={controlIcon.audio} size={20} color={colors.text} />
+                <Text color={colors.text} fontSize={15} flex={1}>{controlLabel.audio}</Text>
+              </XStack>
             )}
+            <XStack alignItems="center" gap={12} paddingVertical={12} paddingHorizontal={16} borderRadius={8} cursor="pointer" onPress={cycleResizeMode} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityLabel={controlLabel.fit}>
+              <Icon name={controlIcon.fit} size={20} color={colors.text} />
+              <Text color={colors.text} fontSize={15} flex={1}>{controlLabel.fit}</Text>
+              <Text color={colors.textDim} fontSize={13}>{fitLabel(resizeMode)}</Text>
+            </XStack>
+            <XStack alignItems="center" gap={12} paddingVertical={12} paddingHorizontal={16} borderRadius={8} backgroundColor={sleep.active ? accentAlpha(0.2) : "transparent"} cursor="pointer" onPress={() => { setShowMoreMenu(false); setShowSleepMenu(true); }} pressStyle={{ opacity: 0.7 }} accessibilityRole="button" accessibilityState={{ selected: sleep.active }} accessibilityLabel={controlLabel.sleep}>
+              <Icon name={controlIcon.sleep} size={20} color={sleep.active ? colors.accent : colors.text} />
+              <Text color={sleep.active ? colors.accent : colors.text} fontSize={15} flex={1}>{controlLabel.sleep}</Text>
+              {sleep.active ? <Text color={colors.accent} fontSize={13}>{formatRemaining(sleep.secondsLeft)}</Text> : null}
+            </XStack>
           </YStack>
         </TouchableOpacity>
       </Modal>

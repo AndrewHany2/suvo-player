@@ -40,7 +40,12 @@
       "package": "com.andrew1h1.suvo"
     },
     "plugins": [
-      "expo-video",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true
+        }
+      ],
       "expo-font",
       "@kesha-antonov/react-native-background-downloader",
       "react-native-vlc-media-player",

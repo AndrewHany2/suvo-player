@@ -43,6 +43,11 @@ const COLOR_SWATCHES = [
  * @param {import("../subtitleStyle.js").SubtitleStyle} [props.style] - Current subtitle style.
  * @param {number} [props.subtitleOffsetMs] - Current subtitle delay offset (ms).
  * @param {number} [props.audioOffsetMs] - Current audio delay offset (ms).
+ * @param {boolean} [props.showOffsets] - Whether the engine can actually apply
+ *   subtitle/audio delay. Defaults true (web/hls.js honours offsets). The
+ *   expo-video native engine exposes NO offset API, so the native screen passes
+ *   false to hide the two delay steppers rather than ship controls that persist
+ *   a value but never change playback (a control that silently does nothing).
  * @param {(partial: object) => void} props.onChange - Emits a partial update. Subtitle-style
  *   fields are emitted under `style` (a partial SubtitleStyle); offsets as
  *   `subtitleOffsetMs` / `audioOffsetMs`.
@@ -51,6 +56,7 @@ export default function SubtitleSettings({
   style = DEFAULT_SUBTITLE_STYLE,
   subtitleOffsetMs = 0,
   audioOffsetMs = 0,
+  showOffsets = true,
   onChange,
 }) {
   const s = { ...DEFAULT_SUBTITLE_STYLE, ...style };
@@ -78,7 +84,7 @@ export default function SubtitleSettings({
         fontWeight="700"
         color={colors.text}
       >
-        Subtitles & Audio
+        {showOffsets ? "Subtitles & Audio" : "Subtitles"}
       </Text>
 
       {/* Font size */}
@@ -130,23 +136,28 @@ export default function SubtitleSettings({
         </XStack>
       </Row>
 
-      {/* Subtitle delay */}
-      <Row label="Subtitle delay">
-        <Stepper
-          onDec={() => emit({ subtitleOffsetMs: clampOffset(subtitleOffsetMs - OFFSET_STEP_MS) })}
-          onInc={() => emit({ subtitleOffsetMs: clampOffset(subtitleOffsetMs + OFFSET_STEP_MS) })}
-          value={formatOffset(subtitleOffsetMs)}
-        />
-      </Row>
+      {/* Subtitle + audio delay — only where the engine can honour them (web).
+          Hidden on native (expo-video has no offset API) so we never present a
+          stepper that changes nothing. */}
+      {showOffsets && (
+        <>
+          <Row label="Subtitle delay">
+            <Stepper
+              onDec={() => emit({ subtitleOffsetMs: clampOffset(subtitleOffsetMs - OFFSET_STEP_MS) })}
+              onInc={() => emit({ subtitleOffsetMs: clampOffset(subtitleOffsetMs + OFFSET_STEP_MS) })}
+              value={formatOffset(subtitleOffsetMs)}
+            />
+          </Row>
 
-      {/* Audio delay */}
-      <Row label="Audio delay">
-        <Stepper
-          onDec={() => emit({ audioOffsetMs: clampOffset(audioOffsetMs - OFFSET_STEP_MS) })}
-          onInc={() => emit({ audioOffsetMs: clampOffset(audioOffsetMs + OFFSET_STEP_MS) })}
-          value={formatOffset(audioOffsetMs)}
-        />
-      </Row>
+          <Row label="Audio delay">
+            <Stepper
+              onDec={() => emit({ audioOffsetMs: clampOffset(audioOffsetMs - OFFSET_STEP_MS) })}
+              onInc={() => emit({ audioOffsetMs: clampOffset(audioOffsetMs + OFFSET_STEP_MS) })}
+              value={formatOffset(audioOffsetMs)}
+            />
+          </Row>
+        </>
+      )}
     </YStack>
   );
 }
