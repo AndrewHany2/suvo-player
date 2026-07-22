@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList } from "react-native";
+import { FlatList, BackHandler } from "react-native";
 import { YStack, XStack, Text } from "../ui/primitives";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useDownloads } from "../downloads/useDownloads.jsx";
@@ -36,6 +36,23 @@ export default function MoviesScreen({ navigation }) {
   useEffect(() => { if (!online) setShowDownloaded(true); }, [online]);
 
   const vcfg = getShelfConfig("native");
+
+  // An overlay is stacked over the still-mounted FlatList; hide the list from
+  // screen readers and contain focus while any overlay is open.
+  const overlayOpen = Boolean(selectedMovie || categoryPage || showDownloaded);
+
+  // Android hardware/gesture Back closes the topmost open overlay (detail first)
+  // instead of popping the tab stack; falls through to default nav when none open.
+  useEffect(() => {
+    if (!overlayOpen) return undefined;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (selectedMovie) clearSelectedMovie();
+      else if (categoryPage) closeCategory();
+      else setShowDownloaded(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [overlayOpen, selectedMovie, categoryPage, clearSelectedMovie, closeCategory]);
 
   const listHeader = useMemo(() => (
     <YStack>
@@ -147,9 +164,10 @@ export default function MoviesScreen({ navigation }) {
         maxToRenderPerBatch={3}
         initialNumToRender={2 + vcfg.vOverscan}
         removeClippedSubviews
+        importantForAccessibility={overlayOpen ? "no-hide-descendants" : "auto"}
       />
       {categoryPage && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} accessibilityViewIsModal>
           <CategoryGridPage
             name={categoryPage.name}
             items={categoryPage.items}
@@ -163,7 +181,7 @@ export default function MoviesScreen({ navigation }) {
         </YStack>
       )}
       {selectedMovie && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} accessibilityViewIsModal>
           <MovieDetail
             item={selectedMovie}
             onBack={clearSelectedMovie}
@@ -172,7 +190,7 @@ export default function MoviesScreen({ navigation }) {
         </YStack>
       )}
       {showDownloaded && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} accessibilityViewIsModal>
           <CategoryGridPage
             name="Downloaded"
             items={downloadedMovies}

@@ -75,7 +75,7 @@ export default function CategoryGridPage({ name, items, onBack, onSelect, onLoad
         <Button variant="ghost" size="sm" icon="back" onPress={onBack}>Back</Button>
         <Text color={colors.text} fontFamily={fonts.display} fontSize={18} fontWeight={fontWeights.bold} flex={1} numberOfLines={1}>{name}</Text>
         {filtered != null && (
-          <YStack backgroundColor="rgba(255,255,255,0.07)" borderRadius={20} paddingHorizontal={10} paddingVertical={4}>
+          <YStack backgroundColor={colors.surface2} borderRadius={20} paddingHorizontal={10} paddingVertical={4}>
             <Text color={colors.muted} fontSize={12} fontWeight="600">{filtered.length.toLocaleString()}</Text>
           </YStack>
         )}

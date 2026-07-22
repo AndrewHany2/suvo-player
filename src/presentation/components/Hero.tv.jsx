@@ -53,6 +53,10 @@ export default function HeroTV({ item, height = 300 }) {
           fontSize: ss(64),
           lineHeight: 1.05,
           letterSpacing: -1,
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
         }}
       >
         {item?.name || ""}

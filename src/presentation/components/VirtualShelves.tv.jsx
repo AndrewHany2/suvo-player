@@ -678,6 +678,8 @@ export function VirtualShelvesTV({
                 onClick={
                   onSeeAll ? () => onSeeAll(shelf.id, shelf.name) : undefined
                 }
+                role={onSeeAll ? "button" : undefined}
+                aria-label={onSeeAll ? `See all ${shelf.name}` : undefined}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -689,7 +691,7 @@ export function VirtualShelvesTV({
                   fontSize: ss(22),
                 }}
               >
-                <span>{shelf.name}</span>
+                <span role="heading" aria-level={2}>{shelf.name}</span>
                 {/* The chevron means "see all →"; only show it when there IS a
                     see-all destination. Home shelves pass no onSeeAll, so the
                     header stays a plain title instead of a dead affordance. */}

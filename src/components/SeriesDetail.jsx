@@ -139,13 +139,13 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
           showsVerticalScrollIndicator={false}
           renderSectionHeader={({ section: { title } }) => (
             <YStack backgroundColor={colors.surface} paddingHorizontal={14} paddingVertical={10} marginBottom={6} marginTop={12} borderRadius={8}>
-              <Text color={colors.accent} fontSize={15} fontWeight="700">{title}</Text>
+              <Text color={colors.accentText} fontSize={15} fontWeight="700">{title}</Text>
             </YStack>
           )}
           renderItem={({ item: ep, section }) => (
             <XStack alignItems="center" minHeight={44} backgroundColor={colors.surface2} borderRadius={10} padding={12} marginBottom={6} borderWidth={1} borderColor={colors.border} cursor="pointer" onPress={() => handleEpisodePress(ep, section.seasonNum)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.accent }} animation="quick" role="button" aria-label={`Play episode ${getEpisodeNumber(ep)}${ep.title ? ": " + ep.title : ""}`} tabIndex={0}>
               <YStack backgroundColor={colors.accent} borderRadius={6} paddingHorizontal={8} paddingVertical={4} marginRight={12}>
-                <Text color={colors.text} fontSize={12} fontWeight="700">E{getEpisodeNumber(ep)}</Text>
+                <Text color={colors.textStrong} fontSize={12} fontWeight="700">E{getEpisodeNumber(ep)}</Text>
               </YStack>
               <YStack flex={1}>
                 <Text color={colors.text} fontSize={14} numberOfLines={1}>{ep.title || "Untitled"}</Text>

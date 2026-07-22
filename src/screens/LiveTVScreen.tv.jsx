@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useRef, useMemo } from "react";
+import { memo, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { usePlayback } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
@@ -151,6 +151,13 @@ export default function LiveTVScreenTV({ navigation }) {
       setPageErrorMsg(describeError(err));
     }
   };
+
+  // Stable click handler for the memoized CatButton: openCat is re-created every
+  // render, so a raw onClick would defeat CatButton's memo (every card would
+  // re-render on each D-pad move). This wrapper keeps a constant identity.
+  const openCatRef = useRef(openCat);
+  openCatRef.current = openCat;
+  const selectCat = useCallback((cat) => openCatRef.current(cat), []);
 
   const closePage = () => {
     setPage(null);
@@ -435,6 +442,7 @@ export default function LiveTVScreenTV({ navigation }) {
             type="text"
             dir="auto"
             autoComplete="off"
+            aria-label="Search channels"
             placeholder="Search channels…"
             value={gridQuery}
             onChange={(e) => onGridQueryChange(e.target.value)}
@@ -490,7 +498,7 @@ export default function LiveTVScreenTV({ navigation }) {
   return (
     <div className="tvl-screen">
       <div className="tvl-topbar">
-        <span className="tvl-topbar-title">Live</span>
+        <span className="tvl-topbar-title" role="heading" aria-level={1}>Live</span>
       </div>
       <div className="tvl-scroll">
         <div className={catZone === "search" && !navActive ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>
@@ -501,6 +509,7 @@ export default function LiveTVScreenTV({ navigation }) {
             type="text"
             dir="auto"
             autoComplete="off"
+            aria-label="Search categories"
             placeholder="Search categories…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -517,18 +526,14 @@ export default function LiveTVScreenTV({ navigation }) {
         ) : (
           <div className="tvl-cat-grid">
             {visibleCats.map((cat, i) => (
-              <button
+              <CatButton
                 key={cat.id}
-                ref={i === catFocus ? catElRef : null}
-                className={
-                  catZone === "grid" && i === catFocus
-                    ? "tvl-cat-card tvl-cat-card--on"
-                    : "tvl-cat-card"
-                }
-                onClick={() => openCat(cat)}
-              >
-                {cat.name}
-              </button>
+                cat={cat}
+                name={cat.name}
+                focused={catZone === "grid" && i === catFocus}
+                innerRef={i === catFocus ? catElRef : null}
+                onSelect={selectCat}
+              />
             ))}
           </div>
         )}
@@ -540,6 +545,24 @@ export default function LiveTVScreenTV({ navigation }) {
   );
 }
 
+// Memoized category tile: `cat`, `name` and `onSelect` are stable, so only the
+// two buttons whose `focused` prop flips (or whose scroll `innerRef` moves) on a
+// D-pad step re-render — not the whole category grid. `innerRef` is a plain prop
+// (not React `ref`) so memo can compare it and re-render the button that gains/
+// loses the scroll-into-view target. Mirrors the ChannelCard memo pattern.
+const CatButton = memo(function CatButton({ cat, name, focused, innerRef, onSelect }) {
+  return (
+    <button
+      ref={innerRef}
+      className={focused ? "tvl-cat-card tvl-cat-card--on" : "tvl-cat-card"}
+      aria-selected={focused}
+      onClick={() => onSelect(cat)}
+    >
+      {name}
+    </button>
+  );
+});
+
 // Memoized: only `item` + `isFocused` matter, so moving focus re-renders just
 // the two affected tiles, not every mounted channel in the grid.
 const ChannelCard = memo(function ChannelCard({ item, isFocused }) {
@@ -550,6 +573,7 @@ const ChannelCard = memo(function ChannelCard({ item, isFocused }) {
       className={isFocused ? "tvl-ch-card tvl-ch-card--on" : "tvl-ch-card"}
       role="button"
       aria-label={item.name}
+      aria-selected={isFocused}
     >
       <div className="tvl-ch-logo">
         {src && !err ? (

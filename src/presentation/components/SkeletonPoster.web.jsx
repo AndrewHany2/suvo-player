@@ -19,7 +19,10 @@ export function ensureSkeletonKeyframes() {
   skelKeyframesInjected = true;
   const el = document.createElement("style");
   el.textContent =
-    "@keyframes _skel_sweep{from{transform:translateZ(0) translateX(-100%)}to{transform:translateZ(0) translateX(100%)}}";
+    "@keyframes _skel_sweep{from{transform:translateZ(0) translateX(-100%)}to{transform:translateZ(0) translateX(100%)}}" +
+    // Honour reduced-motion (same gate as tvl.css .tvl-skel::after). The sweep's
+    // animation lives on an inline style, so the override needs !important to win.
+    "@media (prefers-reduced-motion: reduce){._skel_sweep_el{animation:none !important}}";
   document.head.appendChild(el);
 }
 
@@ -68,6 +71,7 @@ export default function SkeletonPoster({ width = 200 }) {
         }}
       >
         <div
+          className="_skel_sweep_el"
           style={{
             position: "absolute",
             top: 0,

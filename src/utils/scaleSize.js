@@ -5,13 +5,16 @@ import { Dimensions, Platform } from 'react-native';
 const DESIGN_WIDTH  = 1920;
 const DESIGN_HEIGHT = 1080;
 
-// Web — INCLUDING webOS TV — recomputes the scale when the window size changes;
-// native is effectively fixed so it keeps the snapshot taken at module load.
+// Web — INCLUDING webOS TV — recomputes the scale when the window size changes.
 // webOS must NOT be excluded here: it can report a 0×0 window at module-load time
 // (the app window is sized AFTER the deferred bundle starts executing). Freezing
 // that snapshot collapses every ss()-scaled size to 0px permanently — a blank UI.
 // TVs don't drag-resize, so the listener fires ~once at startup: no per-frame
 // churn, just the one correction that turns the frozen 0 into the real scale.
+//
+// Native also listens (see the Dimensions 'change' handler below) so useScale()
+// consumers reflow on rotation / iPad Split View / Android multi-window — but it
+// only re-reads on discrete change events, never per-frame.
 const IS_REACTIVE = Platform.OS === 'web';
 
 // Uniform scale factor: whichever axis is the tighter fit governs.
@@ -54,11 +57,22 @@ function computeScale() {
   // render at design size rather than collapsing every size to 0 — the resize
   // listener / kicks below recompute the moment real dimensions arrive.
   if (!width || !height) return 1;
-  return Math.min(width / DESIGN_WIDTH, height / DESIGN_HEIGHT);
+  // WIDTH-DRIVEN. The old formula took min(width/1920, height/1080), which meant
+  // shrinking an Electron window's HEIGHT (or any short/narrow viewport, incl.
+  // browser zoom that reduces innerWidth) miniaturised the whole horizontal
+  // layout + text into illegibility. Scale off width alone and clamp to a sane
+  // band so the UI stays legible on small viewports and never balloons on huge
+  // ones. The clamp is chosen so webOS TV is UNAFFECTED: its viewport is pinned
+  // to width=1280, giving 1280/1920 ≈ 0.667, which sits comfortably inside the
+  // band and is returned unchanged. No height guard: keeping one would re-introduce
+  // the height-shrink bug, and the clamp already covers legibility.
+  const base = width / DESIGN_WIDTH;
+  return Math.min(Math.max(base, 0.5), 1.5);
 }
 
-// Live scale. On native this is frozen at module load; on web (incl. webOS TV)
-// it is updated by the listeners/kicks wired below. `ss(n)` always reads latest.
+// Live scale. Seeded at module load and updated by the listeners/kicks wired
+// below — on web (incl. webOS TV) via resize, on native via Dimensions 'change'.
+// `ss(n)` always reads the latest.
 let SCALE = computeScale();
 
 // Subscribers re-rendered when SCALE changes (web/desktop/TV). Kept in a Set so
@@ -87,6 +101,13 @@ if (IS_REACTIVE && typeof window !== 'undefined') {
   if (window.addEventListener) window.addEventListener('load', recompute);
   setTimeout(recompute, 0);
   setTimeout(recompute, 300);
+} else if (Platform.OS !== 'web') {
+  // Native: SCALE is seeded at module load, but the window CAN change size after
+  // launch — device rotation, iPad Split View, Android multi-window/freeform. The
+  // grid columns already reflow (they read useWindowDimensions), so ss()-sized
+  // chrome must follow or it desyncs from the new layout. Recompute off discrete
+  // Dimensions 'change' events (never per-frame) and notify useScale() consumers.
+  Dimensions.addEventListener('change', recompute);
 }
 
 /**
@@ -109,8 +130,10 @@ export const scaleSize = ss;
 
 /**
  * React hook returning the current scale factor and re-rendering the consumer
- * when the window resizes (web/desktop). On native/TV the scale is frozen, so
- * this returns a stable value and never re-renders.
+ * when the window resizes (web/desktop) or the native window changes size
+ * (rotation, iPad Split View, Android multi-window). `ss()` call sites that are
+ * NOT wrapped in useScale() read the same live SCALE but won't re-render on their
+ * own — adopt useScale() where a live reflow matters.
  *
  * Usage:
  *   const scale = useScale();          // re-renders on resize
@@ -122,7 +145,6 @@ export function useScale() {
   const [scale, setScale] = useState(SCALE);
 
   useEffect(() => {
-    if (!IS_REACTIVE) return undefined;
     // Sync immediately in case SCALE changed between initial render and effect.
     setScale(SCALE);
     subscribers.add(setScale);

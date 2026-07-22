@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { FlatList, RefreshControl } from "react-native";
+import { FlatList, RefreshControl, BackHandler } from "react-native";
 import { YStack, XStack, Text } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
@@ -40,6 +40,23 @@ export default function SeriesScreen({ navigation }) {
     setRefreshing(true);
     try { await reload(); } finally { setRefreshing(false); }
   };
+
+  // An overlay is stacked over the still-mounted FlatList; hide the list from
+  // screen readers and contain focus while any overlay is open.
+  const overlayOpen = Boolean(selectedSeries || categoryPage || showDownloaded);
+
+  // Android hardware/gesture Back closes the topmost open overlay (detail first)
+  // instead of popping the tab stack; falls through to default nav when none open.
+  useEffect(() => {
+    if (!overlayOpen) return undefined;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (selectedSeries) clearSelectedSeries();
+      else if (categoryPage) closeCategory();
+      else setShowDownloaded(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [overlayOpen, selectedSeries, categoryPage, clearSelectedSeries, closeCategory]);
 
   const listHeader = useMemo(() => (
     <YStack>
@@ -150,10 +167,11 @@ export default function SeriesScreen({ navigation }) {
         renderItem={renderItem}
         ListEmptyComponent={<StatePanel mode="empty" {...emptyContentProps("series")} />}
         windowSize={5} maxToRenderPerBatch={3} initialNumToRender={3} removeClippedSubviews
+        importantForAccessibility={overlayOpen ? "no-hide-descendants" : "auto"}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} colors={[colors.accent]} />}
       />
       {categoryPage && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} accessibilityViewIsModal>
           <CategoryGridPage
             name={categoryPage.name} items={categoryPage.items}
             keyField="series_id"
@@ -165,7 +183,7 @@ export default function SeriesScreen({ navigation }) {
         </YStack>
       )}
       {selectedSeries && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} accessibilityViewIsModal>
           <SeriesDetail
             item={selectedSeries}
             onBack={clearSelectedSeries}
@@ -174,7 +192,7 @@ export default function SeriesScreen({ navigation }) {
         </YStack>
       )}
       {showDownloaded && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0}>
+        <YStack position="absolute" top={0} left={0} right={0} bottom={0} accessibilityViewIsModal>
           <CategoryGridPage
             name="Downloaded"
             items={downloadedEpisodes}

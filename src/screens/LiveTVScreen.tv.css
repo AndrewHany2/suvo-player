@@ -87,5 +87,5 @@
   white-space: nowrap;
 }
 .tvl-ch-card--on .tvl-ch-name {
-  color: #fff;
+  color: var(--a-text-strong);
 }

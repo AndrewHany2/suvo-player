@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo, memo, forwardRef, useImperativeHandle } from "react";
 import { Modal, StatusBar, Platform, TouchableOpacity, AppState, PanResponder, View } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
@@ -89,6 +89,39 @@ function loadNavigationBar() {
 
 import { formatDuration as formatTime } from "../utils/formatDuration";
 
+/**
+ * Transient gesture indicator ("Vol 60%", "+10s", "2x", …). A memoized leaf that
+ * owns its own state and exposes an imperative show(kind, label) via ref, so a
+ * ~60 Hz PanResponder move updates only this node instead of re-rendering the
+ * whole ~1000-line player. Auto-hides after 700ms.
+ */
+const GestureHint = memo(
+  forwardRef(function GestureHint(_props, ref) {
+    const [hint, setHint] = useState(null); // { kind, label }
+    const timerRef = useRef(null);
+    useImperativeHandle(
+      ref,
+      () => ({
+        show(kind, label) {
+          setHint({ kind, label });
+          clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(() => setHint(null), 700);
+        },
+      }),
+      [],
+    );
+    useEffect(() => () => clearTimeout(timerRef.current), []);
+    if (!hint) return null;
+    return (
+      <YStack position="absolute" top="45%" left={0} right={0} alignItems="center" pointerEvents="none" zIndex={50}>
+        <Text color={colors.text} fontSize={20} fontWeight="700" backgroundColor={playerScrim.hint} paddingHorizontal={18} paddingVertical={10} borderRadius={10}>
+          {hint.label}
+        </Text>
+      </YStack>
+    );
+  }),
+);
+
 export default function ExpoVideoPlayerScreen({ navigation }) {
   const { channels } = useChannels();
   const { currentVideo, closeVideo, playVideo } = usePlayback();
@@ -126,8 +159,10 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   const [progress, setProgress] = useState({ position: 0, duration: 0, buffered: 0 });
   const [scrubSec, setScrubSec] = useState(null);
   const seekTrackWidth = useRef(0);
-  const [gestureHint, setGestureHint] = useState(null); // { kind, label }
-  const gestureHintTimerRef = useRef(null);
+  // Transient gesture indicator: rendered by the memoized <GestureHint> leaf and
+  // driven imperatively via this ref, so a 60 Hz gesture move touches only that
+  // node rather than re-rendering the whole player.
+  const hintRef = useRef(null);
   const [nowNext, setNowNext] = useState({ now: null, next: null });
 
   const isLive = currentVideo?.type === "live";
@@ -185,13 +220,11 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
 
   useEffect(() => { resetControlsTimer(); return () => clearTimeout(controlsTimerRef.current); }, [resetControlsTimer]);
 
-  // Transient gesture indicator helper.
+  // Transient gesture indicator helper — routes to the memoized leaf so a move
+  // frame doesn't re-render the player. The leaf owns the 700ms auto-hide.
   const flashHint = useCallback((kind, label) => {
-    setGestureHint({ kind, label });
-    clearTimeout(gestureHintTimerRef.current);
-    gestureHintTimerRef.current = setTimeout(() => setGestureHint(null), 700);
+    hintRef.current?.show(kind, label);
   }, []);
-  useEffect(() => () => clearTimeout(gestureHintTimerRef.current), []);
 
   // Show the one-time gesture legend on first VOD playback (persisted). Gestures
   // are touch-only affordances a viewer can't otherwise discover.
@@ -746,7 +779,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   // only streaming is gated. Server attestation is the authoritative check.
   if (deviceCompromised) {
     return (
-      <YStack flex={1} backgroundColor="#000" alignItems="center" justifyContent="center" padding={24} gap={16}>
+      <YStack flex={1} backgroundColor={colors.bg} alignItems="center" justifyContent="center" padding={24} gap={16}>
         <Icon name="warning" size={40} color={colors.danger} />
         <Text color={colors.danger} fontSize={20} fontWeight="700" textAlign="center">
           Playback blocked
@@ -790,14 +823,8 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
         />
       </View>
 
-      {/* Gesture indicator */}
-      {gestureHint && (
-        <YStack position="absolute" top="45%" left={0} right={0} alignItems="center" pointerEvents="none" zIndex={50}>
-          <Text color={colors.text} fontSize={20} fontWeight="700" backgroundColor={playerScrim.hint} paddingHorizontal={18} paddingVertical={10} borderRadius={10}>
-            {gestureHint.label}
-          </Text>
-        </YStack>
-      )}
+      {/* Gesture indicator (imperative leaf; see flashHint) */}
+      <GestureHint ref={hintRef} />
 
       {/* Stats overlay */}
       {showStats && <StatsOverlay stats={stats} />}
@@ -942,8 +969,16 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
                   accessible
                   accessibilityRole="adjustable"
                   accessibilityLabel="Seek bar"
-                  accessibilityValue={{ min: 0, max: Math.round(progress.duration), now: Math.round(shown) }}
-                  accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+                  accessibilityValue={{
+                    min: 0,
+                    max: Math.round(progress.duration),
+                    now: Math.round(shown),
+                    text: `${formatTime(shown)} of ${formatTime(progress.duration)}`,
+                  }}
+                  accessibilityActions={[
+                    { name: "increment", label: "Forward 10 seconds" },
+                    { name: "decrement", label: "Back 10 seconds" },
+                  ]}
                   onAccessibilityAction={(e) => {
                     if (e.nativeEvent.actionName === "increment") seekBy(DOUBLE_TAP_SEEK);
                     else if (e.nativeEvent.actionName === "decrement") seekBy(-DOUBLE_TAP_SEEK);

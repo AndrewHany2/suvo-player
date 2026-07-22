@@ -135,6 +135,9 @@
   text-align: left;
   font-family: inherit;
   padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tvl-topbar-title--back {
   cursor: pointer;
@@ -505,9 +508,9 @@
   color: var(--a-text-strong);
 }
 .tvl-det-hero-btn--play {
-  background: #6C5CE7;
-  color: #EAF0FF;
-  border-color: #6C5CE7;
+  background: var(--a-indigo);
+  color: var(--a-text);
+  border-color: var(--a-indigo);
 }
 .tvl-det-hero-btn--saved {
   background: rgba(108, 92, 231, 0.18);

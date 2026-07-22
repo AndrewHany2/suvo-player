@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View } from "react-native";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors } from "../ui/tokens";
+import { colors, playerScrim } from "../ui/tokens";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import { contentService } from "../domain/services/ContentService";
@@ -32,11 +32,22 @@ function BackPill({ isTV, onBack, sectionPadH, size }) {
       zIndex={10}
       paddingVertical={ss(isTV ? 14 : 8)}
       paddingHorizontal={ss(isTV ? 24 : 14)}
-      backgroundColor="rgba(0,0,0,0.55)"
+      backgroundColor={playerScrim.panel}
       borderRadius={ss(isTV ? 12 : 8)}
       cursor="pointer"
       onPress={onBack}
       pressStyle={{ opacity: 0.8 }}
+      // Desktop keyboard access (WCAG 2.1.1): focusable control with
+      // Enter/Space activation, matching the episode rows' pattern.
+      role="button"
+      tabIndex={0}
+      aria-label="Back"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          onBack();
+        }
+      }}
     >
       <XStack alignItems="center" gap={ss(isTV ? 8 : 6)}>
         <Icon name="back" color={colors.accent} size={size} />

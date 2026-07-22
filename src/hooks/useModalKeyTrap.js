@@ -66,6 +66,22 @@ export function useModalKeyTrap(active, handlers = {}) {
         return;
       }
 
+      // A real focused button (or role="button" control) must activate itself on
+      // Enter — otherwise the detail hero's <button>s (Watch Trailer / Add to My
+      // List / From Start) would fire Play instead. Let Enter fall through
+      // untouched: no preventDefault, no onEnter. Web-only guard (native has no
+      // document.activeElement).
+      if (
+        action === "enter" &&
+        typeof document !== "undefined" &&
+        ae &&
+        (ae.tagName === "BUTTON" ||
+          (ae.getAttribute?.("role") === "button" &&
+            ae.hasAttribute?.("tabindex")))
+      ) {
+        return;
+      }
+
       // No text field focused: we drive the modal's own ring. Every nav key is
       // preventDefault'd so webOS native spatial focus can't also move.
       const dispatch = {

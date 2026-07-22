@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { memo, useRef, useEffect, useCallback, useState } from "react";
 import { Image, View } from "react-native";
 import { YStack, Text, ScrollView } from "../ui/primitives";
 import { colors, fonts, fontWeights, overlay, heroHeights, zIndex } from "../ui/tokens";
@@ -108,8 +108,8 @@ function RemoveButton({ onRemove }) {
       top={0}
       left={0}
       zIndex={5}
-      width={ss(44)}
-      height={ss(44)}
+      width={Math.max(44, ss(44))}
+      height={Math.max(44, ss(44))}
       paddingTop={ss(8)}
       paddingLeft={ss(8)}
       cursor="pointer"
@@ -141,75 +141,93 @@ function RemoveButton({ onRemove }) {
   );
 }
 
-/* ── My List Poster Card ── */
-function MyListCard({ item, onPress, onRemove }) {
+/* ── My List Poster Card ──
+   The card is a non-interactive wrapper holding TWO sibling controls: the
+   primary click target (poster + title, opens the detail) and the Remove
+   button. They sit side-by-side in the DOM — never nested — so there's no
+   interactive-inside-interactive. Memoized + item-based handlers (onSelect /
+   onRemove take the item) so an unrelated removal or a resize doesn't re-render
+   every card. */
+const MyListCard = memo(function MyListCard({ item, onSelect, onRemove }) {
   const poster = item.cover || item.movie_image || item.stream_icon || null;
   const epLabel = getEpLabel(item);
+  const handlePress = () => onSelect(item);
+  const handleRemove = () => onRemove(item);
 
   return (
     <YStack
+      position="relative"
       width={ss(200)}
       flexShrink={0}
-      cursor="pointer"
-      onPress={onPress}
-      pressStyle={{ opacity: 0.8 }}
-      role="button"
-      tabIndex={0}
-      aria-label={item.name}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-          e.preventDefault();
-          onPress?.();
-        }
-      }}
       {...{ className: "suvo-poster" }}
     >
       <YStack
         width={ss(200)}
-        aspectRatio={2 / 3}
-        borderRadius={ss(8)}
-        backgroundColor={colors.surface}
-        overflow="hidden"
-        position="relative"
-        borderWidth={1}
-        borderColor={colors.border}
-        {...{ className: "suvo-poster-box" }}
+        cursor="pointer"
+        onPress={handlePress}
+        pressStyle={{ opacity: 0.8 }}
+        role="button"
+        tabIndex={0}
+        aria-label={item.name}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            handlePress();
+          }
+        }}
+        {...{ className: "suvo-poster" }}
       >
-        {poster ? (
-          <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
-        ) : (
-          <View style={[FILL, { backgroundColor: colors.surface }]} />
-        )}
-        <RemoveButton onRemove={onRemove} />
-      </YStack>
-      <Text
-        color={colors.text}
-        fontFamily={fonts.body}
-        fontSize={ss(13)}
-        fontWeight={fontWeights.medium}
-        marginTop={ss(8)}
-        lineHeight={ss(17)}
-        numberOfLines={2}
-      >
-        {item.name}
-      </Text>
-      {epLabel && (
-        <Text
-          color={colors.muted}
-          fontFamily={fonts.body}
-          fontSize={ss(10)}
-          marginTop={ss(5)}
-          letterSpacing={0.3}
+        <YStack
+          width={ss(200)}
+          aspectRatio={2 / 3}
+          borderRadius={ss(8)}
+          backgroundColor={colors.surface}
+          overflow="hidden"
+          position="relative"
+          borderWidth={1}
+          borderColor={colors.border}
+          {...{ className: "suvo-poster-box" }}
         >
-          {epLabel}
+          {poster ? (
+            <Image source={{ uri: poster }} style={FILL} resizeMode="cover" />
+          ) : (
+            <View style={[FILL, { backgroundColor: colors.surface }]} />
+          )}
+        </YStack>
+        <Text
+          color={colors.text}
+          fontFamily={fonts.body}
+          fontSize={ss(13)}
+          fontWeight={fontWeights.medium}
+          marginTop={ss(8)}
+          lineHeight={ss(17)}
+          numberOfLines={2}
+        >
+          {item.name}
         </Text>
-      )}
+        {epLabel && (
+          <Text
+            color={colors.muted}
+            fontFamily={fonts.body}
+            fontSize={ss(10)}
+            marginTop={ss(5)}
+            letterSpacing={0.3}
+          >
+            {epLabel}
+          </Text>
+        )}
+      </YStack>
+      <RemoveButton onRemove={handleRemove} />
     </YStack>
   );
-}
+});
 
-/* ── Continue Watching Card ── */
-function CWCard({ item, onPress, onRemove }) {
+/* ── Continue Watching Card ──
+   Same non-nested layout as MyListCard: a non-interactive wrapper holding the
+   primary click target (backdrop + meta) and the Remove button as siblings, so
+   the two controls are never nested. Memoized + item-based handlers to avoid
+   re-rendering every card on an unrelated removal or a resize. */
+const CWCard = memo(function CWCard({ item, onSelect, onRemove }) {
   // Only show a resume bar when we know the real duration. If duration is
   // unknown, render no bar rather than fabricate a fake fill (matches LiveCard).
   const progress =
@@ -223,116 +241,124 @@ function CWCard({ item, onPress, onRemove }) {
   const showTitle = item.seriesName || item.name;
   const epTitle =
     item.seriesName && item.name !== item.seriesName ? item.name : null;
+  const handlePress = () => onSelect(item);
+  const handleRemove = () => onRemove(item);
 
   return (
     <YStack
+      position="relative"
       width={ss(320)}
       flexShrink={0}
-      cursor="pointer"
-      onPress={onPress}
-      pressStyle={{ opacity: 0.85 }}
-      role="button"
-      tabIndex={0}
-      aria-label={showTitle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-          e.preventDefault();
-          onPress?.();
-        }
-      }}
       {...{ className: "suvo-cw-card" }}
     >
       <YStack
         width={ss(320)}
-        height={ss(180)}
-        borderRadius={ss(8)}
-        backgroundColor={colors.surface}
-        overflow="hidden"
-        position="relative"
-        borderWidth={1}
-        borderColor={colors.border}
-        {...{ className: "suvo-poster-box" }}
+        cursor="pointer"
+        onPress={handlePress}
+        pressStyle={{ opacity: 0.85 }}
+        role="button"
+        tabIndex={0}
+        aria-label={showTitle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            handlePress();
+          }
+        }}
+        {...{ className: "suvo-cw-card" }}
       >
-        {bg ? (
-          <Image source={{ uri: bg }} style={FILL} resizeMode="cover" />
-        ) : (
-          <View style={[FILL, { backgroundColor: colors.surface }]} />
-        )}
-        <View
-          style={[
-            FILL,
-            {
-              background:
-                "linear-gradient(to top right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0) 100%)",
-            },
-          ]}
-        />
-        {seasonBadge && (
-          <YStack position="absolute" top={ss(10)} left={ss(12)} zIndex={4}>
-            <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(13)} fontWeight={fontWeights.bold}>
-              {seasonBadge}
-            </Text>
-          </YStack>
-        )}
-        <RemoveButton onRemove={onRemove} />
-        <div className="suvo-cw-play">
-          <Icon name="play" size={ss(28)} color={colors.text} />
-        </div>
-        {progress != null && (
-          <YStack
-            position="absolute"
-            left={0}
-            right={0}
-            bottom={0}
-            zIndex={4}
-            paddingHorizontal={ss(12)}
-            paddingBottom={ss(10)}
-          >
-            <View
-              style={{ height: ss(3), borderRadius: ss(2), backgroundColor: colors.border, overflow: "hidden" }}
+        <YStack
+          width={ss(320)}
+          height={ss(180)}
+          borderRadius={ss(8)}
+          backgroundColor={colors.surface}
+          overflow="hidden"
+          position="relative"
+          borderWidth={1}
+          borderColor={colors.border}
+          {...{ className: "suvo-poster-box" }}
+        >
+          {bg ? (
+            <Image source={{ uri: bg }} style={FILL} resizeMode="cover" />
+          ) : (
+            <View style={[FILL, { backgroundColor: colors.surface }]} />
+          )}
+          <View
+            style={[
+              FILL,
+              {
+                background:
+                  "linear-gradient(to top right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0) 100%)",
+              },
+            ]}
+          />
+          {seasonBadge && (
+            <YStack position="absolute" top={ss(10)} left={ss(12)} zIndex={4}>
+              <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(13)} fontWeight={fontWeights.bold}>
+                {seasonBadge}
+              </Text>
+            </YStack>
+          )}
+          <div className="suvo-cw-play">
+            <Icon name="play" size={ss(28)} color={colors.text} />
+          </div>
+          {progress != null && (
+            <YStack
+              position="absolute"
+              left={0}
+              right={0}
+              bottom={0}
+              zIndex={4}
+              paddingHorizontal={ss(12)}
+              paddingBottom={ss(10)}
             >
               <View
-                style={{
-                  height: "100%",
-                  width: `${progress}%`,
-                  backgroundColor: colors.accent,
-                }}
-              />
-            </View>
-          </YStack>
-        )}
-      </YStack>
-      <YStack paddingTop={ss(10)} paddingHorizontal={ss(2)}>
-        <Text
-          color={colors.text}
-          fontFamily={fonts.body}
-          fontSize={ss(13)}
-          fontWeight={fontWeights.medium}
-          marginBottom={ss(2)}
-          numberOfLines={1}
-        >
-          {showTitle}
-        </Text>
-        {(epLabel || epTitle) && (
+                style={{ height: ss(3), borderRadius: ss(2), backgroundColor: colors.border, overflow: "hidden" }}
+              >
+                <View
+                  style={{
+                    height: "100%",
+                    width: `${progress}%`,
+                    backgroundColor: colors.accent,
+                  }}
+                />
+              </View>
+            </YStack>
+          )}
+        </YStack>
+        <YStack paddingTop={ss(10)} paddingHorizontal={ss(2)}>
           <Text
-            color={colors.muted}
+            color={colors.text}
             fontFamily={fonts.body}
-            fontSize={ss(12)}
+            fontSize={ss(13)}
+            fontWeight={fontWeights.medium}
             marginBottom={ss(2)}
             numberOfLines={1}
           >
-            {[epLabel, epTitle].filter(Boolean).join(" · ")}
+            {showTitle}
           </Text>
-        )}
-        {timeLeft && (
-          <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(12)}>
-            {timeLeft}
-          </Text>
-        )}
+          {(epLabel || epTitle) && (
+            <Text
+              color={colors.muted}
+              fontFamily={fonts.body}
+              fontSize={ss(12)}
+              marginBottom={ss(2)}
+              numberOfLines={1}
+            >
+              {[epLabel, epTitle].filter(Boolean).join(" · ")}
+            </Text>
+          )}
+          {timeLeft && (
+            <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(12)}>
+              {timeLeft}
+            </Text>
+          )}
+        </YStack>
       </YStack>
+      <RemoveButton onRemove={handleRemove} />
     </YStack>
   );
-}
+});
 
 export default function HistoryScreen({ navigation }) {
   const { activeUserId } = useApp();
@@ -361,21 +387,36 @@ export default function HistoryScreen({ navigation }) {
   }, [removeFromMyList, removeFromWatchHistory]);
   const { pending, requestRemove, undoRemove } = useDeferredRemove(commit);
 
-  const openDetail = (item) => {
-    if (item.type === "live") {
-      playLive(item);
-      return;
-    }
-    // Transform history item to match detail screen expectations
-    const detailItem = {
-      ...item,
-      stream_id: item.streamId,
-      series_id: item.seriesId,
-      movie_image: item.cover,
-      stream_icon: item.cover,
-    };
-    setCurrentDetail(detailItem);
-  };
+  // Stable, item-based handlers passed down to the memoized cards. Keeping these
+  // referentially stable (rather than an inline arrow per item) is what lets the
+  // React.memo'd cards skip re-rendering when an unrelated item is removed or the
+  // window resizes.
+  const openDetail = useCallback(
+    (item) => {
+      if (item.type === "live") {
+        playLive(item);
+        return;
+      }
+      // Transform history item to match detail screen expectations
+      const detailItem = {
+        ...item,
+        stream_id: item.streamId,
+        series_id: item.seriesId,
+        movie_image: item.cover,
+        stream_icon: item.cover,
+      };
+      setCurrentDetail(detailItem);
+    },
+    [playLive],
+  );
+  const removeMyListItem = useCallback(
+    (item) => requestRemove({ kind: "mylist", id: item.id, name: item.name }),
+    [requestRemove],
+  );
+  const removeHistoryItem = useCallback(
+    (item) => requestRemove({ kind: "history", id: item.id, name: item.name }),
+    [requestRemove],
+  );
   const closeDetail = () => setCurrentDetail(null);
   const handlePlay = (videoObj) => {
     playVideoObject(videoObj);
@@ -497,6 +538,8 @@ export default function HistoryScreen({ navigation }) {
               fontSize={ss(26)}
               fontWeight={fontWeights.bold}
               letterSpacing={-0.5}
+              role="heading"
+              aria-level={2}
             >
               {LABELS.myList}
             </Text>
@@ -530,8 +573,8 @@ export default function HistoryScreen({ navigation }) {
                 <MyListCard
                   key={item.id}
                   item={item}
-                  onPress={() => openDetail(item)}
-                  onRemove={() => requestRemove({ kind: "mylist", id: item.id, name: item.name })}
+                  onSelect={openDetail}
+                  onRemove={removeMyListItem}
                 />
               ))}
             </div>
@@ -565,6 +608,8 @@ export default function HistoryScreen({ navigation }) {
               fontSize={ss(26)}
               fontWeight={fontWeights.bold}
               letterSpacing={-0.5}
+              role="heading"
+              aria-level={2}
             >
               {LABELS.continueWatching}
             </Text>
@@ -598,8 +643,8 @@ export default function HistoryScreen({ navigation }) {
                 <CWCard
                   key={item.id}
                   item={item}
-                  onPress={() => openDetail(item)}
-                  onRemove={() => requestRemove({ kind: "history", id: item.id, name: item.name })}
+                  onSelect={openDetail}
+                  onRemove={removeHistoryItem}
                 />
               ))}
             </div>

@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo, useSyncExternalStore } from "react";
 import { Modal, TouchableOpacity } from "react-native";
 import { YStack, XStack, Text, Input, ScrollView } from "../ui/primitives";
-import { colors, fonts, fontWeights, iconSizes } from "../ui/tokens";
+import { colors, fonts, fontWeights, iconSizes, radii } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
@@ -25,19 +25,68 @@ const getAbbrev = (name) => {
   return name.slice(0, 3).toUpperCase();
 };
 
+/**
+ * Per-screen EPG store: a stable external store (useSyncExternalStore) so a
+ * channel's "now playing" title fetch re-renders only the one LiveCard that
+ * subscribed to it, instead of churning a screen-level `epgCache` state that
+ * re-rendered every mounted shelf once per fetch. The store identity is stable
+ * for the screen's lifetime, so passing it through the shelves keeps their
+ * props stable and lets memo(LiveShelf) bail. `get(sid)` is `undefined` until a
+ * fetch starts, then `null` while loading, then the title (or "" on failure).
+ */
+function useEpgStore(fetchEpgTitle) {
+  const fetchRef = useRef(fetchEpgTitle);
+  fetchRef.current = fetchEpgTitle;
+  const storeRef = useRef(null);
+  if (storeRef.current === null) {
+    const cache = new Map();
+    const listeners = new Map();
+    const notify = (sid) => { const s = listeners.get(sid); if (s) s.forEach((cb) => cb()); };
+    storeRef.current = {
+      get: (sid) => cache.get(sid),
+      subscribe: (sid, cb) => {
+        let s = listeners.get(sid);
+        if (!s) { s = new Set(); listeners.set(sid, s); }
+        s.add(cb);
+        return () => { s.delete(cb); };
+      },
+      // Idempotent: guarded on cache.has so mounting/remounting a card never
+      // re-fetches a channel already loaded (or in flight).
+      fetch: (sid) => {
+        if (cache.has(sid)) return;
+        cache.set(sid, null);
+        notify(sid);
+        fetchRef.current(sid).then(
+          (title) => { cache.set(sid, title); notify(sid); },
+          () => { cache.set(sid, ""); notify(sid); },
+        );
+      },
+      reset: () => {
+        const sids = Array.from(cache.keys());
+        cache.clear();
+        sids.forEach(notify);
+      },
+    };
+  }
+  return storeRef.current;
+}
+
 /* ─── Live Card ─── */
-const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
+const LiveCard = memo(function LiveCard({ item, epgStore, onPress }) {
   const { addToMyList, removeFromMyList, isInMyList } = useApp();
   const abbrev = getAbbrev(item.name);
   const sid = item.stream_id || item.id;
   const inFav = isInMyList("live", sid);
 
-  // Fetch EPG once per channel (keyed on sid); epg is only a "not yet loaded"
-  // guard and fetchEpg is a stable prop, so neither belongs in the deps.
-  useEffect(() => {
-    if (epg === undefined && fetchEpg) fetchEpg(sid);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sid]);
+  // Subscribe only to THIS channel's EPG slice, so a neighbouring channel's
+  // title landing doesn't re-render this card.
+  const subscribe = useCallback((cb) => epgStore.subscribe(sid, cb), [epgStore, sid]);
+  const getSnapshot = useCallback(() => epgStore.get(sid), [epgStore, sid]);
+  const epg = useSyncExternalStore(subscribe, getSnapshot);
+
+  // Fetch once per channel; store.fetch self-guards, so this is safe to run on
+  // every mount/sid change without a "not yet loaded" flag.
+  useEffect(() => { epgStore.fetch(sid); }, [epgStore, sid]);
 
   const toggleFav = (e) => {
     e?.stopPropagation?.();
@@ -58,24 +107,38 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
       backgroundColor={colors.surface2}
       borderWidth={1}
       borderColor={colors.border}
-      borderRadius={ss(8)}
+      borderRadius={radii.sm}
       padding={ss(14)}
-      cursor="pointer"
-      onPress={() => onPress(item)}
-      pressStyle={{ opacity: 0.8 }}
-      animation="quick"
-      // Real button semantics so keyboard/AT users can reach and fire the card.
-      role="button"
-      tabIndex={0}
-      aria-label={item.name}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
-          e.preventDefault();
-          onPress(item);
-        }
-      }}
+      position="relative"
+      // Non-interactive container: the primary click target is a stretched
+      // overlay below, and the favourite star is a separate button — so no
+      // interactive element nests inside another.
       {...{ className: "suvo-live-card" }}
     >
+      {/* Primary click target: a stretched overlay that makes the whole card
+          keyboard-reachable and clickable, as a SIBLING of the star button.
+          The star raises itself above this layer (zIndex) to stay pressable. */}
+      <YStack
+        position="absolute"
+        top={0}
+        left={0}
+        right={0}
+        bottom={0}
+        cursor="pointer"
+        onPress={() => onPress(item)}
+        pressStyle={{ opacity: 0.6 }}
+        animation="quick"
+        // Real button semantics so keyboard/AT users can reach and fire the card.
+        role="button"
+        tabIndex={0}
+        aria-label={item.name}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            onPress(item);
+          }
+        }}
+      />
       <XStack alignItems="center" gap={ss(10)} marginBottom={ss(10)}>
         {item.logo ? (
           <ProxiedImage
@@ -129,12 +192,16 @@ const LiveCard = memo(function LiveCard({ item, epg, onPress, fetchEpg }) {
           onPress={toggleFav}
           aria-label={inFav ? LABELS.removeFromMyList : LABELS.addToMyList}
           style={{
-            width: ss(44),
-            height: ss(44),
+            width: Math.max(44, ss(44)),
+            height: Math.max(44, ss(44)),
             marginVertical: ss(-12),
             marginLeft: ss(-10),
             alignItems: "center",
             justifyContent: "center",
+            // Rise above the stretched primary-target overlay so the star
+            // stays pressable (the overlay is an absolute sibling).
+            position: "relative",
+            zIndex: 1,
           }}
           {...{ onClick: (e) => e.stopPropagation() }}
         >
@@ -235,7 +302,10 @@ function LiveShelfSkeleton() {
 }
 
 /* ─── Live Shelf ─── */
-function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
+// Memoized (like Movies/Series' ContentShelf) and threaded only the stable
+// `epgStore` — not the whole EPG cache — so one channel's title fetch re-renders
+// just its own subscribed LiveCard, never sibling shelves.
+const LiveShelf = memo(function LiveShelf({ cat, onVisible, epgStore, onPress }) {
   const sentinelRef = useRef(null);
   const railRef = useRef(null);
   const isDragging = useRef(false);
@@ -386,18 +456,14 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
               cursor: "grab",
             }}
           >
-            {displayed.map((item) => {
-              const sid = item.stream_id || item.id;
-              return (
-                <LiveCard
-                  key={String(sid)}
-                  item={item}
-                  epg={epgCache[sid]}
-                  onPress={onPress}
-                  fetchEpg={fetchEpg}
-                />
-              );
-            })}
+            {displayed.map((item) => (
+              <LiveCard
+                key={String(item.stream_id || item.id)}
+                item={item}
+                epgStore={epgStore}
+                onPress={onPress}
+              />
+            ))}
           </div>
           <button
             className="suvo-shelf-nav right"
@@ -410,7 +476,7 @@ function LiveShelf({ cat, onVisible, epgCache, fetchEpg, onPress }) {
       )}
     </YStack>
   );
-}
+});
 
 export default function LiveTVScreen({ navigation }) {
   const {
@@ -435,7 +501,9 @@ export default function LiveTVScreen({ navigation }) {
   const { setChannels } = useChannels();
   const { searchQuery, setSearchQuery } = useSearch();
   const [channelsByCategory, setChannelsByCategory] = useState({});
-  const [epgCache, setEpgCache] = useState({});
+  // EPG lives in a stable external store (not screen state) so a title fetch
+  // re-renders only the one subscribed LiveCard, never the shelf tree.
+  const epgStore = useEpgStore(fetchEpgTitle);
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
   const [newStreamUrl, setNewStreamUrl] = useState("");
@@ -501,19 +569,6 @@ export default function LiveTVScreen({ navigation }) {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  const fetchEpg = useCallback(async (streamId) => {
-    setEpgCache((prev) => {
-      if (prev[streamId] !== undefined) return prev;
-      return { ...prev, [streamId]: null };
-    });
-    try {
-      const title = await fetchEpgTitle(streamId);
-      setEpgCache((prev) => ({ ...prev, [streamId]: title }));
-    } catch {
-      setEpgCache((prev) => ({ ...prev, [streamId]: "" }));
-    }
-  }, [fetchEpgTitle]);
-
   const handleAddChannel = () => {
     const name = newChannelName.trim();
     const url = newStreamUrl.trim();
@@ -562,13 +617,13 @@ export default function LiveTVScreen({ navigation }) {
   // just reset the screen-local shelf state (EPG cache, per-category channels,
   // and the fetch queue) whenever the active account changes.
   useEffect(() => {
-    setEpgCache({});
+    epgStore.reset();
     setChannelsByCategory({});
     setCustomCats([]);
     loadedRef.current.clear();
     queueRef.current = [];
     activeRef.current = 0;
-  }, [activeUserId]);
+  }, [activeUserId, epgStore]);
 
   // Fetch one category's channels. On failure, re-queue (up to SHELF_FETCH_RETRIES)
   // so a transient 503 under load doesn't permanently hide the shelf; only after
@@ -696,6 +751,7 @@ export default function LiveTVScreen({ navigation }) {
             flex={1}
             placeholder="Search channels..."
             placeholderTextColor={colors.muted}
+            aria-label="Search channels"
             value={searchQuery}
             onChangeText={setSearchQuery}
             backgroundColor="transparent"
@@ -715,8 +771,7 @@ export default function LiveTVScreen({ navigation }) {
             key={cat.id}
             cat={cat}
             onVisible={handleShelfVisible}
-            epgCache={epgCache}
-            fetchEpg={fetchEpg}
+            epgStore={epgStore}
             onPress={handleChannelPress}
           />
         ))
@@ -747,8 +802,8 @@ export default function LiveTVScreen({ navigation }) {
           <TouchableOpacity
             style={{
               backgroundColor: colors.surface2,
-              borderTopLeftRadius: ss(20),
-              borderTopRightRadius: ss(20),
+              borderTopLeftRadius: radii.lg,
+              borderTopRightRadius: radii.lg,
               padding: ss(24),
               borderTopWidth: 1,
               borderColor: colors.border,
@@ -767,6 +822,7 @@ export default function LiveTVScreen({ navigation }) {
               ref={nameInputRef}
               placeholder="Channel name"
               placeholderTextColor={colors.muted}
+              aria-label="Channel name"
               value={newChannelName}
               onChangeText={setNewChannelName}
               backgroundColor={colors.bg}
@@ -783,6 +839,7 @@ export default function LiveTVScreen({ navigation }) {
               ref={urlInputRef}
               placeholder="Stream URL (https://...)"
               placeholderTextColor={colors.muted}
+              aria-label="Stream URL"
               value={newStreamUrl}
               onChangeText={setNewStreamUrl}
               autoCapitalize="none"

@@ -11,7 +11,7 @@ import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
 import Button from "../ui/Button";
 import { formatDuration as fmtTime } from "../utils/formatDuration";
-import { colors, accentAlpha, accent2Alpha, radii, fonts, zIndex } from "../ui/tokens";
+import { colors, accentAlpha, accent2Alpha, radii, fonts, zIndex, playerScrim, seekTrack } from "../ui/tokens";
 
 // LG webOS remote key codes
 const TV_KEYS = {
@@ -112,7 +112,7 @@ const TV = {
   // content regardless of palette, so they deliberately bypass surface tokens.
   progressTrack: {
     height: 14,
-    background: "rgba(255,255,255,0.25)",
+    background: seekTrack.track,
     borderRadius: 7,
     overflow: "hidden",
     cursor: "pointer",
@@ -256,6 +256,12 @@ export default function VideoPlayerScreen() {
   const [tvNav, setTvNav] = useState(INITIAL_TV_NAV);
   const tvNavRef = useRef(INITIAL_TV_NAV);
   const tvSettingsItemsRef = useRef([]);
+  // Keep the D-pad-highlighted settings row scrolled into the (maxHeight-capped,
+  // overflow:auto) menu, so items past the fold stay remote-reachable.
+  const menuItemElRef = useRef(null);
+  useEffect(() => {
+    menuItemElRef.current?.scrollIntoView({ block: "nearest" });
+  }, [tvNav.menuIndex, tvNav.inMenu, tvNav.focus]);
 
   // Show TV controls and restart hide timer.
   const showTvControls = useCallback(() => {
@@ -479,7 +485,7 @@ export default function VideoPlayerScreen() {
         // Light scrim so the retained last frame shows through behind the
         // spinner. On first load / reconnect there's no frame and the plane is
         // black anyway, so a light scrim reads as black — no downside there.
-        backgroundColor: "rgba(0,0,0,0.35)",
+        backgroundColor: playerScrim.busy,
         pointerEvents: "none",
       }}
       role="status"
@@ -696,7 +702,11 @@ export default function VideoPlayerScreen() {
                   {menuOpen && item.items && (
                     <div style={TV.settingsMenu}>
                       {item.items.map((mi, mIdx) => (
-                        <div key={mi.label} style={TV.settingsMenuItem(tvNav.menuIndex === mIdx, mi.active)}>
+                        <div
+                          key={mi.label}
+                          ref={tvNav.menuIndex === mIdx ? menuItemElRef : undefined}
+                          style={TV.settingsMenuItem(tvNav.menuIndex === mIdx, mi.active)}
+                        >
                           <span>{mi.label}</span>
                           {mi.active ? <Icon name="check" size={20} color={colors.accentText} /> : null}
                         </div>
@@ -746,7 +756,7 @@ export default function VideoPlayerScreen() {
 
       {/* Error */}
       {isFatal && (
-        <div style={{ ...TV.stateOverlay, zIndex: 20, backgroundColor: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column" }}>
+        <div style={{ ...TV.stateOverlay, zIndex: 20, backgroundColor: playerScrim.fatal, display: "flex", flexDirection: "column" }}>
           <StatePanel
             mode="error"
             title={FATAL_TITLE}

@@ -61,7 +61,7 @@ function ContinueCardTV({ item, onPress, isFocused, width = 340 }) {
       tabIndex={0}
       aria-label={showTitle}
       data-tv-focused={isFocused ? "true" : undefined}
-      style={{ width, cursor: "pointer", borderRadius: radii.md }}
+      style={{ width, cursor: "pointer", borderRadius: radii.card }}
     >
       <div
         style={{

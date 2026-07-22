@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { memo, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
 import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import { useSeries } from "../domain/hooks/useSeries";
@@ -242,6 +242,13 @@ export default function SeriesScreenTV({ navigation, route }) {
     gridRef.current = null;
     resetFilter();
   };
+
+  // Stable click handler for the memoized CatButton: openGrid is re-created every
+  // render, so a raw onClick would defeat the memo (every card would re-render on
+  // each D-pad move). This wrapper keeps a constant identity.
+  const openGridRef = useRef(openGrid);
+  openGridRef.current = openGrid;
+  const selectCat = useCallback((cat) => openGridRef.current(cat), []);
 
   // ── Open series detail ────────────────────────────────────────────────────
   const openDetail = async (
@@ -874,7 +881,7 @@ export default function SeriesScreenTV({ navigation, route }) {
               : <div className="tvl-det-hero-thumb-ph"><Icon name="tv" size={iconSizes.lg} color={colors.border} /></div>}
           </div>
           <div className="tvl-det-hero-info">
-            <div className="tvl-det-hero-title">{item.name}</div>
+            <div className="tvl-det-hero-title" role="heading" aria-level={1}>{item.name}</div>
             <div className="tvl-det-hero-meta">
               {si.releaseDate && <span className="tvl-det-tag">{si.releaseDate.slice(0, 4)}</span>}
               {si.genre && <span className="tvl-det-tag">{si.genre.split(",")[0].trim()}</span>}
@@ -918,6 +925,7 @@ export default function SeriesScreenTV({ navigation, route }) {
                   ref={section === "seasons" && i === seasonIdx ? snElRef : null}
                   role="button"
                   aria-label={`Season ${s}`}
+                  aria-selected={section === "seasons" && i === seasonIdx}
                   className={section === "seasons" && i === seasonIdx ? "tvl-season-btn tvl-season-btn--on" : "tvl-season-btn"}
                 >
                   Season {s}
@@ -959,6 +967,7 @@ export default function SeriesScreenTV({ navigation, route }) {
                     ref={section === "episodes" && i === epIdx ? epElRef : null}
                     role="button"
                     aria-label={ep.title || `Episode ${ep.episode_num}`}
+                    aria-selected={section === "episodes" && i === epIdx}
                     className={section === "episodes" && i === epIdx ? "tvl-episode tvl-episode--on" : "tvl-episode"}
                   >
                     <span className="tvl-ep-badge">E{ep.episode_num}</span>
@@ -1011,6 +1020,7 @@ export default function SeriesScreenTV({ navigation, route }) {
             type="text"
             dir="auto"
             autoComplete="off"
+            aria-label="Search series"
             placeholder="Search series…"
             value={gridQuery}
             onChange={(e) => onGridQueryChange(e.target.value)}
@@ -1089,7 +1099,7 @@ export default function SeriesScreenTV({ navigation, route }) {
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar">
-          <span className="tvl-topbar-title">Series</span>
+          <span className="tvl-topbar-title" role="heading" aria-level={1}>Series</span>
         </div>
         {shelves.length === 0
           ? (loaded
@@ -1119,7 +1129,7 @@ export default function SeriesScreenTV({ navigation, route }) {
   return (
     <div className="tvl-screen">
       <div className="tvl-topbar">
-        <span className="tvl-topbar-title">Series</span>
+        <span className="tvl-topbar-title" role="heading" aria-level={1}>Series</span>
       </div>
       <div className="tvl-scroll">
         <div className={catZone === "search" && !navActive ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>
@@ -1130,6 +1140,7 @@ export default function SeriesScreenTV({ navigation, route }) {
             type="text"
             dir="auto"
             autoComplete="off"
+            aria-label="Search categories"
             placeholder="Search categories…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -1145,18 +1156,14 @@ export default function SeriesScreenTV({ navigation, route }) {
         ) : (
           <div className="tvl-cat-grid">
             {visibleCats.map((cat, i) => (
-              <button
+              <CatButton
                 key={cat.id}
-                ref={i === catFocus ? catElRef : null}
-                className={
-                  catZone === "grid" && i === catFocus
-                    ? "tvl-cat-card tvl-cat-card--on"
-                    : "tvl-cat-card"
-                }
-                onClick={() => openGrid(cat)}
-              >
-                {cat.name}
-              </button>
+                cat={cat}
+                name={cat.name}
+                focused={catZone === "grid" && i === catFocus}
+                innerRef={i === catFocus ? catElRef : null}
+                onSelect={selectCat}
+              />
             ))}
           </div>
         )}
@@ -1167,4 +1174,22 @@ export default function SeriesScreenTV({ navigation, route }) {
     </div>
   );
 }
+
+// Memoized category tile: `cat`, `name` and `onSelect` are stable, so only the
+// two buttons whose `focused` prop flips (or whose scroll `innerRef` moves) on a
+// D-pad step re-render — not the whole category grid. `innerRef` is a plain prop
+// (not React `ref`) so memo can compare it and re-render the button that gains/
+// loses the scroll-into-view target. Mirrors the ShelfCard/ChannelCard pattern.
+const CatButton = memo(function CatButton({ cat, name, focused, innerRef, onSelect }) {
+  return (
+    <button
+      ref={innerRef}
+      className={focused ? "tvl-cat-card tvl-cat-card--on" : "tvl-cat-card"}
+      aria-selected={focused}
+      onClick={() => onSelect(cat)}
+    >
+      {name}
+    </button>
+  );
+});
 

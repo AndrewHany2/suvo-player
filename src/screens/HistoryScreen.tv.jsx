@@ -578,7 +578,7 @@ export default function HistoryScreenTV({ navigation }) {
             {poster ? <img src={poster} alt="" /> : <div className="tvl-det-hero-thumb-ph"><Icon name="film" size={40} color={colors.muted} /></div>}
           </div>
           <div className="tvl-det-hero-info">
-            <div className="tvl-det-hero-title">{item.name}</div>
+            <div className="tvl-det-hero-title" role="heading" aria-level={1}>{item.name}</div>
             <div className="tvl-det-hero-meta">
               {year && <span className="tvl-det-tag">{year}</span>}
               {data.genre && <span className="tvl-det-tag">{data.genre.split(",")[0].trim()}</span>}
@@ -676,7 +676,7 @@ export default function HistoryScreenTV({ navigation }) {
             {poster ? <img src={poster} alt="" /> : <div className="tvl-det-hero-thumb-ph"><Icon name="tv" size={40} color={colors.muted} /></div>}
           </div>
           <div className="tvl-det-hero-info">
-            <div className="tvl-det-hero-title">{item.name}</div>
+            <div className="tvl-det-hero-title" role="heading" aria-level={1}>{item.name}</div>
             <div className="tvl-det-hero-meta">
               {si.releaseDate && <span className="tvl-det-tag">{si.releaseDate.slice(0, 4)}</span>}
               {si.genre && <span className="tvl-det-tag">{si.genre.split(",")[0].trim()}</span>}
@@ -709,6 +709,9 @@ export default function HistoryScreenTV({ navigation }) {
             <div className="tvl-seasons-row">
               {seasons.map((s, i) => (
                 <div key={s} ref={section === "seasons" && i === seasonIdx ? seriesSnRef : null}
+                  role="button"
+                  aria-label={`Season ${s}`}
+                  aria-selected={section === "seasons" && i === seasonIdx}
                   className={section === "seasons" && i === seasonIdx ? "tvl-season-btn tvl-season-btn--on" : "tvl-season-btn"}>
                   Season {s}
                 </div>
@@ -733,6 +736,9 @@ export default function HistoryScreenTV({ navigation }) {
                 const isWatched = hasProgress && epHistory.duration > 0 && epHistory.currentTime / epHistory.duration > 0.9;
                 return (
                   <div key={ep.id} ref={section === "episodes" && i === epIdx ? seriesEpRef : null}
+                    role="button"
+                    aria-label={ep.title || `Episode ${ep.episode_num}`}
+                    aria-selected={section === "episodes" && i === epIdx}
                     className={section === "episodes" && i === epIdx ? "tvl-episode tvl-episode--on" : "tvl-episode"}>
                     <span className="tvl-ep-badge">E{ep.episode_num}</span>
                     <div className="tvl-ep-body">
@@ -768,7 +774,7 @@ export default function HistoryScreenTV({ navigation }) {
     return (
       <div className="tvl-screen">
         <div className="tvl-topbar">
-          <span className="tvl-topbar-title">{LABELS.home}</span>
+          <span className="tvl-topbar-title" role="heading" aria-level={1}>{LABELS.home}</span>
         </div>
         <StatePanel
           mode="empty"
@@ -848,7 +854,7 @@ export default function HistoryScreenTV({ navigation }) {
   return (
     <div className="tvl-screen">
       <div className="tvl-topbar">
-        <span className="tvl-topbar-title">{LABELS.home}</span>
+        <span className="tvl-topbar-title" role="heading" aria-level={1}>{LABELS.home}</span>
       </div>
       <VirtualShelvesTV
         shelves={shelves}

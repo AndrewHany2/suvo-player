@@ -6,6 +6,7 @@ import Button from "../../ui/Button";
 import Icon from "../../ui/Icon";
 import { colors, fonts, fontWeights, radii } from "../../ui/tokens";
 import { ss } from "../../utils/scaleSize";
+import { useReducedMotion } from "../../hooks/useReducedMotion";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -17,7 +18,7 @@ const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
  * surface reads identically across phone, desktop, and TV. The only difference
  * is the rendering substrate: expo-image for the cached backdrop and
  * expo-linear-gradient for the legibility scrims (RN has no CSS `background`
- * gradients), and no `transition` (native honors reduced-motion elsewhere).
+ * gradients); the backdrop crossfade honors reduced-motion (skipped to 0ms).
  *
  * Presentational only — the screen passes display-ready strings + callbacks.
  */
@@ -32,6 +33,7 @@ export default function HeroNative({
   onSecondary,
   height = 300,
 }) {
+  const reducedMotion = useReducedMotion();
   return (
     <View
       style={{
@@ -54,7 +56,7 @@ export default function HeroNative({
           contentFit="cover"
           cachePolicy="memory-disk"
           recyclingKey={backdrop}
-          transition={200}
+          transition={reducedMotion ? 0 : 200}
         />
       ) : (
         <View style={[FILL, { backgroundColor: colors.surface }]} />

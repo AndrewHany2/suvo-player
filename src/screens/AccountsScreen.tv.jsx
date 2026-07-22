@@ -301,7 +301,7 @@ export default function AccountsScreenTV({ navigation }) {
     const user = users.find((u) => u.id === delId);
     return (
       <div className="tvl-screen">
-        <div className="tvl-topbar"><span className="tvl-topbar-title">Delete Account</span></div>
+        <div className="tvl-topbar"><span className="tvl-topbar-title" role="heading" aria-level={1}>Delete Account</span></div>
         <div className="tvl-confirm">
           <p>Delete &ldquo;{user?.nickname || user?.username}&rdquo;?</p>
           <div className="tvl-confirm-actions">
@@ -331,7 +331,7 @@ export default function AccountsScreenTV({ navigation }) {
       <div className="tvl-screen">
         <div className="tvl-topbar">
           <button className="tvl-topbar-back" onClick={() => setView("list")} aria-label="Back"><Icon name="back" size={iconSizes.md} color={colors.accent} /></button>
-          <span className="tvl-topbar-title">{editId ? "Edit Account" : "Add Account"}</span>
+          <span className="tvl-topbar-title" role="heading" aria-level={1}>{editId ? "Edit Account" : "Add Account"}</span>
         </div>
         <div className="tvl-form">
           {error && <div className="tvl-acc-error"><Icon name="warning" size={iconSizes.sm} color={colors.danger} /><span>{error}</span></div>}
@@ -423,7 +423,7 @@ export default function AccountsScreenTV({ navigation }) {
   // ── List view ─────────────────────────────────────────────────────────────
   return (
     <div className="tvl-screen">
-      <div className="tvl-topbar"><span className="tvl-topbar-title">Accounts</span></div>
+      <div className="tvl-topbar"><span className="tvl-topbar-title" role="heading" aria-level={1}>Accounts</span></div>
       {error && <div className="tvl-acc-error" style={{ margin: "0 48px" }}><Icon name="warning" size={iconSizes.sm} color={colors.danger} /><span>{error}</span></div>}
       {loading && <div className="tvl-center" style={{ flex: "0 0 auto", padding: "20px" }}><div className="tvl-spinner" /></div>}
       <div className="tvl-scroll">
@@ -445,16 +445,19 @@ export default function AccountsScreenTV({ navigation }) {
             // indigo "active context" affordance instead of a second cyan ring.
             let rowClass = "tvl-acc-item";
             if (isFocused) rowClass += col === 0 ? " tvl-acc-item--on" : " tvl-acc-item--rowfocus";
+            const accountName = user.nickname || (user.type === "m3u" ? "M3U playlist" : `${user.username}@${user.host}`);
             return (
               <div
                 key={user.id}
-                role="none"
+                role="button"
+                aria-label={`Connect ${accountName}`}
+                aria-selected={isFocused && col === 0}
                 ref={isFocused ? elRef : null}
                 className={rowClass}
                 onClick={() => connectUser(user.id)}
               >
                 <div className="tvl-acc-info">
-                  <div className="tvl-acc-name">{user.nickname || (user.type === "m3u" ? "M3U playlist" : `${user.username}@${user.host}`)}</div>
+                  <div className="tvl-acc-name">{accountName}</div>
                   <div className="tvl-acc-host">{user.type === "m3u" ? user.url : user.host}</div>
                   {activeUserId === user.id && <div className="tvl-acc-badge"><Icon name="check" size={iconSizes.sm} color={colors.accent2} /><span>Active</span></div>}
                 </div>

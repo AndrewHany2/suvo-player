@@ -20,6 +20,8 @@ import {
   radii,
   fonts,
   zIndex,
+  playerScrim,
+  seekTrack,
 } from "../ui/tokens";
 
 const S = {
@@ -39,7 +41,7 @@ const S = {
     alignItems: "center",
     gap: 8,
     padding: "8px 12px",
-    backgroundColor: "rgba(0,0,0,0.85)",
+    backgroundColor: playerScrim.bar,
     flexShrink: 0,
     flexWrap: "wrap",
   },
@@ -129,7 +131,10 @@ const S = {
     flexDirection: "column",
     gap: 8,
     padding: "40px 16px 12px",
-    background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)",
+    // Bottom control-bar scrim. Anchors on the shared bar token (mirrors native);
+    // the mid stop stays a raw literal — it's a gradient interpolation waypoint,
+    // not a semantic surface, so no token maps to it.
+    background: `linear-gradient(to top, ${playerScrim.bar} 0%, rgba(0,0,0,0.5) 60%, transparent 100%)`,
   },
   // Settings icon row (top of the cluster), right-aligned.
   bottomBar: {
@@ -178,7 +183,7 @@ const S = {
     width: "100%",
     height: 6,
     borderRadius: 3,
-    background: "rgba(255,255,255,0.25)",
+    background: seekTrack.track,
   },
   // Buffered-range shading behind the played fill (neutral white wash).
   seekBuffered: (pct) => ({
@@ -188,7 +193,7 @@ const S = {
     height: "100%",
     width: `${pct}%`,
     borderRadius: 3,
-    background: "rgba(255,255,255,0.35)",
+    background: seekTrack.buffered,
   }),
   seekFill: (pct) => ({
     position: "absolute",
@@ -281,15 +286,15 @@ const S = {
     padding: "10px 12px",
     borderTop: `1px solid ${colors.border}`,
   },
-  // Eyebrow header for a settings section (display face, per the type ramp).
+  // Sentence-case section header (display face, per the type ramp). No uppercase
+  // eyebrow tell + no letter-spacing tracking — the hairline separators and
+  // section spacing carry the grouping; the header just names it.
   sectionLabel: {
-    // textDim, not muted — 11px labels must clear AA (4.5:1) on surface2.
+    // textDim, not muted — small labels must clear AA (4.5:1) on surface2.
     color: colors.textDim,
     fontFamily: fonts.display,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: 700,
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
     marginBottom: 8,
   },
   // Wrap of compact option chips (speed / aspect / quality / audio).
@@ -333,7 +338,7 @@ const S = {
   },
   footer: {
     padding: "4px 12px",
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: playerScrim.bar,
     // Steel (muted), not Faint Steel — the shortcut legend is readable copy, and
     // Faint Steel is placeholder/disabled-only per the palette rules.
     color: colors.muted,
@@ -706,7 +711,9 @@ export default function VideoPlayerScreen() {
         alignItems: "center",
         justifyContent: "center",
         gap: 18,
-        backgroundColor: hasFrozenFrame ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.6)",
+        // Over a held frame, the light busy wash keeps it visible; on a black
+        // first load, a heavier wash reads as intentional rather than a dead frame.
+        backgroundColor: hasFrozenFrame ? playerScrim.busy : playerScrim.hint,
         pointerEvents: "none",
       }}
     >
@@ -782,7 +789,7 @@ export default function VideoPlayerScreen() {
             display: "flex",
             gap: 16,
             padding: "4px 12px 8px",
-            backgroundColor: "rgba(0,0,0,0.7)",
+            backgroundColor: playerScrim.panel,
             color: colors.text,
             fontFamily: fonts.body,
             fontSize: 12,
@@ -833,7 +840,7 @@ export default function VideoPlayerScreen() {
           onStartOver={() => resolveResume("startOver")}
         />
         {isFatal && (
-          <div style={{ ...S.stateOverlay, backgroundColor: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column" }}>
+          <div style={{ ...S.stateOverlay, backgroundColor: playerScrim.fatal, display: "flex", flexDirection: "column" }}>
             <StatePanel
               mode="error"
               title={FATAL_TITLE}
@@ -916,7 +923,7 @@ export default function VideoPlayerScreen() {
                 <div style={S.sectionLabel}>Playback speed</div>
                 <div style={S.optionRow}>
                   {SPEEDS.map((r) => (
-                    <IconButton key={r} style={S.optionChip(playbackRate === r)} onPress={() => applySpeed(r)}>
+                    <IconButton key={r} style={S.optionChip(playbackRate === r)} aria-pressed={playbackRate === r} onPress={() => applySpeed(r)}>
                       {r === 1 ? "Normal" : `${r}x`}
                     </IconButton>
                   ))}
@@ -929,7 +936,7 @@ export default function VideoPlayerScreen() {
                   <div style={S.sectionLabel}>Audio track</div>
                   <div style={S.optionRow}>
                     {audioTracks.map((t, i) => (
-                      <IconButton key={t.id ?? i} style={S.optionChip(selectedAudio === i)} onPress={() => applyAudio(i)}>
+                      <IconButton key={t.id ?? i} style={S.optionChip(selectedAudio === i)} aria-pressed={selectedAudio === i} onPress={() => applyAudio(i)}>
                         {t.name || `Track ${i + 1}`}
                       </IconButton>
                     ))}
@@ -942,14 +949,14 @@ export default function VideoPlayerScreen() {
                 <div style={S.menuSection}>
                   <div style={S.sectionLabel}>Quality</div>
                   <div style={S.optionRow}>
-                    <IconButton style={S.optionChip(selectedLevel === -1)} onPress={() => handleSelectLevel(-1)}>
+                    <IconButton style={S.optionChip(selectedLevel === -1)} aria-pressed={selectedLevel === -1} onPress={() => handleSelectLevel(-1)}>
                       Auto
                     </IconButton>
                     {[...qualityLevels]
                       .map((l, i) => ({ l, i }))
                       .sort((a, b) => (b.l.height || 0) - (a.l.height || 0))
                       .map(({ l, i }) => (
-                        <IconButton key={`${l.height}-${l.bitrate}`} style={S.optionChip(selectedLevel === i)} onPress={() => handleSelectLevel(i)}>
+                        <IconButton key={`${l.height}-${l.bitrate}`} style={S.optionChip(selectedLevel === i)} aria-pressed={selectedLevel === i} onPress={() => handleSelectLevel(i)}>
                           {getLevelLabel(l, qualityLevels)}
                         </IconButton>
                       ))}
@@ -962,7 +969,7 @@ export default function VideoPlayerScreen() {
                 <div style={S.sectionLabel}>{controlLabel.fit}</div>
                 <div style={S.optionRow}>
                   {ASPECT_RATIOS.map(({ value, label }) => (
-                    <IconButton key={value} style={S.optionChip(aspectRatio === value)} onPress={() => applyAspect(value)}>
+                    <IconButton key={value} style={S.optionChip(aspectRatio === value)} aria-pressed={aspectRatio === value} onPress={() => applyAspect(value)}>
                       {label}
                     </IconButton>
                   ))}

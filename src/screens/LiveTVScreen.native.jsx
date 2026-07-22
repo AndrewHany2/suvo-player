@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo, useMemo, useSyncExternalStore, useDeferredValue } from "react";
-import { FlatList, Modal, KeyboardAvoidingView, Platform, TouchableOpacity, RefreshControl } from "react-native";
+import { FlatList, Modal, KeyboardAvoidingView, Platform, TouchableOpacity, RefreshControl, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { YStack, XStack, Text, Input } from "../ui/primitives";
 import { colors, iconSizes, fonts, radii, zIndex } from "../ui/tokens";
@@ -12,7 +12,15 @@ import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { isAuthError } from "../utils/authError";
 import { isConnectivityError } from "../utils/networkError.logic.js";
 import { useIsOnline } from "../downloads/useIsOnline.js";
+import { useReducedMotion } from "../hooks/useReducedMotion";
+import { ss } from "../utils/scaleSize";
+import { posterShelfWidth } from "../utils/posterLayout";
 import ContentShelf from "../presentation/components/ContentShelf.native";
+
+// RN's <Modal> defaults supportedOrientations to ['portrait']; opening it while
+// Live is landscape risks the UIKit SIGABRT the players guard against, so mirror
+// the player modals' explicit orientation set.
+const MODAL_ORIENTATIONS = ["portrait", "landscape"];
 
 const getAbbrev = (name) => {
   const words = name.trim().split(/\s+/);
@@ -67,7 +75,7 @@ function useEpgStore(fetchEpgTitle) {
 }
 
 /* ─── Live Channel Card ─── */
-const ChannelCard = memo(({ item, epgStore, onPress, inFav, addToMyList, removeFromMyList }) => {
+const ChannelCard = memo(({ item, width, epgStore, onPress, inFav, addToMyList, removeFromMyList }) => {
   const abbrev = getAbbrev(item.name);
   const sid = item.stream_id || item.id;
 
@@ -89,7 +97,7 @@ const ChannelCard = memo(({ item, epgStore, onPress, inFav, addToMyList, removeF
 
   return (
     <YStack
-      width={160} backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border}
+      width={width} backgroundColor={colors.surface2} borderWidth={1} borderColor={colors.border}
       borderRadius={10} padding={10} cursor="pointer"
       onPress={() => onPress(item)} pressStyle={{ opacity: 0.8 }} hoverStyle={{ borderColor: colors.accent }} animation="quick"
       accessibilityRole="button" accessibilityLabel={`Play ${item.name}`}
@@ -103,7 +111,7 @@ const ChannelCard = memo(({ item, epgStore, onPress, inFav, addToMyList, removeF
             </YStack>
           )}
         <Text color={colors.text} fontSize={12} fontWeight="600" flex={1} numberOfLines={1}>{item.name}</Text>
-        {/* favorite toggle — Icon star (indigo/active vs faint/rest); keep as RN
+        {/* favorite toggle — Icon star (indigo/active vs muted/rest); keep as RN
             TouchableOpacity for hitSlop support */}
         <TouchableOpacity
           onPress={toggleFav}
@@ -113,7 +121,7 @@ const ChannelCard = memo(({ item, epgStore, onPress, inFav, addToMyList, removeF
           accessibilityLabel={inFav ? `Remove ${item.name} from My List` : `Add ${item.name} to My List`}
           accessibilityState={{ selected: inFav }}
         >
-          <Icon name="star" size={iconSizes.sm} color={inFav ? colors.accent : colors.faint} />
+          <Icon name="star" size={iconSizes.sm} color={inFav ? colors.accent : colors.muted} />
         </TouchableOpacity>
         <XStack alignItems="center" gap={4} backgroundColor={colors.surface2} borderRadius={4} paddingHorizontal={6} paddingVertical={2} borderWidth={1} borderColor={colors.border}>
           <YStack width={6} height={6} borderRadius={3} backgroundColor={colors.accent} />
@@ -141,6 +149,16 @@ export default function LiveTVScreen({ navigation }) {
   const { setChannels } = useChannels();
   const epgStore = useEpgStore(fetchEpgTitle);
   const online = useIsOnline();
+  const reducedMotion = useReducedMotion();
+  // Derive the channel card width from the screen (like ContentShelf's
+  // posterShelfWidth) so Live shelves gain width/columns on tablets instead of
+  // pinning to a fixed 160. Kept in sync with the ContentShelf itemWidth + gap
+  // and the loading skeleton below.
+  const { width: winW } = useWindowDimensions();
+  const channelCardWidth = useMemo(
+    () => posterShelfWidth(winW - ss(16) * 2, { target: 160, gap: ss(8) }),
+    [winW],
+  );
   const [refreshing, setRefreshing] = useState(false);
   // Locally-injected synthetic categories (currently just "Custom" for
   // user-added channels); the hook owns the provider category list.
@@ -262,6 +280,7 @@ export default function LiveTVScreen({ navigation }) {
       return (
         <ChannelCard
           item={channel}
+          width={channelCardWidth}
           epgStore={epgStore}
           onPress={handleChannelPress}
           inFav={isInMyList("live", csid)}
@@ -273,7 +292,7 @@ export default function LiveTVScreen({ navigation }) {
     // myList is an intentional dep: it forces a new renderer (and thus a star
     // refresh) when favorites change, since isInMyList reads a stable ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [epgStore, handleChannelPress, isInMyList, addToMyList, removeFromMyList, myList],
+    [epgStore, handleChannelPress, isInMyList, addToMyList, removeFromMyList, myList, channelCardWidth],
   );
 
   // Debounce the query that drives the eager fan-out load: a single keystroke
@@ -313,7 +332,7 @@ export default function LiveTVScreen({ navigation }) {
           <YStack height={44} backgroundColor={colors.surface2} borderRadius={10} borderWidth={1} borderColor={colors.border} />
         </YStack>
         {[0, 1, 2].map((i) => (
-          <ContentShelf key={i} id={`skeleton-${i}`} title="" items={null} manual hasMore={false} loadingMore={false} itemWidth={160} gap={8} />
+          <ContentShelf key={i} id={`skeleton-${i}`} title="" items={null} manual hasMore={false} loadingMore={false} itemWidth={channelCardWidth} gap={ss(8)} />
         ))}
       </YStack>
     );
@@ -372,7 +391,7 @@ export default function LiveTVScreen({ navigation }) {
             error={!!failedCats[cat.id]}
             onRetry={retryCategory}
             leadingIcon="tv"
-            itemWidth={160} gap={8}
+            itemWidth={channelCardWidth} gap={ss(8)}
             onVisible={loadChannelCategory}
             onPress={handleChannelPress}
             renderItem={renderChannel}
@@ -384,10 +403,10 @@ export default function LiveTVScreen({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} colors={[colors.accent]} />}
       />
 
-      <Modal visible={showAddChannel} transparent animationType="slide" onRequestClose={() => setShowAddChannel(false)}>
+      <Modal visible={showAddChannel} transparent animationType={reducedMotion ? "none" : "slide"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAddChannel(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-          <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} activeOpacity={1} onPress={() => setShowAddChannel(false)}>
-            <TouchableOpacity style={{ backgroundColor: colors.surface2, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, borderTopWidth: 1, borderColor: colors.border }} activeOpacity={1}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} activeOpacity={1} accessible={false} onPress={() => setShowAddChannel(false)}>
+            <TouchableOpacity style={{ backgroundColor: colors.surface2, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, borderTopWidth: 1, borderColor: colors.border }} activeOpacity={1} accessible={false} accessibilityViewIsModal>
               <Text color={colors.text} fontSize={17} fontWeight="700" marginBottom={16}>Add Custom Channel</Text>
               <Input placeholder="Channel name" placeholderTextColor={colors.muted} value={newChannelName} onChangeText={(t) => { setNewChannelName(t); if (addError) setAddError(null); }} backgroundColor={colors.bg} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={14} borderWidth={1} borderColor={colors.border} marginBottom={12} />
               <Input placeholder="Stream URL (http://... or rtmp://...)" placeholderTextColor={colors.muted} value={newStreamUrl} onChangeText={(t) => { setNewStreamUrl(t); if (addError) setAddError(null); }} autoCapitalize="none" keyboardType="url" backgroundColor={colors.bg} color={colors.text} borderRadius={10} paddingHorizontal={14} paddingVertical={12} fontSize={14} borderWidth={1} borderColor={colors.border} marginBottom={12} />

@@ -1,12 +1,12 @@
-import { memo, useState, useCallback } from "react";
-import { View } from "react-native";
+import { memo, useState, useCallback, useEffect } from "react";
+import { View, BackHandler } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatEpisodeLabel } from "../utils/formatEpisodeLabel";
 import { LinearGradient } from "expo-linear-gradient";
 import { YStack, Text, ScrollView } from "../ui/primitives";
-import { colors, fonts, fontWeights, radii, zIndex, heroHeights } from "../ui/tokens";
+import { colors, fonts, fontWeights, radii, zIndex, heroHeights, overlay } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
@@ -65,7 +65,7 @@ const CWCard = memo(function CWCard({ item, onPress, onRemove }) {
         )}
         <YStack
           position="absolute" top={ss(8)} left={ss(8)} zIndex={5}
-          backgroundColor="rgba(10,14,26,0.72)" borderRadius={ss(11)} width={ss(22)} height={ss(22)}
+          backgroundColor={overlay} borderRadius={ss(11)} width={ss(22)} height={ss(22)}
           justifyContent="center" alignItems="center" cursor="pointer"
           onPress={(e) => { e?.stopPropagation?.(); onRemove(); }} pressStyle={{ opacity: 0.7 }} hitSlop={11}
           accessibilityRole="button" accessibilityLabel={LABELS.removeFromMyList}
@@ -126,6 +126,17 @@ export default function HistoryScreen({ navigation }) {
   }, [playLive]);
   const closeDetail = () => setCurrentDetail(null);
   const handlePlay = (videoObj) => { playVideoObject(videoObj); setCurrentDetail(null); };
+
+  // Android hardware/gesture Back closes an open detail route instead of popping
+  // the tab stack; falls through to default nav when no detail is open.
+  useEffect(() => {
+    if (!currentDetail) return undefined;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      setCurrentDetail(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [currentDetail]);
 
   const keyExtractor = useCallback((item, i) => String(item.id ?? i), []);
   const renderMyListItem = useCallback(({ item }) => (

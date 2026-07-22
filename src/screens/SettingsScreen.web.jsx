@@ -34,12 +34,10 @@ const ASPECT_OPTIONS = [
 function SectionTitle({ children }) {
   return (
     <Text
-      color={colors.muted}
+      color={colors.textStrong}
       fontFamily={fonts.display}
-      fontSize={ss(11)}
+      fontSize={ss(16)}
       fontWeight={fontWeights.bold}
-      letterSpacing={1}
-      textTransform="uppercase"
       marginBottom={ss(12)}
     >
       {children}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View, SectionList } from "react-native";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors } from "../ui/tokens";
+import { colors, playerScrim } from "../ui/tokens";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import { contentService } from "../domain/services/ContentService";
@@ -31,11 +31,22 @@ function BackPill({ isTV, onBack, sectionPadH, size }) {
       zIndex={10}
       paddingVertical={ss(isTV ? 14 : 8)}
       paddingHorizontal={ss(isTV ? 24 : 14)}
-      backgroundColor="rgba(0,0,0,0.55)"
+      backgroundColor={playerScrim.panel}
       borderRadius={ss(isTV ? 12 : 8)}
       cursor="pointer"
       onPress={onBack}
       pressStyle={{ opacity: 0.8 }}
+      // Desktop keyboard access (WCAG 2.1.1): focusable control with
+      // Enter/Space activation, matching the episode rows' pattern.
+      role="button"
+      tabIndex={0}
+      aria-label="Back"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          onBack();
+        }
+      }}
     >
       <XStack alignItems="center" gap={ss(isTV ? 8 : 6)}>
         <Icon name="back" color={colors.accent} size={size} />
@@ -198,6 +209,17 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
             cursor="pointer"
             onPress={() => setShowEpisodes(false)}
             pressStyle={{ opacity: 0.8 }}
+            // Desktop keyboard access (WCAG 2.1.1): focusable control with
+            // Enter/Space activation, matching the episode rows' pattern.
+            role="button"
+            tabIndex={0}
+            aria-label="Back"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+                e.preventDefault();
+                setShowEpisodes(false);
+              }
+            }}
           >
             <XStack alignItems="center" gap={ss(isTV ? 8 : 6)}>
               <Icon name="back" color={colors.accent} size={epBackSize} />
@@ -283,7 +305,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
                   paddingVertical={ss(isTV ? 8 : 4)}
                   marginRight={ss(isTV ? 16 : 12)}
                 >
-                  <Text color={colors.text} fontSize={epNumSize} fontWeight="700">
+                  <Text color={colors.textStrong} fontSize={epNumSize} fontWeight="700">
                     E{getEpisodeNumber(ep)}
                   </Text>
                 </YStack>
@@ -365,8 +387,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
           style={[
             FILL,
             {
-              background:
-                "linear-gradient(to top, #0A0E1A 0%, rgba(10, 14, 26,0.6) 55%, rgba(10, 14, 26,0.15) 100%)",
+              background: `linear-gradient(to top, ${colors.bg} 0%, rgba(10, 14, 26,0.6) 55%, rgba(10, 14, 26,0.15) 100%)`,
             },
           ]}
         />
@@ -407,6 +428,11 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
             >
               {year ? (
                 <YStack
+                  // Opaque scrim fill: the meta text is muted steel and sits over
+                  // arbitrary photographic backdrop art (before/behind the hero
+                  // gradient), so a solid dark chip guarantees AA contrast
+                  // regardless of what's underneath.
+                  backgroundColor={colors.surface}
                   borderWidth={isTV ? 2 : 1}
                   borderColor={colors.border}
                   borderRadius={ss(isTV ? 8 : 4)}
@@ -424,6 +450,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
               ) : null}
               {data.genre ? (
                 <YStack
+                  backgroundColor={colors.surface}
                   borderWidth={isTV ? 2 : 1}
                   borderColor={colors.border}
                   borderRadius={ss(isTV ? 8 : 4)}

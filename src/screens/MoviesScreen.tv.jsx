@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { memo, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
 import { buildCategoryFilter, filterMovies } from "./moviesFilter.helpers";
 import { useMovies } from "../domain/hooks/useMovies";
@@ -165,6 +165,13 @@ export default function MoviesScreenTV({ navigation, route }) {
     if (pg) { const n = { ...pg, focus: 0, display: MOV_PAGE }; pageRef.current = n; setPage(n); }
   };
   const closePage = () => { setPage(null); pageRef.current = null; resetFilter(); };
+
+  // Stable click handler for the memoized CatButton: openCat is re-created every
+  // render, so a raw onClick would defeat the memo (every card would re-render on
+  // each D-pad move). This wrapper keeps a constant identity.
+  const openCatRef = useRef(openCat);
+  openCatRef.current = openCat;
+  const selectCat = useCallback((cat) => openCatRef.current(cat), []);
 
   // ── Detail ────────────────────────────────────────────────────────────────
   const openDetail = async (item) => {
@@ -523,7 +530,7 @@ export default function MoviesScreenTV({ navigation, route }) {
             {poster ? <img src={poster} alt="" /> : <div className="tvl-det-hero-thumb-ph"><Icon name="film" size={iconSizes.lg} color={colors.border} /></div>}
           </div>
           <div className="tvl-det-hero-info">
-            <div className="tvl-det-hero-title">{item.name}</div>
+            <div className="tvl-det-hero-title" role="heading" aria-level={1}>{item.name}</div>
             <div className="tvl-det-hero-meta">
               {year && <span className="tvl-det-tag">{year}</span>}
               {data.genre && <span className="tvl-det-tag">{data.genre.split(",")[0].trim()}</span>}
@@ -593,6 +600,7 @@ export default function MoviesScreenTV({ navigation, route }) {
             type="text"
             dir="auto"
             autoComplete="off"
+            aria-label="Search movies"
             placeholder="Search movies…"
             value={gridQuery}
             onChange={(e) => onGridQueryChange(e.target.value)}
@@ -658,7 +666,7 @@ export default function MoviesScreenTV({ navigation, route }) {
   if (tvUseShelves && !browseAll) {
     return (
       <div className="tvl-screen">
-        <div className="tvl-topbar"><span className="tvl-topbar-title">Movies</span></div>
+        <div className="tvl-topbar"><span className="tvl-topbar-title" role="heading" aria-level={1}>Movies</span></div>
         {shelves.length === 0
           ? (loaded
               ? <StatePanel mode="empty" {...emptyContentProps("movies")} />
@@ -686,7 +694,7 @@ export default function MoviesScreenTV({ navigation, route }) {
   // ── Category grid ─────────────────────────────────────────────────────────
   return (
     <div className="tvl-screen">
-      <div className="tvl-topbar"><span className="tvl-topbar-title">Movies</span></div>
+      <div className="tvl-topbar"><span className="tvl-topbar-title" role="heading" aria-level={1}>Movies</span></div>
       <div className="tvl-scroll">
         <div className={catZone === "search" && !navActive ? "tvl-cat-search tvl-cat-search--on" : "tvl-cat-search"}>
           <span className="tvl-cat-search-icon"><Icon name="search" size={iconSizes.md} color="currentColor" /></span>
@@ -696,6 +704,7 @@ export default function MoviesScreenTV({ navigation, route }) {
             type="text"
             dir="auto"
             autoComplete="off"
+            aria-label="Search categories"
             placeholder="Search categories…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -703,14 +712,14 @@ export default function MoviesScreenTV({ navigation, route }) {
         </div>
         <div className="tvl-cat-grid">
           {cats.map((cat, i) => (
-            <button
+            <CatButton
               key={cat.id}
-              ref={i === catFocus ? catElRef : null}
-              className={catZone === "grid" && i === catFocus ? "tvl-cat-card tvl-cat-card--on" : "tvl-cat-card"}
-              onClick={() => openCat(cat)}
-            >
-              {cat.name}
-            </button>
+              cat={cat}
+              name={cat.name}
+              focused={catZone === "grid" && i === catFocus}
+              innerRef={i === catFocus ? catElRef : null}
+              onSelect={selectCat}
+            />
           ))}
         </div>
         {q && cats.length <= 1 && (
@@ -720,4 +729,22 @@ export default function MoviesScreenTV({ navigation, route }) {
     </div>
   );
 }
+
+// Memoized category tile: `cat`, `name` and `onSelect` are stable, so only the
+// two buttons whose `focused` prop flips (or whose scroll `innerRef` moves) on a
+// D-pad step re-render — not the whole category grid. `innerRef` is a plain prop
+// (not React `ref`) so memo can compare it and re-render the button that gains/
+// loses the scroll-into-view target. Mirrors the ShelfCard/ChannelCard pattern.
+const CatButton = memo(function CatButton({ cat, name, focused, innerRef, onSelect }) {
+  return (
+    <button
+      ref={innerRef}
+      className={focused ? "tvl-cat-card tvl-cat-card--on" : "tvl-cat-card"}
+      aria-selected={focused}
+      onClick={() => onSelect(cat)}
+    >
+      {name}
+    </button>
+  );
+});
 

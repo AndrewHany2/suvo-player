@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { YStack, XStack, Text, Input, ScrollView, Spinner } from "../ui/primitives";
 import { useSearch } from "../context/AppContext";
 import { useMovies } from "../domain/hooks/useMovies";
@@ -37,14 +37,14 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg}>
       <XStack alignItems="center" gap={ss(14)} paddingHorizontal={ss(48)} paddingVertical={ss(18)} borderBottomWidth={1} borderBottomColor={colors.border}>
         <Button variant="ghost" size="sm" icon="back" onPress={onBack}>Back</Button>
-        <Text color={colors.text} fontSize={ss(22)} fontWeight="700">{name}</Text>
+        <Text color={colors.text} fontSize={ss(22)} fontWeight="700" role="heading" aria-level={2}>{name}</Text>
         {filtered != null && (
-          <YStack backgroundColor="rgba(255,255,255,0.07)" borderRadius={ss(20)} paddingHorizontal={ss(10)} paddingVertical={ss(4)}>
+          <YStack backgroundColor={colors.surface2} borderRadius={ss(20)} paddingHorizontal={ss(10)} paddingVertical={ss(4)}>
             <Text color={colors.muted} fontSize={ss(12)} fontWeight="600">{filtered.length.toLocaleString()}</Text>
           </YStack>
         )}
         <Input
-          flex={1} placeholder="Search titles..." placeholderTextColor={colors.muted}
+          flex={1} placeholder="Search titles..." placeholderTextColor={colors.muted} aria-label="Search titles"
           value={search} onChangeText={setSearch}
           backgroundColor={colors.surface2} color={colors.text} borderRadius={ss(10)}
           paddingHorizontal={ss(14)} paddingVertical={ss(10)} fontSize={ss(14)} borderWidth={1} borderColor={colors.border}
@@ -97,26 +97,68 @@ export default function MoviesScreen({ navigation }) {
   const [vAnchor, setVAnchor] = useState(0);
   const scrollRef = useRef(null);
   const listRef = useRef(null);
+  // Overlay wrappers — focus is moved into these when they open (see effects below).
+  const categoryRef = useRef(null);
+  const detailRef = useRef(null);
 
   const { focusedRow, focusedCol } = useTVNavigation({
     active: !categoryPage && !selectedMovie,
     rows: [{ items: discoverItems, onSelect: (i) => openCategory(discoverItems[i].id, discoverItems[i].label) }],
   });
 
+  // Cached shelf-window geometry. viewportH/listTop used to be read live off the
+  // DOM (scrollRef.clientHeight / listRef.offsetTop) during render — a layout
+  // read on every scroll frame. Instead measure them in a layout effect + a
+  // ResizeObserver and cache in state, so the render body touches no live layout.
+  const [shelfMetrics, setShelfMetrics] = useState(() => ({
+    viewportH: typeof window !== "undefined" ? window.innerHeight : 900,
+    listTop: 0,
+  }));
+  useLayoutEffect(() => {
+    const measure = () => {
+      const viewportH = scrollRef.current?.clientHeight || (typeof window !== "undefined" ? window.innerHeight : 900);
+      const listTop = listRef.current?.offsetTop || 0;
+      setShelfMetrics((m) => (m.viewportH === viewportH && m.listTop === listTop ? m : { viewportH, listTop }));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    if (scrollRef.current) ro.observe(scrollRef.current);
+    if (listRef.current) ro.observe(listRef.current);
+    return () => ro.disconnect();
+  }, [shelves.length, loading, error, activeUserId]);
+
   // Vertical shelf window: mount only shelves near the viewport, with spacer
   // divs above/below preserving scroll geometry. listTop is the Discover
-  // section's height (distance from scroll top to the first shelf), measured off
-  // the wrapper's offsetTop. Called unconditionally, before the early returns
-  // below, per Rules of Hooks.
+  // section's height (distance from scroll top to the first shelf). Called
+  // unconditionally, before the early returns below, per Rules of Hooks.
   const vcfg = getShelfConfig("web");
   const rowStride = ss(vcfg.rowHeight);
-  const viewportH = scrollRef.current?.clientHeight || (typeof window !== "undefined" ? window.innerHeight : 900);
-  const listTop = listRef.current?.offsetTop || 0;
+  const { viewportH, listTop } = shelfMetrics;
   const rowsVisible = Math.max(1, Math.ceil(viewportH / rowStride));
   const vWin = useShelfWindow({
     anchor: vAnchor, total: shelves.length,
     viewportCount: rowsVisible, overscan: vcfg.vOverscan, stride: rowStride,
   });
+
+  // Full-screen overlays (category grid, movie detail) are modal: move focus
+  // into the overlay when it opens and restore it to the previously-focused
+  // element on close, mirroring the Add-Channel sheet on LiveTV.
+  const categoryOpen = !!categoryPage;
+  useEffect(() => {
+    if (!categoryOpen || typeof document === "undefined") return;
+    const prev = document.activeElement;
+    categoryRef.current?.focus?.({ preventScroll: true });
+    return () => { if (prev && typeof prev.focus === "function") prev.focus({ preventScroll: true }); };
+  }, [categoryOpen]);
+
+  const detailOpen = !!selectedMovie;
+  useEffect(() => {
+    if (!detailOpen || typeof document === "undefined") return;
+    const prev = document.activeElement;
+    detailRef.current?.focus?.({ preventScroll: true });
+    return () => { if (prev && typeof prev.focus === "function") prev.focus({ preventScroll: true }); };
+  }, [detailOpen]);
 
   if (loading) {
     return <StatePanel mode="loading" title="Loading movies..." />;
@@ -154,9 +196,14 @@ export default function MoviesScreen({ navigation }) {
         onScroll={(e) => setVAnchor(Math.max(0, Math.floor((e.nativeEvent.contentOffset.y - listTop) / rowStride)))}
         flex={1} minHeight={0} contentContainerStyle={{ paddingBottom: ss(80) }}
       >
-        <YStack maxWidth={MAX_W} width="100%" alignSelf="center">
+        <YStack
+          maxWidth={MAX_W}
+          width="100%"
+          alignSelf="center"
+          {...(categoryPage || selectedMovie ? { inert: "", "aria-hidden": true } : {})}
+        >
         <YStack paddingHorizontal={ss(48)} paddingTop={ss(24)} paddingBottom={ss(4)}>
-          <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(22)} fontWeight="700" letterSpacing={-0.3} marginBottom={ss(12)}>Discover</Text>
+          <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(22)} fontWeight="700" letterSpacing={-0.3} marginBottom={ss(12)} role="heading" aria-level={2}>Discover</Text>
           <DiscoverPills
             items={discoverItems}
             focusedCol={focusedRow === 0 ? focusedCol : -1}
@@ -189,7 +236,13 @@ export default function MoviesScreen({ navigation }) {
         </YStack>
       </ScrollView>
       {categoryPage && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={20}>
+        <YStack
+          ref={categoryRef}
+          position="absolute" top={0} left={0} right={0} bottom={0} zIndex={20}
+          role="dialog" aria-modal="true" aria-label={categoryPage.name}
+          tabIndex={-1}
+          {...(selectedMovie ? { inert: "", "aria-hidden": true } : {})}
+        >
           <CategoryPage
             name={categoryPage.name}
             items={categoryPage.items}
@@ -202,7 +255,12 @@ export default function MoviesScreen({ navigation }) {
         </YStack>
       )}
       {selectedMovie && (
-        <YStack position="absolute" top={0} left={0} right={0} bottom={0} zIndex={20}>
+        <YStack
+          ref={detailRef}
+          position="absolute" top={0} left={0} right={0} bottom={0} zIndex={20}
+          role="dialog" aria-modal="true" aria-label={selectedMovie?.name || "Movie details"}
+          tabIndex={-1}
+        >
           <MovieDetail
             item={selectedMovie}
             onBack={clearSelectedMovie}

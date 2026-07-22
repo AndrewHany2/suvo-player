@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { YStack, XStack, Text } from "../ui/primitives";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
-import { colors, accentAlpha, fonts } from "../ui/tokens";
+import { colors, accentAlpha, fonts, radii } from "../ui/tokens";
 import { useApp, usePlayback, useSearch } from "../context/AppContext";
 import { useAppGate } from "./useAppGate";
 import { ss } from "../utils/scaleSize";
@@ -73,6 +73,17 @@ if (typeof document !== "undefined") {
       box-shadow: 0 0 0 ${ss(3)}px rgba(34,211,238,0.18) !important;
     }
     .suvo-topnav { position: sticky !important; top: 0 !important; z-index: 30 !important; }
+    /* Skip-to-content link (WCAG 2.4.1): the first focusable element, visually
+       hidden until it takes keyboard focus, then it pins to the top-left above
+       the sticky nav and jumps to #main-content. */
+    .skip-link {
+      position: absolute; top: ${ss(8)}px; left: ${ss(8)}px; z-index: 40;
+      transform: translateY(-200%); opacity: 0;
+      background: #6C5CE7; color: #FFFFFF; font-weight: 700;
+      padding: ${ss(10)}px ${ss(16)}px; border-radius: ${ss(8)}px;
+      text-decoration: none; font-size: ${ss(14)}px;
+    }
+    .skip-link:focus { transform: translateY(0); opacity: 1; outline: 2px solid #22D3EE; outline-offset: 2px; }
     /* Dim + shield behind showModal() dialogs (Accounts / Settings). The native
        ::backdrop is transparent by default; this restores the dark scrim the old
        hand-rolled backdrop div carried. Plain rgba — TV-safe (no gradient). */
@@ -357,6 +368,8 @@ function TopNav({
       backgroundColor="rgba(10, 14, 26,0.97)"
       borderBottomWidth={1}
       borderBottomColor={colors.border}
+      role="navigation"
+      aria-label="Primary"
       {...{ className: "suvo-topnav" }}
     >
       <XStack
@@ -398,8 +411,8 @@ function TopNav({
         <YStack
           alignItems="center"
           justifyContent="center"
-          minWidth={ss(44)}
-          minHeight={ss(44)}
+          minWidth={Math.max(44, ss(44))}
+          minHeight={Math.max(44, ss(44))}
           gap={S.capGap}
           cursor="pointer"
           onPress={onAccounts}
@@ -427,8 +440,8 @@ function TopNav({
         <YStack
           alignItems="center"
           justifyContent="center"
-          minWidth={ss(44)}
-          minHeight={ss(44)}
+          minWidth={Math.max(44, ss(44))}
+          minHeight={Math.max(44, ss(44))}
           gap={S.capGap}
           cursor="pointer"
           onPress={onSettings}
@@ -456,8 +469,8 @@ function TopNav({
         <YStack
           alignItems="center"
           justifyContent="center"
-          minWidth={ss(44)}
-          minHeight={ss(44)}
+          minWidth={Math.max(44, ss(44))}
+          minHeight={Math.max(44, ss(44))}
           gap={S.capGap}
           cursor="pointer"
           onPress={onSwitchProfile}
@@ -788,6 +801,9 @@ export default function AppNavigator() {
 
   return (
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
+      {/* Skip-to-content (WCAG 2.4.1): first focusable element in the DOM, kept
+          visually hidden until focused (see .skip-link), then jumps past the nav. */}
+      <a href="#main-content" className="skip-link">Skip to content</a>
       <TopNav
         active={activeTab}
         onSelect={(tab) => {
@@ -805,7 +821,7 @@ export default function AppNavigator() {
         idxSettings={IDX_SETTINGS}
         idxProfile={IDX_PROFILE}
       />
-      <YStack flex={1} minHeight={0} overflow="hidden" {...{ className: "tvl-content-host" }}>
+      <YStack flex={1} minHeight={0} overflow="hidden" role="main" nativeID="main-content" {...{ className: "tvl-content-host" }}>
         <ContentComponent
           navigation={webNavigation}
           route={{ params: routeParams[activeTab] || {} }}
@@ -829,7 +845,7 @@ export default function AppNavigator() {
             width: ss(600),
             maxWidth: "90vw",
             backgroundColor: colors.surface2,
-            borderRadius: ss(16),
+            borderRadius: radii.md,
             overflow: "hidden",
           }}
         >
@@ -880,7 +896,7 @@ export default function AppNavigator() {
             width: ss(560),
             maxWidth: "90vw",
             backgroundColor: colors.surface2,
-            borderRadius: ss(16),
+            borderRadius: radii.md,
             overflow: "hidden",
           }}
         >

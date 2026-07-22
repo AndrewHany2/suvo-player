@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo, memo, forwardRef, useImperativeHandle } from "react";
 import { StatusBar, Platform, TouchableOpacity, AppState, Modal, View, PanResponder } from "react-native";
 import { VLCPlayer } from "react-native-vlc-media-player";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
@@ -54,6 +54,39 @@ function loadBrightness() {
   }
 }
 
+/**
+ * Transient gesture indicator ("Vol 60%", "+10s", "2x", …). A memoized leaf that
+ * owns its own state and exposes an imperative show(kind, label) via ref, so a
+ * ~60 Hz PanResponder move updates only this node instead of re-rendering the
+ * whole ~800-line player. Auto-hides after 700ms.
+ */
+const GestureHint = memo(
+  forwardRef(function GestureHint(_props, ref) {
+    const [hint, setHint] = useState(null); // { kind, label }
+    const timerRef = useRef(null);
+    useImperativeHandle(
+      ref,
+      () => ({
+        show(kind, label) {
+          setHint({ kind, label });
+          clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(() => setHint(null), 700);
+        },
+      }),
+      [],
+    );
+    useEffect(() => () => clearTimeout(timerRef.current), []);
+    if (!hint) return null;
+    return (
+      <YStack position="absolute" top="45%" left={0} right={0} alignItems="center" pointerEvents="none" zIndex={50}>
+        <Text color={colors.text} fontSize={20} fontWeight="700" backgroundColor={playerScrim.hint} paddingHorizontal={18} paddingVertical={10} borderRadius={10}>
+          {hint.label}
+        </Text>
+      </YStack>
+    );
+  }),
+);
+
 export default function VlcPlayerScreen({ navigation }) {
   const { currentVideo, closeVideo, playVideo } = usePlayback();
   const { updateWatchProgress, addToWatchHistory, flushProgress } = useWatchHistory();
@@ -90,9 +123,10 @@ export default function VlcPlayerScreen({ navigation }) {
   const volumeRef = useRef(volume);
   volumeRef.current = volume;
 
-  // Transient gesture indicator ("Vol 60%", "+10s", "2x", …).
-  const [gestureHint, setGestureHint] = useState(null);
-  const gestureHintTimerRef = useRef(null);
+  // Transient gesture indicator ("Vol 60%", "+10s", "2x", …). Rendered by the
+  // memoized <GestureHint> leaf below; driven imperatively via this ref so a
+  // 60 Hz gesture move touches only that node, not the whole player.
+  const hintRef = useRef(null);
 
   // VOD seek bar: fraction (0..1) + seconds, from onProgress.
   const [progress, setProgress] = useState({ position: 0, currentTimeSec: 0, durationSec: 0 });
@@ -167,13 +201,11 @@ export default function VlcPlayerScreen({ navigation }) {
     if (showControls) setProgress(progressRef.current);
   }, [showControls]);
 
-  // Transient gesture indicator helper.
+  // Transient gesture indicator helper — routes to the memoized leaf so a move
+  // frame doesn't re-render the player. The leaf owns the 700ms auto-hide.
   const flashHint = useCallback((kind, label) => {
-    setGestureHint({ kind, label });
-    clearTimeout(gestureHintTimerRef.current);
-    gestureHintTimerRef.current = setTimeout(() => setGestureHint(null), 700);
+    hintRef.current?.show(kind, label);
   }, []);
-  useEffect(() => () => clearTimeout(gestureHintTimerRef.current), []);
 
   // Show the one-time gesture legend on first playback (persisted; shared flag
   // with the expo engine so it appears once across either native player).
@@ -511,7 +543,7 @@ export default function VlcPlayerScreen({ navigation }) {
 
   if (deviceCompromised) {
     return (
-      <YStack flex={1} backgroundColor="#000" alignItems="center" justifyContent="center" padding={24} gap={16}>
+      <YStack flex={1} backgroundColor={colors.bg} alignItems="center" justifyContent="center" padding={24} gap={16}>
         <Icon name="warning" size={40} color={colors.danger} />
         <Text color={colors.danger} fontSize={20} fontWeight="700" textAlign="center">Playback blocked</Text>
         <Text color={colors.muted} fontSize={14} textAlign="center">
@@ -585,14 +617,8 @@ export default function VlcPlayerScreen({ navigation }) {
         {...panResponder.panHandlers}
       />
 
-      {/* Transient gesture indicator */}
-      {gestureHint && (
-        <YStack position="absolute" top="45%" left={0} right={0} alignItems="center" pointerEvents="none" zIndex={50}>
-          <Text color={colors.text} fontSize={20} fontWeight="700" backgroundColor={playerScrim.hint} paddingHorizontal={18} paddingVertical={10} borderRadius={10}>
-            {gestureHint.label}
-          </Text>
-        </YStack>
-      )}
+      {/* Transient gesture indicator (imperative leaf; see flashHint) */}
+      <GestureHint ref={hintRef} />
 
       <ResumePrompt
         visible={needsResumeChoice}

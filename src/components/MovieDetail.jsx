@@ -1,5 +1,5 @@
 import { useState, useEffect, memo } from "react";
-import { Linking, View, Platform } from "react-native";
+import { Linking, View, Platform, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,6 +36,12 @@ export default function MovieDetail({ item, onBack, onPlay }) {
   const { isInMyList, addToMyList, removeFromMyList, activeUserId } = useApp();
   const { watchHistory } = useWatchHistory();
   const insets = useSafeAreaInsets();
+  // On wide/landscape surfaces (tablet, iPad Split View) the phone-scaled ss(420)
+  // hero grows tall enough to crowd out the metadata below the fold. Cap its
+  // height on wide screens so the hero reads as a banner rather than a full page.
+  const { width: windowWidth } = useWindowDimensions();
+  const isWide = windowWidth >= 900;
+  const heroHeight = isWide ? Math.min(ss(420), 360) : ss(420);
   const [info, setInfo] = useState(null);
 
   const { byId } = useDownloads();
@@ -98,7 +104,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
   return (
     <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
       {/* Hero */}
-      <YStack width="100%" height={ss(420)} position="relative">
+      <YStack width="100%" height={heroHeight} position="relative">
         {backdrop
           ? <Image source={backdrop} style={FILL} contentFit="cover" cachePolicy="memory-disk" transition={150} />
           : <View style={[FILL, { backgroundColor: colors.surface }]} />}
@@ -116,7 +122,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
               {year ? <YStack borderWidth={1} borderColor={colors.border} borderRadius={4} paddingHorizontal={8} paddingVertical={3}><Text color={colors.muted} fontSize={12}>{year}</Text></YStack> : null}
               {data.genre ? <YStack borderWidth={1} borderColor={colors.border} borderRadius={4} paddingHorizontal={8} paddingVertical={3}><Text color={colors.muted} fontSize={12}>{data.genre.split(",")[0].trim()}</Text></YStack> : null}
               {data.rating ? <XStack alignItems="center" gap={4}><Icon name="star" color={colors.rating} size={13} /><Text color={colors.rating} fontSize={13} fontWeight="600">{parseFloat(data.rating).toFixed(1)}</Text></XStack> : null}
-              {data.age ? <YStack borderWidth={1} borderColor={colors.accent} borderRadius={4} paddingHorizontal={8} paddingVertical={3}><Text color={colors.accent} fontSize={12}>{data.age}</Text></YStack> : null}
+              {data.age ? <YStack borderWidth={1} borderColor={colors.accent} borderRadius={4} paddingHorizontal={8} paddingVertical={3}><Text color={colors.accentText} fontSize={12}>{data.age}</Text></YStack> : null}
             </XStack>
           )}
 
