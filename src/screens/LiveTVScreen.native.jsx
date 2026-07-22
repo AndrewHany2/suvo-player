@@ -138,7 +138,7 @@ export default function LiveTVScreen({ navigation }) {
     playChannel,
   } = useLiveTV({ navigation });
   const { myList, isInMyList, addToMyList, removeFromMyList } = useApp();
-  const { setChannels, saveChannels } = useChannels();
+  const { setChannels } = useChannels();
   const epgStore = useEpgStore(fetchEpgTitle);
   const online = useIsOnline();
   const [refreshing, setRefreshing] = useState(false);
@@ -187,7 +187,6 @@ export default function LiveTVScreen({ navigation }) {
     setChannelsByCategory((prev) => ({ ...prev, Custom: [...(prev.Custom || []), ch] }));
     setCustomCats((prev) => prev.some((c) => c.id === "Custom") ? prev : [...prev, { id: "Custom", name: "Custom" }]);
     setChannels((prev) => [...prev, ch]);
-    saveChannels();
     setNewChannelName(""); setNewStreamUrl(""); setAddError(null); setShowAddChannel(false);
     showToast(`"${ch.name}" added to Custom.`);
   };

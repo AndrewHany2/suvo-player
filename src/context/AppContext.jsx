@@ -432,20 +432,16 @@ export const AppProvider = ({ children }) => {
   const playVideo  = useCallback((video) => setCurrentVideo(video), []);
   const closeVideo = useCallback(() => setCurrentVideo(null), []);
 
-  // ─── Storage helpers ───────────────────────────────────────────────────────
-  const loadSavedChannels = useCallback(async () => {
-    try {
-      const saved = await storage.getItem('iptv_channels');
-      if (saved) setChannels(JSON.parse(saved));
-    } catch (e) { console.error('loadSavedChannels:', e); }
-  }, []);
-
-  const saveChannels = useCallback(async () => {
-    try { await storage.setItem('iptv_channels', JSON.stringify(channels)); }
-    catch (e) { console.error('saveChannels:', e); }
-  }, [channels]);
-
   // ─── Effects ───────────────────────────────────────────────────────────────
+  // One-time cleanup of the legacy `iptv_channels` blob. It used to hold the
+  // entire accumulated browse catalog (tens of thousands of entries) in a single
+  // unbounded key, re-stringified ~1×/sec — which overflowed Android's
+  // SQLite-backed AsyncStorage (SQLITE_FULL) and starved every other write. The
+  // catalog is already cached per-category, quota-safe, in iptvApi.js; `channels`
+  // is now a pure in-memory aggregation repopulated by browse. Reclaim the space
+  // any already-affected install still has sitting on disk.
+  useEffect(() => { storage.removeItem('iptv_channels').catch(() => {}); }, []);
+
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       (async () => {
@@ -453,7 +449,6 @@ export const AppProvider = ({ children }) => {
           const savedProfiles = await storage.getItem('iptv_profiles');
           if (savedProfiles) setAppProfiles(JSON.parse(savedProfiles));
         } catch { /**/ }
-        loadSavedChannels();
       })();
       return;
     }
@@ -520,7 +515,6 @@ export const AppProvider = ({ children }) => {
         const user = accounts.find((u) => u.id === savedActiveId) || accounts[0];
         setActiveUserId(user.id);
         contentService.configure(user);
-        if (!applied) loadSavedChannels();
         applied = true;
       };
 
@@ -566,16 +560,6 @@ export const AppProvider = ({ children }) => {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeUserId]);
-
-  // Persist the accumulated channel list, debounced: web/native LiveTV appends
-  // categories incrementally, so without debouncing every append would
-  // re-stringify the whole growing array on the JS thread.
-  useEffect(() => {
-    if (channels.length === 0) return;
-    const t = setTimeout(() => { saveChannels(); }, 1000);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels]);
 
   // Library (watch history + favorites) load, keyed on (userKey, activeAccountId)
   // so the fetch target always matches the write target and it reloads when the
@@ -656,11 +640,12 @@ export const AppProvider = ({ children }) => {
 
   // Channels slice — channels grows incrementally during LiveTV browse (each
   // append recreates this value), so isolating it keeps that churn off every
-  // other consumer. setChannels is a stable state setter; save/loadSavedChannels
-  // are useCallback.
+  // other consumer. It is a pure in-memory aggregation (no disk persistence:
+  // iptvApi.js owns the per-category, quota-safe disk cache). setChannels is a
+  // stable state setter.
   const channelsValue = useMemo(
-    () => ({ channels, setChannels, saveChannels, loadSavedChannels }),
-    [channels, saveChannels, loadSavedChannels],
+    () => ({ channels, setChannels }),
+    [channels],
   );
 
   // Search slice — searchQuery changes on every keystroke; setSearchQuery is a

@@ -432,7 +432,7 @@ export default function LiveTVScreen({ navigation }) {
     () => (customCats.length ? [...baseCategories, ...customCats] : baseCategories),
     [customCats, baseCategories],
   );
-  const { setChannels, saveChannels } = useChannels();
+  const { setChannels } = useChannels();
   const { searchQuery, setSearchQuery } = useSearch();
   const [channelsByCategory, setChannelsByCategory] = useState({});
   const [epgCache, setEpgCache] = useState({});
@@ -548,7 +548,6 @@ export default function LiveTVScreen({ navigation }) {
         : [...prev, { id: "Custom", name: "Custom" }],
     );
     setChannels((prev) => [...prev, ch]);
-    saveChannels();
     setNewChannelName("");
     setNewStreamUrl("");
     // Keep the sheet open and confirm inline (react-native-web's Alert is a
