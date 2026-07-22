@@ -61,6 +61,12 @@ const Button = forwardRef(function Button(
     paddingVertical: ss(sz.padV),
     paddingHorizontal: ss(sz.padH),
     minHeight: sz.minH ? ss(sz.minH) : undefined,
+    // Icon-only buttons carry no text to give them width, so `sm` (which has no
+    // minH floor) can render ~37px wide on a small phone once ss() clamps down —
+    // under the 44px touch minimum. Pin an UNSCALED 44px floor on icon-only
+    // buttons so the visible target always clears the bar regardless of device
+    // scale; md/lg are already wider, so 44 is a harmless floor there.
+    minWidth: icon && children == null ? 44 : undefined,
     borderRadius: radii.sm,
     opacity: disabled ? 0.5 : 1,
     backgroundColor: v.backgroundColor,
@@ -80,9 +86,10 @@ const Button = forwardRef(function Button(
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       // `sm` can fall below the 44px touch minimum (minH:0). Expand the touch
-      // target vertically only — clears the minimum without changing layout or
-      // overlapping neighbors in horizontal toolbars.
-      hitSlop={sz.minH ? undefined : { top: 10, bottom: 10 }}
+      // target on all four sides so it clears the minimum in both axes; the
+      // unscaled minWidth floor above already widens the visible target, and the
+      // horizontal slop adds forgiveness without changing layout.
+      hitSlop={sz.minH ? undefined : { top: 10, bottom: 10, left: 10, right: 10 }}
       style={({ pressed }) => [base, pressed && !disabled ? { opacity: 0.8 } : null, style]}
       {...rest}
     >

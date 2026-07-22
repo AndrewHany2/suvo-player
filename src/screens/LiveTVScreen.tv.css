@@ -78,7 +78,9 @@
 
 .tvl-ch-name {
   padding: 6px 6px 4px;
-  font-size: 15px;
+  /* Channel name is primary content — body step (--a-fs-body 18px) for 10-foot
+     legibility, matching .tvl-card-title. */
+  font-size: 18px;
   font-weight: 600;
   color: var(--a-text);
   line-height: 1.3;

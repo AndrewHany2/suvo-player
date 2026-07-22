@@ -10,6 +10,7 @@ import MovieDetail from "../components/MovieDetail";
 import { colors, fonts } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
+import { LABELS } from "../ui/labels";
 import Icon from "../ui/Icon";
 import { getShelfConfig } from "../presentation/virtualization/shelfConfig.js";
 
@@ -124,10 +125,10 @@ export default function MoviesScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="film"
-        title="No account"
-        message='Tap "Accounts" to add your media service'
+        title={LABELS.noAccountTitle}
+        message={LABELS.noAccountBody}
         cta={() => navigation.navigate("Accounts")}
-        ctaLabel="Add Account"
+        ctaLabel={LABELS.noAccountCta}
       />
     );
   }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View } from "react-native";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, playerScrim } from "../ui/tokens";
+import { colors, fonts, playerScrim } from "../ui/tokens";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import { contentService } from "../domain/services/ContentService";
@@ -182,6 +182,7 @@ export default function MovieDetail({ item, onBack, onPlay }) {
         >
           <Text
             color={colors.text}
+            fontFamily={fonts.display}
             fontSize={titleSize}
             fontWeight="700"
             letterSpacing={isTV ? -1.5 : -1}

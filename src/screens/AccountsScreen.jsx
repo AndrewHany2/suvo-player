@@ -225,7 +225,7 @@ export default function AccountsScreen({ navigation }) {
         width="100%"
         maxWidth={ss(400)}
         backgroundColor={colors.surface2}
-        borderRadius={radii.lg}
+        borderRadius={radii.md}
         borderWidth={1}
         borderColor={colors.border}
         padding={ss(24)}

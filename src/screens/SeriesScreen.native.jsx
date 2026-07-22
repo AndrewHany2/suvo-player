@@ -4,6 +4,7 @@ import { YStack, XStack, Text } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
+import { LABELS } from "../ui/labels";
 import Icon from "../ui/Icon";
 import { useSeries } from "../domain/hooks/useSeries";
 import { useDownloads } from "../downloads/useDownloads.jsx";
@@ -130,10 +131,10 @@ export default function SeriesScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="tv"
-        title="No account"
-        message='Tap "Accounts" to add your media service'
+        title={LABELS.noAccountTitle}
+        message={LABELS.noAccountBody}
         cta={() => navigation.navigate("Accounts")}
-        ctaLabel="Add Account"
+        ctaLabel={LABELS.noAccountCta}
       />
     );
   }

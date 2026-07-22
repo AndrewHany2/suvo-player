@@ -37,7 +37,7 @@ function CategoryPage({ name, items, onBack, onPlay, onLoadMore, hasRemote, load
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg}>
       <XStack alignItems="center" gap={ss(14)} paddingHorizontal={ss(48)} paddingVertical={ss(18)} borderBottomWidth={1} borderBottomColor={colors.border}>
         <Button variant="ghost" size="sm" icon="back" onPress={onBack}>Back</Button>
-        <Text color={colors.text} fontSize={ss(22)} fontWeight="700" role="heading" aria-level={2}>{name}</Text>
+        <Text color={colors.text} fontFamily={fonts.display} fontSize={ss(22)} fontWeight="700" role="heading" aria-level={2}>{name}</Text>
         {filtered != null && (
           <YStack backgroundColor={colors.surface2} borderRadius={ss(20)} paddingHorizontal={ss(10)} paddingVertical={ss(4)}>
             <Text color={colors.muted} fontSize={ss(12)} fontWeight="600">{filtered.length.toLocaleString()}</Text>

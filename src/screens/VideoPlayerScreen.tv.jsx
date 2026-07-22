@@ -697,7 +697,13 @@ export default function VideoPlayerScreen() {
                     aria-label={`${item.name}${item.label ? `, ${item.label}` : ""}`}
                   >
                     <Icon name={item.icon} size={26} color="currentColor" />
-                    <span>{item.name}</span>
+                    {/* Label reveals on focus only. At rest the row is an
+                        icon-only rail (11 chips fit one line at 1280 instead of
+                        wrapping into a dense band over the video); the focused
+                        chip expands to name itself, and aria-label carries the
+                        name for screen readers at all times. Standard 10-foot
+                        transport-bar pattern — chrome recedes, content stays hero. */}
+                    {(focused || menuOpen) && <span>{item.name}</span>}
                   </div>
                   {menuOpen && item.items && (
                     <div style={TV.settingsMenu}>

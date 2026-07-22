@@ -47,14 +47,17 @@
 
 .tvl-acc-info { flex: 1; min-width: 0; }
 .tvl-acc-name {
-  font-size: 17px;
+  /* Account name is the row's primary label — body step (--a-fs-body 18px). */
+  font-size: 18px;
   font-weight: 600;
   color: var(--a-text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tvl-acc-host { font-size: 14px; color: var(--a-muted); margin-top: 3px; }
+/* Host line raised to the meta floor (--a-fs-meta 15px) — nothing readable on
+   TV should fall below it at 10 feet. */
+.tvl-acc-host { font-size: 15px; color: var(--a-muted); margin-top: 3px; }
 .tvl-acc-badge {
   display: inline-flex;
   align-items: center;
@@ -108,7 +111,8 @@
 
 .tvl-field { display: flex; flex-direction: column; gap: 6px; }
 .tvl-field label {
-  font-size: 14px;
+  /* Meta floor (--a-fs-meta 15px) — form labels stay legible at 10 feet. */
+  font-size: 15px;
   font-weight: 600;
   color: var(--a-muted);
 }

@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { YStack, XStack, Text, Input } from "../ui/primitives";
 import { colors, iconSizes, fonts, radii, zIndex } from "../ui/tokens";
 import StatePanel from "../ui/StatePanel";
+import { LABELS } from "../ui/labels";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { useApp, useChannels } from "../context/AppContext";
@@ -343,10 +344,10 @@ export default function LiveTVScreen({ navigation }) {
       <StatePanel
         mode="empty"
         icon="tv"
-        title="No account"
-        message='Tap "Accounts" to add your media service'
+        title={LABELS.noAccountTitle}
+        message={LABELS.noAccountBody}
         cta={() => navigation.navigate("Accounts")}
-        ctaLabel="Add Account"
+        ctaLabel={LABELS.noAccountCta}
       />
     );
   }

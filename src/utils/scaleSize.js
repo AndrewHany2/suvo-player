@@ -62,12 +62,22 @@ function computeScale() {
   // browser zoom that reduces innerWidth) miniaturised the whole horizontal
   // layout + text into illegibility. Scale off width alone and clamp to a sane
   // band so the UI stays legible on small viewports and never balloons on huge
-  // ones. The clamp is chosen so webOS TV is UNAFFECTED: its viewport is pinned
-  // to width=1280, giving 1280/1920 ≈ 0.667, which sits comfortably inside the
-  // band and is returned unchanged. No height guard: keeping one would re-introduce
-  // the height-shrink bug, and the clamp already covers legibility.
+  // ones.
+  //
+  // LEGIBILITY FLOOR. Because ss() scales EVERYTHING uniformly (fonts, padding,
+  // cards, gaps) by this one factor, the design's proportions hold at any factor
+  // and the flex layout (centered maxWidth, reflowing grids, ScrollView) absorbs
+  // a larger factor gracefully — so raising the floor only makes small windows
+  // more readable, it can't clip. The old 0.5 floor rendered 16px body text at
+  // ~8px on a half-screen ~960px window and ~10px in the DEFAULT 1200px Electron
+  // window — sub-legible for a lean-back player. Floor at 0.65 so nothing drops
+  // below ~65% of its authored size. webOS TV is UNAFFECTED: its viewport is
+  // pinned to width=1280 → 1280/1920 ≈ 0.667, which is above the floor and
+  // returned unchanged. (Full relief on very narrow windows still wants real
+  // reflow breakpoints; this floor is the proportional, no-regression step.)
+  // No height guard: keeping one would re-introduce the height-shrink bug.
   const base = width / DESIGN_WIDTH;
-  return Math.min(Math.max(base, 0.5), 1.5);
+  return Math.min(Math.max(base, 0.65), 1.5);
 }
 
 // Live scale. Seeded at module load and updated by the listeners/kicks wired

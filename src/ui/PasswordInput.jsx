@@ -10,18 +10,22 @@
  * object callers already spread onto a bare <Input>); all other props
  * (placeholder, value, onChangeText, disabled, …) forward straight through.
  */
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { Pressable } from "react-native";
 import { Stack, Input } from "./primitives";
 import Icon from "./Icon";
 import { colors, iconSizes } from "./tokens";
 import { ss } from "../utils/scaleSize";
 
-export default function PasswordInput({ inputStyle, ...props }) {
+// forwardRef so callers can focus the field programmatically (e.g. a login form
+// advancing focus from email → password on the keyboard's "next" key). The ref
+// lands on the underlying Input/TextInput.
+const PasswordInput = forwardRef(function PasswordInput({ inputStyle, ...props }, ref) {
   const [visible, setVisible] = useState(false);
   return (
     <Stack position="relative" width="100%">
       <Input
+        ref={ref}
         {...props}
         {...inputStyle}
         secureTextEntry={!visible}
@@ -46,4 +50,6 @@ export default function PasswordInput({ inputStyle, ...props }) {
       </Pressable>
     </Stack>
   );
-}
+});
+
+export default PasswordInput;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View, SectionList } from "react-native";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, playerScrim } from "../ui/tokens";
+import { colors, fonts, playerScrim } from "../ui/tokens";
 import { useApp, useWatchHistory } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import { contentService } from "../domain/services/ContentService";
@@ -234,6 +234,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
           </YStack>
           <Text
             color={colors.text}
+            fontFamily={fonts.display}
             fontSize={epTitleSize}
             fontWeight="700"
             flex={1}
@@ -409,6 +410,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
         >
           <Text
             color={colors.text}
+            fontFamily={fonts.display}
             fontSize={titleSize}
             fontWeight="700"
             letterSpacing={isTV ? -1.5 : -1}
@@ -535,7 +537,7 @@ export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
         >
           <iframe
             title={`${seriesName} trailer`}
-            src={`${trailer}?autoplay=1&rel=0&modestbranding=1`}
+            src={`${trailer}?autoplay=1&mute=1&rel=0&modestbranding=1`}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
             style={{

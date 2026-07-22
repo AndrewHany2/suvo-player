@@ -954,7 +954,9 @@ export default function AppNavigator() {
               width: ss(440),
               maxWidth: "90vw",
               backgroundColor: colors.surface2,
-              borderRadius: ss(16),
+              // Dialog radius = radii.md (14) — one radius across every dialog
+              // (Accounts/Settings <dialog>, the Accounts confirm), not 14/16/20.
+              borderRadius: radii.md,
               padding: `${ss(28)}px ${ss(28)}px ${ss(24)}px`,
               display: "flex",
               flexDirection: "column",

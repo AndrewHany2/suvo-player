@@ -364,7 +364,10 @@
 }
 .tvl-card-title {
   padding: 6px 4px 2px;
-  font-size: 15px;
+  /* Poster title is primary content, not metadata — sits on the body step
+     (--a-fs-body 18px) so it's comfortably readable at 10 feet, not the 15px
+     meta size it used to share with tags/hosts. */
+  font-size: 18px;
   font-weight: 600;
   color: var(--a-text);
   line-height: 1.4;

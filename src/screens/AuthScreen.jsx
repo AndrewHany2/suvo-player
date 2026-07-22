@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, Input, ScrollView } from "../ui/primitives";
@@ -28,6 +28,8 @@ export default function AuthScreen() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [retryable, setRetryable] = useState(false);
+  // Ref so the email field's on-screen "next" key can advance focus to password.
+  const passwordRef = useRef(null);
 
   // Login only. Public sign-up is disabled server-side (config.toml
   // enable_signup=false) because this is a reseller-provisioned product —
@@ -180,16 +182,28 @@ export default function AuthScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             disabled={loading}
+            // Native only: keyboard "next" advances to password. Web keeps its
+            // own Enter-to-submit keydown handler (above), so wiring these here
+            // too would double-fire submit.
+            {...(Platform.OS !== "web"
+              ? { returnKeyType: "next", onSubmitEditing: () => passwordRef.current?.focus?.(), blurOnSubmit: false }
+              : {})}
             {...inputStyle}
           />
 
           <Text {...labelStyle}>Password</Text>
           <PasswordInput
+            ref={passwordRef}
             placeholder="••••••••"
             placeholderTextColor={colors.muted}
             value={password}
             onChangeText={setPassword}
             disabled={loading}
+            // Native only: keyboard "go" submits the form directly (no keyboard
+            // dismiss + button hunt). Web uses the Enter keydown handler above.
+            {...(Platform.OS !== "web"
+              ? { returnKeyType: "go", onSubmitEditing: () => { if (!loading) handleSubmit(); } }
+              : {})}
             inputStyle={inputStyle}
           />
 

@@ -62,17 +62,17 @@ components:
   button-primary:
     backgroundColor: "{colors.aurora-indigo}"
     textColor: "{colors.ice-text}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.sm}"
     padding: "12px 24px"
   button-secondary:
     backgroundColor: "{colors.elevated-surface}"
     textColor: "{colors.ice-text}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.sm}"
     padding: "12px 24px"
   button-ghost:
     backgroundColor: "transparent"
     textColor: "{colors.ice-text}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.sm}"
     padding: "12px 16px"
   poster-card:
     backgroundColor: "{colors.slate-surface}"
@@ -173,7 +173,7 @@ The one interactive "elevation" is the **cyan focus glow**, present on focus/hov
 All components are hand-rolled, zero-dependency primitives (Tamagui was removed; it survives only in code comments). The feel across the set is **refined and cinematic**: understated, precise, low-ornament, with depth coming from the dark tonal surfaces and a single cyan focus cue rather than borders or shadows.
 
 ### Buttons
-- **Shape:** Gently rounded (14px / `rounded.md`). Icon-only and pill actions may go full pill (999px).
+- **Shape:** Gently rounded (8px / `rounded.sm`) — one step tighter than poster cards (10px / `rounded.card`) so actions read as crisp, not pillowy. Icon-only and pill actions may go full pill (999px).
 - **Primary:** Aurora Indigo fill (`#6C5CE7`), Ice text (`#EAF0FF`); the accent gradient (`#6C5CE7 → #22D3EE`) may carry the highest-emphasis action. Padding ~`12px 24px` (md); sm and lg step the padding down/up.
 - **Secondary:** Elevated Surface fill (`#1B2236`), Ice text, hairline border.
 - **Ghost:** Transparent, Ice text, no border; used for low-emphasis and inline actions.
