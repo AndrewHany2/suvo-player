@@ -73,7 +73,10 @@ jobs:
   android:
     needs: setup
     if: needs.setup.outputs.platform == 'all' || needs.setup.outputs.platform == 'android'
-    runs-on: ubuntu-latest
+    # Builds locally on a self-hosted Mac (see scripts/setup-android-runner.sh),
+    # bypassing the EAS queue. The Mac must be online with the runner service up.
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 45
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
@@ -84,16 +87,24 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Install EAS CLI
-        run: npm i -g eas-cli
-      - name: Build APK on EAS
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Restore release signing material
+        # keystore.properties + the .keystore are gitignored, so they aren't in
+        # the fresh CI checkout. Pull them from the runner's local signing folder
+        # (populated once by scripts/setup-android-runner.sh).
         run: |
-          eas build -p android --profile preview --non-interactive --wait --json > build.json
-          URL=$(node -e "const b=JSON.parse(require('fs').readFileSync('build.json','utf8'))[0]; const a=b.artifacts||{}; process.stdout.write(a.applicationArchiveUrl||a.buildUrl||'')")
-          if [[ -z "$URL" ]]; then echo "No artifact URL in EAS response"; cat build.json; exit 1; fi
-          curl -L -o "suvo-android-${{ needs.setup.outputs.version }}.apk" "$URL"
+          SIGNING_DIR="$HOME/.suvo-signing"
+          if [[ ! -f "$SIGNING_DIR/keystore.properties" || ! -f "$SIGNING_DIR/suvo-release.keystore" ]]; then
+            echo "Missing signing material in $SIGNING_DIR — run scripts/setup-android-runner.sh"; exit 1
+          fi
+          cp "$SIGNING_DIR/keystore.properties"   android/keystore.properties
+          cp "$SIGNING_DIR/suvo-release.keystore" android/app/suvo-release.keystore
+      - name: Build signed release APK
+        run: cd android && ./gradlew assembleRelease --no-daemon
+      - name: Rename APK
+        run: |
+          SRC=android/app/build/outputs/apk/release/app-release.apk
+          if [[ ! -f "$SRC" ]]; then echo "APK not produced at $SRC"; exit 1; fi
+          cp "$SRC" "suvo-android-${{ needs.setup.outputs.version }}.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: android
