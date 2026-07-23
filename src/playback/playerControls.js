@@ -9,7 +9,7 @@
  * glyph a control shows, and what it's called. Centralising those here is what
  * makes the controls feel like one product instead of four look-alikes.
  *
- * Design intent (see DESIGN.md — "consumer-simple, never power-user"):
+ * Design intent (see docs/DESIGN.md — "consumer-simple, never power-user"):
  *   - Primary row is ruthlessly small on every surface: Play · Subtitles ·
  *     Fullscreen · More. Everything else (speed, audio, fit, sleep, stats, PiP,
  *     quality, cast, picture) lives behind the single `more` (tune) affordance.

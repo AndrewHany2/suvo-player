@@ -4,7 +4,7 @@ import { AccessibilityInfo } from "react-native";
 /**
  * Honors the OS "Reduce Motion" (iOS) / "Remove animations" (Android) setting.
  *
- * PRODUCT.md / DESIGN.md mandate honoring reduced-motion across the whole app.
+ * docs/PRODUCT.md / docs/DESIGN.md mandate honoring reduced-motion across the whole app.
  * Web/TV already do this via a `prefers-reduced-motion` CSS media query; native
  * has no CSS layer, so components read this hook and gate their animations
  * (shimmer loops, image crossfades, Modal `animationType`) on it — mirroring the

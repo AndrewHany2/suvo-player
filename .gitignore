@@ -99,3 +99,6 @@ tv/packaging/samsung/signature1.xml
 dashboard/node_modules
 dashboard/dist
 dashboard/.env
+
+# Impeccable audit scratch (regenerated each critique run; design.json is kept)
+.impeccable/critique/
