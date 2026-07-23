@@ -830,6 +830,12 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
           style={{ flex: 1 }}
           contentFit={contentFit}
           nativeControls={false}
+          // Android: default SurfaceView composites the video in a separate
+          // window layer whose z-order vs. the RN tree is GPU/device-dependent.
+          // On real hardware it paints over our sibling control overlays (they
+          // never appear, though the emulator renders them fine). TextureView
+          // renders in-hierarchy so overlays composite + hit-test normally.
+          surfaceType="textureView"
           fullscreenOptions={{ enable: true }}
           allowsPictureInPicture
           onPictureInPictureStart={() => setIsPip(true)}
