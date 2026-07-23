@@ -85,7 +85,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          # No `cache: npm` here: this is the self-hosted Mac runner, whose
+          # ~/.npm persists between runs. The setup-node cache post-step would
+          # otherwise try to upload a ~2 GB cache tarball to GitHub every build
+          # and hang on "Sent 0 of … (0.0%)". Local cache keeps npm ci fast.
       - run: npm ci
       - name: Restore release signing material
         # keystore.properties + the .keystore are gitignored, so they aren't in
