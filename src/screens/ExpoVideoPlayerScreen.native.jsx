@@ -143,6 +143,10 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const controlsTimerRef = useRef(null);
+  // Mirror showControls in a ref so the memoized PanResponder can read the
+  // current value without being re-created every time controls toggle.
+  const showControlsRef = useRef(true);
+  showControlsRef.current = showControls;
 
   // Phase 2 UI state.
   const [showSubtitleSettings, setShowSubtitleSettings] = useState(false);
@@ -662,12 +666,29 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
 
   // ---- Group 3: touch gestures via PanResponder (no new deps) ----
   const brightnessRef = useRef(null); // lazy-loaded expo-brightness module
-  const gestureState = useRef({ mode: null, startX: 0, startY: 0, startVol: 1, startBright: null, startTime: 0, lastTapTime: 0, lastTapX: 0, longPressTimer: null, longPressed: false, layoutW: 0 });
+  const gestureState = useRef({ mode: null, startX: 0, startY: 0, startVol: 1, startBright: null, startTime: 0, lastTapTime: 0, lastTapX: 0, longPressTimer: null, longPressed: false, layoutW: 0, layoutH: 0 });
 
   if (brightnessRef.current === null) brightnessRef.current = loadBrightness() || false;
 
   const panResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
+    // On real Android devices, returning true unconditionally here causes the
+    // gesture View to swallow every touch before the overlaid control buttons
+    // (play/pause, close, seek bar, etc.) can receive it. The simulator is
+    // lenient about this but hardware is not.
+    // Fix: yield the touch (return false) when controls are visible and the
+    // touch originates inside a control bar zone (top or bottom), so those
+    // button onPress events fire normally. Swipes anywhere still work via
+    // onMoveShouldSetPanResponder. Taps on the video-center zone still claim
+    // the touch here to handle single/double-tap show-controls & seek.
+    onStartShouldSetPanResponder: (e) => {
+      if (!showControlsRef.current) return true; // controls hidden: claim all taps
+      const y = e.nativeEvent.locationY;
+      const h = gestureState.current.layoutH || 0;
+      const TOP_ZONE = 90;   // approx top bar height (status + padding + button row)
+      const BOT_ZONE = 130;  // approx bottom bar height (button row + seek bar)
+      if (y < TOP_ZONE || (h > 0 && y > h - BOT_ZONE)) return false;
+      return true;
+    },
     onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6,
     onPanResponderGrant: (e) => {
       const gs = gestureState.current;
@@ -807,7 +828,10 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
           touches; gesture indicators + custom controls replace them. */}
       <View
         style={{ position: "absolute", top: insets.top, left: 0, right: 0, bottom: insets.bottom }}
-        onLayout={(ev) => { gestureState.current.layoutW = ev.nativeEvent.layout.width; }}
+        onLayout={(ev) => {
+          gestureState.current.layoutW = ev.nativeEvent.layout.width;
+          gestureState.current.layoutH = ev.nativeEvent.layout.height;
+        }}
         {...panResponder.panHandlers}
       >
         <VideoView
