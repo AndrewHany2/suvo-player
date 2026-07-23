@@ -445,21 +445,30 @@ Deno.serve(async (req) => {
           type: line.value.type, nickname: line.value.nickname, host: line.value.host,
           username: line.value.username, password: line.value.password, url: line.value.url,
         };
-        const lineId = String(payload.lineId ?? "");
+        // Update is a delete-then-recreate, never an in-place UPDATE: resolve the line to
+        // replace (explicit id, else the oldest) and preserve its profile_id link.
+        let lineId = String(payload.lineId ?? "");
+        let profileId: string | null = null;
         if (lineId) {
-          const { error: uErr } = await admin.from("iptv_accounts").update(fields).eq("id", lineId).eq("user_id", target);
-          if (uErr) return json({ error: "SERVER_ERROR" }, 500);
+          const { data: row } = await admin
+            .from("iptv_accounts").select("profile_id").eq("id", lineId).eq("user_id", target).maybeSingle();
+          profileId = row?.profile_id ?? null;
         } else {
           const { data: existing } = await admin
-            .from("iptv_accounts").select("id").eq("user_id", target)
+            .from("iptv_accounts").select("id, profile_id").eq("user_id", target)
             .order("created_at", { ascending: true }).limit(1).maybeSingle();
-          if (existing?.id) {
-            await admin.from("iptv_accounts").update(fields).eq("id", existing.id).eq("user_id", target);
-          } else {
-            const { data: prof } = await admin.from("app_profiles").select("id").eq("user_id", target).limit(1).maybeSingle();
-            await admin.from("iptv_accounts").insert({ user_id: target, profile_id: prof?.id ?? null, ...fields });
-          }
+          if (existing?.id) { lineId = String(existing.id); profileId = existing.profile_id ?? null; }
         }
+        if (profileId === null) {
+          const { data: prof } = await admin.from("app_profiles").select("id").eq("user_id", target).limit(1).maybeSingle();
+          profileId = prof?.id ?? null;
+        }
+        if (lineId) {
+          const { error: delErr } = await admin.from("iptv_accounts").delete().eq("id", lineId).eq("user_id", target);
+          if (delErr) return json({ error: "SERVER_ERROR" }, 500);
+        }
+        const { error: insErr } = await admin.from("iptv_accounts").insert({ user_id: target, profile_id: profileId, ...fields });
+        if (insErr) return json({ error: "SERVER_ERROR" }, 500);
         await audit(admin, userId, "account.updateLine", target, { lineType: line.value.type }); // no creds
         return json({ ok: true });
       }

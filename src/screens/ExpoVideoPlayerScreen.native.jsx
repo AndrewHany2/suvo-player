@@ -144,7 +144,7 @@ const DEBUG_HUD = true;
  */
 const DebugHud = memo(
   forwardRef(function DebugHud({ showControls }, ref) {
-    const [c, setC] = useState({ rawTouch: 0, startAsk: 0, moveAsk: 0, grant: 0, move: 0, release: 0, tap: 0 });
+    const [c, setC] = useState({ rawTouch: 0, touchEnd: 0, startAsk: 0, moveAsk: 0, grant: 0, move: 0, release: 0, terminate: 0, tap: 0 });
     useImperativeHandle(ref, () => ({
       bump(key) { setC((p) => ({ ...p, [key]: (p[key] || 0) + 1 })); },
     }), []);
@@ -154,8 +154,8 @@ const DebugHud = memo(
         style={{ position: "absolute", top: 56, left: 8, backgroundColor: "#ff00ff", padding: 8, borderRadius: 6, zIndex: 9999, elevation: 9999 }}
       >
         <Text color="#fff" fontSize={13} fontWeight="700">HUD showControls={String(showControls)}</Text>
-        <Text color="#fff" fontSize={12}>rawTouch={c.rawTouch} startAsk={c.startAsk} moveAsk={c.moveAsk}</Text>
-        <Text color="#fff" fontSize={12}>grant={c.grant} move={c.move} rel={c.release} tap={c.tap}</Text>
+        <Text color="#fff" fontSize={12}>rawTouch={c.rawTouch} touchEnd={c.touchEnd} startAsk={c.startAsk} moveAsk={c.moveAsk}</Text>
+        <Text color="#fff" fontSize={12}>grant={c.grant} move={c.move} rel={c.release} term={c.terminate} tap={c.tap}</Text>
       </View>
     );
   }),
@@ -828,6 +828,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       gs.mode = null;
     },
     onPanResponderTerminate: () => {
+      if (DEBUG_HUD) hudRef.current?.bump("terminate");
       const gs = gestureState.current;
       clearTimeout(gs.longPressTimer);
       if (gs.longPressed) { try { if (playerRef.current) playerRef.current.playbackRate = speed; } catch {} }
@@ -875,6 +876,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
         style={{ position: "absolute", top: insets.top, left: 0, right: 0, bottom: insets.bottom }}
         onLayout={(ev) => { gestureState.current.layoutW = ev.nativeEvent.layout.width; }}
         onTouchStart={DEBUG_HUD ? () => hudRef.current?.bump("rawTouch") : undefined}
+        onTouchEnd={DEBUG_HUD ? () => hudRef.current?.bump("touchEnd") : undefined}
         {...panResponder.panHandlers}
       >
         <VideoView
