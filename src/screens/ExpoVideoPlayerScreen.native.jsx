@@ -122,45 +122,6 @@ const GestureHint = memo(
   }),
 );
 
-// TEMP DIAGNOSTIC — remove before release. `__DEV__` is false in release APKs,
-// and the controls-blackhole bug reproduces ONLY on real Android hardware (never
-// the emulator), so this HUD is gated behind a manual constant, not __DEV__.
-// It renders an always-visible magenta panel (ungated by showControls) as the
-// top sibling and live-counts every touch/responder callback, so one release
-// install decisively separates the surviving hypotheses:
-//   • Panel NOT visible over playing video  -> compositing (SurfaceView paints
-//     over RN siblings; textureView not applied/insufficient).
-//   • Panel visible but rawTouch/startAsk DON'T increment on tap -> native
-//     VideoView swallows touches before RN's responder system sees them.
-//   • Panel visible, counters increment, but showControls stays false / tap
-//     doesn't flip it -> state/render issue in the controls overlay.
-const DEBUG_HUD = true;
-
-/**
- * Imperative diagnostic overlay. Like GestureHint, it owns its own state and
- * exposes bump(key) via ref so the ~60Hz PanResponder callbacks re-render only
- * this leaf, not the whole player. `showControls` is a prop (parent re-renders
- * when it toggles) so the panel always shows the live value.
- */
-const DebugHud = memo(
-  forwardRef(function DebugHud({ showControls }, ref) {
-    const [c, setC] = useState({ rawTouch: 0, touchEnd: 0, startAsk: 0, moveAsk: 0, grant: 0, move: 0, release: 0, terminate: 0, tap: 0 });
-    useImperativeHandle(ref, () => ({
-      bump(key) { setC((p) => ({ ...p, [key]: (p[key] || 0) + 1 })); },
-    }), []);
-    return (
-      <View
-        pointerEvents="none"
-        style={{ position: "absolute", top: 56, left: 8, backgroundColor: "#ff00ff", padding: 8, borderRadius: 6, zIndex: 9999, elevation: 9999 }}
-      >
-        <Text color="#fff" fontSize={13} fontWeight="700">HUD showControls={String(showControls)}</Text>
-        <Text color="#fff" fontSize={12}>rawTouch={c.rawTouch} touchEnd={c.touchEnd} startAsk={c.startAsk} moveAsk={c.moveAsk}</Text>
-        <Text color="#fff" fontSize={12}>grant={c.grant} move={c.move} rel={c.release} term={c.terminate} tap={c.tap}</Text>
-      </View>
-    );
-  }),
-);
-
 export default function ExpoVideoPlayerScreen({ navigation }) {
   const { channels } = useChannels();
   const { currentVideo, closeVideo, playVideo } = usePlayback();
@@ -206,8 +167,6 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   // driven imperatively via this ref, so a 60 Hz gesture move touches only that
   // node rather than re-rendering the whole player.
   const hintRef = useRef(null);
-  // TEMP DIAGNOSTIC — drives the always-on <DebugHud> counters. Remove with DEBUG_HUD.
-  const hudRef = useRef(null);
   const [nowNext, setNowNext] = useState({ now: null, next: null });
 
   const isLive = currentVideo?.type === "live";
@@ -761,7 +720,6 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
         flashHint("seek", right ? `+${DOUBLE_TAP_SEEK}s` : `-${DOUBLE_TAP_SEEK}s`);
         gs.lastTapTime = 0;
       } else {
-        if (DEBUG_HUD) hudRef.current?.bump("tap");
         gs.lastTapTime = now;
         gs.lastTapX = endX;
         resetControlsTimer();
@@ -781,15 +739,8 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     // onMoveShouldSetPanResponder (>6px), so seek/volume/brightness are intact.
     // When controls are hidden there's nothing on top to yield to, so claim the
     // tap to drive tap-to-reveal, double-tap-seek, and long-press 2x.
-    onStartShouldSetPanResponder: () => {
-      if (DEBUG_HUD) hudRef.current?.bump("startAsk");
-      return !showControlsRef.current;
-    },
-    onMoveShouldSetPanResponder: (_e, g) => {
-      const yes = Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6;
-      if (DEBUG_HUD && yes) hudRef.current?.bump("moveAsk");
-      return yes;
-    },
+    onStartShouldSetPanResponder: () => !showControlsRef.current,
+    onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6,
     // Real-Android hardening: once we own the gesture, do NOT surrender it. The
     // ExoPlayer TextureView surface underneath can otherwise request termination
     // right after grant — killing the release and stranding the controls hidden.
@@ -797,7 +748,6 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     onPanResponderTerminationRequest: () => false,
     onShouldBlockNativeResponder: () => true,
     onPanResponderGrant: (e) => {
-      if (DEBUG_HUD) hudRef.current?.bump("grant");
       const gs = gestureState.current;
       const p = playerRef.current;
       gs.handled = false;
@@ -817,7 +767,6 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       }, LONG_PRESS_MS);
     },
     onPanResponderMove: (e, g) => {
-      if (DEBUG_HUD) hudRef.current?.bump("move");
       const gs = gestureState.current;
       const p = playerRef.current;
       if (gs.longPressed) return; // long-press active; ignore movement
@@ -856,7 +805,6 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     // the resolved end X (startX + dx) into the shared commit — commitGesture
     // recomputes seek from (endX - startX), so this preserves the same delta.
     onPanResponderRelease: (e, g) => {
-      if (DEBUG_HUD) hudRef.current?.bump("release");
       const gs = gestureState.current;
       commitGesture(gs.mode === "seek" ? gs.startX + g.dx : e.nativeEvent.pageX);
     },
@@ -865,7 +813,6 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     // still reveal and any pending seek/long-press resolves. Idempotent via
     // gs.handled, so if release already ran this is a no-op.
     onPanResponderTerminate: () => {
-      if (DEBUG_HUD) hudRef.current?.bump("terminate");
       const gs = gestureState.current;
       commitGesture(gs.startX);
     },
@@ -909,13 +856,11 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       <View
         style={{ position: "absolute", top: insets.top, left: 0, right: 0, bottom: insets.bottom }}
         onLayout={(ev) => { gestureState.current.layoutW = ev.nativeEvent.layout.width; }}
-        onTouchStart={DEBUG_HUD ? () => hudRef.current?.bump("rawTouch") : undefined}
         // Row-C backstop: if neither release nor terminate fires (ExoPlayer
         // swallowed ACTION_UP), the raw DOM-level touchEnd still reaches the
         // View. When controls are hidden, commit the gesture here so they can
         // reveal. Idempotent via gs.handled — a no-op if release/terminate ran.
         onTouchEnd={(e) => {
-          if (DEBUG_HUD) hudRef.current?.bump("touchEnd");
           if (!showControlsRef.current) commitGesture(e.nativeEvent.pageX);
         }}
         {...panResponder.panHandlers}
@@ -1304,10 +1249,6 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
           <Button variant="primary" size="md" onPress={dismissGestureHint}>Got it</Button>
         </YStack>
       )}
-
-      {/* TEMP DIAGNOSTIC — always-on HUD (top of z-order, not gated by
-          showControls). Remove with DEBUG_HUD. */}
-      {DEBUG_HUD && <DebugHud ref={hudRef} showControls={showControls} />}
     </YStack>
   );
 }
