@@ -72,21 +72,6 @@ function loadBrightness() {
   }
 }
 
-/**
- * expo-navigation-bar hides the Android system navigation bar (back / home /
- * recents) for an immersive fullscreen. Resolve it lazily/guarded: Android-only,
- * and a dev client that predates the native module simply keeps the bar rather
- * than crashing. Returns the module or null.
- */
-function loadNavigationBar() {
-  if (Platform.OS !== "android") return null;
-  try {
-    return require("expo-navigation-bar");
-  } catch {
-    return null;
-  }
-}
-
 import { formatDuration as formatTime } from "../utils/formatDuration";
 
 /**
@@ -424,16 +409,13 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     resetControlsTimer();
   }, [driver, resetControlsTimer]);
 
-  // Android immersive fullscreen: hide the system navigation bar (back / home /
-  // recents) while fullscreen, and restore it on exit or unmount. iOS/web are a
-  // no-op (module resolves to null off Android). setVisibilityAsync works under
-  // edge-to-edge; the hidden bar falls back to Android's swipe-to-reveal.
-  useEffect(() => {
-    const NavBar = loadNavigationBar();
-    if (!NavBar) return undefined;
-    NavBar.setVisibilityAsync(isFullscreen ? "hidden" : "visible").catch(() => {});
-    return () => { NavBar.setVisibilityAsync("visible").catch(() => {}); };
-  }, [isFullscreen]);
+  // NOTE: we deliberately do NOT hide the Android system navigation bar in
+  // fullscreen. Under SDK 54's mandatory edge-to-edge, expo-navigation-bar's
+  // setVisibilityAsync("hidden") still hides the back / home / recents buttons,
+  // but setBehaviorAsync("overlay-swipe") is a no-op — so a hidden bar has no
+  // reliable swipe-to-reveal, and the full-screen gesture surface eats transient
+  // reveal swipes. The result was the system buttons being unreachable during
+  // playback. Keeping the bar visible (even in landscape) is the correct trade.
 
   // Poll position/duration/buffered for the VOD seek bar. Paused while the user
   // is actively scrubbing so our preview doesn't fight the live value.
