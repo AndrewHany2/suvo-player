@@ -6,6 +6,7 @@ import { createHlsDriver, createHlsInstance } from "./drivers/hlsDriver";
 import { createMpegtsDriver } from "./drivers/mpegtsDriver";
 import { createLiveRouterDriver } from "./drivers/liveRouterDriver";
 import { useResilientPlayback } from "./useResilientPlayback";
+import { fatalCause, cleanRawError } from "./playerCopy";
 import { usePlayerPreferences } from "./usePlayerPreferences";
 import { useResumePosition } from "./useResumePosition";
 import { useSleepTimer } from "./useSleepTimer";
@@ -936,12 +937,10 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     nextEpisodeAvailableRef.current = !!nextEpisode;
   }, [handleNextEpisode, nextEpisode]);
 
-  const fatalMessage =
-    fatalReason === "GONE"
-      ? "This stream is no longer available."
-      : fatalReason === "AUTH_EXPIRED"
-        ? "Stream unavailable. The server rejected the connection."
-        : "The stream could not be played.";
+  // Friendly cause line (prefers the real HTTP status) + the raw engine/provider
+  // text shown as quiet detail underneath.
+  const fatalMessage = fatalCause({ reason: fatalReason, httpStatus: playback.errorStatus });
+  const fatalRaw = cleanRawError(playback.errorMessage);
 
   const pct =
     tvDuration > 0 ? Math.min((tvCurrentTime / tvDuration) * 100, 100) : 0;
@@ -966,6 +965,7 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     isFatal,
     fatalReason,
     fatalMessage,
+    fatalRaw,
     hasFrozenFrame,
     // Track / quality / speed / aspect state
     qualityLevels,

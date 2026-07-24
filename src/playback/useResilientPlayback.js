@@ -46,7 +46,9 @@ function resolveNetInfo() {
  * @property {string} status         - Machine state: idle|loading|playing|buffering|recovering|fatal.
  * @property {boolean} isRecovering  - True while reconnecting (show the badge).
  * @property {boolean} isFatal       - True when playback is dead (show error + Retry).
- * @property {string} [fatalReason]  - Reason from GO_FATAL ('GONE'|'AUTH_EXPIRED'), if any.
+ * @property {string} [fatalReason]  - Reason from GO_FATAL ('GONE'|'AUTH_EXPIRED'|'UNPLAYABLE'), if any.
+ * @property {string} [errorMessage] - Raw engine/provider error text, if any (for the fatal panel).
+ * @property {number} [errorStatus]  - HTTP status parsed from the error, if any (e.g. 406).
  * @property {string} qualityCap     - Current quality cap value.
  * @property {() => void} retry      - Manual retry: clears fatal and reloads from saved position/edge.
  * @property {number} currentTime    - Last known playback position (seconds).
@@ -318,6 +320,11 @@ export function useResilientPlayback({
     status: machine.state,
     isRecovering: machine.state === 'recovering' || machine.state === 'buffering',
     isFatal: machine.state === 'fatal',
+    // Fatal failure detail for the UI (classified reason + the raw
+    // engine/provider message + parsed HTTP status). Null until GO_FATAL.
+    fatalReason: machine.fatalError?.reason,
+    errorMessage: machine.fatalError?.message,
+    errorStatus: machine.fatalError?.httpStatus,
     qualityCap: machine.qualityCap,
     retry,
     currentTime: machine.savedTime,

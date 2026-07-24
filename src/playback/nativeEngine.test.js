@@ -1,7 +1,7 @@
 // @ts-check
 import test from 'node:test';
 import assert from 'node:assert';
-import { containerExtension, needsVlcEngine, UNSUPPORTED_IOS_CONTAINERS } from './nativeEngine.js';
+import { containerExtension, needsVlcEngine, VLC_CONTAINERS } from './nativeEngine.js';
 
 test('containerExtension: basic and edge cases', () => {
   assert.equal(containerExtension('http://h/series/1/2/401998.mkv'), 'mkv');
@@ -15,21 +15,24 @@ test('containerExtension: basic and edge cases', () => {
   assert.equal(containerExtension(null), '');
 });
 
-test('needsVlcEngine: iOS unsupported containers only', () => {
+test('needsVlcEngine: VLC containers route on iOS AND Android', () => {
   for (const ext of ['mkv', 'avi', 'flv', 'wmv', 'webm']) {
     assert.equal(needsVlcEngine(`http://h/x.${ext}`, 'ios'), true, `${ext} on ios`);
+    assert.equal(needsVlcEngine(`http://h/x.${ext}`, 'android'), true, `${ext} on android`);
   }
-  assert.equal(needsVlcEngine('http://h/x.mp4', 'ios'), false);
-  assert.equal(needsVlcEngine('http://h/x.m3u8', 'ios'), false);
-  assert.equal(needsVlcEngine('http://h/x.mov', 'ios'), false);
+  for (const p of ['ios', 'android']) {
+    assert.equal(needsVlcEngine('http://h/x.mp4', p), false, `mp4 on ${p}`);
+    assert.equal(needsVlcEngine('http://h/x.m3u8', p), false, `m3u8 on ${p}`);
+    assert.equal(needsVlcEngine('http://h/x.mov', p), false, `mov on ${p}`);
+  }
 });
 
-test('needsVlcEngine: never routes off iOS', () => {
-  assert.equal(needsVlcEngine('http://h/x.mkv', 'android'), false);
+test('needsVlcEngine: never routes on web, routes local files on native', () => {
   assert.equal(needsVlcEngine('http://h/x.mkv', 'web'), false);
   assert.equal(needsVlcEngine('file:///x.mkv', 'ios'), true); // local mkv still routes on ios
+  assert.equal(needsVlcEngine('file:///x.mkv', 'android'), true); // and on android
 });
 
-test('UNSUPPORTED_IOS_CONTAINERS is the agreed set', () => {
-  assert.deepEqual([...UNSUPPORTED_IOS_CONTAINERS].sort(), ['avi', 'flv', 'mkv', 'webm', 'wmv']);
+test('VLC_CONTAINERS is the agreed set', () => {
+  assert.deepEqual([...VLC_CONTAINERS].sort(), ['avi', 'flv', 'mkv', 'webm', 'wmv']);
 });

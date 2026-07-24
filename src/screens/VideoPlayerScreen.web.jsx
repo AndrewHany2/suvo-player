@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { usePlayer, SPEEDS, ASPECT_RATIOS } from "../playback/usePlayer";
 import { ADJUST_MIN, ADJUST_MAX, ADJUST_STEP } from "../playback/videoAdjust";
 import { SLEEP_PRESETS, formatRemaining } from "../playback/useSleepTimer";
-import { FATAL_TITLE, FATAL_HEADLINE } from "../playback/playerCopy";
+import { FATAL_TITLE } from "../playback/playerCopy";
 import { controlIcon, controlLabel } from "../playback/playerControls";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import ResumePrompt from "../playback/components/ResumePrompt";
@@ -349,9 +349,10 @@ const S = {
 };
 
 // Fatal-error copy is shared across all surfaces (see ../playback/playerCopy):
-// the overlay never headlines the raw `fatalMessage`; the primary line is always
-// the calm, benefit-first FATAL_HEADLINE, and the raw message rides underneath as
-// secondary diagnostic detail for anyone who wants it.
+// the panel headlines FATAL_TITLE with a friendly, cause-specific line
+// (`fatalMessage`, e.g. "The server refused this stream (HTTP 406)."), and the
+// raw engine/provider text (`fatalRaw`) rides underneath as quiet diagnostic
+// detail. A Reload button retries in place.
 
 export default function VideoPlayerScreen() {
   const player = usePlayer({ isTV: false });
@@ -366,6 +367,7 @@ export default function VideoPlayerScreen() {
     isRecovering,
     isFatal,
     fatalMessage,
+    fatalRaw,
     hasFrozenFrame,
     qualityLevels,
     selectedLevel,
@@ -844,12 +846,13 @@ export default function VideoPlayerScreen() {
             <StatePanel
               mode="error"
               title={FATAL_TITLE}
-              message={FATAL_HEADLINE}
+              message={fatalMessage}
               onRetry={handleRetry}
+              retryLabel="Reload"
             />
-            {/* Raw engine/provider reason, kept as quiet secondary detail so it
+            {/* Raw engine/provider text, kept as quiet secondary detail so it
                 informs without alarming — steel (muted), not the danger tone. */}
-            {fatalMessage ? (
+            {fatalRaw ? (
               <div
                 style={{
                   textAlign: "center",
@@ -859,7 +862,7 @@ export default function VideoPlayerScreen() {
                   padding: "0 24px",
                 }}
               >
-                {fatalMessage}
+                {fatalRaw}
               </div>
             ) : null}
             <div style={{ display: "flex", justifyContent: "center", paddingTop: 16, paddingBottom: 24 }}>

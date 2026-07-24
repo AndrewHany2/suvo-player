@@ -146,6 +146,55 @@ describe("GONE -> fatal", () => {
   });
 });
 
+describe("fatal error carries the real error detail", () => {
+  test("GO_FATAL + state.fatalError include the raw message and http status", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    const raw = { httpStatus: 404, original: { message: "Response code: 404" } };
+    const r = reduce(s, { type: "ERROR", raw });
+    const fatal = effect(r.effects, "GO_FATAL");
+    assert.equal(fatal.reason, "GONE");
+    assert.equal(fatal.httpStatus, 404);
+    assert.equal(fatal.message, "Response code: 404");
+    assert.equal(r.state.state, "fatal");
+    assert.deepEqual(r.state.fatalError, {
+      reason: "GONE",
+      message: "Response code: 404",
+      httpStatus: 404,
+    });
+  });
+
+  test("UNPLAYABLE after the ladder still carries the last error's detail (e.g. HTTP 406)", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    let fatal = null;
+    for (let i = 0; i < MAX_LOAD_ATTEMPTS + 5 && !fatal; i += 1) {
+      const step = reduce(s, {
+        type: "ERROR",
+        raw: { httpStatus: 406, message: "Source error Response code: 406" },
+      });
+      s = step.state;
+      fatal = effect(step.effects, "GO_FATAL");
+      if (fatal) break;
+      s = reduce(s, { type: "RETRY" }).state;
+    }
+    assert.ok(fatal, "should go fatal");
+    assert.equal(fatal.reason, "UNPLAYABLE");
+    assert.equal(fatal.httpStatus, 406);
+    assert.equal(s.fatalError.message, "Source error Response code: 406");
+  });
+
+  test("RESET and LOAD clear fatalError", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    s = reduce(s, { type: "ERROR", raw: { httpStatus: 404 } }).state;
+    assert.equal(s.state, "fatal");
+    assert.ok(s.fatalError);
+    assert.equal(reduce(s, { type: "RESET" }).state.fatalError, null);
+    assert.equal(reduce(s, { type: "LOAD" }).state.fatalError, null);
+  });
+});
+
 describe("bounded retry ladder -> fatal", () => {
   // A source that fails identically on every attempt and never once reaches
   // playing (a dead 404 link, an undecodable codec on the native <video> path

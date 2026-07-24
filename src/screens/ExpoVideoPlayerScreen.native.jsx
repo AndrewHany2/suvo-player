@@ -14,7 +14,7 @@ import { contentService } from "../domain/services/ContentService";
 import { reportFatalPlayback } from "../services/observability";
 import storage from "../utils/storage";
 import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
-import { FATAL_TITLE, FATAL_HEADLINE, fatalDetail } from "../playback/playerCopy";
+import { FATAL_TITLE, fatalCause, cleanRawError } from "../playback/playerCopy";
 import { controlIcon, controlLabel, fitLabel } from "../playback/playerControls";
 import { findNextEpisode, buildNextEpisodeVideo, shouldAutoAdvanceOnEnd } from "../playback/episodeNav";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
@@ -918,14 +918,17 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
           <StatePanel
             mode="error"
             title={FATAL_TITLE}
-            message={FATAL_HEADLINE}
+            message={fatalCause({ reason: playback.fatalReason, httpStatus: playback.errorStatus })}
             onRetry={() => playback.retry()}
+            retryLabel="Reload"
           />
-          {/* Raw reason as quiet secondary detail — informs without alarming,
-              matching the web surface so the failure tone is identical. */}
-          <Text color={colors.textDim} fontFamily={fonts.body} fontSize={12} textAlign="center" paddingHorizontal={24}>
-            {fatalDetail(playback.fatalReason)}
-          </Text>
+          {/* Raw engine/provider text as quiet secondary detail — informs without
+              alarming, matching the web surface so the failure tone is identical. */}
+          {cleanRawError(playback.errorMessage) ? (
+            <Text color={colors.textDim} fontFamily={fonts.body} fontSize={12} textAlign="center" paddingHorizontal={24}>
+              {cleanRawError(playback.errorMessage)}
+            </Text>
+          ) : null}
           <XStack justifyContent="center" paddingTop={16} paddingBottom={32}>
             <Button variant="secondary" size="md" icon="close" onPress={handleClose}>Close</Button>
           </XStack>

@@ -45,11 +45,24 @@ export const BUFFERING_DOWNGRADE_THRESHOLD = 3;
  * the native <video> path whose error carries no HTTP status (so it can't be
  * classified GONE). Without this cap those loop "Reconnecting…" forever.
  *
- * With the default backoff ladder (~1s,2s,4s,8s,15s,15s) 6 retries spans ~45s
- * of genuine attempts — enough to ride out a transient blip, then surface an
- * actionable error with a Retry button.
+ * Set to 1: a single fast retry (~0.35s via RETRY_BACKOFF), then surface. Most
+ * failures here are a flaky provider handing out a bad backend node on the 302
+ * redirect (HTTP 406 / hang); one re-request usually lands on a good node, so a
+ * single quick retry heals the common blip. If it fails again we stop and show
+ * the real error + a Reload button in ~1s rather than spinning — the user asked
+ * to see the error fast and retry manually. (This budget is shared with
+ * live-stall recovery; offline drops are handled separately via OFFLINE/ONLINE
+ * and don't count against it.)
  */
-export const MAX_LOAD_ATTEMPTS = 6;
+export const MAX_LOAD_ATTEMPTS = 1;
+
+/**
+ * Backoff profile for playback retries. Deliberately tight (see MAX_LOAD_ATTEMPTS
+ * rationale): a quick re-request is the recovery, so short delays get the user
+ * back to playing sooner and reach the fatal/Retry surface fast when they won't.
+ * @type {{base:number, factor:number, max:number}}
+ */
+export const RETRY_BACKOFF = { base: 350, factor: 2, max: 1500 };
 
 /**
  * Minimum currentTime advance (seconds) that counts as real playback progress
@@ -74,6 +87,10 @@ export const PROGRESS_EPSILON = 0.05;
  * @property {string} qualityCap            - Current quality cap (see QUALITY_CAPS).
  * @property {string|undefined} manualCap   - User-pinned ceiling for quality.
  * @property {boolean} userPaused           - User explicitly paused.
+ * @property {{reason:string, message?:string, httpStatus?:number}|null} [fatalError]
+ *   - Details of the failure that drove the machine fatal, for the UI to show
+ *     (reason + the raw engine/provider message + parsed HTTP status). Null
+ *     until a GO_FATAL; reset by RESET/LOAD.
  */
 
 /**
@@ -99,6 +116,7 @@ export function initialState(opts = {}) {
     qualityCap,
     manualCap,
     userPaused: false,
+    fatalError: null,
   };
 }
 
@@ -119,7 +137,7 @@ function reloadEffect(s) {
  * @returns {{type:'SCHEDULE_RETRY', delayMs:number}}
  */
 function scheduleRetryEffect(s) {
-  return { type: 'SCHEDULE_RETRY', delayMs: nextDelay(s.attemptCount) };
+  return { type: 'SCHEDULE_RETRY', delayMs: nextDelay(s.attemptCount, RETRY_BACKOFF) };
 }
 
 /**
@@ -134,15 +152,22 @@ function retriesExhausted(s) {
 }
 
 /**
- * Transition to the fatal state, emitting GO_FATAL for the host.
+ * Transition to the fatal state, emitting GO_FATAL for the host and stashing the
+ * failure details on state so the UI can show the real error + a Reload button.
  * @param {MachineState} s
  * @param {string} reason
  * @param {Array<Object>} effects
+ * @param {{message?: string, httpStatus?: number}} [info] - Raw error detail.
  * @returns {{state: MachineState, effects: Array<Object>}}
  */
-function goFatal(s, reason, effects) {
-  effects.push({ type: 'GO_FATAL', reason });
-  return { state: { ...s, state: 'fatal' }, effects };
+function goFatal(s, reason, effects, info) {
+  const message = info?.message;
+  const httpStatus = info?.httpStatus;
+  effects.push({ type: 'GO_FATAL', reason, message, httpStatus });
+  return {
+    state: { ...s, state: 'fatal', fatalError: { reason, message, httpStatus } },
+    effects,
+  };
 }
 
 /**
@@ -160,7 +185,7 @@ export function reduce(state, event) {
   switch (event.type) {
     case 'LOAD':
       return {
-        state: { ...s, state: 'loading', userPaused: false },
+        state: { ...s, state: 'loading', userPaused: false, fatalError: null },
         effects,
       };
 
@@ -339,17 +364,19 @@ function offlineTransition(s, effects) {
 /**
  * Handle ERROR by classifying the raw error and choosing a response.
  * @param {MachineState} s
- * @param {Object} raw
+ * @param {{original?: {message?: string}, message?: string, httpStatus?: number}} raw
  * @param {Array<Object>} effects
  * @returns {{state: MachineState, effects: Array<Object>}}
  */
 function errorTransition(s, raw, effects) {
   const cls = classifyError(raw);
+  // Preserve the real engine/provider error so the fatal UI can show it (the
+  // raw message + parsed HTTP status), rather than only a generic line.
+  const info = { message: raw?.original?.message ?? raw?.message, httpStatus: raw?.httpStatus };
 
   switch (cls) {
     case ErrorClass.GONE:
-      effects.push({ type: 'GO_FATAL', reason: 'GONE' });
-      return { state: { ...s, state: 'fatal' }, effects };
+      return goFatal(s, 'GONE', effects, info);
 
     case ErrorClass.OFFLINE:
       return offlineTransition(s, effects);
@@ -357,8 +384,7 @@ function errorTransition(s, raw, effects) {
     case ErrorClass.AUTH_EXPIRED: {
       if (s.credentialsRefreshed) {
         // Already refreshed once and still failing -> fatal.
-        effects.push({ type: 'GO_FATAL', reason: 'AUTH_EXPIRED' });
-        return { state: { ...s, state: 'fatal' }, effects };
+        return goFatal(s, 'AUTH_EXPIRED', effects, info);
       }
       // First auth failure: refresh credentials, then retry.
       effects.push({ type: 'SHOW_RECONNECTING' });
@@ -369,7 +395,7 @@ function errorTransition(s, raw, effects) {
     }
 
     case ErrorClass.STALL: {
-      if (retriesExhausted(s)) return goFatal(s, 'UNPLAYABLE', effects);
+      if (retriesExhausted(s)) return goFatal(s, 'UNPLAYABLE', effects, info);
       // Treat like a stall episode (counts toward downgrade).
       const streak = s.bufferingStreak + 1;
       let next = { ...s, state: 'recovering', bufferingStreak: streak };
@@ -391,7 +417,7 @@ function errorTransition(s, raw, effects) {
       // A 404 / undecodable source on the native <video> path arrives here with
       // no HTTP status (it can't be classified GONE); bound the ladder so it
       // surfaces a fatal error instead of reconnecting forever.
-      if (retriesExhausted(s)) return goFatal(s, 'UNPLAYABLE', effects);
+      if (retriesExhausted(s)) return goFatal(s, 'UNPLAYABLE', effects, info);
       const next = { ...s, state: 'recovering' };
       effects.push({ type: 'SHOW_RECONNECTING' });
       effects.push(scheduleRetryEffect(next));

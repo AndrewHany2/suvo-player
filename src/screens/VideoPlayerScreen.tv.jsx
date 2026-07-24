@@ -3,7 +3,7 @@ import { usePlayer, SPEEDS, ASPECT_RATIOS } from "../playback/usePlayer";
 import { ADJUST_LEVELS } from "../playback/videoAdjust";
 import { INITIAL_TV_NAV, tvNavReduce } from "../playback/tvSettingsNav";
 import { SLEEP_PRESETS, formatRemaining } from "../playback/useSleepTimer";
-import { FATAL_TITLE, FATAL_HEADLINE } from "../playback/playerCopy";
+import { FATAL_TITLE } from "../playback/playerCopy";
 import { controlIcon, controlLabel } from "../playback/playerControls";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import StatsOverlay from "../playback/components/StatsOverlay";
@@ -205,6 +205,7 @@ export default function VideoPlayerScreen() {
     isRecovering,
     isFatal,
     fatalMessage,
+    fatalRaw,
     qualityLevels,
     selectedLevel,
     playbackRate,
@@ -766,14 +767,15 @@ export default function VideoPlayerScreen() {
           <StatePanel
             mode="error"
             title={FATAL_TITLE}
-            message={FATAL_HEADLINE}
+            message={fatalMessage}
             onRetry={handleRetry}
+            retryLabel="Reload"
             retryFocused={fatalFocus === 0}
           />
-          {/* Raw engine reason as quiet secondary detail — matches web/native. */}
-          {fatalMessage ? (
+          {/* Raw engine/provider text as quiet secondary detail — matches web/native. */}
+          {fatalRaw ? (
             <div style={{ textAlign: "center", color: colors.muted, fontFamily: fonts.body, fontSize: 16, padding: "0 48px" }}>
-              {fatalMessage}
+              {fatalRaw}
             </div>
           ) : null}
           <div style={{ display: "flex", justifyContent: "center", paddingTop: 16, paddingBottom: 48 }}>
