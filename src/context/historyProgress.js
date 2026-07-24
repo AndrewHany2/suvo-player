@@ -138,10 +138,18 @@ export function applyProgress(history, ev, now) {
     };
     return { history: [entry, ...history].slice(0, MAX_HISTORY), entry };
   }
+  // A near-zero progress write carries no resume info — it's what a player
+  // reports when it hung on load and never produced a frame. Don't let it
+  // clobber a meaningful saved position (e.g. a resume that hung before
+  // playing would otherwise be reset to 0). Keep the prior position/duration
+  // but still bump watchedAt so it counts as recently opened.
+  const prev = history[idx];
+  const incomingTime = Number(ev.currentTime) || 0;
+  const keepPrev = incomingTime <= 0 && (Number(prev.currentTime) || 0) > 0;
   const entry = {
-    ...history[idx],
-    currentTime: ev.currentTime,
-    duration: ev.duration,
+    ...prev,
+    currentTime: keepPrev ? prev.currentTime : ev.currentTime,
+    duration: keepPrev ? prev.duration : ev.duration,
     watchedAt: now,
   };
   const next = history.map((h, i) => (i === idx ? entry : h));

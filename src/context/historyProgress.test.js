@@ -128,6 +128,27 @@ test("applyProgress: UPSERT — creates an entry when no row matches (bug A fix)
   assert.ok(entry.id);
 });
 
+test("applyProgress: a zero-position write does NOT clobber a saved resume (hung-on-load fix)", () => {
+  const start = [
+    { type: "movies", streamId: 7, id: "movies_7_1", currentTime: 300, duration: 3600, watchedAt: "2026-01-01T00:00:00Z" },
+  ];
+  // Simulates handleClose after a resume that hung on load: player.currentTime ≈ 0.
+  const { history, entry } = applyProgress(start, { streamId: 7, type: "movie", currentTime: 0, duration: 0 }, "2026-02-01T00:00:00Z");
+  assert.equal(entry.currentTime, 300); // resume position preserved
+  assert.equal(entry.duration, 3600); // duration not zeroed
+  assert.equal(entry.watchedAt, "2026-02-01T00:00:00Z"); // still bumped to recently opened
+  assert.equal(history[0], entry);
+});
+
+test("applyProgress: a legit zero write DOES apply when no prior position exists", () => {
+  const start = [
+    { type: "movies", streamId: 7, id: "movies_7_1", currentTime: 0, duration: 0, watchedAt: "2026-01-01T00:00:00Z" },
+  ];
+  const { entry } = applyProgress(start, { streamId: 7, type: "movie", currentTime: 0, duration: 0 }, "2026-02-01T00:00:00Z");
+  assert.equal(entry.currentTime, 0);
+  assert.equal(entry.duration, 0);
+});
+
 test("applyProgress: two in-flight streams do not overwrite each other", () => {
   let hist = [];
   ({ history: hist } = applyProgress(hist, { streamId: 1, type: "movie", currentTime: 100, duration: 1000 }, "2026-01-01T00:00:00Z"));
