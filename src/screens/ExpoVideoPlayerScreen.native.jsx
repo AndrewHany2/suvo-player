@@ -16,7 +16,7 @@ import storage from "../utils/storage";
 import { createExpoVideoDriver } from "../playback/drivers/expoVideoDriver";
 import { FATAL_TITLE, FATAL_HEADLINE, fatalDetail } from "../playback/playerCopy";
 import { controlIcon, controlLabel, fitLabel } from "../playback/playerControls";
-import { findNextEpisode, buildNextEpisodeVideo } from "../playback/episodeNav";
+import { findNextEpisode, buildNextEpisodeVideo, shouldAutoAdvanceOnEnd } from "../playback/episodeNav";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
 import { useDeviceIntegrity } from "../security/useDeviceIntegrity";
 import { useReducedMotion } from "../hooks/useReducedMotion";
@@ -561,7 +561,15 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
 
   useEffect(() => {
     if (!player || !currentVideo) return;
-    const sub = player.addListener("playToEnd", () => { if (currentVideo.type === "series" && getNextEpisode()) handleNextEpisode(); });
+    const sub = player.addListener("playToEnd", () => {
+      // expo-video/ExoPlayer fire a spurious playToEnd during the source swap
+      // (currentTime=0, duration=0) before the new item is prepared; trusting it
+      // jumped "Continue" straight to the next episode. Only advance on a genuine
+      // end (media loaded + playback actually reached it).
+      let ct = 0, dur = 0;
+      try { ct = player.currentTime; dur = player.duration; } catch {}
+      if (currentVideo.type === "series" && shouldAutoAdvanceOnEnd(ct, dur) && getNextEpisode()) handleNextEpisode();
+    });
     return () => sub?.remove();
   // Keyed on the URL so the playToEnd listener is re-bound per stream, not on
   // every currentVideo object identity change.
@@ -707,9 +715,60 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
 
   // ---- Group 3: touch gestures via PanResponder (no new deps) ----
   const brightnessRef = useRef(null); // lazy-loaded expo-brightness module
-  const gestureState = useRef({ mode: null, startX: 0, startY: 0, startVol: 1, startBright: null, startTime: 0, lastTapTime: 0, lastTapX: 0, longPressTimer: null, longPressed: false, layoutW: 0 });
+  const gestureState = useRef({ mode: null, handled: false, startX: 0, startY: 0, startVol: 1, startBright: null, startTime: 0, lastTapTime: 0, lastTapX: 0, longPressTimer: null, longPressed: false, layoutW: 0 });
 
   if (brightnessRef.current === null) brightnessRef.current = loadBrightness() || false;
+
+  // Commit the END of a gesture (tap / double-tap / swipe-seek / long-press
+  // restore). ROOT CAUSE: on real Android hardware the ExoPlayer TextureView
+  // surface can steal or cancel the JS responder right after grant, so the
+  // normal onPanResponderRelease never fires (confirmed on-device: grant>0,
+  // rel=0, tap=0 — controls flash once then never return, since resetControls
+  // only ran inside release). We therefore route EVERY terminal signal —
+  // release, terminate (ACTION_CANCEL), and the View's raw onTouchEnd
+  // (ACTION_UP) — through here. `gs.handled` makes it idempotent so whichever
+  // fires first wins and the rest are no-ops for that gesture.
+  const commitGesture = useCallback((endX) => {
+    const gs = gestureState.current;
+    if (gs.handled) return;
+    gs.handled = true;
+    const p = playerRef.current;
+    clearTimeout(gs.longPressTimer);
+    if (gs.longPressed) {
+      // Restore the user's chosen speed (else the 2x sticks when release lost).
+      try { if (p) p.playbackRate = speed; } catch {}
+      gs.longPressed = false;
+      gs.mode = null;
+      return;
+    }
+    if (gs.mode === "seek") {
+      const deltaSec = (endX - gs.startX) / SEEK_PX_PER_SEC;
+      try { if (p && Number.isFinite(p.currentTime)) p.currentTime = Math.max(0, gs.startTime + deltaSec); } catch {}
+      gs.mode = null;
+      return;
+    }
+    if (!gs.mode) {
+      // A tap. Detect double-tap left/right for -/+ seek; else toggle controls.
+      const now = Date.now();
+      const w = gs.layoutW || 1;
+      if (now - gs.lastTapTime < DOUBLE_TAP_MS && Math.abs(endX - gs.lastTapX) < w / 2) {
+        const right = endX > w / 2;
+        try {
+          if (p && Number.isFinite(p.currentTime)) {
+            p.currentTime = Math.max(0, p.currentTime + (right ? DOUBLE_TAP_SEEK : -DOUBLE_TAP_SEEK));
+          }
+        } catch {}
+        flashHint("seek", right ? `+${DOUBLE_TAP_SEEK}s` : `-${DOUBLE_TAP_SEEK}s`);
+        gs.lastTapTime = 0;
+      } else {
+        if (DEBUG_HUD) hudRef.current?.bump("tap");
+        gs.lastTapTime = now;
+        gs.lastTapX = endX;
+        resetControlsTimer();
+      }
+    }
+    gs.mode = null;
+  }, [speed, flashHint, resetControlsTimer]);
 
   const panResponder = useMemo(() => PanResponder.create({
     // On real Android devices, returning true unconditionally here causes the
@@ -731,10 +790,17 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       if (DEBUG_HUD && yes) hudRef.current?.bump("moveAsk");
       return yes;
     },
+    // Real-Android hardening: once we own the gesture, do NOT surrender it. The
+    // ExoPlayer TextureView surface underneath can otherwise request termination
+    // right after grant — killing the release and stranding the controls hidden.
+    // Blocking the request keeps the gesture alive so onPanResponderRelease fires.
+    onPanResponderTerminationRequest: () => false,
+    onShouldBlockNativeResponder: () => true,
     onPanResponderGrant: (e) => {
       if (DEBUG_HUD) hudRef.current?.bump("grant");
       const gs = gestureState.current;
       const p = playerRef.current;
+      gs.handled = false;
       gs.mode = null;
       gs.startX = e.nativeEvent.pageX;
       gs.startY = e.nativeEvent.pageY;
@@ -786,56 +852,24 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
         }
       }
     },
+    // Normal terminal path (ACTION_UP). For seek we know the final dx, so pass
+    // the resolved end X (startX + dx) into the shared commit — commitGesture
+    // recomputes seek from (endX - startX), so this preserves the same delta.
     onPanResponderRelease: (e, g) => {
       if (DEBUG_HUD) hudRef.current?.bump("release");
       const gs = gestureState.current;
-      const p = playerRef.current;
-      clearTimeout(gs.longPressTimer);
-      if (gs.longPressed) {
-        // Restore the user's chosen speed.
-        try { if (p) p.playbackRate = speed; } catch {}
-        gs.longPressed = false;
-        gs.mode = null;
-        return;
-      }
-      if (gs.mode === "seek") {
-        const deltaSec = g.dx / SEEK_PX_PER_SEC;
-        try { if (p && Number.isFinite(p.currentTime)) p.currentTime = Math.max(0, gs.startTime + deltaSec); } catch {}
-        gs.mode = null;
-        return;
-      }
-      if (!gs.mode) {
-        // A tap. Detect double-tap left/right for -/+ seek; else toggle controls.
-        const now = Date.now();
-        const x = e.nativeEvent.pageX;
-        const w = gs.layoutW || 1;
-        if (now - gs.lastTapTime < DOUBLE_TAP_MS && Math.abs(x - gs.lastTapX) < w / 2) {
-          const right = x > w / 2;
-          try {
-            if (p && Number.isFinite(p.currentTime)) {
-              p.currentTime = Math.max(0, p.currentTime + (right ? DOUBLE_TAP_SEEK : -DOUBLE_TAP_SEEK));
-            }
-          } catch {}
-          flashHint("seek", right ? `+${DOUBLE_TAP_SEEK}s` : `-${DOUBLE_TAP_SEEK}s`);
-          gs.lastTapTime = 0;
-        } else {
-          if (DEBUG_HUD) hudRef.current?.bump("tap");
-          gs.lastTapTime = now;
-          gs.lastTapX = x;
-          resetControlsTimer();
-        }
-      }
-      gs.mode = null;
+      commitGesture(gs.mode === "seek" ? gs.startX + g.dx : e.nativeEvent.pageX);
     },
+    // Responder stolen / ACTION_CANCEL. On real Android the ExoPlayer surface can
+    // fire this instead of release; route it through the SAME commit so controls
+    // still reveal and any pending seek/long-press resolves. Idempotent via
+    // gs.handled, so if release already ran this is a no-op.
     onPanResponderTerminate: () => {
       if (DEBUG_HUD) hudRef.current?.bump("terminate");
       const gs = gestureState.current;
-      clearTimeout(gs.longPressTimer);
-      if (gs.longPressed) { try { if (playerRef.current) playerRef.current.playbackRate = speed; } catch {} }
-      gs.longPressed = false;
-      gs.mode = null;
+      commitGesture(gs.startX);
     },
-  }), [flashHint, resetControlsTimer, speed]);
+  }), [commitGesture, flashHint]);
 
   const deviceCompromised = useDeviceIntegrity();
 
@@ -876,7 +910,14 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
         style={{ position: "absolute", top: insets.top, left: 0, right: 0, bottom: insets.bottom }}
         onLayout={(ev) => { gestureState.current.layoutW = ev.nativeEvent.layout.width; }}
         onTouchStart={DEBUG_HUD ? () => hudRef.current?.bump("rawTouch") : undefined}
-        onTouchEnd={DEBUG_HUD ? () => hudRef.current?.bump("touchEnd") : undefined}
+        // Row-C backstop: if neither release nor terminate fires (ExoPlayer
+        // swallowed ACTION_UP), the raw DOM-level touchEnd still reaches the
+        // View. When controls are hidden, commit the gesture here so they can
+        // reveal. Idempotent via gs.handled — a no-op if release/terminate ran.
+        onTouchEnd={(e) => {
+          if (DEBUG_HUD) hudRef.current?.bump("touchEnd");
+          if (!showControlsRef.current) commitGesture(e.nativeEvent.pageX);
+        }}
         {...panResponder.panHandlers}
       >
         <VideoView

@@ -127,6 +127,20 @@ export function createHlsInstance({
     // resolve against the file:// document (webOS live-TV hang). No-op on
     // engines that report a proper redirected URL. See FileSafeLoader above.
     loader: getFileSafeLoader(),
+    // Fastest possible first frame: take the lowest rendition immediately and
+    // skip hls.js's startup bandwidth probe (ABR still adapts UP from real
+    // fragment downloads once playback begins), and prefetch the first fragment
+    // during manifest parse. Pure startup-latency win; no mid-playback change.
+    startLevel: 0,
+    testBandwidth: false,
+    startFragPrefetch: true,
+    // Fast-fail a DEAD/unresponsive manifest host (~10s instead of hls.js's long
+    // default retry ladder) so a bad source surfaces a fatal error the recovery
+    // machine can act on quickly. Only the manifest budget is tightened — the
+    // per-fragment load budget is left at the hls.js default so a slow-but-
+    // progressing mid-playback fragment is never killed into a needless reload.
+    manifestLoadingTimeOut: 10000,
+    manifestLoadingMaxRetry: 1,
     ...(isTV
       ? {
           // TVs (esp. webOS) have far less memory/CPU headroom — keep buffers
@@ -203,6 +217,18 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
   // so we can re-apply it after a reload.
   let requestedCap = 'auto';
 
+  // Has playback actually begun since the last load()? load() calls play()
+  // immediately, so `paused` is false while the manifest + first segment are
+  // still downloading and currentTime sits at 0 — the stall watchdog must NOT
+  // treat that slow FIRST buffer as a freeze (the recovery machine would read it
+  // as a mid-playback drop and "reconnect", tearing the engine down and
+  // re-buffering from scratch). Reset on every load() and set true on the
+  // element's 'playing' event — which fires on genuine playback start/resume but
+  // NOT on a programmatic resume seek, so VOD resume buffering is covered too.
+  // Driver-scoped (not an onStall closure local) because the host subscribes
+  // onStall once for the driver's whole life, across source changes.
+  let hasStartedPlaying = false;
+
   // ── error plumbing ────────────────────────────────────────────────────────
   // The hls.js instance is recreated on every reload (ensureHls), but the host
   // subscribes to onError once. So we keep the host's callback in a sink and
@@ -260,6 +286,11 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     if (!videoEl || !source) return;
     const rawUri = typeof source === 'string' ? source : source.uri;
     if (!rawUri) return;
+
+    // Re-arm the first-frame gate: this (re)load must reach 'playing' again
+    // before the stall watchdog can fire, so a fresh source or a recovery
+    // RELOAD is never insta-stalled while it re-buffers.
+    hasStartedPlaying = false;
 
     const isLive = !!loadOpts.isLive;
     const uri =
@@ -566,6 +597,13 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     let lastAdvance = Date.now();
     let firedForThisStall = false;
 
+    // Mark playback as genuinely started so the watchdog can arm. 'playing'
+    // fires on real start/resume, not on a programmatic seek (see hasStartedPlaying).
+    const onPlaying = () => {
+      hasStartedPlaying = true;
+    };
+    videoEl.addEventListener('playing', onPlaying);
+
     const id = setInterval(() => {
       if (!videoEl) return;
       const paused = videoEl.paused || videoEl.ended;
@@ -589,6 +627,15 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
         lastTime = t;
         return;
       }
+      if (!hasStartedPlaying) {
+        // Pre-first-frame buffering (currentTime pinned at 0 / the resume
+        // offset while play() is already called). Keep the clock fresh so the
+        // post-start stall window measures from real playback, and never
+        // escalate a slow initial buffer to a reconnect.
+        lastAdvance = now;
+        lastTime = t;
+        return;
+      }
       if (!firedForThisStall && now - lastAdvance >= stallThresholdMs) {
         firedForThisStall = true;
         cb();
@@ -607,6 +654,11 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
 
     return () => {
       clearInterval(id);
+      try {
+        videoEl.removeEventListener('playing', onPlaying);
+      } catch {
+        /* noop */
+      }
     };
   }
 

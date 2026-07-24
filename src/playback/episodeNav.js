@@ -46,6 +46,33 @@ export function findNextEpisode(currentVideo) {
  * @param {(episodeId:any, containerExtension:string) => string} buildUrl
  * @returns {object|null} the playVideo payload, or null when there's nothing to advance to
  */
+/** How close to the reported duration a position must be to count as "the end". */
+export const END_EPS_SEC = 5;
+
+/**
+ * PURE: is an end-of-media event a GENUINE end that should auto-advance to the
+ * next episode?
+ *
+ * expo-video / ExoPlayer emit a spurious `playToEnd` during a source swap
+ * (`replaceAsync`) BEFORE the new item is prepared — at that moment both
+ * `currentTime` and `duration` are 0. Trusting it made "Continue" jump straight
+ * to the next episode. A real end only happens once the media has loaded (a
+ * finite, positive `duration`) and playback has actually reached within
+ * `END_EPS_SEC` of it.
+ *
+ * @param {number} currentTime - player position in seconds
+ * @param {number} duration    - media duration in seconds
+ * @returns {boolean}
+ */
+export function shouldAutoAdvanceOnEnd(currentTime, duration) {
+  return (
+    Number.isFinite(duration) &&
+    duration > 0 &&
+    Number.isFinite(currentTime) &&
+    currentTime >= duration - END_EPS_SEC
+  );
+}
+
 export function buildNextEpisodeVideo(next, currentVideo, buildUrl) {
   if (!next || !currentVideo) return null;
   const { episode, seasonNum } = next;

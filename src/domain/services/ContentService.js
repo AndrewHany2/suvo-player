@@ -5,6 +5,7 @@ import { normalizeMovie } from "../models/Movie";
 import { normalizeSeries } from "../models/Series";
 import { normalizeChannel } from "../models/Channel";
 import { interpretUserInfo } from "./userInfo";
+import { parseXtreamCredsFromUrl } from "../../services/xtreamUrl";
 
 class ContentService {
   // The active source backend. Xtream (`iptvApi`) by default; swapped to the
@@ -28,12 +29,18 @@ class ContentService {
     // fetching correct even when `type` is missing (e.g. a row synced before the
     // M3U columns were deployed), which otherwise misroutes M3U through Xtream.
     const isM3U = credentials.type === "m3u" || (!!credentials.url && !credentials.host);
-    if (isM3U) {
+    // An "M3U" URL that's really an Xtream `get.php` link (host + creds embedded)
+    // is routed through the Xtream API instead: the embedded M3U playlist tokens
+    // are short-lived and 406 once they expire, whereas the Xtream API builds a
+    // fresh stream URL — and thus a fresh token — on every play.
+    const derived = isM3U ? parseXtreamCredsFromUrl(credentials.url) : null;
+    if (isM3U && !derived) {
       this.api = m3uApi;
       m3uApi.setCredentials(credentials.url);
     } else {
       this.api = iptvApi;
-      iptvApi.setCredentials(credentials.host, credentials.username, credentials.password);
+      const { host, username, password } = derived || credentials;
+      iptvApi.setCredentials(host, username, password);
     }
   }
 

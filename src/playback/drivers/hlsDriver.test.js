@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Hls from 'hls.js';
-import { createHlsDriver } from './hlsDriver.js';
+import { createHlsDriver, createHlsInstance } from './hlsDriver.js';
 
 /** A minimal fake <video> element. */
 function fakeVideo(overrides = {}) {
@@ -160,5 +160,89 @@ test('load(VOD) seeks the element to startTime', () => {
   const d = createHlsDriver(video, { getHls: () => inst });
   d.load({ uri: 'http://x/movie.m3u8' }, { isLive: false, startTime: 42 });
   assert.equal(video.currentTime, 42);
+});
+
+// ── fast-first-frame config ──────────────────────────────────────────────────
+for (const isTV of [false, true]) {
+  test(`createHlsInstance: fast-start config present (isTV=${isTV})`, () => {
+    const h = createHlsInstance({ isTV });
+    try {
+      assert.equal(h.config.startLevel, 0, 'starts at the lowest rendition');
+      assert.equal(h.config.testBandwidth, false, 'skips the startup bandwidth probe');
+      assert.equal(h.config.startFragPrefetch, true, 'prefetches the first fragment');
+      // Manifest fast-fail is tightened; the per-fragment load budget must stay
+      // at the hls.js default so slow-but-live mid-playback fragments survive.
+      assert.ok(h.config.manifestLoadPolicy.default.maxLoadTimeMs <= 10000, 'manifest fast-fail');
+      assert.ok(
+        h.config.fragLoadPolicy.default.maxLoadTimeMs >= 60000,
+        'fragment load budget left at the safe default (not shortened)',
+      );
+    } finally {
+      h.destroy();
+    }
+  });
+}
+
+// ── stall watchdog first-frame gate ──────────────────────────────────────────
+// load() calls play() immediately, so `paused` is false while the manifest +
+// first segment are still downloading and currentTime sits at 0. The watchdog
+// must NOT report that slow FIRST buffer as a stall (the recovery machine would
+// read it as a mid-playback drop and reconnect, tearing down + re-buffering the
+// engine). It arms only after the element's 'playing' event fires.
+
+test('onStall: slow first buffer (flat at 0, not paused, no playing event) does NOT fire', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  const video = fakeVideo({ paused: false, currentTime: 0 });
+  const d = createHlsDriver(video, { getHls: () => null, stallThresholdMs: 6000 });
+
+  let stalls = 0;
+  const unsub = d.onStall(() => { stalls += 1; });
+
+  for (let i = 0; i < 10; i += 1) t.mock.timers.tick(1000); // >6s flat at 0
+  assert.equal(stalls, 0, 'a slow first buffer is not a stall');
+
+  unsub();
+  t.mock.timers.reset();
+});
+
+test('onStall: after the playing event, a genuine freeze fires exactly once', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  const video = fakeVideo({ paused: false, currentTime: 0 });
+  const d = createHlsDriver(video, { getHls: () => null, stallThresholdMs: 6000 });
+
+  let stalls = 0;
+  const unsub = d.onStall(() => { stalls += 1; });
+
+  // Playback starts and advances once, then freezes.
+  video._emit('playing');
+  video.currentTime = 1;
+  t.mock.timers.tick(1000);
+  for (let i = 0; i < 8; i += 1) t.mock.timers.tick(1000); // freeze >6s
+  assert.equal(stalls, 1, 'a freeze after playback started fires once');
+
+  unsub();
+  t.mock.timers.reset();
+});
+
+test('onStall: a new load() re-arms the gate so the next source is not insta-stalled', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  const video = fakeVideo({ paused: false, currentTime: 0 });
+  const d = createHlsDriver(video, { getHls: () => null, stallThresholdMs: 6000 });
+
+  let stalls = 0;
+  const unsub = d.onStall(() => { stalls += 1; });
+
+  // First source starts + advances (arms the gate).
+  video._emit('playing');
+  video.currentTime = 5;
+  t.mock.timers.tick(1000);
+  // A new source loads (native path) and re-buffers at 0 while not paused.
+  d.load({ uri: 'http://x/next.m3u8' });
+  video.currentTime = 0;
+  for (let i = 0; i < 10; i += 1) t.mock.timers.tick(1000);
+  assert.equal(stalls, 0, 'the next source re-buffers without a false stall');
+
+  unsub();
+  t.mock.timers.reset();
 });
 

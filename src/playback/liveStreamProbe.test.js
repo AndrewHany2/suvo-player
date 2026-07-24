@@ -56,6 +56,7 @@ test('probe reads content-type + first chunk, returns engine and url', async () 
   });
   const out = await probeLiveStream('http://host/live/u/p/1.m3u8', { fetchImpl });
   assert.equal(out.engine, 'mpegts');
+  assert.equal(out.confident, true, 'a real observed response is confident (cacheable)');
 });
 
 test('probe classifies a real HLS playlist as hls', async () => {
@@ -79,10 +80,11 @@ test('probe aborts the body after reading the first chunk', async () => {
   assert.equal(aborted, true, 'reader/body should be cancelled after first read');
 });
 
-test('probe failure defaults to hls', async () => {
+test('probe failure defaults to hls (low confidence, not cacheable)', async () => {
   const fetchImpl = async () => { throw new Error('network down'); };
   const out = await probeLiveStream('http://host/x.m3u8', { fetchImpl });
   assert.equal(out.engine, 'hls');
+  assert.equal(out.confident, false, 'a failed probe must not be cached');
 });
 
 // ── helpers ──────────────────────────────────────────────────────────────────

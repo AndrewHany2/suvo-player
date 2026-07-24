@@ -194,13 +194,64 @@ test('onStall: still fires exactly once when currentTime truly freezes while pla
   let stalls = 0;
   const unsub = driver.onStall(() => { stalls += 1; });
 
-  // Establish a baseline at 10s, then freeze there past the threshold.
-  player.currentTime = 10;
-  t.mock.timers.tick(1000);
+  // Establish REAL playback first (playback-sized forward steps arm the gate),
+  // then freeze past the threshold.
+  advance(t, player, 1, 10);
   const frozenTicks = Math.ceil(STALL_THRESHOLD_MS / 1000) + 1;
   for (let i = 0; i < frozenTicks; i += 1) t.mock.timers.tick(1000);
 
-  assert.equal(stalls, 1, 'a genuine freeze while playing fires exactly one stall');
+  assert.equal(stalls, 1, 'a genuine freeze after playback started fires exactly one stall');
+
+  unsub();
+  t.mock.timers.reset();
+});
+
+test('onStall: cold-start buffering (flat at 0 while play() called) does NOT fire before first advance', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  const player = fakePlayer();
+  player._ready = true;
+  player.playing = true; // load() called play(); engine still fetching first segment
+  const driver = createExpoVideoDriver(player);
+
+  let stalls = 0;
+  const unsub = driver.onStall(() => { stalls += 1; });
+
+  // currentTime pinned at 0 well past the stall threshold — this is a slow first
+  // buffer, NOT a freeze, so it must never escalate to a stall/reconnect.
+  const ticks = Math.ceil(STALL_THRESHOLD_MS / 1000) + 3;
+  for (let i = 0; i < ticks; i += 1) t.mock.timers.tick(1000);
+  assert.equal(stalls, 0, 'a slow first buffer is not a stall');
+
+  // Once playback actually advances, a subsequent freeze IS caught.
+  advance(t, player, 1, 5);
+  for (let i = 0; i < ticks; i += 1) t.mock.timers.tick(1000);
+  assert.equal(stalls, 1, 'a freeze after first advance still fires');
+
+  unsub();
+  t.mock.timers.reset();
+});
+
+test('onStall: a new load() re-arms the gate so the next source is not insta-stalled', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  const player = fakePlayer();
+  player._ready = true;
+  player.playing = true;
+  const driver = createExpoVideoDriver(player);
+
+  let stalls = 0;
+  const unsub = driver.onStall(() => { stalls += 1; });
+
+  // First source plays (arms the gate).
+  advance(t, player, 1, 5);
+  // A new source loads and re-buffers at 0 while play() is re-asserted — must
+  // not be treated as a freeze even though the gate was previously armed.
+  driver.load({ uri: 'http://x/next.m3u8' });
+  player._emit('readyToPlay'); // pipeline ready → play() re-asserted, playing=true
+  player.currentTime = 0;
+  assert.equal(player.playing, true, 'sanity: playing was re-asserted after load');
+  const ticks = Math.ceil(STALL_THRESHOLD_MS / 1000) + 3;
+  for (let i = 0; i < ticks; i += 1) t.mock.timers.tick(1000);
+  assert.equal(stalls, 0, 'the next source re-buffers without a false stall');
 
   unsub();
   t.mock.timers.reset();

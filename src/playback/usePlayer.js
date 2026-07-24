@@ -14,7 +14,7 @@ import {
   clampOffset,
 } from "./subtitleStyle";
 import { nextChannel, prevChannel, fetchNowNext } from "./liveExtras";
-import { findNextEpisode, buildNextEpisodeVideo } from "./episodeNav";
+import { findNextEpisode, buildNextEpisodeVideo, shouldAutoAdvanceOnEnd } from "./episodeNav";
 import {
   DEFAULT_VIDEO_ADJUST,
   normalizeAdjust,
@@ -739,7 +739,10 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     const video = videoRef.current;
     if (!video || !currentVideo) return undefined;
     const onEnded = () => {
-      if (currentVideo.type === "series" && getNextEpisode()) handleNextEpisode();
+      // Guard against a non-genuine end (parity with native, where expo-video
+      // emits a spurious end during source swaps). HTML5 `ended` fires at the
+      // real end, so currentTime≈duration and this passes normally.
+      if (currentVideo.type === "series" && shouldAutoAdvanceOnEnd(video.currentTime, video.duration) && getNextEpisode()) handleNextEpisode();
     };
     video.addEventListener("ended", onEnded);
     return () => video.removeEventListener("ended", onEnded);

@@ -154,6 +154,14 @@ export function createExpoVideoDriver(player, opts = {}) {
   // reset per load() so recovery RELOADs (which pass a fresh seekTo) resume too.
   let pendingSeekSec = 0;
   let resumeSeekDone = false;
+  // Has playback genuinely advanced since the last load()? The stall watchdog
+  // must not fire while currentTime is still pinned at 0 / the resume offset
+  // during the FIRST buffer — otherwise a slow cold start reads as a
+  // mid-playback freeze and the recovery machine "reconnects" (RELOAD =
+  // teardown + re-buffer from scratch). Reset on every load(); set true only on
+  // a real, playback-sized forward step (which excludes the large one-shot jump
+  // of a resume seek). Mirrors the shipped vlcDriver `started` guard.
+  let hasStartedPlaying = false;
   try {
     player?.addListener?.('statusChange', (payload) => {
       if (payload?.status !== 'readyToPlay') return;
@@ -190,6 +198,10 @@ export function createExpoVideoDriver(player, opts = {}) {
     // play() once the pipeline is actually ready, in case the immediate play()
     // below is dropped (item not yet loaded on a freshly-replaced source).
     wantPlay = true;
+    // Re-arm the first-frame gate: this (re)load must advance again before the
+    // stall watchdog can fire, so a fresh source or a recovery RELOAD is never
+    // insta-stalled while it re-buffers.
+    hasStartedPlaying = false;
     // Record the resume target for the readyToPlay-gated seek (see the listener
     // above) and reset the once-guard for this load.
     pendingSeekSec =
@@ -426,6 +438,11 @@ export function createExpoVideoDriver(player, opts = {}) {
         // false STALL every stallThresholdMs while the stream was genuinely
         // playing — an endless Reconnecting→reload→black loop. Any movement,
         // in either direction, means the pipeline is not frozen.
+        // A real, playback-sized forward step (excludes the large one-shot jump
+        // of a resume seek) marks playback as genuinely started, arming the gate.
+        if (!paused && t > lastTime && t - lastTime < (progressPollMs / 1000) * 3) {
+          hasStartedPlaying = true;
+        }
         lastTime = t;
         lastAdvance = now;
         firedForThisStall = false;
@@ -435,6 +452,15 @@ export function createExpoVideoDriver(player, opts = {}) {
       // Time is flat. Only count it as a stall if we are supposed to be playing.
       if (paused) {
         // Keep the clock from accumulating paused time as a stall.
+        lastAdvance = now;
+        lastTime = t;
+        return;
+      }
+
+      if (!hasStartedPlaying) {
+        // Still in the FIRST buffer (currentTime pinned at 0 / the resume
+        // offset). Keep the clock fresh and never escalate to a stall until
+        // playback has actually advanced once.
         lastAdvance = now;
         lastTime = t;
         return;

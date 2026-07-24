@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { findNextEpisode, buildNextEpisodeVideo } from "./episodeNav.js";
+import { findNextEpisode, buildNextEpisodeVideo, shouldAutoAdvanceOnEnd } from "./episodeNav.js";
 
 const series = (streamId, seasons) => ({ type: "series", streamId, seriesSeasons: seasons });
 
@@ -93,4 +93,29 @@ test("buildNextEpisodeVideo stringifies streamId and defaults ext to mp4", () =>
 test("buildNextEpisodeVideo returns null when there's nothing to advance to", () => {
   assert.equal(buildNextEpisodeVideo(null, currentVid, () => "u"), null);
   assert.equal(buildNextEpisodeVideo({ episode: { id: "x", episode_num: 1 }, seasonNum: "1" }, null, () => "u"), null);
+});
+
+// ── shouldAutoAdvanceOnEnd ──────────────────────────────────────────────────
+// expo-video/ExoPlayer emits a SPURIOUS `playToEnd` during the source swap
+// (currentTime=0, duration=0) before the new item is prepared — which wrongly
+// jumped "Continue" straight to the next episode. Only a genuine end (media
+// loaded + playback actually reached it) should auto-advance.
+
+test("shouldAutoAdvanceOnEnd: rejects the spurious load-time event (0/0)", () => {
+  assert.equal(shouldAutoAdvanceOnEnd(0, 0), false);
+});
+
+test("shouldAutoAdvanceOnEnd: rejects an event fired mid-stream", () => {
+  assert.equal(shouldAutoAdvanceOnEnd(100, 2432), false);
+});
+
+test("shouldAutoAdvanceOnEnd: accepts a genuine end (at/near duration)", () => {
+  assert.equal(shouldAutoAdvanceOnEnd(2432, 2432), true);
+  assert.equal(shouldAutoAdvanceOnEnd(2429, 2432), true); // within the small epsilon
+});
+
+test("shouldAutoAdvanceOnEnd: rejects when duration is unknown or non-finite", () => {
+  assert.equal(shouldAutoAdvanceOnEnd(500, 0), false);
+  assert.equal(shouldAutoAdvanceOnEnd(NaN, NaN), false);
+  assert.equal(shouldAutoAdvanceOnEnd(10, Infinity), false);
 });

@@ -79,6 +79,37 @@ test('engine result is cached per url (no re-probe on reload)', async () => {
   assert.equal(probes, 1);
 });
 
+test('a hung probe times out, attaches hls, and is NOT cached (re-probes next load)', async () => {
+  const calls = [];
+  let probes = 0;
+  const d = createLiveRouterDriver({
+    hls: fakeDriver('hls', calls), mpegts: fakeDriver('mpegts', calls),
+    // Never resolves on its own → the router's deadline must win.
+    probe: () => new Promise(() => { probes++; }),
+    probeTimeoutMs: 5,
+  });
+  await d.load({ uri: 'http://h/live/hang.m3u8' }, { isLive: true });
+  assert.deepEqual(
+    calls.filter((c) => c[1] === 'load'),
+    [['hls', 'load', 'http://h/live/hang.m3u8', true]],
+    'a timed-out probe still attaches hls',
+  );
+  await d.load({ uri: 'http://h/live/hang.m3u8' }, { isLive: true });
+  assert.equal(probes, 2, 'the timeout verdict was not cached — the next load re-probes');
+});
+
+test('an explicit low-confidence probe result is not cached', async () => {
+  const calls = [];
+  let probes = 0;
+  const d = createLiveRouterDriver({
+    hls: fakeDriver('hls', calls), mpegts: fakeDriver('mpegts', calls),
+    probe: async () => { probes++; return { engine: 'hls', confident: false }; },
+  });
+  await d.load({ uri: 'http://h/live/6.m3u8' }, { isLive: true });
+  await d.load({ uri: 'http://h/live/6.m3u8' }, { isLive: true });
+  assert.equal(probes, 2, 'low-confidence hls fallback must re-probe, not poison the cache');
+});
+
 test('element reads delegate to hls sub-driver; isLive follows active engine', async () => {
   const calls = [];
   const d = createLiveRouterDriver({

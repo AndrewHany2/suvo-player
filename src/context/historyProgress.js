@@ -87,12 +87,18 @@ export function upsertHistoryItem(history, item, now) {
     next = [entry, ...history].slice(0, MAX_HISTORY);
   } else {
     const prev = history[existingIdx];
+    // Series dedupe by seriesId (see isDifferentTitle), so a *different* episode
+    // of the same series matches `prev`. Only carry the saved position forward
+    // when it's the SAME episode (same streamId) — otherwise the new episode
+    // would inherit the previous one's near-end position and "Continue" would
+    // seek it to the end and auto-advance to the following episode.
+    const sameEpisode = String(prev.streamId) === String(item.streamId);
     entry = {
       ...prev,
       ...item,
       id: prev.id,
       watchedAt: now,
-      ...resolveProgressFields(prev, item),
+      ...resolveProgressFields(sameEpisode ? prev : undefined, item),
     };
     next = [entry, ...history.filter((_, i) => i !== existingIdx)].slice(
       0,

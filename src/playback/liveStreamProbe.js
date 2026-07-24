@@ -47,13 +47,17 @@ export function classifyLiveStream({ contentType, firstBytes } = {}) {
  * Never throws — a failed probe resolves to `{ engine: 'hls' }` so the recovery
  * machine surfaces the real error via the normal path.
  *
+ * `confident` is true only when the classification came from a real observed
+ * response; a no-fetch guard or a thrown/aborted fetch resolves to the 'hls'
+ * default with `confident: false` so callers can avoid caching a guess.
+ *
  * @param {string} url
  * @param {{ fetchImpl?: typeof fetch, signal?: AbortSignal }} [opts]
- * @returns {Promise<{ engine: 'hls'|'mpegts', url: string }>}
+ * @returns {Promise<{ engine: 'hls'|'mpegts', url: string, confident: boolean }>}
  */
 export async function probeLiveStream(url, { fetchImpl, signal } = {}) {
   const doFetch = fetchImpl || (typeof fetch === 'function' ? fetch : null);
-  if (!doFetch) return { engine: 'hls', url };
+  if (!doFetch) return { engine: 'hls', url, confident: false };
   try {
     const res = await doFetch(url, { method: 'GET', signal, redirect: 'follow' });
     const contentType = res?.headers?.get ? res.headers.get('content-type') : null;
@@ -69,9 +73,9 @@ export async function probeLiveStream(url, { fetchImpl, signal } = {}) {
         try { reader.releaseLock?.(); } catch { /* noop */ }
       }
     }
-    return { engine: classifyLiveStream({ contentType, firstBytes }), url };
+    return { engine: classifyLiveStream({ contentType, firstBytes }), url, confident: true };
   } catch {
-    return { engine: 'hls', url };
+    return { engine: 'hls', url, confident: false };
   }
 }
 

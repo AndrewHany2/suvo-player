@@ -76,6 +76,22 @@ test("upsertHistoryItem: re-opening (currentTime 0) preserves saved position and
   assert.equal(entry.watchedAt, "2026-02-01T00:00:00Z");
 });
 
+test("upsertHistoryItem: switching episodes within a series does NOT carry the prior episode's position", () => {
+  // S1E5 watched to near the end.
+  const start = [
+    { type: "series", seriesId: "s1", streamId: 105, id: "series_105_1", seasonNum: 1, episodeNum: 5, currentTime: 3500, duration: 3600, watchedAt: "2026-01-01T00:00:00Z" },
+  ];
+  // Opening / auto-advancing to S1E6 — a normal open carries currentTime 0.
+  const item = normalizeHistoryItem({ type: "series", seriesId: "s1", streamId: 106, seasonNum: 1, episodeNum: 6, currentTime: 0, duration: 0 });
+  const { entry } = upsertHistoryItem(start, item, "2026-02-01T00:00:00Z");
+  assert.equal(entry.streamId, 106); // now points at E6
+  assert.equal(entry.episodeNum, 6);
+  // Must NOT inherit E5's near-end position, or "Continue" would seek E6 to its
+  // end and immediately auto-advance to E7.
+  assert.equal(entry.currentTime, 0);
+  assert.equal(entry.duration, 0);
+});
+
 test("upsertHistoryItem: caps to MAX_HISTORY", () => {
   const start = Array.from({ length: MAX_HISTORY }, (_, i) => ({
     type: "movies", streamId: i, id: `movies_${i}_1`, watchedAt: "2026-01-01T00:00:00Z",
