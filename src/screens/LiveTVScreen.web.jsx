@@ -10,6 +10,7 @@ import { ensureSkeletonKeyframes, SkeletonLine } from "../presentation/component
 import { useApp, useChannels, useSearch } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
+import { normalizeSearch } from "../utils/normalizeSearch.js";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
 import { ss, useScale } from "../utils/scaleSize";
 import ProxiedImage from "../components/ProxiedImage";
@@ -589,10 +590,10 @@ export default function LiveTVScreen({ navigation }) {
   useEffect(() => { if (showAddChannel) { setSheetF(0); setAddError(""); setAddSuccess(""); } }, [showAddChannel]);
   // Clear the pending success-banner timer if the screen unmounts.
   useEffect(() => () => clearTimeout(successTimerRef.current), []);
-  // Debounced lowercase search term — keeps the filter off the keystroke path.
+  // Debounced normalized search term — keeps the filter off the keystroke path.
   const [debouncedQuery, setDebouncedQuery] = useState("");
   useEffect(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = normalizeSearch(searchQuery);
     const t = setTimeout(() => setDebouncedQuery(q), 200);
     return () => clearTimeout(t);
   }, [searchQuery]);
@@ -615,7 +616,7 @@ export default function LiveTVScreen({ navigation }) {
     setAddError("");
     const ch = {
       name,
-      _lc: name.toLowerCase(),
+      _lc: normalizeSearch(name),
       url,
       id: Date.now().toString(),
       stream_id: Date.now().toString(),
@@ -706,7 +707,7 @@ export default function LiveTVScreen({ navigation }) {
 
   // Derived shelves. Memoized on [categories, channelsByCategory, debouncedQuery]
   // so a keystroke that doesn't change the (debounced) query is a no-op, and the
-  // filter reuses the names lowercased once at load (item._lc).
+  // filter reuses the names search-normalized once at load (item._lc).
   const displayCategories = useMemo(
     () =>
       filterCategoriesBySearch(

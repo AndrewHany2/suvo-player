@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+import { normalizeSearch } from "../utils/normalizeSearch.js";
+
 // True while a text field owns focus, so the grid's global keydown handler can
 // bow out and let the search box receive its own keystrokes.
 function isTextInputFocused() {
@@ -44,8 +46,9 @@ export function useCategoryGridNav({ items, search, onSelect, onBack }) {
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
   useEffect(() => { onBackRef.current = onBack; }, [onBack]);
 
+  const q = normalizeSearch(search);
   const filtered = items
-    ? (search.trim() ? items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase())) : items)
+    ? (q ? items.filter((i) => normalizeSearch(i.name).includes(q)) : items)
     : null;
   filteredRef.current = filtered;
 

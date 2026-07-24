@@ -72,3 +72,17 @@ test("filterMovies tolerates items with a missing name", () => {
   const items = [{ name: "Alpha" }, {}, { name: "Beta" }];
   assert.deepEqual(filterMovies(items, "a", "").map((m) => m.name), ["Alpha"]);
 });
+
+test("filterMovies matches an Arabic query across alef/yaa/diacritic variants", () => {
+  const items = [{ name: "مُصطفى" }, { name: "الأسطورة" }];
+  // Query with bare alef + trailing yaa still matches "مُصطفى" (harakat + maksura).
+  assert.deepEqual(filterMovies(items, "all", "مصطفي").map((m) => m.name), ["مُصطفى"]);
+  // Alef-hamza vs bare alef, taa-marbuta vs haa.
+  assert.deepEqual(filterMovies(items, "all", "الاسطوره").map((m) => m.name), ["الأسطورة"]);
+});
+
+test("buildCategoryFilter narrows Arabic categories ignoring diacritics", () => {
+  const cats = [{ id: "a", name: "أفلام عربية" }, { id: "b", name: "وثائقي" }];
+  const out = buildCategoryFilter(cats, "افلام");
+  assert.deepEqual(out.map((c) => c.name), ["All Movies", "أفلام عربية"]);
+});

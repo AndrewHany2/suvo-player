@@ -18,6 +18,7 @@ import "./SeriesScreen.tv.css";
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 import { describeError } from "../utils/authError";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
+import { normalizeSearch } from "../utils/normalizeSearch.js";
 
 const CAT_COLS = 4;
 const SER_COLS = 5;
@@ -103,10 +104,10 @@ export default function SeriesScreenTV({ navigation, route }) {
   const getFilteredItems = (items) => {
     if (!items) return [];
     const letter = filterLetterRef.current;
-    const gridQ = gridQueryRef.current;
+    const gridQ = normalizeSearch(gridQueryRef.current);
     let out = items;
     if (letter !== "all") out = out.filter((s) => s.name?.toLowerCase().startsWith(letter));
-    if (gridQ) out = out.filter((s) => s.name?.toLowerCase().includes(gridQ));
+    if (gridQ) out = out.filter((s) => normalizeSearch(s.name).includes(gridQ));
     return out;
   };
 
@@ -118,10 +119,10 @@ export default function SeriesScreenTV({ navigation, route }) {
   // move handlers read the same list without re-filtering.
   const filteredItems = useMemo(() => {
     if (!grid?.items) return null;
-    const gridQ = gridQuery.trim().toLowerCase();
+    const gridQ = normalizeSearch(gridQuery);
     let out = grid.items;
     if (filterLetter !== "all") out = out.filter((s) => s.name?.toLowerCase().startsWith(filterLetter));
-    if (gridQ) out = out.filter((s) => s.name?.toLowerCase().includes(gridQ));
+    if (gridQ) out = out.filter((s) => normalizeSearch(s.name).includes(gridQ));
     return out;
   }, [grid?.items, filterLetter, gridQuery]);
   const filteredItemsRef = useRef(null);
@@ -140,10 +141,10 @@ export default function SeriesScreenTV({ navigation, route }) {
     [categories],
   );
   // Category cards filtered by the search query — "All Series" stays pinned.
-  const q = query.trim().toLowerCase();
+  const q = normalizeSearch(query);
   const visibleCats = useMemo(
     () => (q && cats.length
-      ? [cats[0], ...cats.slice(1).filter((c) => c.name?.toLowerCase().includes(q))]
+      ? [cats[0], ...cats.slice(1).filter((c) => normalizeSearch(c.name).includes(q))]
       : cats),
     [q, cats],
   );

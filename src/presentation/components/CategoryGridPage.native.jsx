@@ -4,6 +4,7 @@ import { YStack, XStack, Text, Input, Spinner } from "../../ui/primitives";
 import Button from "../../ui/Button";
 import { colors, fonts, fontWeights } from "../../ui/tokens";
 import { posterGrid, GRID_TARGET_W } from "../../utils/posterLayout";
+import { normalizeSearch } from "../../utils/normalizeSearch.js";
 import PosterCard from "./PosterCard.native";
 import SkeletonPoster from "./SkeletonPoster.native";
 
@@ -46,13 +47,13 @@ export default function CategoryGridPage({ name, items, onBack, onSelect, onLoad
   const deferredSearch = useDeferredValue(search);
 
   // Filter once per (items, query) instead of re-scanning the whole catalog on
-  // every keystroke AND every render. The query is lowercased a single time
+  // every keystroke AND every render. The query is normalized a single time
   // outside the predicate rather than once per item.
   const filtered = useMemo(() => {
     if (!items) return null;
-    const q = deferredSearch.trim().toLowerCase();
+    const q = normalizeSearch(deferredSearch);
     if (!q) return items;
-    return items.filter((i) => i.name?.toLowerCase().includes(q));
+    return items.filter((i) => normalizeSearch(i.name).includes(q));
   }, [items, deferredSearch]);
   const displayed = useMemo(
     () => (filtered ? filtered.slice(0, displayCount) : null),

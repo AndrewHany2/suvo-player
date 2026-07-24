@@ -8,6 +8,7 @@ import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
 import { describeError } from "../utils/authError";
+import { normalizeSearch } from "../utils/normalizeSearch.js";
 import { isMacCommand } from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
@@ -80,9 +81,9 @@ export default function LiveTVScreenTV({ navigation }) {
   };
 
   // Category cards filtered by the search query.
-  const q = query.trim().toLowerCase();
+  const q = normalizeSearch(query);
   const visibleCats = useMemo(
-    () => (q ? cats.filter((c) => c.name?.toLowerCase().includes(q)) : cats),
+    () => (q ? cats.filter((c) => normalizeSearch(c.name).includes(q)) : cats),
     [cats, q],
   );
 
@@ -98,7 +99,7 @@ export default function LiveTVScreenTV({ navigation }) {
   }, [page]);
 
   // ── Grid-view text search ─────────────────────────────────────────────────
-  const gq = gridQuery.trim().toLowerCase();
+  const gq = normalizeSearch(gridQuery);
   // Memoize the filtered channel list on the STABLE `page.items` array + active
   // query. D-pad focus moves mint a new `page` object but keep the same items
   // array, so this doesn't re-filter the whole list on every keypress/render.
@@ -106,7 +107,7 @@ export default function LiveTVScreenTV({ navigation }) {
     const items = page?.items;
     if (!items) return null;
     if (!gq) return items;
-    return items.filter((c) => c.name?.toLowerCase().includes(gq));
+    return items.filter((c) => normalizeSearch(c.name).includes(gq));
   }, [page?.items, gq]);
   // Ref mirror so the once-bound D-pad key handlers read bounds/index without
   // re-filtering the full list.

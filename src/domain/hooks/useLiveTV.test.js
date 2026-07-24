@@ -112,3 +112,17 @@ test("filterCategoriesBySearch falls back to ch.name when _lc is absent", () => 
   const out = filterCategoriesBySearch(cats, "gala", () => [{ name: "Galaxy TV" }]);
   assert.deepEqual(out[0].channels, [{ name: "Galaxy TV" }]);
 });
+
+test("toFlatChannel stores a search-normalized Arabic name in _lc", () => {
+  // "الجزيرة" with a tatweel + harakat folds to the bare form.
+  const out = toFlatChannel({ id: 1, name: "الجـزيرَة" }, (id) => `live/${id}`);
+  assert.equal(out._lc, "الجزيره");
+});
+
+test("filterCategoriesBySearch matches an Arabic query across alef/diacritic variants", () => {
+  const cats = [{ id: "ar", name: "قنوات عربية" }];
+  const chFor = () => [{ name: "الجزيرة" }, { name: "MBC مصر" }];
+  // Query typed with alef-hamza + trailing haa still matches "الجزيرة".
+  const out = filterCategoriesBySearch(cats, "الجزيره", chFor);
+  assert.deepEqual(out[0].channels, [{ name: "الجزيرة" }]);
+});
