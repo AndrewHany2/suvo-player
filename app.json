@@ -3,7 +3,7 @@
     "name": "Suvo",
     "slug": "iptv-player",
     "scheme": "suvo",
-    "version": "1.2.9",
+    "version": "1.2.10",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -23,7 +23,7 @@
       }
     },
     "android": {
-      "versionCode": 10209,
+      "versionCode": 10210,
       "usesCleartextTraffic": true,
       "allowBackup": false,
       "adaptiveIcon": {
