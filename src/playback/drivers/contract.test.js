@@ -70,4 +70,11 @@ describe('PlayerDriver contract — capability gating', () => {
     assert.ok(mpegts.capabilities?.canSetVolume, 'mpegts should advertise canSetVolume');
     assertCapabilityGating(mpegts, 'mpegts');
   });
+  test('vlc capabilities match implemented methods (rate/volume are prop-driven → absent)', () => {
+    const { vlc } = buildAll();
+    assert.ok(vlc.capabilities?.canSeek, 'vlc should advertise canSeek');
+    assert.equal(vlc.capabilities?.canSetVolume, false, 'vlc volume is prop-driven → not a driver capability');
+    assert.equal(vlc.capabilities?.canSetRate, false, 'vlc rate is prop-driven → not a driver capability');
+    assertCapabilityGating(vlc, 'vlc');
+  });
 });
