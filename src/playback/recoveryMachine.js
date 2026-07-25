@@ -213,6 +213,17 @@ export function reduce(state, event) {
 
     case 'PROGRESS': {
       const t = typeof event.currentTime === 'number' ? event.currentTime : s.savedTime;
+      // A spurious 0 sample must never clobber a known-good position. The native
+      // driver's currentTime() returns 0 when its getter throws (a pause /
+      // background / teardown race), and expo-video can momentarily report 0
+      // while re-preparing playback on resume. Letting that 0 land in savedTime
+      // makes the next RELOAD resume from the very beginning — the "I paused,
+      // came back, and it restarted" bug. Ignore an exact-0 reading whenever we
+      // already hold a real position; a genuine "start over" resets savedTime
+      // through LOAD/RESET (startTime 0), never through a progress tick.
+      if (t === 0 && s.savedTime > PROGRESS_EPSILON) {
+        return { state: s, effects };
+      }
       // Terminal / not-yet-started states are never advanced by the background
       // progress poll. A dead source (fatal) keeps its onProgress interval
       // firing PROGRESS at a frozen currentTime (typically 0); without this

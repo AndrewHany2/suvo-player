@@ -51,6 +51,8 @@ function resolveNetInfo() {
  * @property {number} [errorStatus]  - HTTP status parsed from the error, if any (e.g. 406).
  * @property {string} qualityCap     - Current quality cap value.
  * @property {() => void} retry      - Manual retry: clears fatal and reloads from saved position/edge.
+ * @property {() => void} notifyPause - Tell the machine the user paused (suppresses paused-stall reloads).
+ * @property {() => void} notifyPlay  - Tell the machine the user resumed.
  * @property {number} currentTime    - Last known playback position (seconds).
  * @property {number} duration       - Total duration (seconds); Infinity/NaN for live.
  */
@@ -316,6 +318,14 @@ export function useResilientPlayback({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearRetryTimer]);
 
+  // Tell the machine the user paused / resumed. The recovery machine's stall
+  // handler ignores stalls while `userPaused` (a paused stream freezes
+  // currentTime, which is indistinguishable from a stall); wiring these from
+  // every host makes that guard live instead of relying solely on the driver
+  // watchdog reading the engine's paused flag. Cheap, pure event dispatch.
+  const notifyPause = useCallback(() => send({ type: 'USER_PAUSE' }), [send]);
+  const notifyPlay = useCallback(() => send({ type: 'USER_PLAY' }), [send]);
+
   return {
     status: machine.state,
     isRecovering: machine.state === 'recovering' || machine.state === 'buffering',
@@ -327,6 +337,8 @@ export function useResilientPlayback({
     errorStatus: machine.fatalError?.httpStatus,
     qualityCap: machine.qualityCap,
     retry,
+    notifyPause,
+    notifyPlay,
     currentTime: machine.savedTime,
     duration: driver ? driver.duration() : NaN,
   };

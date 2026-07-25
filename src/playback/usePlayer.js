@@ -295,6 +295,10 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
   const isRecovering = playback.isRecovering;
   const isFatal = playback.isFatal;
   const fatalReason = playback.fatalReason;
+  // Stable pause/resume notifiers — feed the <video> element's play/pause into
+  // the recovery machine so its stall watchdog treats a user-paused (frozen)
+  // clock as intended, not as a stall to reload.
+  const { notifyPause, notifyPlay } = playback;
 
   // "Busy" = any non-clean-playback state where we show a spinner: initial
   // load, transient buffering, or a genuine reconnect. Never while fatal (the
@@ -622,6 +626,7 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
 
     const onPlay = () => {
       setTvPaused(false);
+      notifyPlay();
       clearInterval(progressRef.current);
       progressRef.current = setInterval(() => {
         if (video && !video.paused && currentVideo) {
@@ -639,6 +644,7 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     };
     const onPause = () => {
       setTvPaused(true);
+      notifyPause();
       if (currentVideo)
         updateWatchProgress(
           currentVideo.streamId,
@@ -693,7 +699,7 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("canplay", onCanPlay);
     };
-  }, [currentVideo, updateWatchProgress, isLive]);
+  }, [currentVideo, updateWatchProgress, isLive, notifyPause, notifyPlay]);
 
   // Flush progress on teardown — tab hide / app backgrounding is the most
   // common resume-loss case (the unmount cleanup never runs on a hard kill).

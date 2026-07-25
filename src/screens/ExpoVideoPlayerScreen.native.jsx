@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo, memo, forwardRef, useImperativeHandle } from "react";
-import { Modal, StatusBar, Platform, TouchableOpacity, AppState, PanResponder, View } from "react-native";
+import { Modal, StatusBar, Platform, TouchableOpacity, AppState, PanResponder, View, useWindowDimensions } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -112,6 +112,14 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   const { currentVideo, closeVideo, playVideo } = usePlayback();
   const { updateWatchProgress, addToWatchHistory, flushProgress } = useWatchHistory();
   const insets = useSafeAreaInsets();
+  // Window size drives the video surface. useWindowDimensions updates
+  // SYNCHRONOUSLY with the orientation flip (unlike safe-area insets, which
+  // arrive a frame or two later over the async bridge). Sizing the video from
+  // insets was the cause of the "video shrinks to a corner on first fullscreen"
+  // bug: the absolute frame was computed from stale portrait insets while the
+  // window was already landscape. The video is now full-bleed from these dims;
+  // only the control overlays consume insets.
+  const { width: winW, height: winH } = useWindowDimensions();
   // Honor OS "Reduce Motion": drop the <Modal> slide/fade transitions when set.
   const reducedMotion = useReducedMotion();
   const modalAnimation = reducedMotion ? "none" : "fade";
@@ -174,7 +182,15 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   // start buffering the stream immediately, only for the hook's load to
   // player.replace() it moments later — a redundant teardown/rebuild of the
   // whole pipeline that doubles time-to-first-frame. Let the machine load once.
-  const player = useVideoPlayer(null, () => {});
+  // Initial config runs in setup() so it applies before the first frame:
+  // audioMixingMode 'auto' (play alongside others only when muted, interrupt
+  // when actually outputting audio — the correct foreground-video default), and
+  // staysActiveInBackground false (video pauses when backgrounded; see the
+  // AppState effect). Per-stream bufferOptions are set by the driver's load().
+  const player = useVideoPlayer(null, (p) => {
+    try { p.audioMixingMode = "auto"; } catch {}
+    try { p.staysActiveInBackground = false; } catch {}
+  });
 
   // expo-video VideoView ref — needed for startPictureInPicture().
   const videoViewRef = useRef(null);
@@ -184,6 +200,11 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   playerRef.current = player;
 
   const driver = useMemo(() => (player ? createExpoVideoDriver(player) : null), [player]);
+  // Mirror the driver so gesture/seek handlers route engine writes through it
+  // (never touching the expo-video player directly — keeps expo-video inside the
+  // driver and picks up its SharedObject guarding) without re-creating callbacks.
+  const driverRef = useRef(driver);
+  driverRef.current = driver;
 
   const playback = useResilientPlayback({
     driver,
@@ -200,6 +221,14 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   const isLoading = playback.status === "idle" || playback.status === "loading";
   const isRecovering = playback.isRecovering;
   const isFatal = playback.isFatal;
+  // Stable pause/resume notifiers (useCallback-stable inside the hook) so
+  // togglePlayPause / AppState can tell the recovery machine about user intent
+  // without re-creating callbacks each render.
+  const { notifyPause, notifyPlay } = playback;
+  // Mirror isLive for the memoized gesture handlers (playbackRate is meaningless
+  // at the live edge, so long-press-2x is suppressed for live).
+  const isLiveRef = useRef(isLive);
+  isLiveRef.current = isLive;
 
   const resetControlsTimer = useCallback(() => {
     setShowControls(true);
@@ -242,13 +271,16 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     return () => {
       try { deactivateKeepAwake(); } catch {}
-      // Return orientation to the app default on exit. Previously we re-locked
-      // PORTRAIT_UP here, which pinned the ENTIRE app portrait for the rest of
-      // the session after the first playback — the lock outlived the player.
-      // Unlock instead so the rest of the app follows its native (default)
-      // orientation policy; the player owns orientation only while it's mounted
-      // (portrait by default, landscape via toggleFullscreen).
-      ScreenOrientation.unlockAsync().catch(() => {});
+      // Restore portrait on exit. Exiting while in fullscreen (landscape-locked)
+      // must rotate the window back — a bare unlockAsync() only releases the
+      // lock, it doesn't rotate, so the app would stay landscape (app policy is
+      // "default"/all orientations). So lock PORTRAIT_UP first to snap upright,
+      // THEN unlock so the app follows its native (default) policy again and the
+      // lock doesn't outlive the player (a persistent lock pinned the whole app
+      // portrait for the session — the bug the previous unlock-only fix caused).
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
+        .then(() => ScreenOrientation.unlockAsync())
+        .catch(() => {});
     };
   }, []);
 
@@ -288,10 +320,13 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       flushProgress();
       if (state === "background") {
         try { player?.pause(); } catch {}
+        // Tell the machine this is an intended pause so its stall watchdog
+        // doesn't read the frozen clock as a stall and reload on resume.
+        notifyPause();
       }
     });
     return () => sub.remove();
-  }, [player, currentVideo, updateWatchProgress, flushProgress]);
+  }, [player, currentVideo, updateWatchProgress, flushProgress, notifyPause]);
 
   // Track discovery + VOD progress interval.
   useEffect(() => {
@@ -333,6 +368,10 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     setSpeed(1); setAudioTracks([]); setSubtitleTracks([]); setSelectedAudio(null); setSelectedSubtitle(null);
     setResolvedStart(0);
     setNowNext({ now: null, next: null });
+    // The player instance is reused across channel zaps (useVideoPlayer(null)),
+    // so a gesture-adjusted volume would otherwise persist to the next stream.
+    // Reset to full on every source change.
+    driverRef.current?.setVolume(1);
   }, [currentVideo?.url]);
 
   // ---- Group 4: remember last live channel ----
@@ -361,16 +400,18 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
 
   useEffect(() => {
     if (!player || !prefsLoaded || prefsAppliedRef.current) return;
-    // Speed.
-    if (typeof prefs.playbackSpeed === "number" && SPEEDS.includes(prefs.playbackSpeed)) {
-      try { player.playbackRate = prefs.playbackSpeed; setSpeed(prefs.playbackSpeed); } catch {}
+    // Speed. Meaningless at the live edge, so never apply a remembered rate to
+    // a live stream. Routed through the driver rather than the player directly.
+    if (!isLive && typeof prefs.playbackSpeed === "number" && SPEEDS.includes(prefs.playbackSpeed)) {
+      driver?.setRate(prefs.playbackSpeed);
+      setSpeed(prefs.playbackSpeed);
     }
     // Aspect / contentFit (expo-video VideoView prop).
     if (prefs.aspectRatio && VALID_CONTENT_FITS.includes(prefs.aspectRatio)) {
       setContentFit(prefs.aspectRatio);
     }
     prefsAppliedRef.current = true;
-  }, [player, prefsLoaded, prefs.playbackSpeed, prefs.aspectRatio]);
+  }, [player, driver, isLive, prefsLoaded, prefs.playbackSpeed, prefs.aspectRatio]);
 
   // Cycle contentFit and remember it.
   const cycleContentFit = useCallback(() => {
@@ -404,10 +445,10 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     if (!p || !driver) return;
     let playing = false;
     try { playing = !!p.playing; } catch {}
-    if (playing) driver.pause();
-    else driver.play();
+    if (playing) { driver.pause(); notifyPause(); }
+    else { driver.play(); notifyPlay(); }
     resetControlsTimer();
-  }, [driver, resetControlsTimer]);
+  }, [driver, resetControlsTimer, notifyPause, notifyPlay]);
 
   // NOTE: we deliberately do NOT hide the Android system navigation bar in
   // fullscreen. Under SDK 54's mandatory edge-to-edge, expo-navigation-bar's
@@ -430,7 +471,10 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       if (scrubSec != null) return;
       const duration = Number.isFinite(player.duration) ? player.duration : 0;
       const position = Number.isFinite(player.currentTime) ? player.currentTime : 0;
-      const buffered = Number.isFinite(player.bufferedPosition) ? player.bufferedPosition : 0;
+      // bufferedPosition is -1 when indeterminable; guard so it never renders a
+      // negative buffered segment.
+      const bp = player.bufferedPosition;
+      const buffered = Number.isFinite(bp) && bp > 0 ? bp : 0;
       setProgress({ position, duration, buffered });
     };
     // Prime immediately so the seek bar shows the live position the instant
@@ -451,24 +495,16 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
 
   const commitScrub = useCallback(() => {
     setScrubSec((sec) => {
-      if (sec != null) {
-        try { if (player && Number.isFinite(player.currentTime)) player.currentTime = sec; } catch {}
-      }
+      if (sec != null) driverRef.current?.seekTo(sec);
       return null;
     });
     resetControlsTimer();
-  }, [player, resetControlsTimer]);
+  }, [resetControlsTimer]);
 
   // Seek by a relative offset, clamped to [0, duration]. Backs the seek bar's
   // accessibilityActions (increment/decrement) so VoiceOver/TalkBack can scrub.
   const seekBy = useCallback((delta) => {
-    const p = playerRef.current;
-    try {
-      if (p && Number.isFinite(p.currentTime)) {
-        const dur = Number.isFinite(p.duration) ? p.duration : Infinity;
-        p.currentTime = Math.max(0, Math.min(dur, p.currentTime + delta));
-      }
-    } catch {}
+    driverRef.current?.seekBy(delta);
     resetControlsTimer();
   }, [resetControlsTimer]);
 
@@ -570,7 +606,8 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   }, [handleClose]));
 
   const handleSpeedChange = (rate) => {
-    if (player) { try { player.playbackRate = rate; } catch {} setSpeed(rate); }
+    driverRef.current?.setRate(rate);
+    setSpeed(rate);
     setPref("playbackSpeed", rate);
     setShowSpeedMenu(false);
   };
@@ -673,18 +710,17 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     const gs = gestureState.current;
     if (gs.handled) return;
     gs.handled = true;
-    const p = playerRef.current;
     clearTimeout(gs.longPressTimer);
     if (gs.longPressed) {
       // Restore the user's chosen speed (else the 2x sticks when release lost).
-      try { if (p) p.playbackRate = speed; } catch {}
+      driverRef.current?.setRate(speed);
       gs.longPressed = false;
       gs.mode = null;
       return;
     }
     if (gs.mode === "seek") {
       const deltaSec = (endX - gs.startX) / SEEK_PX_PER_SEC;
-      try { if (p && Number.isFinite(p.currentTime)) p.currentTime = Math.max(0, gs.startTime + deltaSec); } catch {}
+      driverRef.current?.seekTo(Math.max(0, gs.startTime + deltaSec));
       gs.mode = null;
       return;
     }
@@ -694,11 +730,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       const w = gs.layoutW || 1;
       if (now - gs.lastTapTime < DOUBLE_TAP_MS && Math.abs(endX - gs.lastTapX) < w / 2) {
         const right = endX > w / 2;
-        try {
-          if (p && Number.isFinite(p.currentTime)) {
-            p.currentTime = Math.max(0, p.currentTime + (right ? DOUBLE_TAP_SEEK : -DOUBLE_TAP_SEEK));
-          }
-        } catch {}
+        driverRef.current?.seekBy(right ? DOUBLE_TAP_SEEK : -DOUBLE_TAP_SEEK);
         flashHint("seek", right ? `+${DOUBLE_TAP_SEEK}s` : `-${DOUBLE_TAP_SEEK}s`);
         gs.lastTapTime = 0;
       } else {
@@ -743,14 +775,14 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       // Long-press -> temporary 2x speed.
       clearTimeout(gs.longPressTimer);
       gs.longPressTimer = setTimeout(() => {
+        if (isLiveRef.current) return; // playbackRate is meaningless at the live edge
         gs.longPressed = true;
-        try { if (playerRef.current) playerRef.current.playbackRate = 2; } catch {}
+        driverRef.current?.setRate(2);
         flashHint("speed", "2x");
       }, LONG_PRESS_MS);
     },
     onPanResponderMove: (e, g) => {
       const gs = gestureState.current;
-      const p = playerRef.current;
       if (gs.longPressed) return; // long-press active; ignore movement
       // Decide gesture axis once movement is meaningful.
       if (!gs.mode) {
@@ -772,7 +804,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
         flashHint("seek", `${sign}${Math.abs(Math.round(deltaSec))}s`);
       } else if (gs.mode === "volume") {
         const next = Math.min(1, Math.max(0, gs.startVol - g.dy / VERT_SWIPE_RANGE_PX));
-        try { if (p) p.volume = next; } catch {}
+        driverRef.current?.setVolume(next);
         flashHint("volume", `Vol ${Math.round(next * 100)}%`);
       } else if (gs.mode === "brightness") {
         const mod = brightnessRef.current;
@@ -836,7 +868,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       {/* Video + gesture surface. nativeControls disabled so PanResponder owns
           touches; gesture indicators + custom controls replace them. */}
       <View
-        style={{ position: "absolute", top: insets.top, left: 0, right: 0, bottom: insets.bottom }}
+        style={{ position: "absolute", top: 0, left: 0, width: winW, height: winH }}
         onLayout={(ev) => { gestureState.current.layoutW = ev.nativeEvent.layout.width; }}
         // Row-C backstop: if neither release nor terminate fires (ExoPlayer
         // swallowed ACTION_UP), the raw DOM-level touchEnd still reaches the
@@ -850,9 +882,16 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
         <VideoView
           ref={videoViewRef}
           player={player}
-          style={{ flex: 1 }}
+          // Explicit window dims (not flex:1) so a rotation deterministically
+          // pushes a fresh size to the native surface and it remeasures —
+          // without remounting (which would reload the stream).
+          style={{ width: winW, height: winH }}
           contentFit={contentFit}
           nativeControls={false}
+          // iOS 16+: disable Live Text / subject-lifting on video frames — it's
+          // irrelevant for IPTV and its long-press text selection collides with
+          // the player's own long-press-for-2x gesture.
+          allowsVideoFrameAnalysis={false}
           // Android: default SurfaceView composites the video in a separate
           // window layer whose z-order vs. the RN tree is GPU/device-dependent.
           // On real hardware it paints over our sibling control overlays (they

@@ -446,3 +446,47 @@ describe("RESET", () => {
     assert.equal(r.state.attemptCount, 0);
   });
 });
+
+describe("savedTime zero-guard (pause -> resume must not restart)", () => {
+  test("a spurious PROGRESS(0) does not clobber a known position while playing", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    s = reduce(s, { type: "PLAYING" }).state;
+    s = reduce(s, { type: "PROGRESS", currentTime: 300 }).state;
+    assert.equal(s.state, "playing");
+    assert.equal(s.savedTime, 300);
+    // A getter-throw / re-prepare race injects a 0 sample.
+    s = reduce(s, { type: "PROGRESS", currentTime: 0 }).state;
+    assert.equal(s.savedTime, 300, "0 must be ignored, position preserved");
+    // A subsequent stall -> retry reload therefore resumes at 300, not 0.
+    s = reduce(s, { type: "STALL" }).state; // schedules a retry
+    const r = reduce(s, { type: "RETRY" }); // timer fired -> RELOAD
+    const reload = effect(r.effects, "RELOAD");
+    assert.ok(reload);
+    assert.equal(reload.seekTo, 300);
+  });
+
+  test("a spurious PROGRESS(0) does not clobber savedTime during loading (post-reload rebuffer)", () => {
+    let s = initialState({ startTime: 120 });
+    s = reduce(s, { type: "LOAD" }).state; // loading, savedTime 120
+    assert.equal(s.savedTime, 120);
+    s = reduce(s, { type: "PROGRESS", currentTime: 0 }).state; // rebuffer reads 0
+    assert.equal(s.savedTime, 120, "0 during loading must not reset the resume point");
+  });
+
+  test("a genuine forward position still advances savedTime", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    s = reduce(s, { type: "PROGRESS", currentTime: 10 }).state;
+    s = reduce(s, { type: "PROGRESS", currentTime: 25 }).state;
+    assert.equal(s.savedTime, 25);
+  });
+
+  test("a legitimate backward seek to a non-zero position still updates savedTime", () => {
+    let s = initialState();
+    s = reduce(s, { type: "LOAD" }).state;
+    s = reduce(s, { type: "PROGRESS", currentTime: 300 }).state;
+    s = reduce(s, { type: "PROGRESS", currentTime: 60 }).state; // user rewound
+    assert.equal(s.savedTime, 60);
+  });
+});

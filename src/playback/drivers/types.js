@@ -82,6 +82,10 @@
  * @property {() => (void|Promise<void>)} play
  * @property {() => (void|Promise<void>)} pause
  * @property {() => (void|Promise<void>)} [destroy]
+ * @property {(sec: number) => void} [seekTo]     - Seek to an absolute time (seconds); updates the resume target.
+ * @property {(delta: number) => void} [seekBy]   - Seek by a relative offset (seconds), clamped to [0, duration].
+ * @property {(v: number) => void} [setVolume]    - Set engine volume 0..1.
+ * @property {(r: number) => void} [setRate]      - Set playback rate.
  *
  * // --- getters ---
  * @property {() => number} currentTime          - Current playback position (seconds).

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo, memo, forwardRef, useImperativeHandle } from "react";
-import { StatusBar, Platform, TouchableOpacity, AppState, Modal, View, PanResponder } from "react-native";
+import { StatusBar, Platform, TouchableOpacity, AppState, Modal, View, PanResponder, useWindowDimensions } from "react-native";
 import { VLCPlayer } from "react-native-vlc-media-player";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -91,6 +91,12 @@ export default function VlcPlayerScreen({ navigation }) {
   const { currentVideo, closeVideo, playVideo } = usePlayback();
   const { updateWatchProgress, addToWatchHistory, flushProgress } = useWatchHistory();
   const insets = useSafeAreaInsets();
+  // Window size drives the video surface. useWindowDimensions updates
+  // synchronously with the orientation flip (safe-area insets lag over the async
+  // bridge), so sizing the video from these dims — full-bleed, insets only on
+  // the control overlays — avoids the "video shrinks to a corner on first
+  // fullscreen" relayout race. Mirrors the expo screen.
+  const { width: winW, height: winH } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
   const progressIntervalRef = useRef(null);
   const hasAddedToHistory = useRef(false);
@@ -175,6 +181,9 @@ export default function VlcPlayerScreen({ navigation }) {
   const isLoading = playback.status === "idle" || playback.status === "loading";
   const isRecovering = playback.isRecovering;
   const isFatal = playback.isFatal;
+  // Stable pause/resume notifiers — tell the recovery machine about user intent
+  // so its stall watchdog never reads a paused (frozen) clock as a stall.
+  const { notifyPause, notifyPlay } = playback;
 
   // Latest progress lives in a ref, updated on EVERY onProgress tick, so
   // lifecycle writes + gesture math always read a fresh value without
@@ -222,9 +231,12 @@ export default function VlcPlayerScreen({ navigation }) {
   }, []);
 
   // Keep awake while playing (mirrors the expo screen). We deliberately do NOT
-  // force a PORTRAIT_UP lock on mount/unmount — that pinned the whole app to
-  // portrait after playback. Orientation is only changed by the fullscreen
-  // toggle, which restores portrait itself when the user exits fullscreen.
+  // force a PORTRAIT_UP lock on mount — that pinned the whole app to portrait
+  // after playback. On unmount we DO restore portrait, because closing via the
+  // Close button / hardware back / sleep timer while in fullscreen bypasses the
+  // fullscreen toggle's own portrait restore and would otherwise leave the app
+  // stuck landscape (app policy is "default"/all orientations). Lock PORTRAIT_UP
+  // to snap upright, THEN unlock so the lock doesn't outlive the player.
   useEffect(() => {
     activateKeepAwakeAsync().catch(() => {});
     return () => {
@@ -233,6 +245,9 @@ export default function VlcPlayerScreen({ navigation }) {
       } catch {
         /* noop */
       }
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
+        .then(() => ScreenOrientation.unlockAsync())
+        .catch(() => {});
     };
   }, []);
 
@@ -292,10 +307,10 @@ export default function VlcPlayerScreen({ navigation }) {
         updateWatchProgress(currentVideo.streamId, currentVideo.type, p.currentTimeSec, p.durationSec);
       }
       flushProgress();
-      if (state === "background") setPaused(true);
+      if (state === "background") { setPaused(true); notifyPause(); }
     });
     return () => sub.remove();
-  }, [currentVideo, updateWatchProgress, flushProgress]);
+  }, [currentVideo, updateWatchProgress, flushProgress, notifyPause]);
 
   // Next-episode helpers.
   const getNextEpisode = useCallback(() => findNextEpisode(currentVideo), [currentVideo]);
@@ -344,10 +359,10 @@ export default function VlcPlayerScreen({ navigation }) {
   // reconnect reload. Mirrors the expo screen's togglePlayPause.
   const togglePlayPause = useCallback(() => {
     if (!driver) return;
-    if (paused) driver.play();
-    else driver.pause();
+    if (paused) { driver.play(); notifyPlay(); }
+    else { driver.pause(); notifyPause(); }
     resetControlsTimer();
-  }, [driver, paused, resetControlsTimer]);
+  }, [driver, paused, resetControlsTimer, notifyPause, notifyPlay]);
 
   const cycleResizeMode = useCallback(() => {
     setResizeMode((cur) => {
@@ -563,11 +578,11 @@ export default function VlcPlayerScreen({ navigation }) {
     <YStack flex={1} backgroundColor="#000">
       <StatusBar hidden />
 
-      <View style={{ position: "absolute", top: insets.top, left: 0, right: 0, bottom: insets.bottom }}>
+      <View style={{ position: "absolute", top: 0, left: 0, width: winW, height: winH }}>
         {vlcSource && (
           <VLCPlayer
             ref={vlcRef}
-            style={{ flex: 1 }}
+            style={{ width: winW, height: winH }}
             // Pass a FRESH copy every render: <VLCPlayer> mutates the source
             // object in place (sets source.isNetwork/autoplay/initOptions in its
             // render) and also hands the same object to the native view, which RN

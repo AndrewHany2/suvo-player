@@ -17,7 +17,38 @@ import {
   STALL_THRESHOLD_MS,
   STREAM_USER_AGENT,
   refererForUri,
+  contentTypeForSource,
 } from './expoVideoDriver.js';
+
+test('contentTypeForSource forces hls only for m3u8 / extensionless live', () => {
+  assert.equal(contentTypeForSource('https://x/y.m3u8', false), 'hls');
+  assert.equal(contentTypeForSource('https://x/y.m3u8?token=1', true), 'hls');
+  // Extensionless live proxy -> hls so iOS parses tracks.
+  assert.equal(contentTypeForSource('https://x/live/u/p/12345', true), 'hls');
+  // Raw-TS live keeps auto (ExoPlayer demuxes TS; forcing hls would break it).
+  assert.equal(contentTypeForSource('https://x/live/u/p/12345.ts', true), undefined);
+  // VOD with a real extension stays auto.
+  assert.equal(contentTypeForSource('https://x/movie/u/p/1.mp4', false), undefined);
+  assert.equal(contentTypeForSource('https://x/movie/u/p/1.mkv', false), undefined);
+});
+
+test('currentTime returns last-known on a 0/throw after playback advanced', () => {
+  let t = 42;
+  let throws = false;
+  const player = {
+    addListener: () => ({ remove() {} }),
+    get currentTime() {
+      if (throws) throw new Error('gone');
+      return t;
+    },
+  };
+  const driver = createExpoVideoDriver(player);
+  assert.equal(driver.currentTime(), 42);
+  t = 0; // SharedObject race reports 0
+  assert.equal(driver.currentTime(), 42, 'a spurious 0 must not erase the position');
+  throws = true; // getter throws (NativeSharedObjectNotFound)
+  assert.equal(driver.currentTime(), 42, 'a throwing getter returns last-known');
+});
 
 /**
  * A fake expo-video player that reproduces "play() before the item is ready is

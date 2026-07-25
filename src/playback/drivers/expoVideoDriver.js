@@ -109,6 +109,25 @@ export function refererForUri(uri) {
   return m ? `${m[1]}/` : undefined;
 }
 
+/**
+ * Decide the expo-video `contentType` for a source. Returns 'hls' for an m3u8
+ * URL or a live stream whose URL carries no recognised media extension (so iOS
+ * parses HLS tracks instead of guessing 'progressive'); otherwise undefined
+ * (leave expo-video's 'auto', which is correct for .ts / .mp4 / .mkv).
+ *
+ * @param {string} uri
+ * @param {boolean} isLive
+ * @returns {('hls')|undefined}
+ */
+export function contentTypeForSource(uri, isLive) {
+  const path = String(uri || '').split(/[?#]/)[0];
+  if (/\.m3u8$/i.test(path)) return 'hls';
+  // Extension present (e.g. .ts, .mp4, .mkv) -> let 'auto' handle it.
+  const hasExt = /\.[a-z0-9]{2,4}$/i.test(path);
+  if (isLive && !hasExt) return 'hls';
+  return undefined;
+}
+
 // TEMP diagnostic logging (dev only; inert under node:test). Remove once the
 // iOS stream-init failure is resolved.
 const RP_DEBUG = typeof __DEV__ !== 'undefined' && __DEV__;
@@ -209,6 +228,10 @@ export function createExpoVideoDriver(player, opts = {}) {
         ? loadOpts.startTime
         : 0;
     resumeSeekDone = false;
+    // Seed the last-known clock at the resume target so currentTime() reports the
+    // intended position (not a stale previous-stream value, not 0) until the
+    // first real progress tick advances it.
+    lastGoodTime = pendingSeekSec;
     // For VOD, resume at the saved position then start; live ignores startTime
     // (the engine joins at the live edge). This early seek is a fast path for
     // engines already prepared; Android's dropped seek is recovered on readyToPlay.
@@ -238,8 +261,15 @@ export function createExpoVideoDriver(player, opts = {}) {
     const perSourceHeaders =
       source && typeof source === 'object' && source.headers ? source.headers : undefined;
     const referer = refererForUri(uri);
+    // Force HLS parsing for m3u8 / extensionless live. expo-video's 'auto'
+    // mis-detects an extensionless HLS URL as 'progressive', which on iOS leaves
+    // availableVideoTracks/availableAudioTracks/availableSubtitleTracks EMPTY —
+    // the track pickers then silently never populate. A real extension (.ts,
+    // .mp4, .mkv) is left to 'auto' so raw-TS live and VOD keep their detection.
+    const contentType = contentTypeForSource(uri, !!loadOpts.isLive);
     const videoSource = {
       uri,
+      ...(contentType ? { contentType } : {}),
       headers: {
         'User-Agent': STREAM_USER_AGENT,
         'Accept-Language': 'en-US',
@@ -247,6 +277,16 @@ export function createExpoVideoDriver(player, opts = {}) {
         ...perSourceHeaders,
       },
     };
+    // Buffer tuning: live wants to stay near the edge (small forward buffer,
+    // prioritise time over byte thresholds); VOD benefits from a deeper buffer
+    // against network dips. bufferOptions must be assigned as a whole object.
+    try {
+      player.bufferOptions = loadOpts.isLive
+        ? { preferredForwardBufferDuration: 10, minBufferForPlayback: 2, prioritizeTimeOverSizeThreshold: true }
+        : { preferredForwardBufferDuration: 30, minBufferForPlayback: 2 };
+    } catch {
+      /* older builds may not expose bufferOptions */
+    }
     const useAsync = typeof player.replaceAsync === 'function';
     if (RP_DEBUG) {
       console.log(
@@ -297,12 +337,28 @@ export function createExpoVideoDriver(player, opts = {}) {
   // getter below must be try/catch-guarded so a lifecycle race can never crash
   // the render or a poll callback. Return the same safe defaults as a missing
   // player.
+  // Last finite currentTime we successfully read. expo-video's currentTime
+  // getter is backed by a native SharedObject that THROWS
+  // (NativeSharedObjectNotFoundException) during a pause/background/teardown
+  // race, and can momentarily report 0 while re-preparing on resume. Returning
+  // 0 in those cases fed a spurious 0 into the recovery machine's savedTime,
+  // which made the next RELOAD resume from the beginning. Returning the last
+  // known-good position instead means an unreadable clock is treated as
+  // "unchanged", never as "rewound to 0".
+  let lastGoodTime = 0;
   function currentTime() {
     try {
       const t = player?.currentTime;
-      return typeof t === 'number' && Number.isFinite(t) ? t : 0;
+      if (typeof t === 'number' && Number.isFinite(t) && t > 0) {
+        lastGoodTime = t;
+        return t;
+      }
+      // A real 0 right after load is legitimate; but once we've advanced, a 0
+      // reading is the SharedObject race above — keep the last known position.
+      if (t === 0) return lastGoodTime > 0 ? lastGoodTime : 0;
+      return lastGoodTime;
     } catch {
-      return 0;
+      return lastGoodTime;
     }
   }
 
@@ -320,7 +376,10 @@ export function createExpoVideoDriver(player, opts = {}) {
     // seconds-ahead-of-currentTime to match the contract.
     try {
       const bp = player?.bufferedPosition;
-      if (typeof bp !== 'number' || !Number.isFinite(bp)) return 0;
+      // expo-video returns -1 when the buffered position is indeterminable;
+      // Number.isFinite(-1) is true, so guard it explicitly or a negative
+      // "buffer ahead" leaks into the seek-bar width / stats.
+      if (typeof bp !== 'number' || !Number.isFinite(bp) || bp < 0) return 0;
       const ahead = bp - currentTime();
       return ahead > 0 ? ahead : 0;
     } catch {
@@ -351,6 +410,57 @@ export function createExpoVideoDriver(player, opts = {}) {
    */
   function setQualityCap(cap) {
     requestedCap = cap;
+  }
+
+  // ── seek / volume / rate (screen routes through these, never touching the
+  //    player directly — keeps expo-video inside the driver and centralises the
+  //    SharedObject guarding) ──────────────────────────────────────────────────
+  /**
+   * Seek to an absolute time (seconds). Also updates the resume target so a
+   * recovery RELOAD fired right after a user scrub resumes at the new position
+   * rather than snapping back to the old resume point.
+   * @param {number} sec
+   */
+  function seekTo(sec) {
+    const target = typeof sec === 'number' && Number.isFinite(sec) && sec > 0 ? sec : 0;
+    pendingSeekSec = target;
+    lastGoodTime = target;
+    try {
+      if (player && Number.isFinite(player.currentTime)) player.currentTime = target;
+    } catch {
+      /* seeking before metadata is ready can throw; ignore */
+    }
+  }
+
+  /**
+   * Seek by a relative offset (seconds), clamped to [0, duration].
+   * @param {number} delta
+   */
+  function seekBy(delta) {
+    const dur = duration();
+    let target = currentTime() + (typeof delta === 'number' ? delta : 0);
+    if (target < 0) target = 0;
+    if (Number.isFinite(dur) && dur > 0 && target > dur) target = dur;
+    seekTo(target);
+  }
+
+  /** @param {number} v Volume 0..1. */
+  function setVolume(v) {
+    const vol = Math.max(0, Math.min(1, typeof v === 'number' ? v : 1));
+    try {
+      if (player) player.volume = vol;
+    } catch {
+      /* noop */
+    }
+  }
+
+  /** @param {number} r Playback rate. */
+  function setRate(r) {
+    try {
+      if (player && typeof r === 'number') player.playbackRate = r;
+    } catch {
+      /* noop */
+    }
   }
 
 
@@ -502,6 +612,10 @@ export function createExpoVideoDriver(player, opts = {}) {
     load,
     play,
     pause,
+    seekTo,
+    seekBy,
+    setVolume,
+    setRate,
     currentTime,
     duration,
     buffered,
