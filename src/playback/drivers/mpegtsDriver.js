@@ -82,6 +82,13 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
   let player = null;
   /** @type {((err: NormalizedError) => void) | null} */
   let errorSink = null;
+  // Has playback actually begun since the last load()? load() calls play()
+  // immediately, so `paused` is false while the demuxer primes (~384 KB) and
+  // currentTime sits at 0 — the stall watchdog must NOT treat that slow FIRST
+  // buffer as a freeze, or the recovery machine reads it as a mid-playback drop
+  // and reloads into the "reconnecting → black" loop. Reset on every load(),
+  // set true on the element's 'playing' event. Mirrors hlsDriver.
+  let hasStartedPlaying = false;
 
   function destroyPlayer() {
     if (!player) return;
@@ -102,6 +109,8 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
     if (!videoEl || !uri) return;
 
     destroyPlayer();
+    // Re-arm the first-frame gate for this (re)load / recovery RELOAD.
+    hasStartedPlaying = false;
     try {
       const mpegts = loadMpegts();
       player = mpegts.createPlayer(
@@ -208,6 +217,12 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
     let lastTime = currentTime();
     let lastAdvance = Date.now();
     let firedForThisStall = false;
+
+    // 'playing' fires on genuine start/resume, not on a programmatic seek, so
+    // this arms the watchdog only once real playback has begun.
+    const onPlaying = () => { hasStartedPlaying = true; };
+    videoEl.addEventListener('playing', onPlaying);
+
     const id = setInterval(() => {
       if (!videoEl) return;
       const paused = videoEl.paused || videoEl.ended;
@@ -224,12 +239,23 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
         lastTime = t;
         return;
       }
+      if (!hasStartedPlaying) {
+        // Pre-first-frame buffering: keep the clock fresh so the post-start
+        // stall window measures from real playback, and never escalate a slow
+        // initial buffer to a reconnect.
+        lastAdvance = now;
+        lastTime = t;
+        return;
+      }
       if (!firedForThisStall && now - lastAdvance >= stallThresholdMs) {
         firedForThisStall = true;
         cb();
       }
     }, STALL_POLL_MS);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      try { videoEl.removeEventListener('playing', onPlaying); } catch { /* noop */ }
+    };
   }
 
   /** @param {(err: NormalizedError) => void} cb */
