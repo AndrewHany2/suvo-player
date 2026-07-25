@@ -141,6 +141,12 @@ export function useResilientPlayback({
         case 'SET_QUALITY_CAP':
           d?.setQualityCap?.(effect.cap);
           break;
+        case 'NUDGE':
+          // Lightweight recovery: re-prime / seek-to-edge without a teardown
+          // reload. Best-effort — a driver without canNudge simply no-ops and
+          // the scheduled escalation RETRY handles it.
+          try { d?.nudge?.(); } catch { /* noop */ }
+          break;
         case 'REFRESH_CREDENTIALS':
           try {
             const r = refreshRef.current?.();

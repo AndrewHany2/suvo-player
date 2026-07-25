@@ -213,6 +213,19 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
     try { videoEl.playbackRate = r; } catch { /* noop */ }
   }
 
+  /** Nudge: reload the mpegts.js buffer + jump to the buffered edge (no teardown). */
+  function nudge() {
+    try {
+      const videoEl = el();
+      const b = videoEl?.buffered;
+      if (b && b.length > 0) {
+        const end = b.end(b.length - 1);
+        if (Number.isFinite(end) && end > 0) videoEl.currentTime = end;
+      }
+    } catch { /* noop */ }
+    try { player?.play?.().catch?.(() => {}); } catch { /* noop */ }
+  }
+
   // ── event subscriptions (element-based, engine-agnostic) ─────────────────────
   /** @param {(status: PlayerStatus) => void} cb */
   function onStatus(cb) {
@@ -316,10 +329,10 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
   /** @type {PlayerDriver} */
   return {
     load, play, pause, destroy,
-    seekTo, seekBy, setVolume, setRate,
+    seekTo, seekBy, setVolume, setRate, nudge,
     currentTime, duration, buffered, isLive,
     setQualityCap,
-    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: false },
+    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: true },
     onStatus, onProgress, onStall, onError,
   };
 }

@@ -446,6 +446,27 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     try { videoEl.playbackRate = r; } catch { /* noop */ }
   }
 
+  /**
+   * Nudge recovery: ask hls.js to resume loading and re-seek toward the live
+   * edge (live) or the buffered edge (VOD) WITHOUT destroying the instance.
+   */
+  function nudge() {
+    const inst = hls();
+    try { inst?.startLoad?.(); } catch { /* noop */ }
+    try {
+      if (isLive()) {
+        seekToLiveEdge();
+      } else {
+        const videoEl = el();
+        const b = videoEl?.buffered;
+        if (b && b.length > 0) {
+          const end = b.end(b.length - 1);
+          if (Number.isFinite(end) && end > currentTime()) videoEl.currentTime = Math.min(end, currentTime() + 0.5);
+        }
+      }
+    } catch { /* noop */ }
+  }
+
   // ── getters ────────────────────────────────────────────────────────────────
   function currentTime() {
     const t = el()?.currentTime;
@@ -772,12 +793,13 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     seekBy,
     setVolume,
     setRate,
+    nudge,
     currentTime,
     duration,
     buffered,
     isLive,
     setQualityCap,
-    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: false },
+    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: true },
     onStatus,
     onProgress,
     onStall,

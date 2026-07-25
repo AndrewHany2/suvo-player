@@ -462,6 +462,24 @@ export function createExpoVideoDriver(player, opts = {}) {
   }
 
 
+  /**
+   * Nudge recovery: seek slightly forward / toward live edge and resume,
+   * WITHOUT destroying/reloading the player instance.
+   * Uses isLive() (reads player?.isLive) rather than a stored flag — the driver
+   * has no loadedIsLive variable; live state is read dynamically.
+   */
+  function nudge() {
+    try {
+      if (isLive()) {
+        // Re-snap toward the live edge if the engine exposes it; else small hop.
+        seekTo(currentTime() + 0.5);
+      } else {
+        seekTo(currentTime() + 0.25);
+      }
+      player?.play?.();
+    } catch { /* noop */ }
+  }
+
   // ── event subscriptions ──────────────────────────────────────────────────────
   /**
    * Map an expo-video VideoPlayerStatus to the contract's PlayerStatus.state.
@@ -607,7 +625,7 @@ export function createExpoVideoDriver(player, opts = {}) {
 
   /** @type {PlayerDriver} */
   return {
-    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: false },
+    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: true },
     load,
     play,
     pause,
@@ -615,6 +633,7 @@ export function createExpoVideoDriver(player, opts = {}) {
     seekBy,
     setVolume,
     setRate,
+    nudge,
     currentTime,
     duration,
     buffered,

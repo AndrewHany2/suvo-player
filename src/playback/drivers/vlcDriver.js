@@ -148,6 +148,15 @@ export function createVlcDriver(handle) {
     seekTo(currentTime() + delta);
   }
 
+  /** Nudge: re-seek to the current position to jog a stalled decoder (no reload). */
+  function nudge() {
+    if (lastDurationSec > 0) {
+      const frac = Math.max(0, Math.min(1, lastPositionSec / lastDurationSec));
+      try { handle.seek(frac); } catch { /* noop */ }
+    }
+    play();
+  }
+
   function onStatus(cb) {
     statusCb = cb;
     return () => {
@@ -256,12 +265,13 @@ export function createVlcDriver(handle) {
     destroy,
     seekTo,
     seekBy,
+    nudge,
     currentTime,
     duration,
     buffered,
     isLive,
     setQualityCap,
-    capabilities: { canSeek: true, canSetRate: false, canSetVolume: false, canNudge: false },
+    capabilities: { canSeek: true, canSetRate: false, canSetVolume: false, canNudge: true },
     onStatus,
     onProgress,
     onStall,
