@@ -154,7 +154,7 @@ export function createVlcDriver(handle) {
       const frac = Math.max(0, Math.min(1, lastPositionSec / lastDurationSec));
       try { handle.seek(frac); } catch { /* noop */ }
     }
-    play();
+    try { play(); } catch { /* noop */ }
   }
 
   function onStatus(cb) {

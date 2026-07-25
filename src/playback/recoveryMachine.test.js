@@ -516,7 +516,7 @@ describe('live-aware recovery ladder + nudge', () => {
 
   test('a second STALL (already nudged) goes straight to the reload ladder', () => {
     const s1 = reduce(playing(), { type: 'STALL' }).state;       // nudged
-    const s2 = reduce(s1, { type: 'PROGRESS', currentTime: 100.01 }).state; // still frozen → stays recovering
+    const s2 = reduce(s1, { type: 'PROGRESS', currentTime: 100.01 }).state; // sub-epsilon advance → still frozen, stays buffering (nudged)
     const { effects } = reduce(s2, { type: 'STALL' });
     assert.ok(effects.some((e) => e.type === 'SHOW_RECONNECTING'), 'second stall shows reconnecting');
     assert.ok(effects.some((e) => e.type === 'SCHEDULE_RETRY'), 'second stall schedules a retry');

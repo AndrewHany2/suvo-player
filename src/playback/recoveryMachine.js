@@ -21,9 +21,10 @@
  *  - OFFLINE event behaves like an OFFLINE-classified error.
  *  - ONLINE while recovering -> RELOAD at saved position (toLiveEdge if live).
  *  - RETRY (host fired the scheduled timer) -> RELOAD; attemptCount increments
- *    so delays grow and cap. The ladder is bounded: MAX_LOAD_ATTEMPTS retries
- *    without ever reaching sustained playback -> fatal (GO_FATAL 'UNPLAYABLE'),
- *    so a dead 404 / undecodable source can't reconnect forever.
+ *    so delays grow and cap. The ladder is bounded by maxLoadAttempts(isLive)
+ *    (VOD: 1, live: 3) retries without ever reaching sustained playback -> fatal
+ *    (GO_FATAL 'UNPLAYABLE'), so a dead 404 / undecodable source can't reconnect
+ *    forever while a live blip still gets a few attempts to heal.
  *  - Buffering: K consecutive buffering episodes -> SET_QUALITY_CAP one rung down.
  *  - Sustained PLAYING (PROGRESS while playing) resets attemptCount, clears the
  *    buffering streak, and steps the quality cap back up one rung.
@@ -50,9 +51,9 @@ export const BUFFERING_DOWNGRADE_THRESHOLD = 3;
  * redirect (HTTP 406 / hang); one re-request usually lands on a good node, so a
  * single quick retry heals the common blip. If it fails again we stop and show
  * the real error + a Reload button in ~1s rather than spinning — the user asked
- * to see the error fast and retry manually. (This budget is shared with
- * live-stall recovery; offline drops are handled separately via OFFLINE/ONLINE
- * and don't count against it.)
+ * to see the error fast and retry manually. This is the VOD budget; live tolerates
+ * a few blips via maxLoadAttempts(true)=3. Offline drops are handled separately
+ * via OFFLINE/ONLINE and don't count against either budget.
  */
 export const MAX_LOAD_ATTEMPTS = 1;
 
