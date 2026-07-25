@@ -417,6 +417,7 @@ export default function VideoPlayerScreen() {
     handleCast,
     togglePlayWeb,
     seekWebToClientX,
+    seekTo,
     applyVolumeWeb,
     toggleMuteWeb,
     handleChannelUp,
@@ -475,12 +476,14 @@ export default function VideoPlayerScreen() {
     if (!scrubbingRef.current) return;
     scrubbingRef.current = false;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
-    seekWebToClientX(e.clientX, seekBarRef.current);
-    // Also route through the driver so the machine's saved position updates and
-    // a recovery RELOAD resumes at the scrubbed spot (not the pre-scrub one).
-    if (tvDuration > 0) player.seekTo(ratioFromClientX(e.clientX) * tvDuration);
+    // Route through the driver (single seek path) so the machine's saved
+    // position updates and a recovery RELOAD resumes at the scrubbed spot.
+    // Fall back to the direct element write only when duration is unknown
+    // (the seek track isn't shown then, so this branch is effectively dead).
+    if (tvDuration > 0) seekTo(ratioFromClientX(e.clientX) * tvDuration);
+    else seekWebToClientX(e.clientX, seekBarRef.current);
     setScrubPct(null);
-  }, [seekWebToClientX, player, tvDuration, ratioFromClientX]);
+  }, [seekTo, seekWebToClientX, tvDuration, ratioFromClientX]);
 
   const handleScrubCancel = useCallback(() => {
     scrubbingRef.current = false;
