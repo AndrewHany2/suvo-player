@@ -82,6 +82,13 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
   let player = null;
   /** @type {((err: NormalizedError) => void) | null} */
   let errorSink = null;
+  // Has playback actually begun since the last load()? load() calls play()
+  // immediately, so `paused` is false while the demuxer primes (~384 KB) and
+  // currentTime sits at 0 — the stall watchdog must NOT treat that slow FIRST
+  // buffer as a freeze, or the recovery machine reads it as a mid-playback drop
+  // and reloads into the "reconnecting → black" loop. Reset on every load(),
+  // set true on the element's 'playing' event. Mirrors hlsDriver.
+  let hasStartedPlaying = false;
 
   function destroyPlayer() {
     if (!player) return;
@@ -102,6 +109,8 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
     if (!videoEl || !uri) return;
 
     destroyPlayer();
+    // Re-arm the first-frame gate for this (re)load / recovery RELOAD.
+    hasStartedPlaying = false;
     try {
       const mpegts = loadMpegts();
       player = mpegts.createPlayer(
@@ -171,6 +180,52 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
     /* raw MPEG-TS has no selectable levels — no-op (matches native driver) */
   }
 
+  // ── transport ────────────────────────────────────────────────────────────
+  /** @param {number} sec absolute position (seconds), clamped to the seekable window. */
+  function seekTo(sec) {
+    const videoEl = el();
+    if (!videoEl || typeof sec !== 'number' || !Number.isFinite(sec)) return;
+    let target = Math.max(0, sec);
+    try {
+      const seekable = videoEl.seekable;
+      if (seekable && seekable.length > 0) {
+        target = Math.min(target, seekable.end(seekable.length - 1));
+      }
+      videoEl.currentTime = target;
+    } catch { /* not seekable yet */ }
+  }
+  /** @param {number} delta seconds (may be negative) */
+  function seekBy(delta) {
+    if (typeof delta !== 'number' || !Number.isFinite(delta)) return;
+    seekTo(currentTime() + delta);
+  }
+  /** @param {number} v 0..1 */
+  function setVolume(v) {
+    const videoEl = el();
+    if (!videoEl || typeof v !== 'number' || !Number.isFinite(v)) return;
+    const nv = Math.max(0, Math.min(1, v));
+    try { videoEl.volume = nv; videoEl.muted = nv === 0; } catch { /* noop */ }
+  }
+  /** @param {number} r playback rate */
+  function setRate(r) {
+    const videoEl = el();
+    if (!videoEl || typeof r !== 'number' || !Number.isFinite(r) || r <= 0) return;
+    try { videoEl.playbackRate = r; } catch { /* noop */ }
+  }
+
+  /** Nudge: reload the mpegts.js buffer + jump to the buffered edge (no teardown). */
+  function nudge() {
+    try {
+      const videoEl = el();
+      const b = videoEl?.buffered;
+      if (b && b.length > 0) {
+        const end = b.end(b.length - 1);
+        if (Number.isFinite(end) && end > 0) videoEl.currentTime = end;
+      }
+    } catch { /* noop */ }
+    try { player?.play?.().catch?.(() => {}); } catch { /* noop */ }
+  }
+
   // ── event subscriptions (element-based, engine-agnostic) ─────────────────────
   /** @param {(status: PlayerStatus) => void} cb */
   function onStatus(cb) {
@@ -208,6 +263,12 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
     let lastTime = currentTime();
     let lastAdvance = Date.now();
     let firedForThisStall = false;
+
+    // 'playing' fires on genuine start/resume, not on a programmatic seek, so
+    // this arms the watchdog only once real playback has begun.
+    const onPlaying = () => { hasStartedPlaying = true; };
+    videoEl.addEventListener('playing', onPlaying);
+
     const id = setInterval(() => {
       if (!videoEl) return;
       const paused = videoEl.paused || videoEl.ended;
@@ -224,12 +285,23 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
         lastTime = t;
         return;
       }
+      if (!hasStartedPlaying) {
+        // Pre-first-frame buffering: keep the clock fresh so the post-start
+        // stall window measures from real playback, and never escalate a slow
+        // initial buffer to a reconnect.
+        lastAdvance = now;
+        lastTime = t;
+        return;
+      }
       if (!firedForThisStall && now - lastAdvance >= stallThresholdMs) {
         firedForThisStall = true;
         cb();
       }
     }, STALL_POLL_MS);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      try { videoEl.removeEventListener('playing', onPlaying); } catch { /* noop */ }
+    };
   }
 
   /** @param {(err: NormalizedError) => void} cb */
@@ -257,8 +329,10 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
   /** @type {PlayerDriver} */
   return {
     load, play, pause, destroy,
+    seekTo, seekBy, setVolume, setRate, nudge,
     currentTime, duration, buffered, isLive,
     setQualityCap,
+    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: true },
     onStatus, onProgress, onStall, onError,
   };
 }

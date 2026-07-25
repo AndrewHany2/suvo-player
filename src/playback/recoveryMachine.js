@@ -21,9 +21,10 @@
  *  - OFFLINE event behaves like an OFFLINE-classified error.
  *  - ONLINE while recovering -> RELOAD at saved position (toLiveEdge if live).
  *  - RETRY (host fired the scheduled timer) -> RELOAD; attemptCount increments
- *    so delays grow and cap. The ladder is bounded: MAX_LOAD_ATTEMPTS retries
- *    without ever reaching sustained playback -> fatal (GO_FATAL 'UNPLAYABLE'),
- *    so a dead 404 / undecodable source can't reconnect forever.
+ *    so delays grow and cap. The ladder is bounded by maxLoadAttempts(isLive)
+ *    (VOD: 1, live: 3) retries without ever reaching sustained playback -> fatal
+ *    (GO_FATAL 'UNPLAYABLE'), so a dead 404 / undecodable source can't reconnect
+ *    forever while a live blip still gets a few attempts to heal.
  *  - Buffering: K consecutive buffering episodes -> SET_QUALITY_CAP one rung down.
  *  - Sustained PLAYING (PROGRESS while playing) resets attemptCount, clears the
  *    buffering streak, and steps the quality cap back up one rung.
@@ -50,9 +51,9 @@ export const BUFFERING_DOWNGRADE_THRESHOLD = 3;
  * redirect (HTTP 406 / hang); one re-request usually lands on a good node, so a
  * single quick retry heals the common blip. If it fails again we stop and show
  * the real error + a Reload button in ~1s rather than spinning — the user asked
- * to see the error fast and retry manually. (This budget is shared with
- * live-stall recovery; offline drops are handled separately via OFFLINE/ONLINE
- * and don't count against it.)
+ * to see the error fast and retry manually. This is the VOD budget; live tolerates
+ * a few blips via maxLoadAttempts(true)=3. Offline drops are handled separately
+ * via OFFLINE/ONLINE and don't count against either budget.
  */
 export const MAX_LOAD_ATTEMPTS = 1;
 
@@ -63,6 +64,15 @@ export const MAX_LOAD_ATTEMPTS = 1;
  * @type {{base:number, factor:number, max:number}}
  */
 export const RETRY_BACKOFF = { base: 350, factor: 2, max: 1500 };
+
+/**
+ * How long (ms) to let a lightweight NUDGE try to heal a live stall before
+ * escalating to a full teardown RELOAD. Reuses the retry timer as the
+ * escalation clock: the first stall schedules SCHEDULE_RETRY(NUDGE_WINDOW_MS)
+ * alongside the NUDGE; advancing PROGRESS cancels it (self-heal), else it fires
+ * RETRY → RELOAD.
+ */
+export const NUDGE_WINDOW_MS = 3000;
 
 /**
  * Minimum currentTime advance (seconds) that counts as real playback progress
@@ -116,6 +126,7 @@ export function initialState(opts = {}) {
     qualityCap,
     manualCap,
     userPaused: false,
+    nudged: false,
     fatalError: null,
   };
 }
@@ -140,16 +151,9 @@ function scheduleRetryEffect(s) {
   return { type: 'SCHEDULE_RETRY', delayMs: nextDelay(s.attemptCount, RETRY_BACKOFF) };
 }
 
-/**
- * True when the source has burned the full retry ladder without ever reaching
- * sustained playback (attemptCount resets to 0 on real progress). Such a source
- * is effectively unplayable — retrying again would just loop forever.
- * @param {MachineState} s
- * @returns {boolean}
- */
-function retriesExhausted(s) {
-  return s.attemptCount >= MAX_LOAD_ATTEMPTS;
-}
+/** VOD fast-fails after 1 attempt; live tolerates a few blips before fatal. */
+export function maxLoadAttempts(isLive) { return isLive ? 3 : 1; }
+function retriesExhausted(s) { return s.attemptCount >= maxLoadAttempts(s.isLive); }
 
 /**
  * Transition to the fatal state, emitting GO_FATAL for the host and stashing the
@@ -185,7 +189,7 @@ export function reduce(state, event) {
   switch (event.type) {
     case 'LOAD':
       return {
-        state: { ...s, state: 'loading', userPaused: false, fatalError: null },
+        state: { ...s, state: 'loading', userPaused: false, nudged: false, fatalError: null },
         effects,
       };
 
@@ -198,8 +202,9 @@ export function reduce(state, event) {
         ...s,
         state: 'playing',
         userPaused: false,
-        // Recovered: clear the auth-refresh latch.
+        // Recovered: clear the auth-refresh latch and nudge flag.
         credentialsRefreshed: false,
+        nudged: false,
       };
       if (wasRecovering) {
         // We recovered on our own — hide the badge AND cancel any retry the
@@ -254,6 +259,7 @@ export function reduce(state, event) {
       if (s.state === 'recovering' || s.state === 'buffering') {
         effects.push({ type: 'HIDE_RECONNECTING' });
         effects.push({ type: 'CANCEL_RETRY' });
+        next = { ...next, attemptCount: 0, nudged: false };
       }
       if (s.state === 'playing') {
         const steppedCap = stepCap(s.qualityCap, 'up', s.manualCap);
@@ -284,12 +290,22 @@ export function reduce(state, event) {
       }
       // A stall loop that never recovers is as fatal as a dead source.
       if (retriesExhausted(s)) return goFatal(s, 'UNPLAYABLE', effects);
+
+      // First stall of this episode on a live stream: try a lightweight nudge
+      // (re-prime / seek-to-edge, no teardown) before the heavy RELOAD that
+      // blanks the frame. Reuse the retry timer as the escalation clock — if
+      // PROGRESS advances within NUDGE_WINDOW_MS the CANCEL_RETRY path fires;
+      // otherwise RETRY → RELOAD escalates.
+      if (s.isLive && !s.nudged) {
+        const next = { ...s, state: 'buffering', nudged: true };
+        effects.push({ type: 'NUDGE' });
+        effects.push({ type: 'SCHEDULE_RETRY', delayMs: NUDGE_WINDOW_MS });
+        return { state: next, effects };
+      }
+
       const streak = s.bufferingStreak + 1;
       let next = { ...s, state: 'recovering', bufferingStreak: streak };
-
       effects.push({ type: 'SHOW_RECONNECTING' });
-
-      // K consecutive buffering episodes -> step quality down.
       if (streak >= BUFFERING_DOWNGRADE_THRESHOLD) {
         const steppedCap = stepCap(s.qualityCap, 'down', s.manualCap);
         next = { ...next, qualityCap: steppedCap, bufferingStreak: 0 };
@@ -297,7 +313,6 @@ export function reduce(state, event) {
           effects.push({ type: 'SET_QUALITY_CAP', cap: steppedCap });
         }
       }
-
       effects.push(scheduleRetryEffect(next));
       return { state: next, effects };
     }

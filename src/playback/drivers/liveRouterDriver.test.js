@@ -1,5 +1,5 @@
 // @ts-check
-import test from 'node:test';
+import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createLiveRouterDriver } from './liveRouterDriver.js';
 
@@ -120,4 +120,46 @@ test('element reads delegate to hls sub-driver; isLive follows active engine', a
   assert.equal(d.currentTime(), 42);   // hls sub-driver
   assert.equal(d.duration(), 100);
   assert.equal(d.isLive(), true);      // active = mpegts
+});
+
+/** A stub sub-driver that records which of its subscriptions were used. */
+function makeStubDriver(tag) {
+  const calls = { onStall: 0, onStatus: 0, onProgress: 0, load: 0, destroy: 0 };
+  return {
+    tag,
+    calls,
+    load: () => { calls.load += 1; },
+    play: () => {},
+    pause: () => {},
+    destroy: () => { calls.destroy += 1; },
+    currentTime: () => 0,
+    duration: () => NaN,
+    buffered: () => 0,
+    isLive: () => true,
+    setQualityCap: () => {},
+    onStatus: (cb) => { calls.onStatus += 1; return () => {}; },
+    onProgress: (cb) => { calls.onProgress += 1; return () => {}; },
+    onStall: (cb) => { calls.onStall += 1; return () => {}; },
+    onError: (cb) => () => {},
+  };
+}
+
+describe('liveRouterDriver watchdog ownership', () => {
+  test('routes onStall to the mpegts engine after a switch to mpegts', async () => {
+    const hls = makeStubDriver('hls');
+    const mpegts = makeStubDriver('mpegts');
+    const router = createLiveRouterDriver({
+      hls,
+      mpegts,
+      probe: async () => ({ engine: 'mpegts', confident: true }),
+    });
+    // Subscribe BEFORE loading (as the host does), then load a live source that
+    // resolves to mpegts.
+    let stalled = false;
+    router.onStall(() => { stalled = true; });
+    await router.load({ uri: 'http://x/live.m3u8' }, { isLive: true });
+    // After the switch, the router must (re)subscribe onStall on the active
+    // (mpegts) engine, not leave it bound to hls.
+    assert.equal(mpegts.calls.onStall >= 1, true, 'mpegts must receive the onStall subscription after switch');
+  });
 });

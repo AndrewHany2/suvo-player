@@ -122,6 +122,41 @@ export function createVlcDriver(handle) {
     /* progressive file, no ABR — no-op */
   }
 
+  // ── transport ────────────────────────────────────────────────────────────
+  /**
+   * Seek to an absolute position (seconds). <VLCPlayer>.seek takes a FRACTION,
+   * so convert via the known duration. Update lastPositionSec + pendingStartSec
+   * SYNCHRONOUSLY first: a recovery RELOAD reads currentTime()/uses the pending
+   * start, and must land on the NEW position, not the stale pre-scrub one.
+   * @param {number} sec
+   */
+  function seekTo(sec) {
+    if (typeof sec !== 'number' || !Number.isFinite(sec)) return;
+    const target = Math.max(0, sec);
+    lastPositionSec = target;
+    pendingStartSec = target; // so a reload before the next progress tick resumes here
+    didSeek = false;          // allow the resume seek to re-fire after a reload
+    if (lastDurationSec > 0) {
+      const frac = Math.max(0, Math.min(1, target / lastDurationSec));
+      try { handle.seek(frac); } catch { /* noop */ }
+    }
+  }
+
+  /** @param {number} delta seconds (may be negative) */
+  function seekBy(delta) {
+    if (typeof delta !== 'number' || !Number.isFinite(delta)) return;
+    seekTo(currentTime() + delta);
+  }
+
+  /** Nudge: re-seek to the current position to jog a stalled decoder (no reload). */
+  function nudge() {
+    if (lastDurationSec > 0) {
+      const frac = Math.max(0, Math.min(1, lastPositionSec / lastDurationSec));
+      try { handle.seek(frac); } catch { /* noop */ }
+    }
+    try { play(); } catch { /* noop */ }
+  }
+
   function onStatus(cb) {
     statusCb = cb;
     return () => {
@@ -228,11 +263,15 @@ export function createVlcDriver(handle) {
     play,
     pause,
     destroy,
+    seekTo,
+    seekBy,
+    nudge,
     currentTime,
     duration,
     buffered,
     isLive,
     setQualityCap,
+    capabilities: { canSeek: true, canSetRate: false, canSetVolume: false, canNudge: true },
     onStatus,
     onProgress,
     onStall,

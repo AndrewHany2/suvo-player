@@ -402,12 +402,8 @@ export default function VlcPlayerScreen({ navigation }) {
     const dur = progressRef.current.durationSec;
     if (!(dur > 0)) return;
     const clamped = Math.max(0, Math.min(dur, sec));
-    try {
-      vlcRef.current?.seek?.(clamped / dur);
-    } catch {
-      /* noop */
-    }
-  }, []);
+    driver.seekTo(clamped);
+  }, [driver]);
 
   // Seek-bar scrub (fraction of duration).
   const scrubToX = useCallback((x) => {
@@ -419,16 +415,15 @@ export default function VlcPlayerScreen({ navigation }) {
   const commitScrub = useCallback(() => {
     setScrubFrac((frac) => {
       if (frac != null) {
-        try {
-          vlcRef.current?.seek?.(frac);
-        } catch {
-          /* noop */
-        }
+        // Route through the driver (not vlcRef directly) so the driver's saved
+        // position updates and a recovery RELOAD resumes at the scrubbed spot.
+        const dur = progressRef.current.durationSec;
+        if (dur > 0) driver.seekTo(frac * dur);
       }
       return null;
     });
     resetControlsTimer();
-  }, [resetControlsTimer]);
+  }, [resetControlsTimer, driver]);
 
   // Screen-reader seek: ±10s via the same clamped seek helper the gestures use.
   const handleSeekAccessibilityAction = useCallback((e) => {

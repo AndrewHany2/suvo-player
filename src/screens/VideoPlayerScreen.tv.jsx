@@ -738,8 +738,9 @@ export default function VideoPlayerScreen() {
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const ratio = (e.clientX - rect.left) / rect.width;
-                  if (videoRef.current && tvDuration > 0)
-                    videoRef.current.currentTime = ratio * tvDuration;
+                  // Route through the driver so the machine's saved position
+                  // updates and a recovery RELOAD resumes at the scrubbed spot.
+                  if (tvDuration > 0) player.seekTo(ratio * tvDuration);
                 }}
               >
                 <div style={TV.progressFill(pct)} />

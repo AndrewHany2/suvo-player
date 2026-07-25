@@ -1,5 +1,5 @@
 // @ts-check
-import test, { mock } from 'node:test';
+import test, { mock, describe } from 'node:test';
 import assert from 'node:assert';
 import { createVlcDriver, classifyVlcError } from './vlcDriver.js';
 import { STREAM_USER_AGENT } from './expoVideoDriver.js';
@@ -157,4 +157,35 @@ test('onStall does not fire before playback starts (initial buffering)', () => {
   } finally {
     mock.timers.reset();
   }
+});
+
+// ── seekTo / seekBy ────────────────────────────────────────────────────────────
+
+describe('vlcDriver seekTo resume correctness', () => {
+  test('seekTo updates currentTime() synchronously and calls handle.seek with the right fraction', () => {
+    const seeks = [];
+    const { driver, ingest } = createVlcDriver({
+      setSource: () => {}, setPaused: () => {}, seek: (frac) => seeks.push(frac),
+    });
+    // Establish a known duration via a progress tick (600s clip, at 60s).
+    ingest.progress({ currentTime: 60000, duration: 600000 });
+    assert.equal(Math.round(driver.currentTime()), 60);
+
+    driver.seekTo(300); // jump to 5:00
+    // currentTime must reflect the new target immediately (before any callback),
+    // so a RELOAD that reads currentTime resumes at 300, not the stale 60.
+    assert.equal(Math.round(driver.currentTime()), 300);
+    // handle.seek is fraction-based: 300 / 600 = 0.5
+    assert.equal(seeks.at(-1), 0.5);
+  });
+
+  test('seekTo is a no-op-safe when duration is unknown (falls back to remembering seconds)', () => {
+    const seeks = [];
+    const { driver } = createVlcDriver({
+      setSource: () => {}, setPaused: () => {}, seek: (frac) => seeks.push(frac),
+    });
+    driver.seekTo(120);
+    // No duration yet → we still remember the target so a resume can use it.
+    assert.equal(Math.round(driver.currentTime()), 120);
+  });
 });

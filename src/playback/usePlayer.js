@@ -300,6 +300,12 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
   // clock as intended, not as a stall to reload.
   const { notifyPause, notifyPlay } = playback;
 
+  // Seek passthrough — routes screen seek writes through the driver so the
+  // driver's savedTime (pendingSeekSec / lastGoodTime) stays correct and a
+  // recovery RELOAD resumes at the scrubbed position, not the pre-scrub one.
+  const seekTo = useCallback((sec) => { driver?.seekTo?.(sec); }, [driver]);
+  const seekBy = useCallback((delta) => { driver?.seekBy?.(delta); }, [driver]);
+
   // "Busy" = any non-clean-playback state where we show a spinner: initial
   // load, transient buffering, or a genuine reconnect. Never while fatal (the
   // error panel owns that).
@@ -1040,6 +1046,9 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     toggleMuteWeb,
     handleChannelUp,
     handleChannelDown,
+    // Seek passthrough (routes through the driver so savedTime stays correct)
+    seekTo,
+    seekBy,
     // Helper (label formatting) — re-exported for convenience
     getLevelLabel,
   };

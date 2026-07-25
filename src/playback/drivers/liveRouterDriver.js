@@ -8,11 +8,12 @@
  * the hls sub-driver (real HLS) or the mpegts sub-driver (raw TS). Non-live
  * sources always use hls (VOD is handled by hls/native there, unchanged).
  *
- * Element-based reads and subscriptions (currentTime/duration/buffered/onStatus/
- * onProgress/onStall) are engine-agnostic — both sub-drivers implement them on
- * the same <video> element — so the router delegates those to the hls sub-driver
- * permanently. Only load(), onError(), setQualityCap() and isLive() follow the
- * active engine; onError is rebound to the active engine on every switch.
+ * Element-based reads (currentTime/duration/buffered) are engine-agnostic — both
+ * sub-drivers read the same <video> element — so those are pull-based and always
+ * delegate to the hls sub-driver (no rebind needed). Subscriptions
+ * (onStatus/onProgress/onStall/onError) follow the active engine on every switch
+ * so the first-frame gate and stall watchdog belong to whichever engine is
+ * actually driving the <video> element.
  *
  * @typedef {import('./types.js').PlayerDriver} PlayerDriver
  */
@@ -31,17 +32,50 @@ import { probeLiveStream } from '../liveStreamProbe.js';
 export function createLiveRouterDriver({ hls, mpegts, probe = probeLiveStream, probeTimeoutMs = 2000 }) {
   /** @type {PlayerDriver} */
   let active = hls;
-  /** @type {((err:any)=>void)|null} */
-  let errorCb = null;
-  /** @type {(()=>void)|null} */
-  let errorUnsub = null;
+
+  // The host subscribes once for the driver's whole life, but the active engine
+  // changes on an hls↔mpegts switch. Keep each element-level subscription's
+  // callback and re-point it at the active engine when we switch. onError was
+  // already rebound this way; status/progress/stall now follow the active engine
+  // too so the first-frame gate + stall watchdog belong to whichever engine is
+  // actually driving the <video> element.
+  /** @type {Record<'status'|'progress'|'stall'|'error', {cb: any, unsub: (()=>void)|null}>} */
+  const subs = {
+    status: { cb: null, unsub: null },
+    progress: { cb: null, unsub: null },
+    stall: { cb: null, unsub: null },
+    error: { cb: null, unsub: null },
+  };
+
+  const SUB_METHOD = { status: 'onStatus', progress: 'onProgress', stall: 'onStall', error: 'onError' };
+
+  /** @param {'status'|'progress'|'stall'|'error'} kind */
+  function rebindOne(kind) {
+    const entry = subs[kind];
+    if (entry.unsub) { try { entry.unsub(); } catch { /* noop */ } entry.unsub = null; }
+    if (entry.cb) entry.unsub = active[SUB_METHOD[kind]](entry.cb);
+  }
+
+  function rebindAll() {
+    rebindOne('status');
+    rebindOne('progress');
+    rebindOne('stall');
+    rebindOne('error');
+  }
+
+  /** @param {'status'|'progress'|'stall'|'error'} kind */
+  function subscribe(kind, cb) {
+    subs[kind].cb = cb;
+    rebindOne(kind);
+    return () => {
+      const entry = subs[kind];
+      if (entry.unsub) { try { entry.unsub(); } catch { /* noop */ } entry.unsub = null; }
+      entry.cb = null;
+    };
+  }
+
   /** url -> resolved engine, so a recovery-reload doesn't re-probe. */
   const engineCache = new Map();
-
-  function rebindError() {
-    if (errorUnsub) { try { errorUnsub(); } catch { /* noop */ } errorUnsub = null; }
-    if (errorCb) errorUnsub = active.onError(errorCb);
-  }
 
   // Probe a live URL for its engine, bounded by a hard deadline. probeLiveStream
   // never throws (it swallows AbortError and resolves to hls), so a timeout is
@@ -89,7 +123,7 @@ export function createLiveRouterDriver({ hls, mpegts, probe = probeLiveStream, p
       // attaches, so two engines never fight over the same element.
       try { active.destroy?.(); } catch { /* noop */ }
       active = next;
-      rebindError();
+      rebindAll();
     }
     active.load(source, loadOpts);
   }
@@ -108,17 +142,16 @@ export function createLiveRouterDriver({ hls, mpegts, probe = probeLiveStream, p
     buffered: () => hls.buffered(),
     isLive: () => active.isLive(),
     setQualityCap: (cap) => active.setQualityCap?.(cap),
-    onStatus: (cb) => hls.onStatus(cb),
-    onProgress: (cb) => hls.onProgress(cb),
-    onStall: (cb) => hls.onStall(cb),
-    onError: (cb) => {
-      errorCb = cb;
-      rebindError();
-      return () => {
-        if (errorUnsub) { try { errorUnsub(); } catch { /* noop */ } errorUnsub = null; }
-        errorCb = null;
-      };
-    },
+    seekTo: (sec) => active.seekTo?.(sec),
+    seekBy: (delta) => active.seekBy?.(delta),
+    setVolume: (v) => active.setVolume?.(v),
+    setRate: (r) => active.setRate?.(r),
+    nudge: () => active.nudge?.(),
+    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: true },
+    onStatus: (cb) => subscribe('status', cb),
+    onProgress: (cb) => subscribe('progress', cb),
+    onStall: (cb) => subscribe('stall', cb),
+    onError: (cb) => subscribe('error', cb),
   };
 }
 

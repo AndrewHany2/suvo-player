@@ -53,8 +53,8 @@ function resolveNetInfo() {
  * @property {() => void} retry      - Manual retry: clears fatal and reloads from saved position/edge.
  * @property {() => void} notifyPause - Tell the machine the user paused (suppresses paused-stall reloads).
  * @property {() => void} notifyPlay  - Tell the machine the user resumed.
- * @property {number} currentTime    - Last known playback position (seconds).
- * @property {number} duration       - Total duration (seconds); Infinity/NaN for live.
+ * @property {number} currentTime    - @internal Last known position (seconds). Reserved: screens still own their display clock; do not consume yet (see docs/ARCHITECTURE.md).
+ * @property {number} duration       - @internal Total duration (seconds); Infinity/NaN for live. Reserved (see currentTime).
  */
 
 /**
@@ -140,6 +140,12 @@ export function useResilientPlayback({
         }
         case 'SET_QUALITY_CAP':
           d?.setQualityCap?.(effect.cap);
+          break;
+        case 'NUDGE':
+          // Lightweight recovery: re-prime / seek-to-edge without a teardown
+          // reload. Best-effort — a driver without canNudge simply no-ops and
+          // the scheduled escalation RETRY handles it.
+          try { d?.nudge?.(); } catch { /* noop */ }
           break;
         case 'REFRESH_CREDENTIALS':
           try {

@@ -408,6 +408,65 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     }
   }
 
+  // ── transport ────────────────────────────────────────────────────────────
+  /**
+   * Seek to an absolute position (seconds). Clamps to [0, duration] for VOD;
+   * for live, clamps to the seekable window. Writes the element directly — the
+   * <video> currentTime IS the source of truth for element-based engines, so a
+   * recovery RELOAD (which re-reads currentTime for VOD) resumes at the new spot.
+   * @param {number} sec
+   */
+  function seekTo(sec) {
+    const videoEl = el();
+    if (!videoEl || typeof sec !== 'number' || !Number.isFinite(sec)) return;
+    let target = Math.max(0, sec);
+    const d = duration();
+    if (Number.isFinite(d) && d > 0) target = Math.min(target, d);
+    try { videoEl.currentTime = target; } catch { /* not seekable yet */ }
+  }
+
+  /** @param {number} delta seconds (may be negative) */
+  function seekBy(delta) {
+    if (typeof delta !== 'number' || !Number.isFinite(delta)) return;
+    seekTo(currentTime() + delta);
+  }
+
+  /** @param {number} v 0..1 */
+  function setVolume(v) {
+    const videoEl = el();
+    if (!videoEl || typeof v !== 'number' || !Number.isFinite(v)) return;
+    const nv = Math.max(0, Math.min(1, v));
+    try { videoEl.volume = nv; videoEl.muted = nv === 0; } catch { /* noop */ }
+  }
+
+  /** @param {number} r playback rate */
+  function setRate(r) {
+    const videoEl = el();
+    if (!videoEl || typeof r !== 'number' || !Number.isFinite(r) || r <= 0) return;
+    try { videoEl.playbackRate = r; } catch { /* noop */ }
+  }
+
+  /**
+   * Nudge recovery: ask hls.js to resume loading and re-seek toward the live
+   * edge (live) or the buffered edge (VOD) WITHOUT destroying the instance.
+   */
+  function nudge() {
+    const inst = hls();
+    try { inst?.startLoad?.(); } catch { /* noop */ }
+    try {
+      if (isLive()) {
+        seekToLiveEdge();
+      } else {
+        const videoEl = el();
+        const b = videoEl?.buffered;
+        if (b && b.length > 0) {
+          const end = b.end(b.length - 1);
+          if (Number.isFinite(end) && end > currentTime()) videoEl.currentTime = Math.min(end, currentTime() + 0.5);
+        }
+      }
+    } catch { /* noop */ }
+  }
+
   // ── getters ────────────────────────────────────────────────────────────────
   function currentTime() {
     const t = el()?.currentTime;
@@ -730,11 +789,17 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     play,
     pause,
     destroy,
+    seekTo,
+    seekBy,
+    setVolume,
+    setRate,
+    nudge,
     currentTime,
     duration,
     buffered,
     isLive,
     setQualityCap,
+    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: true },
     onStatus,
     onProgress,
     onStall,
