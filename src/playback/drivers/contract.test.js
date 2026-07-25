@@ -77,4 +77,11 @@ describe('PlayerDriver contract — capability gating', () => {
     assert.equal(vlc.capabilities?.canSetRate, false, 'vlc rate is prop-driven → not a driver capability');
     assertCapabilityGating(vlc, 'vlc');
   });
+  test('liveRouter capabilities match delegated methods', () => {
+    const { liveRouter } = buildAll();
+    assert.ok(liveRouter.capabilities?.canSeek, 'liveRouter should advertise canSeek');
+    assert.ok(liveRouter.capabilities?.canSetRate, 'liveRouter should advertise canSetRate');
+    assert.ok(liveRouter.capabilities?.canSetVolume, 'liveRouter should advertise canSetVolume');
+    assertCapabilityGating(liveRouter, 'liveRouter');
+  });
 });
