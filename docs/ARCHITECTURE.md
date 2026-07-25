@@ -94,6 +94,20 @@ Playback lives in `src/playback/` and is engine-agnostic by design.
 Each engine's quirks stay isolated in its driver; the reducer and host hook are
 shared across all platforms.
 
+### Player display clock & manual retry (2026-07 reliability slice)
+
+- `useResilientPlayback` exposes `currentTime`/`duration`, but screens still own
+  their own display clock (they poll the engine directly). Those two fields are
+  reserved (`@internal`) until the performance slice consolidates the ~1 Hz
+  re-render; do not wire screens to them yet.
+- Manual `retry()` (the fatal-panel Reload button) is deliberately a single fast
+  attempt — it resets the attempt counter and re-requests once. A slow backend
+  (302 to a cold node) relies on the user re-tapping Reload. Automatic live
+  recovery, by contrast, gets a nudge rung + up to 3 reload attempts.
+- Driver `capabilities` ({canSeek,canSetRate,canSetVolume,canNudge}) declare which
+  optional transport/nudge methods each engine implements; `drivers/contract.test.js`
+  enforces "method present iff capability true".
+
 ## Backend
 
 - **Supabase** — auth plus a device-gated Edge Function (`supabase/functions/data`)

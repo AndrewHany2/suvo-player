@@ -7,6 +7,10 @@
  *
  * The recovery brain (recoveryMachine) never imports an engine; it only ever
  * speaks to a PlayerDriver and consumes NormalizedError objects.
+ *
+ * Optional transport and nudge methods (seekTo, seekBy, setVolume, setRate,
+ * nudge) are declared present via the `capabilities` field. The rule "method
+ * present iff capability true" is enforced by `drivers/contract.test.js`.
  */
 
 /**
@@ -86,6 +90,10 @@
  * @property {(delta: number) => void} [seekBy]   - Seek by a relative offset (seconds), clamped to [0, duration].
  * @property {(v: number) => void} [setVolume]    - Set engine volume 0..1.
  * @property {(r: number) => void} [setRate]      - Set playback rate.
+ * @property {() => void} [nudge]                 - Lightweight recovery: re-prime/seek-to-edge WITHOUT a teardown reload.
+ *
+ * // --- capabilities (which optional methods this engine actually implements) ---
+ * @property {{canSeek: boolean, canSetRate: boolean, canSetVolume: boolean, canNudge: boolean}} [capabilities]
  *
  * // --- getters ---
  * @property {() => number} currentTime          - Current playback position (seconds).
