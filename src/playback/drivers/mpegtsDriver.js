@@ -180,6 +180,39 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
     /* raw MPEG-TS has no selectable levels — no-op (matches native driver) */
   }
 
+  // ── transport ────────────────────────────────────────────────────────────
+  /** @param {number} sec absolute position (seconds), clamped to the seekable window. */
+  function seekTo(sec) {
+    const videoEl = el();
+    if (!videoEl || typeof sec !== 'number' || !Number.isFinite(sec)) return;
+    let target = Math.max(0, sec);
+    try {
+      const seekable = videoEl.seekable;
+      if (seekable && seekable.length > 0) {
+        target = Math.min(target, seekable.end(seekable.length - 1));
+      }
+      videoEl.currentTime = target;
+    } catch { /* not seekable yet */ }
+  }
+  /** @param {number} delta seconds (may be negative) */
+  function seekBy(delta) {
+    if (typeof delta !== 'number' || !Number.isFinite(delta)) return;
+    seekTo(currentTime() + delta);
+  }
+  /** @param {number} v 0..1 */
+  function setVolume(v) {
+    const videoEl = el();
+    if (!videoEl || typeof v !== 'number' || !Number.isFinite(v)) return;
+    const nv = Math.max(0, Math.min(1, v));
+    try { videoEl.volume = nv; videoEl.muted = nv === 0; } catch { /* noop */ }
+  }
+  /** @param {number} r playback rate */
+  function setRate(r) {
+    const videoEl = el();
+    if (!videoEl || typeof r !== 'number' || !Number.isFinite(r) || r <= 0) return;
+    try { videoEl.playbackRate = r; } catch { /* noop */ }
+  }
+
   // ── event subscriptions (element-based, engine-agnostic) ─────────────────────
   /** @param {(status: PlayerStatus) => void} cb */
   function onStatus(cb) {
@@ -283,8 +316,10 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
   /** @type {PlayerDriver} */
   return {
     load, play, pause, destroy,
+    seekTo, seekBy, setVolume, setRate,
     currentTime, duration, buffered, isLive,
     setQualityCap,
+    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: false },
     onStatus, onProgress, onStall, onError,
   };
 }
