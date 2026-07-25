@@ -65,6 +65,15 @@ export const MAX_LOAD_ATTEMPTS = 1;
 export const RETRY_BACKOFF = { base: 350, factor: 2, max: 1500 };
 
 /**
+ * How long (ms) to let a lightweight NUDGE try to heal a live stall before
+ * escalating to a full teardown RELOAD. Reuses the retry timer as the
+ * escalation clock: the first stall schedules SCHEDULE_RETRY(NUDGE_WINDOW_MS)
+ * alongside the NUDGE; advancing PROGRESS cancels it (self-heal), else it fires
+ * RETRY → RELOAD.
+ */
+export const NUDGE_WINDOW_MS = 3000;
+
+/**
  * Minimum currentTime advance (seconds) that counts as real playback progress
  * while recovering/buffering. Absorbs sub-second poll jitter so a frozen,
  * stalled engine isn't misread as recovered.
@@ -116,6 +125,7 @@ export function initialState(opts = {}) {
     qualityCap,
     manualCap,
     userPaused: false,
+    nudged: false,
     fatalError: null,
   };
 }
@@ -140,16 +150,9 @@ function scheduleRetryEffect(s) {
   return { type: 'SCHEDULE_RETRY', delayMs: nextDelay(s.attemptCount, RETRY_BACKOFF) };
 }
 
-/**
- * True when the source has burned the full retry ladder without ever reaching
- * sustained playback (attemptCount resets to 0 on real progress). Such a source
- * is effectively unplayable — retrying again would just loop forever.
- * @param {MachineState} s
- * @returns {boolean}
- */
-function retriesExhausted(s) {
-  return s.attemptCount >= MAX_LOAD_ATTEMPTS;
-}
+/** VOD fast-fails after 1 attempt; live tolerates a few blips before fatal. */
+export function maxLoadAttempts(isLive) { return isLive ? 3 : 1; }
+function retriesExhausted(s) { return s.attemptCount >= maxLoadAttempts(s.isLive); }
 
 /**
  * Transition to the fatal state, emitting GO_FATAL for the host and stashing the
@@ -185,7 +188,7 @@ export function reduce(state, event) {
   switch (event.type) {
     case 'LOAD':
       return {
-        state: { ...s, state: 'loading', userPaused: false, fatalError: null },
+        state: { ...s, state: 'loading', userPaused: false, nudged: false, fatalError: null },
         effects,
       };
 
@@ -198,8 +201,9 @@ export function reduce(state, event) {
         ...s,
         state: 'playing',
         userPaused: false,
-        // Recovered: clear the auth-refresh latch.
+        // Recovered: clear the auth-refresh latch and nudge flag.
         credentialsRefreshed: false,
+        nudged: false,
       };
       if (wasRecovering) {
         // We recovered on our own — hide the badge AND cancel any retry the
@@ -254,6 +258,7 @@ export function reduce(state, event) {
       if (s.state === 'recovering' || s.state === 'buffering') {
         effects.push({ type: 'HIDE_RECONNECTING' });
         effects.push({ type: 'CANCEL_RETRY' });
+        next = { ...next, attemptCount: 0, nudged: false };
       }
       if (s.state === 'playing') {
         const steppedCap = stepCap(s.qualityCap, 'up', s.manualCap);
@@ -284,12 +289,22 @@ export function reduce(state, event) {
       }
       // A stall loop that never recovers is as fatal as a dead source.
       if (retriesExhausted(s)) return goFatal(s, 'UNPLAYABLE', effects);
+
+      // First stall of this episode on a live stream: try a lightweight nudge
+      // (re-prime / seek-to-edge, no teardown) before the heavy RELOAD that
+      // blanks the frame. Reuse the retry timer as the escalation clock — if
+      // PROGRESS advances within NUDGE_WINDOW_MS the CANCEL_RETRY path fires;
+      // otherwise RETRY → RELOAD escalates.
+      if (s.isLive && !s.nudged) {
+        const next = { ...s, state: 'buffering', nudged: true };
+        effects.push({ type: 'NUDGE' });
+        effects.push({ type: 'SCHEDULE_RETRY', delayMs: NUDGE_WINDOW_MS });
+        return { state: next, effects };
+      }
+
       const streak = s.bufferingStreak + 1;
       let next = { ...s, state: 'recovering', bufferingStreak: streak };
-
       effects.push({ type: 'SHOW_RECONNECTING' });
-
-      // K consecutive buffering episodes -> step quality down.
       if (streak >= BUFFERING_DOWNGRADE_THRESHOLD) {
         const steppedCap = stepCap(s.qualityCap, 'down', s.manualCap);
         next = { ...next, qualityCap: steppedCap, bufferingStreak: 0 };
@@ -297,7 +312,6 @@ export function reduce(state, event) {
           effects.push({ type: 'SET_QUALITY_CAP', cap: steppedCap });
         }
       }
-
       effects.push(scheduleRetryEffect(next));
       return { state: next, effects };
     }

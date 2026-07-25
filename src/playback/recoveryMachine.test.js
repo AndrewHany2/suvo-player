@@ -6,6 +6,7 @@ import {
   initialState,
   BUFFERING_DOWNGRADE_THRESHOLD,
   MAX_LOAD_ATTEMPTS,
+  NUDGE_WINDOW_MS,
 } from "./recoveryMachine.js";
 
 /** Find the first effect of a given type. */
@@ -488,5 +489,62 @@ describe("savedTime zero-guard (pause -> resume must not restart)", () => {
     s = reduce(s, { type: "PROGRESS", currentTime: 300 }).state;
     s = reduce(s, { type: "PROGRESS", currentTime: 60 }).state; // user rewound
     assert.equal(s.savedTime, 60);
+  });
+});
+
+describe('live-aware recovery ladder + nudge', () => {
+  const playing = (over = {}) => ({ ...initialState({ isLive: true }), state: 'playing', savedTime: 100, ...over });
+
+  test('first STALL emits NUDGE (not a teardown reload) and schedules the nudge window', () => {
+    const { state, effects } = reduce(playing(), { type: 'STALL' });
+    const kinds = effects.map((e) => e.type);
+    assert.ok(kinds.includes('NUDGE'), 'first stall should nudge');
+    assert.ok(!kinds.includes('RELOAD'), 'first stall must not reload');
+    const sched = effects.find((e) => e.type === 'SCHEDULE_RETRY');
+    assert.equal(sched.delayMs, NUDGE_WINDOW_MS, 'nudge window drives the escalation timer');
+    assert.equal(state.nudged, true);
+  });
+
+  test('after a nudge, the escalation RETRY performs the reload', () => {
+    const s1 = reduce(playing(), { type: 'STALL' }).state;
+    const { state, effects } = reduce(s1, { type: 'RETRY' });
+    const reload = effects.find((e) => e.type === 'RELOAD');
+    assert.ok(reload, 'escalation retry must reload');
+    assert.equal(reload.toLiveEdge, true, 'live reload goes to the edge');
+    assert.equal(state.attemptCount, 1);
+  });
+
+  test('a second STALL (already nudged) goes straight to the reload ladder', () => {
+    const s1 = reduce(playing(), { type: 'STALL' }).state;       // nudged
+    const s2 = reduce(s1, { type: 'PROGRESS', currentTime: 100.01 }).state; // still frozen → stays recovering
+    const { effects } = reduce(s2, { type: 'STALL' });
+    assert.ok(effects.some((e) => e.type === 'SHOW_RECONNECTING'), 'second stall shows reconnecting');
+    assert.ok(effects.some((e) => e.type === 'SCHEDULE_RETRY'), 'second stall schedules a retry');
+  });
+
+  test('live gets up to 3 reload attempts before fatal; VOD gets 1', () => {
+    // VOD: attemptCount already 1 → next STALL is fatal.
+    const vod = { ...initialState({ isLive: false }), state: 'recovering', savedTime: 10, attemptCount: 1, nudged: true };
+    assert.equal(reduce(vod, { type: 'STALL' }).state.state, 'fatal');
+    // Live: attemptCount 1 and 2 still recover; only 3 is fatal.
+    const live2 = { ...initialState({ isLive: true }), state: 'recovering', attemptCount: 2, nudged: true };
+    assert.equal(reduce(live2, { type: 'STALL' }).state.state, 'recovering');
+    const live3 = { ...initialState({ isLive: true }), state: 'recovering', attemptCount: 3, nudged: true };
+    assert.equal(reduce(live3, { type: 'STALL' }).state.state, 'fatal');
+  });
+
+  test('self-recovery via advancing PROGRESS resets attemptCount and clears the nudged flag', () => {
+    const s = { ...initialState({ isLive: true }), state: 'recovering', savedTime: 50, attemptCount: 2, nudged: true };
+    const { state, effects } = reduce(s, { type: 'PROGRESS', currentTime: 51 });
+    assert.equal(state.state, 'playing');
+    assert.equal(state.attemptCount, 0);
+    assert.equal(state.nudged, false);
+    assert.ok(effects.some((e) => e.type === 'CANCEL_RETRY'));
+  });
+
+  test('regression: STALL → PLAYING → PROGRESS ends with a CANCEL_RETRY (timer cleared)', () => {
+    const s1 = reduce(playing(), { type: 'STALL' }).state;
+    const s2 = reduce(s1, { type: 'PLAYING' });
+    assert.ok(s2.effects.some((e) => e.type === 'CANCEL_RETRY'), 'PLAYING after a stall cancels the pending retry');
   });
 });
