@@ -65,6 +65,9 @@ describe('PlayerDriver contract — capability gating', () => {
   });
   test('mpegts capabilities match implemented methods', () => {
     const { mpegts } = buildAll();
+    assert.ok(mpegts.capabilities?.canSeek, 'mpegts should advertise canSeek');
+    assert.ok(mpegts.capabilities?.canSetRate, 'mpegts should advertise canSetRate');
+    assert.ok(mpegts.capabilities?.canSetVolume, 'mpegts should advertise canSetVolume');
     assertCapabilityGating(mpegts, 'mpegts');
   });
 });
