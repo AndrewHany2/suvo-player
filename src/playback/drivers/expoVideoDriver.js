@@ -426,10 +426,8 @@ export function createExpoVideoDriver(player, opts = {}) {
     pendingSeekSec = target;
     lastGoodTime = target;
     try {
-      if (player && Number.isFinite(player.currentTime)) player.currentTime = target;
-    } catch {
-      /* seeking before metadata is ready can throw; ignore */
-    }
+      if (player) player.currentTime = target;
+    } catch { /* setter can throw during teardown; pendingSeekSec re-applies on load */ }
   }
 
   /**
@@ -609,6 +607,7 @@ export function createExpoVideoDriver(player, opts = {}) {
 
   /** @type {PlayerDriver} */
   return {
+    capabilities: { canSeek: true, canSetRate: true, canSetVolume: true, canNudge: false },
     load,
     play,
     pause,

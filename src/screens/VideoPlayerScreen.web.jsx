@@ -476,8 +476,11 @@ export default function VideoPlayerScreen() {
     scrubbingRef.current = false;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
     seekWebToClientX(e.clientX, seekBarRef.current);
+    // Also route through the driver so the machine's saved position updates and
+    // a recovery RELOAD resumes at the scrubbed spot (not the pre-scrub one).
+    if (tvDuration > 0) player.seekTo(ratioFromClientX(e.clientX) * tvDuration);
     setScrubPct(null);
-  }, [seekWebToClientX]);
+  }, [seekWebToClientX, player, tvDuration, ratioFromClientX]);
 
   const handleScrubCancel = useCallback(() => {
     scrubbingRef.current = false;
