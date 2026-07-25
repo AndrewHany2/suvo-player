@@ -1,5 +1,5 @@
 // @ts-check
-import test, { mock } from 'node:test';
+import test, { mock, describe } from 'node:test';
 import assert from 'node:assert';
 import { createVlcDriver, classifyVlcError } from './vlcDriver.js';
 import { STREAM_USER_AGENT } from './expoVideoDriver.js';
@@ -160,8 +160,6 @@ test('onStall does not fire before playback starts (initial buffering)', () => {
 });
 
 // ── seekTo / seekBy ────────────────────────────────────────────────────────────
-
-import { describe } from 'node:test';
 
 describe('vlcDriver seekTo resume correctness', () => {
   test('seekTo updates currentTime() synchronously and calls handle.seek with the right fraction', () => {
