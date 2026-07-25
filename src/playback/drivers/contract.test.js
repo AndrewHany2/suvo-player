@@ -38,3 +38,29 @@ describe('PlayerDriver contract — mandatory methods', () => {
     });
   }
 });
+
+const CAPABILITY_METHODS = {
+  canSeek: ['seekTo', 'seekBy'],
+  canSetRate: ['setRate'],
+  canSetVolume: ['setVolume'],
+  canNudge: ['nudge'],
+};
+
+/** @param {any} driver @param {string} label */
+export function assertCapabilityGating(driver, label) {
+  const caps = driver.capabilities || {};
+  for (const [flag, methods] of Object.entries(CAPABILITY_METHODS)) {
+    for (const m of methods) {
+      if (caps[flag]) assert.equal(typeof driver[m], 'function', `${label}: ${flag} true ⇒ ${m}() must exist`);
+      else assert.equal(driver[m], undefined, `${label}: ${flag} false ⇒ ${m}() must be absent`);
+    }
+  }
+}
+
+describe('PlayerDriver contract — capability gating', () => {
+  const { hls } = buildAll();
+  test('hls capabilities match implemented methods', () => {
+    assert.equal(!!(hls.capabilities && hls.capabilities.canSeek), true, 'hls should advertise canSeek');
+    assertCapabilityGating(hls, 'hls');
+  });
+});
