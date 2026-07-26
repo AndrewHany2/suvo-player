@@ -802,10 +802,10 @@ export default function SeriesScreenTV({ navigation, route }) {
         <StatePanel
           mode="empty"
           icon="tv"
-          title="No account"
-          message="Add your media service in Accounts to start watching."
+          title={LABELS.noAccountTitle}
+          message={LABELS.noAccountBody}
           cta={() => navigation.navigate("Accounts")}
-          ctaLabel="Add Account"
+          ctaLabel={LABELS.noAccountCta}
           ctaFocused={!navActive}
         />
       </div>

@@ -484,10 +484,10 @@ export default function MoviesScreenTV({ navigation, route }) {
         <StatePanel
           mode="empty"
           icon="film"
-          title="No account"
-          message="Add your media service from Settings"
+          title={LABELS.noAccountTitle}
+          message={LABELS.noAccountBody}
           cta={() => navigation.navigate("Accounts")}
-          ctaLabel="Add Account"
+          ctaLabel={LABELS.noAccountCta}
           ctaFocused={!navActive}
         />
       </div>

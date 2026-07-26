@@ -4,6 +4,7 @@ import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import SkeletonShelvesTV from "../presentation/components/SkeletonShelvesTV";
 import StatePanel from "../ui/StatePanel";
+import { LABELS } from "../ui/labels";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
@@ -242,7 +243,7 @@ export default function LiveTVScreenTV({ navigation }) {
     }
     e.preventDefault();
     if (KEY_BACK.has(k)) { navigation.goBack?.(); return; }
-    // No-account terminal panel: the only target is the "Add Account" CTA.
+    // No-account terminal panel: the only target is the connect-account CTA.
     if (noAccountRef.current) {
       if (k === KEY_UP) focusNav();
       else if (k === KEY_ENTER) navigation.navigate("Accounts");
@@ -400,10 +401,10 @@ export default function LiveTVScreenTV({ navigation }) {
         <StatePanel
           mode="empty"
           icon="tv"
-          title="No account"
-          message="Add your media service in Accounts to start watching."
+          title={LABELS.noAccountTitle}
+          message={LABELS.noAccountBody}
           cta={() => navigation.navigate("Accounts")}
-          ctaLabel="Add Account"
+          ctaLabel={LABELS.noAccountCta}
           ctaFocused={!navActive}
         />
       </div>
