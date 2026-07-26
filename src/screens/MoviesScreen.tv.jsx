@@ -13,6 +13,7 @@ import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
+import { LABELS } from "../ui/labels";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
 import "../styles/tvRemoteFocus.css";
@@ -507,7 +508,7 @@ export default function MoviesScreenTV({ navigation, route }) {
       { label: resume?.currentTime > 0 ? "Continue" : "Play", icon: "play", type: "play" },
       ...(resume?.currentTime > 0 ? [{ label: "From Start", icon: "back", type: "restart" }] : []),
       ...(trailer ? [{ label: showTrailer ? "Close Trailer" : "Trailer", icon: showTrailer ? "close" : "film", type: "trailer" }] : []),
-      { label: inFav ? "In My List" : "My List", icon: inFav ? "check" : "plus", type: "fav" },
+      { label: inFav ? LABELS.inMyList : LABELS.myList, icon: inFav ? "check" : "plus", type: "fav" },
     ];
     const btnClass = (i, type) => [
       "tvl-det-hero-btn",

@@ -192,7 +192,7 @@ export default function MoviesScreen({ navigation }) {
         title="Couldn't load movies"
         message={errorMessage || "Check your connection and try again"}
         onRetry={reload}
-        retryLabel="Retry"
+        retryLabel={LABELS.retry}
       />
     );
   }

@@ -547,7 +547,7 @@ export default function HistoryScreenTV({ navigation }) {
       { label: <><Icon name="play" size={16} color="currentColor" />&nbsp;&nbsp;{resume?.currentTime > 0 ? "Continue" : "Play"}</>, type: "play" },
       ...(resume?.currentTime > 0 ? [{ label: <><Icon name="back" size={16} color="currentColor" />&nbsp;&nbsp;From Start</>, type: "restart" }] : []),
       ...(trailer ? [{ label: showTrailer ? <><Icon name="close" size={16} color="currentColor" />&nbsp;&nbsp;Close Trailer</> : <><Icon name="film" size={16} color="currentColor" />&nbsp;&nbsp;Trailer</>, type: "trailer" }] : []),
-      { label: <><Icon name={inFav ? "check" : "plus"} size={16} color="currentColor" />&nbsp;&nbsp;{inFav ? "In My List" : "My List"}</>, type: "fav" },
+      { label: <><Icon name={inFav ? "check" : "plus"} size={16} color="currentColor" />&nbsp;&nbsp;{inFav ? LABELS.inMyList : LABELS.myList}</>, type: "fav" },
     ];
     const btnClass = (i, type) =>
       ["tvl-det-hero-btn",
@@ -645,7 +645,7 @@ export default function HistoryScreenTV({ navigation }) {
         label: <><Icon name="play" size={16} color="currentColor" />&nbsp;&nbsp;{"Continue" + (historyEntry.seasonNum
           ? ` S${historyEntry.seasonNum}E${String(historyEntry.episodeNum).padStart(2, "0")}` : "")}</>,
       }] : []),
-      { type: "fav", label: <><Icon name={inFav ? "check" : "plus"} size={16} color="currentColor" />&nbsp;&nbsp;{inFav ? "In My List" : "My List"}</> },
+      { type: "fav", label: <><Icon name={inFav ? "check" : "plus"} size={16} color="currentColor" />&nbsp;&nbsp;{inFav ? LABELS.inMyList : LABELS.myList}</> },
     ];
     const actBtnClass = (i) =>
       ["tvl-det-hero-btn",

@@ -359,7 +359,7 @@ export default function LiveTVScreen({ navigation }) {
         title="Couldn't load channels"
         message={errorMessage || "Check your connection and try again."}
         onRetry={loadChannels}
-        retryLabel="Retry"
+        retryLabel={LABELS.retry}
       />
     );
   }

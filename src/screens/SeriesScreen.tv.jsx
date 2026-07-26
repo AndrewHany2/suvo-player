@@ -9,6 +9,7 @@ import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
+import { LABELS } from "../ui/labels";
 import {
   isMacCommand,
   KEY_LEFT, KEY_UP, KEY_RIGHT, KEY_DOWN, KEY_ENTER, KEY_BACK,
@@ -844,7 +845,7 @@ export default function SeriesScreenTV({ navigation, route }) {
               : ""),
           }]
         : []),
-      { type: "fav", icon: inFav ? "check" : "plus", label: inFav ? "In My List" : "My List" },
+      { type: "fav", icon: inFav ? "check" : "plus", label: inFav ? LABELS.inMyList : LABELS.myList },
     ];
     const actBtnClass = (i) =>
       [

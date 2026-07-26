@@ -146,7 +146,7 @@ export default function SeriesScreen({ navigation }) {
         title="Couldn't load series"
         message={errorMessage || "Check your connection and try again."}
         onRetry={reload}
-        retryLabel="Retry"
+        retryLabel={LABELS.retry}
       />
     );
   }
