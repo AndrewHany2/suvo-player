@@ -1,18 +1,29 @@
 /**
  * Shared remote-control key mapping for TV.
  *
- * Previously every *.tv.jsx screen re-declared `const KEY_LEFT = 37 …` and a
- * `new Set([27, 461, 10009, 8])` for the back button (LG webOS 461, Samsung
- * Tizen 10009, Esc, Backspace). This is the single source of truth.
+ * The single source of truth for TV key codes. *.tv.jsx screens import these
+ * constants instead of re-declaring `const KEY_LEFT = 37 …` and their own back
+ * `new Set(...)` — so a new remote's key codes only need to change here.
  */
 
+export const KEY_LEFT = 37;
+export const KEY_UP = 38;
+export const KEY_RIGHT = 39;
+export const KEY_DOWN = 40;
+export const KEY_ENTER = 13;
+
+// Back varies by remote: LG webOS 461, Samsung Tizen 10009, plus Esc (27),
+// Backspace (8), and Meta/91 (this deployment's remote). Dropping any of these
+// silently breaks the Back button on that hardware.
+export const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
+
+// Derived from the constants above so the keyCode→action map can never drift
+// from KEY_BACK / the directional codes.
 export const KEY_CODES = {
-  37: "left", 38: "up", 39: "right", 40: "down",
-  13: "enter",
-  // 91 (Meta) is the Back key on this deployment's remote, alongside the
-  // standard LG webOS 461, Samsung Tizen 10009, Esc (27), Backspace (8).
-  27: "back", 461: "back", 10009: "back", 8: "back", 91: "back",
+  [KEY_LEFT]: "left", [KEY_UP]: "up", [KEY_RIGHT]: "right", [KEY_DOWN]: "down",
+  [KEY_ENTER]: "enter",
 };
+for (const code of KEY_BACK) KEY_CODES[code] = "back";
 
 export const KEY_NAMES = {
   ArrowLeft: "left", ArrowUp: "up", ArrowRight: "right", ArrowDown: "down",

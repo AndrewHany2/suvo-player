@@ -3,18 +3,14 @@ import { useApp, useChannels } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
 import { colors, iconSizes, fonts } from "../ui/tokens";
-import { isMacCommand } from "../platform/adapters/input/keys";
+import {
+  isMacCommand,
+  KEY_LEFT, KEY_UP, KEY_RIGHT, KEY_DOWN, KEY_ENTER, KEY_BACK,
+} from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
 import "../styles/tvRemoteFocus.css";
 import "./AccountsScreen.tv.css";
-
-const KEY_UP    = 38;
-const KEY_DOWN  = 40;
-const KEY_LEFT  = 37;
-const KEY_RIGHT = 39;
-const KEY_ENTER = 13;
-const KEY_BACK  = new Set([27, 461, 10009, 8, 91]);
 
 // Text-input fields for a source type. Focus index 0 is the type toggle; the
 // inputs follow (indices 1..N); then Cancel and Save. Deriving the field set

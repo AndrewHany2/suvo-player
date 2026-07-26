@@ -9,7 +9,10 @@ import { colors, iconSizes } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
 import { describeError } from "../utils/authError";
 import { normalizeSearch } from "../utils/normalizeSearch.js";
-import { isMacCommand } from "../platform/adapters/input/keys";
+import {
+  isMacCommand,
+  KEY_LEFT, KEY_UP, KEY_RIGHT, KEY_DOWN, KEY_ENTER, KEY_BACK,
+} from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
 import "../styles/tvRemoteFocus.css";
@@ -21,13 +24,6 @@ const CH_PAGE = 40;
 // Grid gap (design px @ 1280 viewport): fewer/larger 6-col 16:9 channel tiles
 // for 10-foot viewing.
 const CH_GAP = 12;
-
-const KEY_LEFT = 37;
-const KEY_UP = 38;
-const KEY_RIGHT = 39;
-const KEY_DOWN = 40;
-const KEY_ENTER = 13;
-const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 
 export default function LiveTVScreenTV({ navigation }) {
   const {

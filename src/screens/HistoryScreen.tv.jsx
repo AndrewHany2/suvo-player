@@ -10,20 +10,16 @@ import StatePanel from "../ui/StatePanel";
 import { colors, fonts, fontWeights } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
 import { LABELS } from "../ui/labels";
-import { isMacCommand } from "../platform/adapters/input/keys";
+import {
+  isMacCommand,
+  KEY_LEFT, KEY_UP, KEY_RIGHT, KEY_DOWN, KEY_ENTER, KEY_BACK,
+} from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
 import "../styles/tvRemoteFocus.css";
 import "./HistoryScreen.tv.css";
 import "./MoviesScreen.tv.css";
 import "./SeriesScreen.tv.css";
-
-const KEY_LEFT = 37;
-const KEY_UP = 38;
-const KEY_RIGHT = 39;
-const KEY_DOWN = 40;
-const KEY_ENTER = 13;
-const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 
 // Home renders favorites/history as horizontal poster shelves (Netflix-style),
 // reusing the canonical .tvl-card poster card from the Movies/Series grids.

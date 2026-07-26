@@ -35,9 +35,7 @@ import {
   useVideoStats,
 } from "./playerFeatures";
 import storage from "../utils/storage";
-
-/** Namespaced storage key remembering the last live channel stream_id. */
-const LAST_CHANNEL_KEY = "suvo_last_live_channel";
+import { LAST_CHANNEL_KEY } from "./playerConstants";
 
 export const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 export const ASPECT_RATIOS = [

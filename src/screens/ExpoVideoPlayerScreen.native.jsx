@@ -27,6 +27,7 @@ import { useResumePosition } from "../playback/useResumePosition";
 import { useSleepTimer, SLEEP_PRESETS, formatRemaining } from "../playback/useSleepTimer";
 import { clampOffset, DEFAULT_SUBTITLE_STYLE } from "../playback/subtitleStyle";
 import { nextChannel, prevChannel, fetchNowNext } from "../playback/liveExtras";
+import { LAST_CHANNEL_KEY } from "../playback/playerConstants";
 import ResumePrompt from "../playback/components/ResumePrompt";
 import SubtitleSettings from "../playback/components/SubtitleSettings";
 import StatsOverlay from "../playback/components/StatsOverlay";
@@ -39,9 +40,6 @@ const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 // momentary mismatch with the window orientation makes UIKit raise
 // UIApplicationInvalidInterfaceOrientation (SIGABRT). An overlapping mask is safe.
 const MODAL_ORIENTATIONS = ["portrait", "landscape"];
-
-// Namespaced storage key remembering the last-watched live channel stream id.
-const LAST_CHANNEL_KEY = "player_last_live_channel";
 
 // One-time flag: has the viewer seen the touch-gesture legend? Shown once ever on
 // first VOD playback so the (otherwise invisible) swipe/tap gestures are learnable.

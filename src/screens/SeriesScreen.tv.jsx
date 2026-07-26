@@ -9,7 +9,10 @@ import StatePanel from "../ui/StatePanel";
 import { emptyContentProps } from "../ui/emptyContentProps";
 import Icon from "../ui/Icon";
 import { colors, iconSizes } from "../ui/tokens";
-import { isMacCommand } from "../platform/adapters/input/keys";
+import {
+  isMacCommand,
+  KEY_LEFT, KEY_UP, KEY_RIGHT, KEY_DOWN, KEY_ENTER, KEY_BACK,
+} from "../platform/adapters/input/keys";
 import "../styles/tvl.css";
 import "../styles/tvResponsiveScaling.css";
 import "../styles/tvRemoteFocus.css";
@@ -27,13 +30,6 @@ const SER_PAGE = 24;
 // 10-foot lean-back viewing.
 const SER_GAP = 14;
 const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
-
-const KEY_LEFT = 37;
-const KEY_UP = 38;
-const KEY_RIGHT = 39;
-const KEY_DOWN = 40;
-const KEY_ENTER = 13;
-const KEY_BACK = new Set([27, 461, 10009, 8, 91]);
 
 // mode: 'cats' | 'grid' | 'detail'
 
