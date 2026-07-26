@@ -11,6 +11,7 @@ import { isMacCommand } from "../platform/adapters/input/keys";
 import AuthScreen from "../screens/AuthScreen";
 import ConfigErrorScreen from "../screens/ConfigErrorScreen";
 import DeviceLockedScreen from "../screens/DeviceLockedScreen";
+import EntitlementLockedScreen from "../screens/EntitlementLockedScreen";
 import ProfilesScreen from "../screens/ProfilesScreen";
 // Per-platform screen variants are resolved at BUILD time. Both web/electron
 // and webOS-TV build with `expo export --platform web`, so Metro can't pick the
@@ -795,6 +796,7 @@ export default function AppNavigator() {
   if (gate === "loading") return splash;
   if (gate === "auth") return <AuthScreen />;
   if (gate === "device-locked") return <DeviceLockedScreen />;
+  if (gate === "entitlement-locked") return <EntitlementLockedScreen />;
   if (gate === "profiles") return <ProfilesScreen />;
 
   const ContentComponent = CONTENT_MAP[activeTab] || LiveTVScreen;

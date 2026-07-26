@@ -94,3 +94,41 @@ describe("resolveGate boot-flow scenarios", () => {
     assert.equal(resolveGate({}), "config-error");
   });
 });
+
+describe("resolveGate entitlement gate", () => {
+  test("entitled===false (otherwise fully booted) shows the entitlement-locked screen", () => {
+    assert.equal(resolveGate({ ...APP, entitled: false }), "entitlement-locked");
+  });
+
+  test("entitlement-locked takes precedence over the profile picker", () => {
+    // Non-entitled AND no profile chosen: explain the lock, don't strand the
+    // user on an empty profile picker (the bug this gate fixes).
+    assert.equal(
+      resolveGate({ ...APP, entitled: false, activeProfileId: null }),
+      "entitlement-locked",
+    );
+  });
+
+  test("device-locked takes precedence over entitlement-locked", () => {
+    assert.equal(
+      resolveGate({ ...APP, deviceStatus: "denied", entitled: false }),
+      "device-locked",
+    );
+  });
+
+  test("auth takes precedence over a non-entitled verdict", () => {
+    assert.equal(
+      resolveGate({ ...APP, authUser: null, entitled: false }),
+      "auth",
+    );
+  });
+
+  test("fails open: undefined entitled (not fetched / swallowed error) reaches the app", () => {
+    assert.equal(resolveGate({ ...APP, entitled: undefined }), "app");
+    assert.equal(resolveGate(APP), "app"); // APP has no `entitled` field at all
+  });
+
+  test("entitled===true reaches the app", () => {
+    assert.equal(resolveGate({ ...APP, entitled: true }), "app");
+  });
+});

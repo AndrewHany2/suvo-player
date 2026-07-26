@@ -83,6 +83,11 @@ export const AppProvider = ({ children }) => {
   // missing field (older server) never hides the button; only an explicit
   // false hides it. The server (data/iptv.insert) is authoritative.
   const [allowSelfLines, setAllowSelfLines] = useState(true);
+  // Server entitlement snapshot { entitled, reason, expires_at } from
+  // entitlement.fetch, or null until fetched / on a swallowed fetch error.
+  // `entitled === false` drives the entitlement-locked gate (see appGate.js);
+  // null/undefined FAILS OPEN so a network blip never locks out a paying user.
+  const [entitlement, setEntitlement] = useState(null);
 
   // ─── App profiles ──────────────────────────────────────────────────────────
   const [appProfiles, setAppProfiles]       = useState([]);
@@ -184,6 +189,7 @@ export const AppProvider = ({ children }) => {
     setAuthUser(null); setProfile(null); setAppProfiles([]);
     setActiveProfileId(null); setUsers([]); setActiveUserId(null);
     setChannels([]); setWatchHistory([]); setAllowSelfLines(true);
+    setEntitlement(null);
     await storage.removeItem('iptv_active_profile');
   }, []);
 
@@ -528,7 +534,15 @@ export const AppProvider = ({ children }) => {
       })
       .catch(() => {})
       .finally(() => setAppProfilesLoading(false));
-    fetchEntitlement().then((e) => setAllowSelfLines(e?.allowSelfLines !== false)).catch(() => {});
+    fetchEntitlement()
+      .then((e) => {
+        setAllowSelfLines(e?.allowSelfLines !== false);
+        // Keep the whole verdict (entitled/reason/expires_at) so the
+        // entitlement-locked gate + screen can explain WHY access is blocked,
+        // instead of stranding a non-entitled user on an empty profile picker.
+        setEntitlement(e ?? null);
+      })
+      .catch(() => {}); // fail open: leave entitlement null → gate passes through
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.id, deviceStatus]);
 
@@ -646,6 +660,7 @@ export const AppProvider = ({ children }) => {
     isLoading, setIsLoading, error, setError,
     tvUseShelves, setTvUseShelves,
     allowSelfLines,
+    entitlement,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [authUser, authLoading, profile, deviceStatus, appProfiles, appProfilesLoading, activeProfileId, activeProfile,
     tvUseShelves,
@@ -656,7 +671,7 @@ export const AppProvider = ({ children }) => {
     addUser, updateUser, removeUser, saveUsers,
     refetchLibrary,
     addToMyList, removeFromMyList, isInMyList,
-    allowSelfLines]);
+    allowSelfLines, entitlement]);
 
   // Playback slice — changes only on play/close (currentVideo); playVideo/
   // closeVideo are stable (useCallback), so browse/nav trees reading only `value`

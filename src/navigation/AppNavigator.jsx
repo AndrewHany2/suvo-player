@@ -16,6 +16,7 @@ import { DownloadsProvider } from "../downloads/useDownloads.jsx";
 import AuthScreen from "../screens/AuthScreen";
 import ConfigErrorScreen from "../screens/ConfigErrorScreen";
 import DeviceLockedScreen from "../screens/DeviceLockedScreen";
+import EntitlementLockedScreen from "../screens/EntitlementLockedScreen";
 import ProfilesScreen from "../screens/ProfilesScreen";
 import LiveTVScreen from "../screens/LiveTVScreen";
 import MoviesScreen from "../screens/MoviesScreen";
@@ -150,6 +151,7 @@ export default function AppNavigator() {
   if (gate === "loading") return splash;
   if (gate === "auth") return <AuthScreen />;
   if (gate === "device-locked") return <DeviceLockedScreen />;
+  if (gate === "entitlement-locked") return <EntitlementLockedScreen />;
   if (gate === "profiles") return <ProfilesScreen />;
 
   return (

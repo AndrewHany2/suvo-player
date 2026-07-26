@@ -13,7 +13,7 @@
 
 /**
  * Gate values, highest-precedence first — the order below IS the decision order.
- * @typedef {"config-error" | "loading" | "auth" | "device-locked" | "profiles" | "app"} Gate
+ * @typedef {"config-error" | "loading" | "auth" | "device-locked" | "entitlement-locked" | "profiles" | "app"} Gate
  */
 
 /**
@@ -22,21 +22,28 @@
  * then the neutral loading splash while the session resolves; then the auth
  * screen when signed out; then the loading splash again while the device claim
  * is pending; then the device-locked screen when the claim was denied; then the
- * profile picker until a profile is active; and finally the main app.
+ * entitlement-locked screen when the server says the subscription is inactive;
+ * then the profile picker until a profile is active; and finally the main app.
+ *
+ * `entitled` FAILS OPEN: only an explicit `false` locks. undefined (not yet
+ * fetched, or a network error the caller swallowed) passes through, so a
+ * transient failure never flashes the locked screen at a paying user — the
+ * server still hard-blocks content, so this gate is UX, not the boundary.
  *
  * @param {{ supabaseConfigured?: boolean, authLoading?: boolean,
  *           authUser?: unknown, deviceStatus?: string,
- *           activeProfileId?: unknown }} state
+ *           entitled?: boolean, activeProfileId?: unknown }} state
  * @returns {Gate}
  */
 export function resolveGate(state) {
-  const { supabaseConfigured, authLoading, authUser, deviceStatus, activeProfileId } =
+  const { supabaseConfigured, authLoading, authUser, deviceStatus, entitled, activeProfileId } =
     state || {};
   if (!supabaseConfigured) return "config-error";
   if (authLoading) return "loading";
   if (!authUser) return "auth";
   if (deviceStatus === "pending") return "loading";
   if (deviceStatus === "denied") return "device-locked";
+  if (entitled === false) return "entitlement-locked";
   if (!activeProfileId) return "profiles";
   return "app";
 }

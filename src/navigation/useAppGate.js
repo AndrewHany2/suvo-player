@@ -12,12 +12,15 @@ export { resolveGate };
 
 /** Read the live app state and resolve the current gate. */
 export function useAppGate() {
-  const { authUser, authLoading, deviceStatus, activeProfileId } = useApp();
+  const { authUser, authLoading, deviceStatus, activeProfileId, entitlement } = useApp();
   return resolveGate({
     supabaseConfigured: isSupabaseConfigured(),
     authLoading,
     authUser,
     deviceStatus,
+    // undefined until the snapshot lands / on a swallowed fetch error → fails
+    // open (see resolveGate). Only an explicit server `false` locks.
+    entitled: entitlement?.entitled,
     activeProfileId,
   });
 }
