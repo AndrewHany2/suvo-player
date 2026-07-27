@@ -13,6 +13,7 @@ ios/
 
 # TV build artifacts
 tv/dist/
+tv/packaging/lg-ipk/
 tv/packaging/lg/out/
 tv/packaging/lg/_expo/
 tv/packaging/lg/favicon.ico
