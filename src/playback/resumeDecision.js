@@ -67,6 +67,47 @@ export function resolveChoice(choice, resumeTime) {
 }
 
 /**
+ * @typedef {Object} StartTimeResolution
+ * @property {number}  startTime     - Seconds fed to the playback hook as the load start.
+ * @property {number}  pendingSeek   - Seconds to seek the media element to once seekable.
+ * @property {boolean} resumePending - Whether the web resume prompt should be shown.
+ * @property {boolean} resolved      - Whether the decision is final (caller should latch
+ *                                     it per-source). False only for "no resume yet", where
+ *                                     history may still be loading and must not be latched.
+ */
+
+/**
+ * PURE: decide the start position for a newly-opened source.
+ *
+ * Priority: an explicit start time (e.g. next-episode auto-advance) always wins.
+ * Otherwise, when a resume point exists, TV auto-resumes (no modal) while web
+ * holds at 0 and shows the resume prompt. With no resume point we start at 0 and
+ * report `resolved: false` so the caller does NOT latch (a late-loading history
+ * can still flip `hasResume` and re-run this).
+ *
+ * @param {Object} args
+ * @param {number|string} [args.explicitStartTime] - Start carried on the video (coerced; 0 = none).
+ * @param {boolean} [args.hasResume]  - Whether a resume point was detected (decideResume).
+ * @param {number}  [args.resumeTime] - Saved position in seconds.
+ * @param {boolean} [args.isTV]       - TV auto-resumes; web prompts.
+ * @returns {StartTimeResolution}
+ */
+export function resolveStartTime({ explicitStartTime, hasResume, resumeTime, isTV } = {}) {
+  const explicit = Number(explicitStartTime) || 0;
+  if (explicit > 0) {
+    return { startTime: explicit, pendingSeek: explicit, resumePending: false, resolved: true };
+  }
+  if (hasResume) {
+    if (isTV) {
+      const t = Number(resumeTime) || 0;
+      return { startTime: t, pendingSeek: t, resumePending: false, resolved: true };
+    }
+    return { startTime: 0, pendingSeek: 0, resumePending: true, resolved: true };
+  }
+  return { startTime: 0, pendingSeek: 0, resumePending: false, resolved: false };
+}
+
+/**
  * PURE: find the history entry matching a video.
  *
  * Mirrors AppContext normalization: `type` 'movie' is stored as 'movies', and

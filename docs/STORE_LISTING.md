@@ -58,10 +58,22 @@ free", any broadcaster/channel names.
 - Use the demo account (below) so screenshots contain only sample content.
 
 ## Reviewer notes (App Review / Play Console)
-> Suvo is a media player. It ships with no content. To review playback,
-> use this demo account / sample playlist: <ADD DEMO CREDENTIALS OR SAMPLE M3U
-> URL BEFORE SUBMITTING>. The user supplies their own playlist; the app neither
-> hosts nor provides any media.
+> Suvo is a media player. It ships with no content. To review playback, add this
+> royalty-free sample playlist in-app (Accounts → Add → **M3U playlist**, paste
+> the URL): **https://suvo.tv/demo-playlist.m3u**. It contains a live HLS channel
+> ("Suvo Demo Live (HLS)"), a VOD movie ("Big Buck Bunny (Sample)"), and a
+> 2-episode series ("Suvo Demo Series"). The user supplies their own playlist;
+> the app neither hosts nor provides any media.
+
+### LG webOS media-capability form — "principal content"
+Titles reviewers can open to test each declared **Streaming Protocol** (all served
+by the demo playlist above):
+- **HTTP/HTTPS progressive download** → `Big Buck Bunny (Sample)` (also `Suvo Demo Series S01E01`)
+- **HLS** → `Suvo Demo Live (HLS)`
+
+Playlist source: `docs/site/demo-playlist.m3u` (deployed with the marketing site).
+Confirm `https://suvo.tv/demo-playlist.m3u` is reachable after deploy, and that
+every entry plays in-app, before submitting — public test URLs can rotate.
 
 ## Age rating
 - Answer questionnaires honestly for a **generic player**. Because the app has no

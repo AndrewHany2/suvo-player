@@ -16,7 +16,7 @@
  * groups can persist their own settings without changing this module.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import storage from "../utils/storage";
+import storage from "../utils/storage.js";
 
 /** Namespaced storage key for the global defaults record. */
 export const GLOBAL_PREFS_KEY = "player_prefs_global";

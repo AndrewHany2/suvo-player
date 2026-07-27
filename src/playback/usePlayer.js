@@ -9,6 +9,7 @@ import { useResilientPlayback } from "./useResilientPlayback";
 import { fatalCause, cleanRawError } from "./playerCopy";
 import { usePlayerPreferences } from "./usePlayerPreferences";
 import { useResumePosition } from "./useResumePosition";
+import { resolveStartTime } from "./resumeDecision";
 import { useSleepTimer } from "./useSleepTimer";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -36,6 +37,11 @@ import {
 } from "./playerFeatures";
 import storage from "../utils/storage";
 import { LAST_CHANNEL_KEY } from "./playerConstants";
+import { heightToCap, levelForCap, getLevelLabel } from "./qualityCap";
+
+// The pure quality-cap ladder helpers moved to ./qualityCap.js (unit-tested
+// there). Re-export getLevelLabel so any named-export consumer still resolves it.
+export { getLevelLabel } from "./qualityCap";
 
 export const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 export const ASPECT_RATIOS = [
@@ -45,51 +51,6 @@ export const ASPECT_RATIOS = [
   { value: "fill", label: "Fill" },
   { value: "stretch", label: "Stretch" },
 ];
-
-// Map an hls.js level height to a quality-cap ladder value (see backoff.js
-// QUALITY_CAPS). Used so a manual quality pick sets the hook's manualCap, which
-// the recovery machine treats as the *best* quality auto-downgrade may restore
-// to — auto-downgrade can drop below the user's pick but never exceed it.
-function heightToCap(height) {
-  if (!height) return "auto";
-  if (height >= 1080) return "1080";
-  if (height >= 720) return "720";
-  if (height >= 480) return "480";
-  return "data-saver";
-}
-
-// Numeric ceiling for a quality-cap ladder value, used to pick the best hls
-// level at or below a remembered cap. 'auto' (or unknown) => Infinity (no cap).
-function capToMaxHeight(cap) {
-  switch (cap) {
-    case "1080": return 1080;
-    case "720": return 720;
-    case "480": return 480;
-    case "data-saver": return 360;
-    default: return Infinity;
-  }
-}
-
-// Given the available hls levels and a remembered cap, return the index of the
-// best (tallest) level whose height is at/below the cap, or -1 for Auto.
-function levelForCap(levels, cap) {
-  if (!cap || cap === "auto" || !Array.isArray(levels) || levels.length === 0) return -1;
-  const max = capToMaxHeight(cap);
-  let bestIdx = -1;
-  let bestH = -1;
-  for (let i = 0; i < levels.length; i++) {
-    const h = levels[i]?.height || 0;
-    if (h <= max && h > bestH) { bestH = h; bestIdx = i; }
-  }
-  return bestIdx;
-}
-
-export function getLevelLabel(level, levels) {
-  if (!level.height) return `${Math.round(level.bitrate / 1000)}k`;
-  return levels.filter((l) => l.height === level.height).length > 1
-    ? `${level.height}p (${Math.round(level.bitrate / 1000)}k)`
-    : `${level.height}p`;
-}
 
 /**
  * Shared player "brain" for the web (hls.js) VideoPlayerScreen variants. Holds
@@ -462,33 +423,20 @@ export function usePlayer({ isTV, onSleepElapsed } = {}) {
     // boolean (true until ~95% watched), so a late-loading history still flips
     // it once and re-runs this effect to show the prompt.
     if (resumeResolvedUrlRef.current === currentVideo.url) return;
-    const explicit = Number(currentVideo.startTime) || 0;
-    if (explicit > 0) {
-      resumeResolvedUrlRef.current = currentVideo.url;
-      setStartTime(explicit);
-      pendingSeekRef.current = explicit;
-      setResumePending(false);
-      return;
-    }
-    if (resume.hasResume) {
-      resumeResolvedUrlRef.current = currentVideo.url;
-      if (isTV) {
-        // Auto-resume on TV; surface a Start-over control instead of a prompt.
-        setStartTime(resume.resumeTime);
-        pendingSeekRef.current = resume.resumeTime;
-        setResumePending(false);
-      } else {
-        // Web: hold at 0, show the prompt and let the user decide.
-        setStartTime(0);
-        pendingSeekRef.current = 0;
-        setResumePending(true);
-      }
-    } else {
-      // No resume point (yet). Don't latch — history may still be loading.
-      setStartTime(0);
-      pendingSeekRef.current = 0;
-      setResumePending(false);
-    }
+    // Pure decision (explicit-wins → TV auto-resume → web prompt → no-resume)
+    // lives in resumeDecision.resolveStartTime; see its tests.
+    const { startTime: t, pendingSeek, resumePending: pending, resolved } = resolveStartTime({
+      explicitStartTime: currentVideo.startTime,
+      hasResume: resume.hasResume,
+      resumeTime: resume.resumeTime,
+      isTV,
+    });
+    // Latch only once the decision is final; a "no resume yet" result is left
+    // unlatched so a late-loading history can still flip hasResume and re-run.
+    if (resolved) resumeResolvedUrlRef.current = currentVideo.url;
+    setStartTime(t);
+    pendingSeekRef.current = pendingSeek;
+    setResumePending(pending);
     // Keyed on hasResume (stable), NOT resumeTime (changes every tick).
   }, [currentVideo?.url, resume.hasResume, isTV]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   decideResume,
   resolveChoice,
+  resolveStartTime,
   findHistoryEntry,
   RESUME_MIN_SECONDS,
   RESUME_MAX_PERCENT,
@@ -120,6 +121,36 @@ describe("findHistoryEntry", () => {
     assert.equal(findHistoryEntry(history, null), undefined);
     assert.equal(findHistoryEntry(null, { type: "movie", streamId: 42 }), undefined);
     assert.equal(findHistoryEntry(history, { type: "movie" }), undefined);
+  });
+});
+
+describe("resolveStartTime", () => {
+  test("explicit startTime wins even when a resume point exists", () => {
+    const r = resolveStartTime({ explicitStartTime: 120, hasResume: true, resumeTime: 300, isTV: false });
+    assert.deepEqual(r, { startTime: 120, pendingSeek: 120, resumePending: false, resolved: true });
+  });
+
+  test("TV auto-resumes to the saved position (no prompt)", () => {
+    const r = resolveStartTime({ explicitStartTime: 0, hasResume: true, resumeTime: 300, isTV: true });
+    assert.deepEqual(r, { startTime: 300, pendingSeek: 300, resumePending: false, resolved: true });
+  });
+
+  test("web holds at 0 and flags the resume prompt", () => {
+    const r = resolveStartTime({ explicitStartTime: 0, hasResume: true, resumeTime: 300, isTV: false });
+    assert.deepEqual(r, { startTime: 0, pendingSeek: 0, resumePending: true, resolved: true });
+  });
+
+  test("no resume point => start at 0 and do NOT latch (history may still be loading)", () => {
+    const web = resolveStartTime({ explicitStartTime: 0, hasResume: false, resumeTime: 0, isTV: false });
+    assert.deepEqual(web, { startTime: 0, pendingSeek: 0, resumePending: false, resolved: false });
+    const tv = resolveStartTime({ explicitStartTime: 0, hasResume: false, resumeTime: 0, isTV: true });
+    assert.deepEqual(tv, { startTime: 0, pendingSeek: 0, resumePending: false, resolved: false });
+  });
+
+  test("tolerates missing / non-numeric explicitStartTime", () => {
+    assert.equal(resolveStartTime({ hasResume: false }).startTime, 0);
+    assert.equal(resolveStartTime({ explicitStartTime: NaN, hasResume: false }).startTime, 0);
+    assert.equal(resolveStartTime({ explicitStartTime: "90", hasResume: false }).startTime, 90);
   });
 });
 
