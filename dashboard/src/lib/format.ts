@@ -29,3 +29,9 @@ export function computeExpiresAt(choice: ExpiryChoice, customDate: string, fromI
 export function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString() : "—";
 }
+// Expiry display: a null expiry means the account never expires (NOT "unknown"),
+// so render it as "never" instead of fmtDate's em dash. Use this only for expiry
+// fields — for created/bound/last-seen dates, null is genuinely unknown ("—").
+export function fmtExpiry(iso: string | null): string {
+  return iso ? fmtDate(iso) : "never";
+}

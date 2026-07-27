@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { call, apiErrorMessage } from "../api";
-import { computeExpiresAt, fmtDate, statusLabel, type ExpiryChoice } from "../lib/format";
+import { computeExpiresAt, fmtDate, fmtExpiry, statusLabel, type ExpiryChoice } from "../lib/format";
 import { buildLinePayload, lineUpdateBlockedReason, type LineType } from "../lib/linePayload";
 import { Badge, Button, ConfirmDialog, Field, Modal, Table, type Column } from "../ui";
 
@@ -111,7 +111,7 @@ export default function AccountDetail() {
         <div>
           <h1>{data.name}</h1>
           <Badge tone={status.tone}>{status.text}</Badge>{" "}
-          <span className="muted">Expires {fmtDate(data.expiresAt)}</span>
+          <span className="muted">Expires {fmtExpiry(data.expiresAt)}</span>
         </div>
       </div>
 

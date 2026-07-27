@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { statusLabel, expiryPreset, fmtDate, computeExpiresAt } from "./format";
+import { statusLabel, expiryPreset, fmtDate, fmtExpiry, computeExpiresAt } from "./format";
 describe("format", () => {
   test("status labels", () => {
     expect(statusLabel("ACTIVE").tone).toBe("ok");
@@ -37,6 +37,13 @@ describe("format", () => {
     expect(out.length).toBeGreaterThan(0);
     // toLocaleDateString output is locale-dependent; just assert the year lands.
     expect(out).toMatch(/2026/);
+  });
+  test("fmtExpiry renders null as 'never' (no expiry), not an em dash", () => {
+    expect(fmtExpiry(null)).toBe("never");
+  });
+  test("fmtExpiry formats a real expiry date like fmtDate", () => {
+    const iso = "2026-01-15T00:00:00.000Z";
+    expect(fmtExpiry(iso)).toBe(fmtDate(iso));
   });
 
   test("computeExpiresAt: 'never' returns null regardless of custom date", () => {

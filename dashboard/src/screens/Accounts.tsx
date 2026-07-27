@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { call, apiErrorMessage } from "../api";
 import { useAuth } from "../auth";
 import { isSuperAdmin } from "../authGate";
-import { statusLabel, fmtDate } from "../lib/format";
+import { statusLabel, fmtExpiry } from "../lib/format";
 import { Badge, Button, ConfirmDialog, Table, type Column } from "../ui";
 
 type Account = {
@@ -125,7 +125,7 @@ export default function Accounts() {
         return <Badge tone={tone}>{text}</Badge>;
       },
     },
-    { key: "expiresAt", header: "Expiry", render: (a) => fmtDate(a.expiresAt) },
+    { key: "expiresAt", header: "Expiry", render: (a) => fmtExpiry(a.expiresAt) },
     { key: "devices", header: "Devices", render: (a) => `${a.devicesUsed}/${a.deviceLimit ?? "default"}` },
     {
       key: "actions",
