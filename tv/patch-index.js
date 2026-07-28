@@ -198,21 +198,20 @@ html = html.replace("</head>", `<script>
   // _gap-Npx class, the inline style (the react-native-web primitives emit
   // style.gap — recognised but inert for flex on Chromium below 84), or the
   // computed row/column-gap. Returns null when there's no positive gap.
-  function gapPx(el) {
+  function gapPx(el, cs) {
     var cn = el.className;
     if (typeof cn === 'string') { var m = cn.match(/_gap-([0-9]+)px/); if (m) return m[1] + 'px'; }
     var inl = el.style && (el.style.gap || el.style.columnGap || el.style.rowGap);
     if (inl) { var fi = parseFloat(inl); if (fi > 0) return fi + 'px'; }
-    var cs0 = getComputedStyle(el);
-    var g = cs0.flexDirection.indexOf('col') !== -1 ? cs0.rowGap : cs0.columnGap;
+    var g = cs.flexDirection.indexOf('col') !== -1 ? cs.rowGap : cs.columnGap;
     if (g && g !== 'normal') { var fc = parseFloat(g); if (fc > 0) return fc + 'px'; }
     return null;
   }
   function applyFlexGap(el) {
     if (!el || el.nodeType !== 1) return;
-    var cs = getComputedStyle(el);
+    var cs = getComputedStyle(el); // one read, reused by gapPx below
     if (cs.display.indexOf('flex') === -1) return; // grid gap works natively — leave it
-    var v = gapPx(el);
+    var v = gapPx(el, cs);
     if (!v) return;
     var col = cs.flexDirection.indexOf('col') !== -1;
     var kids = el.children;
@@ -224,12 +223,23 @@ html = html.replace("</head>", `<script>
 
   function scanTree(root) {
     if (!root || root.nodeType !== 1) return;
-    var all = root.querySelectorAll('[class*="_gap-"],[style*="gap"]');
+    /* Try the node itself, then every candidate below it. applyFlexGap() no-ops
+       unless the element is a real flex container with a positive gap, so it's
+       safe to hand it extra elements. The '_gap-' (react-native-web) + inline
+       '[style*=gap]' selectors MISS flex containers whose gap comes from a plain
+       TV CSS class (.tvl-topbar, .tvl-det-hero-btns, .tvl-seasons-row, …) — on
+       Chromium <84 those gaps don't render and were otherwise unpolyfilled — so
+       also sweep the '.tvl-*' namespace that owns the 10-foot UI. */
+    applyFlexGap(root);
+    /* Universal sweep — EVERY element on EVERY TV page. Class/selector matching
+       ('_gap-', inline, '.tvl-*') could only ever cover the containers we happen
+       to name; a flex gap authored any other way (shared component, non-tvl
+       class) would still collapse on Chromium <84. applyFlexGap() reads one
+       computed style and returns immediately unless the element is a flex
+       container with a positive gap, so the extra elements are cheap, and this
+       only runs at all when the engine lacks native flex gap. */
+    var all = root.getElementsByTagName('*');
     for (var i = 0; i < all.length; i++) applyFlexGap(all[i]);
-    var rs = root.getAttribute && root.getAttribute('style');
-    if ((typeof root.className === 'string' && root.className.indexOf('_gap-') >= 0) ||
-        (rs && rs.indexOf('gap') >= 0))
-      applyFlexGap(root);
   }
 
   window.addEventListener('load', function() {
@@ -248,10 +258,28 @@ html = html.replace("</head>", `<script>
     scanTree(document.body);
     new MutationObserver(function(ms) {
       for (var i = 0; i < ms.length; i++) {
-        var nodes = ms[i].addedNodes;
+        var mu = ms[i];
+        if (mu.type === 'attributes') {
+          /* A <dialog> opening (Accounts/Settings/confirm use showModal(), which
+             flips the 'open' attribute with NO childList change) reveals content
+             that was display:none while closed — and hidden content can't be
+             gap-polyfilled reliably (computed gap is unavailable off the render
+             tree on old Chromium). So RE-SCAN the whole subtree on 'open'. For a
+             plain inline gap value change, recomputing the one container suffices. */
+          if (mu.attributeName === 'open') scanTree(mu.target);
+          else applyFlexGap(mu.target);
+          continue;
+        }
+        /* childList: a container gained/lost children. Sibling margins depend on
+           child index (first child gets none), so reapply the CONTAINER's gap
+           (mu.target) — not just the added node — then scan any added subtrees
+           for nested gap containers they bring in (RNW <Modal> portals appended
+           to body, overlays, rails, re-rendered button rows). */
+        applyFlexGap(mu.target);
+        var nodes = mu.addedNodes;
         for (var j = 0; j < nodes.length; j++) scanTree(nodes[j]);
       }
-    }).observe(document.body, { childList: true, subtree: true });
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'open'] });
   });
 })();
 </script></head>`);
