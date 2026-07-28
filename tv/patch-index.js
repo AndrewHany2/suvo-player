@@ -6,6 +6,24 @@ const babel = require("@babel/core");
 const distDir = path.join(__dirname, "dist");
 const indexPath = path.join(distDir, "index.html");
 
+// ── Vendor the playback engines as external scripts (kept OUT of the bundle) ──
+// hls.js + mpegts.js (~816KB) are excluded from the TV bundle by metro.config's
+// engine stub; the drivers load them from ./vendor/<file> on first play (see
+// src/playback/drivers/engineLoader.js). Copy the UMD builds from node_modules
+// into tv/dist/vendor/ so they resolve over file://. This runs before the
+// obfuscator step, which skips the vendor/ dir (see scripts/collectJsFiles.js).
+const vendorDir = path.join(distDir, "vendor");
+fs.mkdirSync(vendorDir, { recursive: true });
+for (const [from, to] of [
+  ["hls.js/dist/hls.min.js", "hls.min.js"],
+  ["mpegts.js/dist/mpegts.js", "mpegts.js"],
+]) {
+  const src = path.join(__dirname, "..", "node_modules", from);
+  const dest = path.join(vendorDir, to);
+  fs.copyFileSync(src, dest);
+  console.log(`✓ Vendored ${to} (${(fs.statSync(dest).size / 1024).toFixed(0)}KB) → vendor/`);
+}
+
 // Find the main JS bundle
 const staticJsDir = path.join(distDir, "_expo/static/js/web");
 const files = fs.readdirSync(staticJsDir);
@@ -209,12 +227,25 @@ html = html.replace("</head>", `<script>
   }
   function applyFlexGap(el) {
     if (!el || el.nodeType !== 1) return;
+    var kids = el.children;
+    /* Gap margins only ever land on the 2nd-and-later sibling, so a node with
+       fewer than two children needs no getComputedStyle at all. This is the hot
+       path: the O(*) subtree sweep (scanTree) and per-mutation focus/style
+       changes hit mostly leaf nodes on a slow TV CPU, and getComputedStyle is
+       the expensive call. A lone survivor is still cleared in case it kept a
+       stale gap margin from when the container had more children. */
+    if (!kids || kids.length < 2) {
+      if (kids && kids.length === 1) {
+        kids[0].style.marginLeft = '';
+        kids[0].style.marginTop = '';
+      }
+      return;
+    }
     var cs = getComputedStyle(el); // one read, reused by gapPx below
     if (cs.display.indexOf('flex') === -1) return; // grid gap works natively — leave it
     var v = gapPx(el, cs);
     if (!v) return;
     var col = cs.flexDirection.indexOf('col') !== -1;
-    var kids = el.children;
     for (var i = 0; i < kids.length; i++) {
       kids[i].style.marginLeft = (!col && i > 0) ? v : '';
       kids[i].style.marginTop  = ( col && i > 0) ? v : '';

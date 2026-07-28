@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
+import { useApp, useLibrary, usePlayback, useWatchHistory } from "../context/AppContext";
 import { buildCategoryFilter, filterMovies } from "./moviesFilter.helpers";
 import { useMovies } from "../domain/hooks/useMovies";
 import { useTVInput } from "../hooks/useTVInput";
@@ -28,11 +28,13 @@ const MOV_GAP = 14;
 const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
+import { frameThrottle } from "../utils/frameThrottle";
 import { describeError } from "../utils/authError";
 
 export default function MoviesScreenTV({ navigation, route }) {
   const { loading, loaded, error, errorMessage, reload, activeUserId, categories, getCategoryItems, fetchMovieInfo, playMovie, shelves, handleShelfVisible, handleLoadMore } = useMovies({ navigation });
-  const { isInMyList, addToMyList, removeFromMyList, tvUseShelves } = useApp();
+  const { tvUseShelves } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList } = useLibrary();
   const { currentVideo } = usePlayback();
   const { watchHistory } = useWatchHistory();
   const { register } = useTVInput();
@@ -205,7 +207,14 @@ export default function MoviesScreenTV({ navigation, route }) {
 
   // ── Category keys ─────────────────────────────────────────────────────────
   const setCatZoneBoth = (z) => { catZoneRef.current = z; setCatZone(z); };
-  const movCatFocus = (n) => { catFocusRef.current = n; setCatFocus(n); };
+  // Coalesce render-triggering setState to one per animation frame; the focus
+  // refs advance synchronously per keypress so held-direction repeats never
+  // flood the TV CPU with more re-renders than it can paint. Each throttled fn
+  // reads its ref, so it always flushes the true latest position.
+  const commitCatFocus = useMemo(() => frameThrottle(() => setCatFocus(catFocusRef.current)), []);
+  const commitPage = useMemo(() => frameThrottle(() => setPage(pageRef.current)), []);
+  const commitFilterIdx = useMemo(() => frameThrottle(() => setFilterIdx(filterIdxRef.current)), []);
+  const movCatFocus = (n) => { catFocusRef.current = n; commitCatFocus(); };
   const onCatLeft = () => { const f = catFocusRef.current; if (f > 0) movCatFocus(f - 1); };
   const onCatRight = () => { const f = catFocusRef.current; if (f < catsRef.current.length - 1) movCatFocus(f + 1); };
   const onCatUp = () => { const f = catFocusRef.current; if (f >= CAT_COLS) movCatFocus(f - CAT_COLS); else setCatZoneBoth("search"); };
@@ -220,7 +229,7 @@ export default function MoviesScreenTV({ navigation, route }) {
   // ── Movie grid keys ───────────────────────────────────────────────────────
   // The grid grows on scroll (PagedGridTV), so focus may roam the whole
   // filtered list — bounds use the full length, not a display cap.
-  const movMovFocus = (pg, focus) => { const n = { ...pg, focus }; pageRef.current = n; setPage(n); };
+  const movMovFocus = (pg, focus) => { pageRef.current = { ...pg, focus }; commitPage(); };
   const growMovDisplay = (next) => { const pg = pageRef.current; if (pg) { const n = { ...pg, display: next }; pageRef.current = n; setPage(n); } };
   const onMovLeft = (pg) => { if (pg.focus > 0) movMovFocus(pg, pg.focus - 1); };
   const onMovRight = (pg) => {
@@ -239,8 +248,8 @@ export default function MoviesScreenTV({ navigation, route }) {
   };
   const onMovEnter = (pg) => { const item = filteredItemsRef.current?.[pg.focus]; if (item) openDetail(item); };
 
-  const onFilterLeft = () => { if (filterIdxRef.current > 0) { filterIdxRef.current -= 1; setFilterIdx(filterIdxRef.current); } };
-  const onFilterRight = () => { if (filterIdxRef.current < ALPHA.length - 1) { filterIdxRef.current += 1; setFilterIdx(filterIdxRef.current); } };
+  const onFilterLeft = () => { if (filterIdxRef.current > 0) { filterIdxRef.current -= 1; commitFilterIdx(); } };
+  const onFilterRight = () => { if (filterIdxRef.current < ALPHA.length - 1) { filterIdxRef.current += 1; commitFilterIdx(); } };
   const onFilterUp = () => { filterZoneRef.current = "search"; setFilterZone("search"); };
   const onFilterDown = () => { filterZoneRef.current = "grid"; setFilterZone("grid"); };
 

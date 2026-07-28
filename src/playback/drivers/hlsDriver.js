@@ -23,28 +23,19 @@
  */
 
 import { effectiveResponseUrl } from './hlsResponseUrl.js';
+import { getHlsModule, ensureHlsModule } from './engineLoader.js';
 
 /**
- * Lazily load + cache hls.js so its (heavy) top-level factory only runs the
- * first time playback actually needs the engine — not on cold start. Keeping
- * this a `require()` inside a function (rather than a static top-level import)
- * is what lets Metro defer the module's evaluation, which matters most on the
- * weak TV JS engine. The literal `require('hls.js')` is what Metro's dependency
- * graph collects and lazy-evaluates in the app bundle; the `getBuiltinModule`
- * branch is only reached in the Node ESM test runtime, where there is no
- * module-scoped `require`. hls.js exports its class via `module.exports = Hls`
- * (CJS) so `.default` is absent — fall back to the module object itself.
+ * Synchronous accessor for the hls.js class. On web/Electron (bundled) and in
+ * the Node test runtime this resolves immediately; on the TV build the engine is
+ * NOT bundled (kept out of the cold-start parse) and is fetched from a vendored
+ * <script> on first play — so every synchronous `loadHls()` call site below runs
+ * only AFTER `load()` has awaited `ensureHlsModule()`, by which point it's cached.
+ * See engineLoader.js. hls.js exports its class via `module.exports = Hls`.
  * @returns {typeof import('hls.js').default}
  */
-let _hlsModule = null;
 function loadHls() {
-  if (_hlsModule) return _hlsModule;
-  const mod =
-    typeof require === 'function'
-      ? require('hls.js')
-      : process.getBuiltinModule('node:module').createRequire(process.cwd() + '/')('hls.js');
-  _hlsModule = mod?.default ?? mod;
-  return _hlsModule;
+  return getHlsModule();
 }
 
 /**
@@ -243,6 +234,7 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
 
   function bindHlsErrors() {
     const Hls = loadHls();
+    if (!Hls) return; // engine not loaded (native path or TV vendor-load failure)
     const inst = hls();
     if (inst === boundInst) return; // already bound to this instance
     // Detach from the previous instance.
@@ -281,7 +273,7 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
    * @param {PlayerSource} source
    * @param {LoadOptions & {toLiveEdge?: boolean}} [loadOpts]
    */
-  function load(source, loadOpts = {}) {
+  async function load(source, loadOpts = {}) {
     const videoEl = el();
     if (!videoEl || !source) return;
     const rawUri = typeof source === 'string' ? source : source.uri;
@@ -296,13 +288,23 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     const uri =
       isLive && rawUri.endsWith('.ts') ? rawUri.replace(/\.ts$/, '.m3u8') : rawUri;
     const isHls = uri.includes('.m3u8');
-    const Hls = loadHls();
+    // The hls.js engine is only needed on the .m3u8 path. On the TV build it
+    // isn't bundled — fetch it (once) before use; on web/Node it resolves
+    // instantly. On the native path (mp4 VOD / Safari native HLS) no engine is
+    // needed, so skip the wait entirely. A failed fetch leaves Hls null and the
+    // native branch below drives the element directly (recovery surfaces errors).
+    let Hls = null;
+    if (isHls) {
+      try { Hls = await ensureHlsModule(); } catch { Hls = null; }
+    } else {
+      Hls = getHlsModule();
+    }
 
     // Let the host (re)create + wire the engine instance for this source before
     // we touch it, so getHls() always resolves the fresh instance (avoids a
     // React effect-ordering race between the hook's load and the screen's own
     // hls-lifecycle effect).
-    if (isHls && typeof opts.ensureHls === 'function' && Hls.isSupported()) {
+    if (isHls && Hls && typeof opts.ensureHls === 'function' && Hls.isSupported()) {
       try {
         opts.ensureHls(uri);
       } catch {
@@ -332,7 +334,7 @@ export function createHlsDriver(videoElOrGetter, opts = {}) {
     };
 
     const inst = hls();
-    if (inst) {
+    if (inst && Hls) {
       // hls.js path. The host attaches MANIFEST_PARSED to populate menus + seek;
       // we also seek/play here so the driver is correct when used standalone.
       const onParsed = () => {

@@ -82,6 +82,12 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
   // TMDB work when the selection changes or the hook unmounts.
   const openSeqRef = useRef(0);
   const openAbortRef = useRef(null);
+  // Batch per-shelf load results: on initial browse many categories resolve in a
+  // tight cluster and each used to fire its own setShelves → a full re-render of
+  // the (heavy) TV shelf tree per category (50+ on a large provider). Collect the
+  // patches and apply them in ONE setShelves per animation frame instead.
+  const shelfPatchRef = useRef(new Map()); // catId -> patch to merge
+  const shelfFlushRef = useRef(null); // scheduled flush handle (rAF id / timeout)
 
   // ── Top-rated prefetch (TMDB) ───────────────────────────────────────────────
   const prefetchTopRated = useCallback(async () => {
@@ -130,6 +136,36 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
     }).catch(() => null);
   }, []);
 
+  // Apply all queued shelf patches in a single setShelves. Untouched shelves keep
+  // their object identity (map returns the same `s`), so their memoized rails
+  // don't re-render.
+  const flushShelfPatches = useCallback(() => {
+    shelfFlushRef.current = null;
+    const patches = shelfPatchRef.current;
+    if (!patches.size) return;
+    shelfPatchRef.current = new Map();
+    setShelves((prev) => prev.map((s) =>
+      patches.has(s.id) ? { ...s, ...patches.get(s.id) } : s));
+  }, []);
+
+  const queueShelfPatch = useCallback((catId, patch) => {
+    shelfPatchRef.current.set(catId, patch);
+    if (shelfFlushRef.current != null) return;
+    const raf = typeof globalThis !== "undefined" ? globalThis.requestAnimationFrame : null;
+    shelfFlushRef.current = typeof raf === "function"
+      ? raf(flushShelfPatches)
+      : setTimeout(flushShelfPatches, 32);
+  }, [flushShelfPatches]);
+
+  const cancelShelfFlush = useCallback(() => {
+    if (shelfFlushRef.current == null) return;
+    const caf = typeof globalThis !== "undefined" ? globalThis.cancelAnimationFrame : null;
+    if (typeof caf === "function") caf(shelfFlushRef.current);
+    else clearTimeout(shelfFlushRef.current);
+    shelfFlushRef.current = null;
+    shelfPatchRef.current = new Map();
+  }, []);
+
   // ── Initial load: categories → shelves ──────────────────────────────────────
   const load = useCallback(async () => {
     if (!activeUser) return;
@@ -143,6 +179,7 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
     itemsCacheRef.current.clear();
     openAbortRef.current?.abort();
     openAbortRef.current = null;
+    cancelShelfFlush(); // drop patches queued against the outgoing shelf set
     setShelves([]);
     try {
       const cats = await getCategories(contentService); // [{ id, name }]
@@ -160,7 +197,7 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
       setLoading(false);
       setLoaded(true);
     }
-  }, [activeUser, contentService, getCategories, schedulePrefetch, logName]);
+  }, [activeUser, contentService, getCategories, schedulePrefetch, logName, cancelShelfFlush]);
 
   // Key ONLY on activeUserId, not `load`: its identity churns when `users` is
   // replaced (cached-then-remote account apply), which re-fired this effect in a
@@ -196,8 +233,7 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
         itemsCacheRef.current.set(catId, all);
       }
       const items = all || [];
-      setShelves((prev) => prev.map((s) =>
-        s.id === catId ? { ...s, items, totalCount: items.length, hasMore: false } : s));
+      queueShelfPatch(catId, { items, totalCount: items.length, hasMore: false });
     } catch (err) {
       // A provider auth error (401/403) OR a connectivity fault (network / timeout
       // / gateway 521) means every category fails the same way — trip the breaker
@@ -214,10 +250,9 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
       // (items:[] → ContentShelf renders null). loadedRef still holds catId, so it
       // won't retry — no loop. Log it so a broken rail isn't a silent mystery.
       console.warn(`${logName}: shelf "${catId}" failed to load`, err);
-      setShelves((prev) => prev.map((s) =>
-        s.id === catId ? { ...s, items: [], totalCount: 0, hasMore: false } : s));
+      queueShelfPatch(catId, { items: [], totalCount: 0, hasMore: false });
     }
-  }, [contentService, getAll, getByCategory, logName]);
+  }, [contentService, getAll, getByCategory, logName, queueShelfPatch]);
 
   // Xtream has no paging and the render window reveals the full fetched array,
   // so per-shelf "load more" is a no-op. Kept to preserve the screen prop contract.
@@ -292,11 +327,13 @@ export function useCatalog({ navigation, logName, tmdbType, idField, discoverIte
     setTopRatedLoadingMore(false);
   }, []);
 
-  // Abort any in-flight drill-in fetch when the hook unmounts.
+  // Abort any in-flight drill-in fetch + cancel a pending shelf-patch flush when
+  // the hook unmounts.
   useEffect(() => () => {
     openSeqRef.current++;
     openAbortRef.current?.abort();
-  }, []);
+    cancelShelfFlush();
+  }, [cancelShelfFlush]);
 
   const handleTopRatedMore = useCallback(async () => {
     const cursor = topRatedCursorRef.current;

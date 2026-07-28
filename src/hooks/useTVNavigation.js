@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Platform } from "react-native";
+import { frameThrottle } from "../utils/frameThrottle";
 
 // Check if we're on a web platform (includes TV platforms like WebOS)
 const isWeb = Platform.OS === "web";
@@ -31,6 +32,17 @@ export function useTVNavigation({ rows, active = true }) {
   const [focusedCol, setFocusedCol] = useState(INITIAL_FOCUS);
   const ref = useRef({ row: INITIAL_FOCUS, col: INITIAL_FOCUS });
   const navHasFocusRef = useRef(false);
+  // Coalesce the render-triggering setState to one per animation frame; `ref`
+  // advances synchronously per keypress so held-direction repeats never flood
+  // the TV CPU with more re-renders than it can paint. Reads the ref, so it
+  // always flushes the true latest row/col.
+  const commitFocus = useMemo(
+    () => frameThrottle(() => {
+      setFocusedRow(ref.current.row);
+      setFocusedCol(ref.current.col);
+    }),
+    [],
+  );
 
   useEffect(() => {
     ref.current = { row: INITIAL_FOCUS, col: INITIAL_FOCUS };
@@ -82,20 +94,19 @@ export function useTVNavigation({ rows, active = true }) {
         e.preventDefault();
         const next = Math.min(col + 1, currentItems.length - 1);
         ref.current.col = next;
-        setFocusedCol(next);
+        commitFocus();
       } else if (e.key === "ArrowLeft" || e.keyCode === 37) {
         e.preventDefault();
         const prev = Math.max(col - 1, 0);
         ref.current.col = prev;
-        setFocusedCol(prev);
+        commitFocus();
       } else if (e.key === "ArrowDown" || e.keyCode === 40) {
         e.preventDefault();
         if (row < rows.length - 1) {
           const nextRow = row + 1;
           const nextCol = Math.min(col, (rows[nextRow]?.items.length ?? 1) - 1);
           ref.current = { row: nextRow, col: nextCol };
-          setFocusedRow(nextRow);
-          setFocusedCol(nextCol);
+          commitFocus();
         }
       } else if (e.key === "ArrowUp" || e.keyCode === 38) {
         e.preventDefault();
@@ -103,8 +114,7 @@ export function useTVNavigation({ rows, active = true }) {
           const prevRow = row - 1;
           const prevCol = Math.min(col, (rows[prevRow]?.items.length ?? 1) - 1);
           ref.current = { row: prevRow, col: prevCol };
-          setFocusedRow(prevRow);
-          setFocusedCol(prevCol);
+          commitFocus();
         } else {
           // Already at the top row — hand focus up to the navbar
           globalThis.dispatchEvent(new CustomEvent("tv-nav-focus"));
@@ -116,7 +126,7 @@ export function useTVNavigation({ rows, active = true }) {
 
     globalThis.addEventListener("keydown", handleKey);
     return () => globalThis.removeEventListener("keydown", handleKey);
-  }, [active, rows]);
+  }, [active, rows, commitFocus]);
 
   return { focusedRow, focusedCol };
 }

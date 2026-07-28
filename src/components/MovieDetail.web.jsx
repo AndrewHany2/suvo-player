@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
 import { colors, fonts, playerScrim, radii } from "../ui/tokens";
 import SkeletonBox from "../presentation/components/SkeletonBox";
-import { useApp, useWatchHistory } from "../context/AppContext";
+import { useApp, useLibrary, useWatchHistory } from "../context/AppContext";
 import { ss, useScale } from "../utils/scaleSize";
 import { contentService } from "../domain/services/ContentService";
 import { resumePlaybackUrl } from "../playback/resumePlaybackUrl";
@@ -67,7 +67,8 @@ function BackPill({ isTV, onBack, sectionPadH, size }) {
 export default function MovieDetail({ item, onBack, onPlay }) {
   const { isTV } = usePlatform();
   useScale(); // re-render + recompute ss() on window resize
-  const { isInMyList, addToMyList, removeFromMyList, activeUserId } = useApp();
+  const { activeUserId } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList } = useLibrary();
   const { watchHistory } = useWatchHistory();
   const [info, setInfo] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);

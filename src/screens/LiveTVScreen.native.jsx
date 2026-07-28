@@ -7,7 +7,7 @@ import StatePanel from "../ui/StatePanel";
 import { LABELS } from "../ui/labels";
 import Button from "../ui/Button";
 import Icon from "../ui/Icon";
-import { useApp, useChannels } from "../context/AppContext";
+import { useLibrary, useChannels } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { isAuthError } from "../utils/authError";
@@ -146,7 +146,7 @@ export default function LiveTVScreen({ navigation }) {
     fetchEpgTitle,
     playChannel,
   } = useLiveTV({ navigation });
-  const { myList, isInMyList, addToMyList, removeFromMyList } = useApp();
+  const { myList, isInMyList, addToMyList, removeFromMyList } = useLibrary();
   const { setChannels } = useChannels();
   const epgStore = useEpgStore(fetchEpgTitle);
   const online = useIsOnline();

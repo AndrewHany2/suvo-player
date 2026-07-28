@@ -23,6 +23,10 @@ const AppContext = createContext();
 // Minimum gap between opportunistic library refetches (foreground). Explicit
 // account/profile switches bypass this and always reload.
 const REFETCH_MIN_INTERVAL_MS = 45000;
+// Max frequency at which live playback progress commits a watchHistory re-render
+// (see lastHistoryRenderRef). The ref stays fresh every ~1Hz tick; only the
+// render — which touches the hidden browse screens on TV — is throttled.
+const HISTORY_RENDER_MS = 15000;
 // Playback (currentVideo + play/close) and watch history live in their OWN
 // contexts, split out of the main app value. currentVideo changes on play/close
 // and watchHistory is rewritten ~once/second by progress writes during
@@ -40,6 +44,13 @@ const WatchHistoryContext = createContext();
 // consumers re-render on those changes.
 const ChannelsContext = createContext();
 const SearchContext = createContext();
+// My List (favorites) + library sync status live in their OWN context, split out
+// of the main app value. myList changes on a favorite toggle and isSyncing flips
+// on a background library sync; keeping them in the single app value re-rendered
+// EVERY useApp() consumer (all browse screens + the navbar) on those events. Now
+// only components that read them via useLibrary() re-render. State/logic still
+// live in AppProvider — this is purely how the value is exposed.
+const LibraryContext = createContext();
 
 export const useApp = () => {
   const ctx = useContext(AppContext);
@@ -68,6 +79,12 @@ export const useChannels = () => {
 export const useSearch = () => {
   const ctx = useContext(SearchContext);
   if (!ctx) throw new Error('useSearch must be used within AppProvider');
+  return ctx;
+};
+
+export const useLibrary = () => {
+  const ctx = useContext(LibraryContext);
+  if (!ctx) throw new Error('useLibrary must be used within AppProvider');
   return ctx;
 };
 
@@ -120,6 +137,14 @@ export const AppProvider = ({ children }) => {
   const [watchHistory, setWatchHistory] = useState([]);
   const watchHistoryRef = useRef([]);
   watchHistoryRef.current = watchHistory;
+  // Timestamp of the last watchHistory render commit. During playback the
+  // progress interval fires ~1Hz; committing every tick re-renders the browse
+  // screens (Movies/Series/Home) that read watchHistory — which on TV sit
+  // mounted behind the full-screen player and steal CPU from the video decoder.
+  // We keep watchHistoryRef fresh every tick (persistence + resume accumulation
+  // rely on it) but only commit a re-render at most every HISTORY_RENDER_MS, and
+  // flushProgress forces an immediate commit when the viewer leaves the player.
+  const lastHistoryRenderRef = useRef(0);
   const [isSyncing, setIsSyncing] = useState(false);
   // Pending progress upserts keyed by `${type}_${streamId}` so switching streams
   // does not clobber the in-flight debounce of another stream.
@@ -302,6 +327,12 @@ export const AppProvider = ({ children }) => {
   // Called when switching streams (for the previous entry), on unmount, and
   // exported for the player to call on background/foreground transitions.
   const flushProgress = useCallback(() => {
+    // Commit the latest in-memory progress so browse screens (Continue Watching,
+    // per-card progress bars) reflect the final position the instant the viewer
+    // leaves the player — not up to HISTORY_RENDER_MS stale. No-op re-render when
+    // the ref reference is unchanged.
+    lastHistoryRenderRef.current = Date.now();
+    setWatchHistory(watchHistoryRef.current);
     const key = userKeyRef.current;
     const accountKey = accountKeyOf(activeAccountRef.current);
     for (const timer of progressSyncTimers.current.values()) clearTimeout(timer);
@@ -322,7 +353,16 @@ export const AppProvider = ({ children }) => {
       { streamId, type, currentTime, duration },
       new Date().toISOString(),
     );
-    setWatchHistory(updated);
+    // Keep the ref authoritative every tick (accumulation + the persistence
+    // path below read it), but throttle the render commit — the hidden browse
+    // screens don't need a 1Hz refresh while the player is up. flushProgress
+    // (stream switch / close / background) forces the final commit.
+    watchHistoryRef.current = updated;
+    const nowMs = Date.now();
+    if (nowMs - lastHistoryRenderRef.current >= HISTORY_RENDER_MS) {
+      lastHistoryRenderRef.current = nowMs;
+      setWatchHistory(updated);
+    }
     const timerKey = `${entry.type}_${entry.streamId}`;
     if (userKey) {
       // Flush any pending entry for a *different* stream before scheduling this one.
@@ -484,7 +524,11 @@ export const AppProvider = ({ children }) => {
       })();
       return;
     }
-    const authTimeout = setTimeout(() => setAuthLoading(false), 8000);
+    // Safety ceiling: drop the boot splash if getSession() hangs (slow/absent
+    // network is common on TV). 4s, not 8s — a late session still arrives via
+    // onAuthStateChange below and routes correctly, so a shorter ceiling only
+    // shortens the worst-case blank-splash wait without stranding a signed-in user.
+    const authTimeout = setTimeout(() => setAuthLoading(false), 4000);
     getSession()
       .then((session) => { setAuthUser(session?.user ?? null); })
       .catch(() => {})
@@ -655,8 +699,7 @@ export const AppProvider = ({ children }) => {
     users, setUsers, activeUserId, setActiveUserId, saveUsers, addUser, updateUser, removeUser,
     activeAccountId,
     currentSeries, setCurrentSeries,
-    refetchLibrary, isSyncing,
-    myList, addToMyList, removeFromMyList, isInMyList,
+    refetchLibrary,
     isLoading, setIsLoading, error, setError,
     tvUseShelves, setTvUseShelves,
     allowSelfLines,
@@ -664,14 +707,21 @@ export const AppProvider = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [authUser, authLoading, profile, deviceStatus, appProfiles, appProfilesLoading, activeProfileId, activeProfile,
     tvUseShelves,
-    users, activeUserId, isSyncing, myList,
+    users, activeUserId,
     activeAccountId,
     isLoading, error,
     signIn, signUp, signOut, switchProfile, addProfile, updateProfile, removeProfile,
     addUser, updateUser, removeUser, saveUsers,
     refetchLibrary,
-    addToMyList, removeFromMyList, isInMyList,
     allowSelfLines, entitlement]);
+
+  // My List + library-sync slice — isolated so a favorite toggle / background
+  // sync re-renders only useLibrary() consumers, not the whole useApp() tree.
+  // The callbacks are stable (useCallback).
+  const libraryValue = useMemo(
+    () => ({ myList, addToMyList, removeFromMyList, isInMyList, isSyncing }),
+    [myList, isSyncing, addToMyList, removeFromMyList, isInMyList],
+  );
 
   // Playback slice — changes only on play/close (currentVideo); playVideo/
   // closeVideo are stable (useCallback), so browse/nav trees reading only `value`
@@ -708,15 +758,17 @@ export const AppProvider = ({ children }) => {
 
   return (
     <AppContext.Provider value={value}>
-      <ChannelsContext.Provider value={channelsValue}>
-        <SearchContext.Provider value={searchValue}>
-          <PlaybackContext.Provider value={playbackValue}>
-            <WatchHistoryContext.Provider value={historyValue}>
-              {children}
-            </WatchHistoryContext.Provider>
-          </PlaybackContext.Provider>
-        </SearchContext.Provider>
-      </ChannelsContext.Provider>
+      <LibraryContext.Provider value={libraryValue}>
+        <ChannelsContext.Provider value={channelsValue}>
+          <SearchContext.Provider value={searchValue}>
+            <PlaybackContext.Provider value={playbackValue}>
+              <WatchHistoryContext.Provider value={historyValue}>
+                {children}
+              </WatchHistoryContext.Provider>
+            </PlaybackContext.Provider>
+          </SearchContext.Provider>
+        </ChannelsContext.Provider>
+      </LibraryContext.Provider>
     </AppContext.Provider>
   );
 };

@@ -15,7 +15,7 @@ import SkeletonBox from "../presentation/components/SkeletonBox";
 import HeroNative from "../presentation/components/Hero.native";
 import PosterCard from "../presentation/components/PosterCard.native";
 import { LABELS } from "../ui/labels";
-import { useApp } from "../context/AppContext";
+import { useApp, useLibrary } from "../context/AppContext";
 import { useIsOnline } from "../downloads/useIsOnline.js";
 import { useHistory } from "../domain/hooks/useHistory";
 import { useDeferredRemove } from "../hooks/useDeferredRemove";
@@ -148,7 +148,8 @@ function HomeSkeleton() {
 }
 
 export default function HistoryScreen({ navigation }) {
-  const { activeUserId, isSyncing } = useApp();
+  const { activeUserId } = useApp();
+  const { isSyncing } = useLibrary();
   const online = useIsOnline();
   const { watchedHistory, removeFromWatchHistory, playLive, playVideoObject, myList, removeFromMyList } = useHistory({ navigation });
   const insets = useSafeAreaInsets();

@@ -7,7 +7,7 @@ import { ActivityIndicator } from "react-native";
 import { YStack, XStack, Text } from "../ui/primitives";
 import Icon from "../ui/Icon";
 import { colors, accentAlpha, fonts } from "../ui/tokens";
-import { useApp } from "../context/AppContext";
+import { useApp, useLibrary } from "../context/AppContext";
 import { useAppGate } from "./useAppGate";
 import contentService from "../domain/services/ContentService";
 import { createNativeDownloadManager, documentDirectory } from "../downloads/nativeDownloadManager.js";
@@ -53,7 +53,8 @@ function VideoPlayerRoute(props) {
 }
 
 function HeaderRight() {
-  const { users, activeUserId, activeProfile, switchProfile, isSyncing } = useApp();
+  const { users, activeUserId, activeProfile, switchProfile } = useApp();
+  const { isSyncing } = useLibrary();
   const navigation = useNavigation();
   const activeUser = users.find((u) => u.id === activeUserId);
   const playlistName = activeUser?.nickname || activeUser?.username;

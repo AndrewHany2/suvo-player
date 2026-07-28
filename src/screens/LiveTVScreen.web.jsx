@@ -7,7 +7,7 @@ import Button from "../ui/Button";
 import Icon from "../ui/Icon";
 import { LABELS } from "../ui/labels";
 import { ensureSkeletonKeyframes, SkeletonLine } from "../presentation/components/SkeletonPoster.web";
-import { useApp, useChannels, useSearch } from "../context/AppContext";
+import { useLibrary, useChannels, useSearch } from "../context/AppContext";
 import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { normalizeSearch } from "../utils/normalizeSearch.js";
@@ -74,7 +74,7 @@ function useEpgStore(fetchEpgTitle) {
 
 /* ─── Live Card ─── */
 const LiveCard = memo(function LiveCard({ item, epgStore, onPress }) {
-  const { addToMyList, removeFromMyList, isInMyList } = useApp();
+  const { addToMyList, removeFromMyList, isInMyList } = useLibrary();
   const abbrev = getAbbrev(item.name);
   const sid = item.stream_id || item.id;
   const inFav = isInMyList("live", sid);

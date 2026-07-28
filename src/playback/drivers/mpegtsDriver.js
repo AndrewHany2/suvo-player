@@ -25,28 +25,18 @@ import { normalizeMpegtsError } from './mpegtsError.js';
 // Re-export so the driver stays the single import surface for consumers.
 export { normalizeMpegtsError };
 
+import { getMpegtsModule, ensureMpegtsModule } from './engineLoader.js';
+
 /**
- * Lazily load + cache mpegts.js so its top-level factory only runs the first
- * time a raw MPEG-TS stream is actually played — not on cold start. A static
- * top-level import would eagerly evaluate the engine (and mpegts.js's UMD
- * wrapper touches `window`, which also makes it unsafe to evaluate outside a
- * browser). Keeping this a `require()` inside a function lets Metro defer the
- * evaluation; the literal `require('mpegts.js')` is what Metro's dependency
- * graph collects. The `getBuiltinModule` branch is only reached in the Node ESM
- * test runtime, where there is no module-scoped `require`. mpegts.js exports its
- * object via `module.exports` (CJS) so `.default` is absent — fall back to the
- * module object itself.
+ * Synchronous accessor for the mpegts.js module. Bundled on web/Electron and in
+ * the Node test runtime; on the TV build it's NOT bundled (kept out of the
+ * cold-start parse) and fetched from a vendored <script> on first raw-TS play —
+ * so this returns null on TV until `load()` has awaited `ensureMpegtsModule()`.
+ * See engineLoader.js. mpegts.js exports its object via `module.exports`.
  * @returns {any}
  */
-let _mpegtsModule = null;
 function loadMpegts() {
-  if (_mpegtsModule) return _mpegtsModule;
-  const mod =
-    typeof require === 'function'
-      ? require('mpegts.js')
-      : process.getBuiltinModule('node:module').createRequire(process.cwd() + '/')('mpegts.js');
-  _mpegtsModule = mod?.default ?? mod;
-  return _mpegtsModule;
+  return getMpegtsModule();
 }
 
 export const STALL_THRESHOLD_MS = 6000;
@@ -103,7 +93,7 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
    * @param {PlayerSource} source
    * @param {LoadOptions} [loadOpts]
    */
-  function load(source, loadOpts = {}) {
+  async function load(source, loadOpts = {}) {
     const videoEl = el();
     const uri = typeof source === 'string' ? source : source?.uri;
     if (!videoEl || !uri) return;
@@ -112,7 +102,9 @@ export function createMpegtsDriver(videoElOrGetter, opts = {}) {
     // Re-arm the first-frame gate for this (re)load / recovery RELOAD.
     hasStartedPlaying = false;
     try {
-      const mpegts = loadMpegts();
+      // On the TV build mpegts.js isn't bundled — fetch the vendored engine
+      // (once) before use; on web/Node this resolves instantly.
+      const mpegts = await ensureMpegtsModule();
       player = mpegts.createPlayer(
         { type: 'mpegts', isLive: loadOpts.isLive !== false, url: uri },
         {

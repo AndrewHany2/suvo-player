@@ -16,6 +16,7 @@ import { useTVInput } from "../../hooks/useTVInput";
 import { colors, fonts, fontWeights } from "../../ui/tokens";
 import { ss, useScale } from "../../utils/scaleSize";
 import { posterUrl, prefetchImage } from "../../utils/imagePrefetch";
+import { frameThrottle } from "../../utils/frameThrottle";
 
 const SHELF_OVERSCAN = 8; // shelves kept mounted above/below the visible page
 // Design px (authored at the 1920 reference); ss() scales them for the pinned
@@ -136,6 +137,14 @@ export function VirtualShelvesTV({
   const railAnchorRef = useRef({}); // shelfId -> per-rail horizontal window anchor (hysteresis)
   const railScrollLeft = useRef({}); // shelfId -> last scrollLeft, kept in sync from onRailScroll
   const [focus, setFocus] = useState({ shelf: 0, col: 0, shelfAnchor: 0 });
+  // Authoritative mirror of `focus`, advanced synchronously on every D-pad press
+  // so held-direction repeats chain correctly, while `commitFocus` coalesces the
+  // render-triggering setState (and the Apply-scroll effect that keys off it) to
+  // one per animation frame — the slow TV CPU can't paint faster than that, and
+  // flooding it is what makes focus overshoot. `move()` and the range-clamp
+  // effect are the only writers, and both go through this ref.
+  const focusRef = useRef(focus);
+  const commitFocus = useMemo(() => frameThrottle(() => setFocus(focusRef.current)), []);
   // Focus zones ABOVE the shelves (Hero buttons, Discover pills). zone:"shelves"
   // means focus is in the rails (handled by `focus`/`move`). Prop-gated: Home
   // passes neither renderHero-interactivity nor discoverItems, so both zones are
@@ -218,14 +227,14 @@ export function VirtualShelvesTV({
   // Keep focus in range when the shelves prop mutates — Home's Favorites/History
   // rails shrink as items are removed, and a stale focus would point past the end.
   useEffect(() => {
-    setFocus((prev) => {
-      const shelf = Math.min(prev.shelf, Math.max(0, shelfCount - 1));
-      const col = clampCol(prev.col, loadedLen(shelves[shelf]));
-      return shelf === prev.shelf && col === prev.col
-        ? prev
-        : { ...prev, shelf, col };
-    });
-  }, [shelfCount, shelves]);
+    const prev = focusRef.current;
+    const shelf = Math.min(prev.shelf, Math.max(0, shelfCount - 1));
+    const col = clampCol(prev.col, loadedLen(shelves[shelf]));
+    if (shelf !== prev.shelf || col !== prev.col) {
+      focusRef.current = { ...prev, shelf, col };
+      commitFocus();
+    }
+  }, [shelfCount, shelves, commitFocus]);
 
   useEffect(() => {
     const measure = () => {
@@ -406,13 +415,6 @@ export function VirtualShelvesTV({
       else if (right + pad > rail.scrollLeft + rail.clientWidth)
         rail.scrollLeft = right + pad - rail.clientWidth;
     }
-    // Idle (non-focused) rails: reassert their remembered scrollLeft. Rows no
-    // longer unmount, so this is normally a redundant idempotent write; kept as a
-    // cheap safety net in case a rail's node scroll was reset externally.
-    for (const [id, node] of Object.entries(railRefs.current)) {
-      if (!node || id === focusedId) continue;
-      node.scrollLeft = railScrollLeft.current[id] ?? 0;
-    }
     // `scale` in deps: this effect's vertical scroll math uses ROW_HEIGHT, so a
     // scale correction must re-run it with the corrected value. It already tracks
     // `dims` (which changes when measure re-runs), but `scale` makes it explicit
@@ -422,6 +424,22 @@ export function VirtualShelvesTV({
     // on return). zoneCfg.hasHero gates the top-shelf reveal above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, shelves, dims, scale, topFocus.zone, zoneCfg.hasHero]);
+
+  // Idle (non-focused) rails: reassert their remembered scrollLeft. Rows no
+  // longer unmount, so this is a redundant idempotent write kept as a safety net
+  // in case a rail's node scroll was reset externally. It only needs to run when
+  // the rail SET changes (shelves/dims) — NOT on every D-pad focus move, where it
+  // was an O(mounted-rails) scrollLeft write loop per keypress on a slow TV CPU.
+  useEffect(() => {
+    // Exclude the focused rail — the Apply-scroll effect owns its horizontal
+    // position from the focused card's geometry; reasserting it here would clobber.
+    const focusedId = shelves[focusRef.current.shelf]?.id;
+    for (const [id, node] of Object.entries(railRefs.current)) {
+      if (!node || id === focusedId) continue;
+      const target = railScrollLeft.current[id] ?? 0;
+      if (node.scrollLeft !== target) node.scrollLeft = target;
+    }
+  }, [shelves, dims]);
 
   // Track chevron hint edges + raw scrollLeft from a rail's real geometry. This
   // is UI/edge-hint state ONLY — it never feeds the mount window (that is
@@ -448,41 +466,46 @@ export function VirtualShelvesTV({
   // ── D-pad ──
   const move = useCallback(
     (dShelf, dCol) => {
-      setFocus((prev) => {
-        const cur = shelves[prev.shelf];
-        if (dCol !== 0) {
-          const len = loadedLen(cur);
-          const nextCol = clampCol(prev.col + dCol, len);
-          if (cur) colMemory.current[cur.id] = nextCol;
-          // Load-more intentionally disabled: the rail renders a focus-anchored
-          // window over the FULL loaded array (see the rail map below), and
-          // Task 4 makes hasMore false, so there is nothing to page in.
-          return { ...prev, col: nextCol };
-        }
-        // Up on the top shelf yields to the caller (e.g. focus the navbar) when a
-        // handler is supplied, instead of clamping in place.
-        if (dShelf < 0 && prev.shelf === 0 && onUpAtTop) {
-          onUpAtTop();
-          return prev;
-        }
-        // vertical move: remember current rail's col, restore destination's
-        if (cur) colMemory.current[cur.id] = prev.col;
-        const nextShelf = Math.max(
-          0,
-          Math.min(shelfCount - 1, prev.shelf + dShelf),
-        );
-        const dest = shelves[nextShelf];
-        const col = clampCol(colMemory.current[dest?.id] ?? 0, loadedLen(dest));
-        const shelfAnchor = scrollAnchor(
-          prev.shelfAnchor,
-          nextShelf,
-          dimsRef.current.anchorRows,
-          shelfCount,
-        );
-        return { shelf: nextShelf, col, shelfAnchor };
-      });
+      // Compute from the ref (the true latest position), advance it
+      // synchronously, and coalesce the render via commitFocus — so a burst of
+      // held-key repeats chains one step per press but repaints once per frame.
+      const prev = focusRef.current;
+      const cur = shelves[prev.shelf];
+      if (dCol !== 0) {
+        const len = loadedLen(cur);
+        const nextCol = clampCol(prev.col + dCol, len);
+        if (cur) colMemory.current[cur.id] = nextCol;
+        // Load-more intentionally disabled: the rail renders a focus-anchored
+        // window over the FULL loaded array (see the rail map below), and
+        // Task 4 makes hasMore false, so there is nothing to page in.
+        focusRef.current = { ...prev, col: nextCol };
+        commitFocus();
+        return;
+      }
+      // Up on the top shelf yields to the caller (e.g. focus the navbar) when a
+      // handler is supplied, instead of clamping in place.
+      if (dShelf < 0 && prev.shelf === 0 && onUpAtTop) {
+        onUpAtTop();
+        return;
+      }
+      // vertical move: remember current rail's col, restore destination's
+      if (cur) colMemory.current[cur.id] = prev.col;
+      const nextShelf = Math.max(
+        0,
+        Math.min(shelfCount - 1, prev.shelf + dShelf),
+      );
+      const dest = shelves[nextShelf];
+      const col = clampCol(colMemory.current[dest?.id] ?? 0, loadedLen(dest));
+      const shelfAnchor = scrollAnchor(
+        prev.shelfAnchor,
+        nextShelf,
+        dimsRef.current.anchorRows,
+        shelfCount,
+      );
+      focusRef.current = { shelf: nextShelf, col, shelfAnchor };
+      commitFocus();
     },
-    [shelves, shelfCount, onUpAtTop],
+    [shelves, shelfCount, onUpAtTop, commitFocus],
   );
 
   const { register } = useTVInput();

@@ -22,6 +22,19 @@ import { isTV } from "../../utils/isTV";
  */
 const tv = isTV();
 
+// Hoisted, prop-independent styles + helper: allocated once at module load rather
+// than rebuilt on every render of the cards that DO re-render (the focused card,
+// its predecessor, and any card whose image just decoded).
+const FILL = { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 };
+const PLACEHOLDER_STYLE = { ...FILL, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: colors.surface };
+const SKELETON_WRAP_STYLE = { ...FILL, overflow: "hidden" };
+const fmtDur = (s) => {
+  const t = Math.max(0, Math.round(s));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+};
+
 // One-time inject the hover glow (web only). The hover RING already lives in the
 // global `.suvo-poster-card:hover` rule (AppNavigator); this adds the matching
 // soft cyan box-shadow on the inner poster box. TV strips shadows, so skip it.
@@ -67,12 +80,6 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
   const watched = item.currentTime || 0;
   const duration = item.duration || 0;
   const watchedPct = duration > 0 ? Math.min((watched / duration) * 100, 100) : 0;
-  const fmtDur = (s) => {
-    const t = Math.max(0, Math.round(s));
-    const h = Math.floor(t / 3600);
-    const m = Math.floor((t % 3600) / 60);
-    return h ? `${h}h ${m}m` : `${m}m`;
-  };
 
   return (
     <div
@@ -120,14 +127,14 @@ function PosterCardWeb({ item, onPress, isFocused, width = 200 }) {
       >
         {/* Always-present placeholder so a loading/empty card reads as a card,
             not a floating badge. The poster fades in over it once decoded. */}
-        <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
+        <div style={PLACEHOLDER_STYLE}>
           <Icon name="film" color={colors.muted} size={ss(32)} />
         </div>
         {/* Animated skeleton sweep while THIS poster's image decodes (web/desktop
             only; TV keeps the static film-icon base to spare old Chromium). It sits
             over the film icon and under the img, which fades in on load. */}
         {poster && !imageError && !imageLoaded && !tv && (
-          <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, overflow: "hidden" }} aria-hidden="true">
+          <div style={SKELETON_WRAP_STYLE} aria-hidden="true">
             <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, background: `linear-gradient(100deg, transparent 20%, ${colors.surface2} 50%, transparent 80%)`, animation: "_skel_sweep 1.4s ease-in-out infinite", willChange: "transform" }} />
           </div>
         )}

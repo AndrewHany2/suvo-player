@@ -23,6 +23,17 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     if (/\/screens\/(AccountsScreen|VideoPlayerScreen)$/.test(moduleName)) {
       return context.resolveRequest(context, `${moduleName}.tv`, platform);
     }
+    // Keep the ~816KB hls.js + mpegts.js OUT of the TV cold-start parse. On the
+    // TV build they're loaded from vendored <script> tags on first play (see
+    // src/playback/drivers/engineLoader.js + tv/patch-index.js); here we resolve
+    // the packages to a null stub so Metro never bundles the real engines. The
+    // web/electron build leaves EXPO_PUBLIC_TV unset and bundles them normally.
+    if (moduleName === "hls.js" || moduleName === "mpegts.js") {
+      return {
+        filePath: path.resolve(__dirname, "src/playback/drivers/engineStub.js"),
+        type: "sourceFile",
+      };
+    }
   }
   // Force CJS bundle for supabase to avoid dynamic import(variable) in .mjs
   if (moduleName === '@supabase/supabase-js') {

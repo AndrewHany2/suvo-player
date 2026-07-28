@@ -10,6 +10,7 @@ import { colors, iconSizes } from "../ui/tokens";
 import { ss } from "../utils/scaleSize";
 import { describeError } from "../utils/authError";
 import { normalizeSearch } from "../utils/normalizeSearch.js";
+import { frameThrottle } from "../utils/frameThrottle";
 import {
   isMacCommand,
   KEY_LEFT, KEY_UP, KEY_RIGHT, KEY_DOWN, KEY_ENTER, KEY_BACK,
@@ -194,9 +195,14 @@ export default function LiveTVScreenTV({ navigation }) {
 
   // ── Category grid keys ────────────────────────────────────────────────────
   const setCatZoneBoth = (z) => { catZoneRef.current = z; setCatZone(z); };
+  // Coalesce the render-triggering setState to one per animation frame while the
+  // focus ref advances synchronously per keypress — so holding a D-pad direction
+  // never floods the slow TV CPU with more re-renders than it can paint. The
+  // throttled fn reads the ref, so it always flushes the true latest position.
+  const commitCatFocus = useMemo(() => frameThrottle(() => setCatFocus(catFocusRef.current)), []);
   const movCat = (n) => {
     catFocusRef.current = n;
-    setCatFocus(n);
+    commitCatFocus();
   };
   const onCatLeft = () => {
     const f = catFocusRef.current;
@@ -279,10 +285,10 @@ export default function LiveTVScreenTV({ navigation }) {
   // ── Channel grid keys ─────────────────────────────────────────────────────
   // The grid grows on scroll (PagedGridTV), so focus may roam the whole
   // filtered list — bounds use the full length, not a display cap.
+  const commitPage = useMemo(() => frameThrottle(() => setPage(pageRef.current)), []);
   const movCh = (pg, focus) => {
-    const n = { ...pg, focus };
-    pageRef.current = n;
-    setPage(n);
+    pageRef.current = { ...pg, focus };
+    commitPage();
   };
   const growChDisplay = (next) => { const pg = pageRef.current; if (pg) { const n = { ...pg, display: next }; pageRef.current = n; setPage(n); } };
 

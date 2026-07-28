@@ -7,7 +7,7 @@ import { ss } from "../utils/scaleSize";
 import { YStack, XStack, Text, ScrollView } from "../ui/primitives";
 import { colors, fonts, radii } from "../ui/tokens";
 import SkeletonBox from "../presentation/components/SkeletonBox";
-import { useApp, useWatchHistory } from "../context/AppContext";
+import { useApp, useLibrary, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
@@ -41,7 +41,8 @@ const getEpisodeNumber = (ep) => {
 };
 
 export default function SeriesDetail({ item, onBack, onPlayEpisode }) {
-  const { isInMyList, addToMyList, removeFromMyList, activeUserId } = useApp();
+  const { activeUserId } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList } = useLibrary();
   const { watchHistory } = useWatchHistory();
   const insets = useSafeAreaInsets();
   const [info, setInfo] = useState(null);

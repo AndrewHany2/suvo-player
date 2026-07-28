@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { useApp, usePlayback } from "../context/AppContext";
+import { memo, forwardRef, useState, useEffect, useRef, useMemo } from "react";
+import { useApp, useLibrary, usePlayback } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
 import Icon from "../ui/Icon";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
@@ -41,15 +41,57 @@ const CW_ROW_H = 40 + Math.round((CW_CARD_W * 9) / 16) + 120;
 // viewport fraction (not ss() design-px) so the peek holds at any TV resolution.
 const HOME_HERO_HEIGHT = "62vh";
 
+// Pure time formatter (module scope so the memoized episode row can use it).
+function fmtTime(s) {
+  if (!s) return "0:00";
+  const hh = Math.floor(s / 3600);
+  const mm = Math.floor((s % 3600) / 60);
+  const ss = Math.floor(s % 60);
+  return hh > 0
+    ? `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
+    : `${mm}:${String(ss).padStart(2, "0")}`;
+}
+
+// Memoized episode row (series detail). Without memo, every episode D-pad move
+// (epIdx) reconciled the whole episodes.map — 200+ rows for long series. `ep` and
+// `progress` are stable references, so only the two rows whose `focused` flips
+// re-render. forwardRef carries seriesEpRef to the focused row for scrollIntoView.
+const EpisodeRowTV = memo(forwardRef(function EpisodeRowTV({ ep, focused, progress }, ref) {
+  const hasProgress = progress && progress.currentTime > 0;
+  const isWatched = hasProgress && progress.duration > 0 && progress.currentTime / progress.duration > 0.9;
+  return (
+    <div ref={ref} role="button"
+      aria-label={ep.title || `Episode ${ep.episode_num}`}
+      aria-selected={focused}
+      className={focused ? "tvl-episode tvl-episode--on" : "tvl-episode"}>
+      <span className="tvl-ep-badge">E{ep.episode_num}</span>
+      <div className="tvl-ep-body">
+        <div className="tvl-ep-title">
+          {ep.title || `Episode ${ep.episode_num}`}
+          {isWatched && <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}><Icon name="check" size={14} color={colors.accentText} /></span>}
+        </div>
+        {ep.info?.plot && <div className="tvl-ep-plot">{ep.info.plot}</div>}
+        {ep.info?.duration && <div className="tvl-ep-dur">{ep.info.duration}</div>}
+        {hasProgress && !isWatched && (
+          <div style={{ fontSize: 14, color: colors.accentText, marginTop: 4 }}>
+            Continue from {fmtTime(progress.currentTime)}
+          </div>
+        )}
+      </div>
+      <span className="tvl-ep-play" style={{ display: "inline-flex", alignItems: "center" }}><Icon name="play" size={18} color={colors.text} /></span>
+    </div>
+  );
+}));
+
 export default function HistoryScreenTV({ navigation }) {
+  const { activeUserId } = useApp();
   const {
-    activeUserId,
     isSyncing,
     myList,
     removeFromMyList,
     addToMyList,
     isInMyList,
-  } = useApp();
+  } = useLibrary();
   const { currentVideo } = usePlayback();
   // History list data, playback + url builders / info fetchers (routed through
   // ContentService/iptvApi inside the hook — the screen no longer imports either).
@@ -511,17 +553,6 @@ export default function HistoryScreenTV({ navigation }) {
     }
   };
 
-  // ── Render helpers ────────────────────────────────────────────────────────
-  const fmtTime = (s) => {
-    if (!s) return "0:00";
-    const hh = Math.floor(s / 3600);
-    const mm = Math.floor((s % 3600) / 60);
-    const ss = Math.floor(s % 60);
-    return hh > 0
-      ? `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
-      : `${mm}:${String(ss).padStart(2, "0")}`;
-  };
-
   // ── Render: no account ────────────────────────────────────────────────────
   if (!activeUserId) {
     return (
@@ -749,31 +780,15 @@ export default function HistoryScreenTV({ navigation }) {
             )}
             <div className="tvl-episodes">
               {episodes.map((ep, i) => {
-                const epHistory = episodeHistoryById.get(String(ep.id));
-                const hasProgress = epHistory && epHistory.currentTime > 0;
-                const isWatched = hasProgress && epHistory.duration > 0 && epHistory.currentTime / epHistory.duration > 0.9;
+                const focused = section === "episodes" && i === epIdx;
                 return (
-                  <div key={ep.id} ref={section === "episodes" && i === epIdx ? seriesEpRef : null}
-                    role="button"
-                    aria-label={ep.title || `Episode ${ep.episode_num}`}
-                    aria-selected={section === "episodes" && i === epIdx}
-                    className={section === "episodes" && i === epIdx ? "tvl-episode tvl-episode--on" : "tvl-episode"}>
-                    <span className="tvl-ep-badge">E{ep.episode_num}</span>
-                    <div className="tvl-ep-body">
-                      <div className="tvl-ep-title">
-                        {ep.title || `Episode ${ep.episode_num}`}
-                        {isWatched && <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}><Icon name="check" size={14} color={colors.accentText} /></span>}
-                      </div>
-                      {ep.info?.plot && <div className="tvl-ep-plot">{ep.info.plot}</div>}
-                      {ep.info?.duration && <div className="tvl-ep-dur">{ep.info.duration}</div>}
-                      {hasProgress && !isWatched && (
-                        <div style={{ fontSize: 14, color: colors.accentText, marginTop: 4 }}>
-                          Continue from {fmtTime(epHistory.currentTime)}
-                        </div>
-                      )}
-                    </div>
-                    <span className="tvl-ep-play" style={{ display: "inline-flex", alignItems: "center" }}><Icon name="play" size={18} color={colors.text} /></span>
-                  </div>
+                  <EpisodeRowTV
+                    key={ep.id}
+                    ref={focused ? seriesEpRef : null}
+                    ep={ep}
+                    focused={focused}
+                    progress={episodeHistoryById.get(String(ep.id))}
+                  />
                 );
               })}
             </div>

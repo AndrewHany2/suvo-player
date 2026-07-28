@@ -10,7 +10,7 @@ import SkeletonBox from "../presentation/components/SkeletonBox";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import { LABELS } from "../ui/labels";
-import { useApp, useWatchHistory } from "../context/AppContext";
+import { useApp, useLibrary, useWatchHistory } from "../context/AppContext";
 import { contentService } from "../domain/services/ContentService";
 import { resumePlaybackUrl } from "../playback/resumePlaybackUrl";
 import DownloadButton from "../downloads/DownloadButton.jsx";
@@ -34,7 +34,8 @@ const GradientOverlay = memo(() => (
 import { getTrailerWatchUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 
 export default function MovieDetail({ item, onBack, onPlay }) {
-  const { isInMyList, addToMyList, removeFromMyList, activeUserId } = useApp();
+  const { activeUserId } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList } = useLibrary();
   const { watchHistory } = useWatchHistory();
   const insets = useSafeAreaInsets();
   // On wide/landscape surfaces (tablet, iPad Split View) the phone-scaled ss(420)

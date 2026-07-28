@@ -138,7 +138,9 @@ test('onError: media error normalizes to kind media (-> MEDIA_DECODE class)', ()
   assert.equal(received.kind, 'media');
 });
 
-test('load(toLiveEdge) seeks the element to hls.liveSyncPosition', () => {
+// load() is async (it awaits the engine module — bundled/instant off-TV, but
+// still a microtask), so these await it before asserting the resulting seek.
+test('load(toLiveEdge) seeks the element to hls.liveSyncPosition', async () => {
   const video = fakeVideo();
   const inst = fakeHls([{ height: 720, bitrate: 2e6 }]);
   inst.liveSyncPosition = 123.4;
@@ -147,18 +149,18 @@ test('load(toLiveEdge) seeks the element to hls.liveSyncPosition', () => {
     if (ev === Hls.Events.MANIFEST_PARSED) cb();
   };
   const d = createHlsDriver(video, { getHls: () => inst });
-  d.load({ uri: 'http://x/stream.m3u8' }, { isLive: true, toLiveEdge: true });
+  await d.load({ uri: 'http://x/stream.m3u8' }, { isLive: true, toLiveEdge: true });
   assert.equal(video.currentTime, 123.4);
 });
 
-test('load(VOD) seeks the element to startTime', () => {
+test('load(VOD) seeks the element to startTime', async () => {
   const video = fakeVideo();
   const inst = fakeHls([{ height: 720, bitrate: 2e6 }]);
   inst.once = (ev, cb) => {
     if (ev === Hls.Events.MANIFEST_PARSED) cb();
   };
   const d = createHlsDriver(video, { getHls: () => inst });
-  d.load({ uri: 'http://x/movie.m3u8' }, { isLive: false, startTime: 42 });
+  await d.load({ uri: 'http://x/movie.m3u8' }, { isLive: false, startTime: 42 });
   assert.equal(video.currentTime, 42);
 });
 

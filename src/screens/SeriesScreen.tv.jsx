@@ -1,6 +1,6 @@
-import { memo, useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { memo, forwardRef, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { VirtualShelvesTV } from "../presentation/components/VirtualShelves.tv";
-import { useApp, usePlayback, useWatchHistory } from "../context/AppContext";
+import { useApp, useLibrary, usePlayback, useWatchHistory } from "../context/AppContext";
 import { useSeries } from "../domain/hooks/useSeries";
 import { PagedGridTV } from "../presentation/components/PagedGrid.tv";
 import ShelfCard from "../presentation/components/ShelfCard.tv";
@@ -24,6 +24,7 @@ import { seriesActionTypes, seasonList } from "./seriesDetailActions.js";
 import { describeError } from "../utils/authError";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
 import { normalizeSearch } from "../utils/normalizeSearch.js";
+import { frameThrottle } from "../utils/frameThrottle";
 
 const CAT_COLS = 4;
 const SER_COLS = 5;
@@ -35,18 +36,63 @@ const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 
 // mode: 'cats' | 'grid' | 'detail'
 
+// Memoized episode row. The detail view re-renders on every episode D-pad move
+// (epIdx state); without memo the whole `episodes.map` reconciled all rows each
+// keypress (200+ for heavily-dubbed series). `ep` and `progress` are stable
+// references (episodes array + the memoized epProgressById Map), so only the two
+// rows whose `focused` flips re-render. forwardRef carries epElRef to the focused
+// row for scrollIntoView.
+const EpisodeRowTV = memo(forwardRef(function EpisodeRowTV({ ep, focused, progress }, ref) {
+  const hasProgress = progress && progress.currentTime > 0;
+  const isWatched =
+    hasProgress && progress.duration > 0 && progress.currentTime / progress.duration > 0.9;
+  return (
+    <div
+      ref={ref}
+      role="button"
+      aria-label={ep.title || `Episode ${ep.episode_num}`}
+      aria-selected={focused}
+      className={focused ? "tvl-episode tvl-episode--on" : "tvl-episode"}
+    >
+      <span className="tvl-ep-badge">E{ep.episode_num}</span>
+      <div className="tvl-ep-body">
+        <div className="tvl-ep-title">
+          {ep.title || `Episode ${ep.episode_num}`}
+          {isWatched && <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}><Icon name="check" size={iconSizes.sm} color={colors.accentText} /></span>}
+        </div>
+        {ep.info?.plot && <div className="tvl-ep-plot">{ep.info.plot}</div>}
+        {ep.info?.duration && <div className="tvl-ep-dur">{ep.info.duration}</div>}
+        {hasProgress && !isWatched && (
+          <div style={{ fontSize: 14, color: colors.accentText, marginTop: 4 }}>
+            Continue from {Math.floor(progress.currentTime / 60)}:{String(Math.floor(progress.currentTime % 60)).padStart(2, "0")}
+          </div>
+        )}
+      </div>
+      <span className="tvl-ep-play"><Icon name="play" size={iconSizes.md} color="currentColor" /></span>
+    </div>
+  );
+}));
+
 export default function SeriesScreenTV({ navigation, route }) {
   const {
     loading, loaded, error, errorMessage, reload, activeUserId,
     categories, getCategoryItems, fetchSeriesInfo, buildEpisodeUrl, playEpisodeObject,
     shelves, handleShelfVisible, handleLoadMore,
   } = useSeries({ navigation });
-  const {
-    isInMyList, addToMyList, removeFromMyList,
-    tvUseShelves,
-  } = useApp();
+  const { tvUseShelves } = useApp();
+  const { isInMyList, addToMyList, removeFromMyList } = useLibrary();
   const { currentVideo } = usePlayback();
   const { watchHistory } = useWatchHistory();
+  // Episode progress indexed by episodeId, rebuilt once per watchHistory change
+  // instead of a linear watchHistory.find() per episode inside the render loop
+  // (that was O(history × episodes) on every detail re-render / D-pad move).
+  const epProgressById = useMemo(() => {
+    const m = new Map();
+    for (const h of watchHistory || []) {
+      if (h.type === "series" && h.episodeId != null) m.set(String(h.episodeId), h);
+    }
+    return m;
+  }, [watchHistory]);
   const tvUseShelvesRef = useRef(tvUseShelves);
   useEffect(() => { tvUseShelvesRef.current = tvUseShelves; }, [tvUseShelves]);
   // "All Series" pill opens the category-grid landing over the shelves (cheap;
@@ -383,9 +429,16 @@ export default function SeriesScreenTV({ navigation, route }) {
 
   // ── Category grid ─────────────────────────────────────────────────────────
   const setCatZoneBoth = (z) => { catZoneRef.current = z; setCatZone(z); };
+  // Coalesce render-triggering setState to one per animation frame; the focus
+  // refs advance synchronously per keypress so held-direction repeats never
+  // flood the TV CPU with more re-renders than it can paint. Each throttled fn
+  // reads its ref, so it always flushes the true latest position.
+  const commitCatFocus = useMemo(() => frameThrottle(() => setCatFocus(catFocRef.current)), []);
+  const commitGrid = useMemo(() => frameThrottle(() => setGrid(gridRef.current)), []);
+  const commitFilterIdx = useMemo(() => frameThrottle(() => setFilterIdx(filterIdxRef.current)), []);
   const movCat = (n) => {
     catFocRef.current = n;
-    setCatFocus(n);
+    commitCatFocus();
   };
   const onCatLeft = () => {
     const f = catFocRef.current;
@@ -469,9 +522,8 @@ export default function SeriesScreenTV({ navigation, route }) {
   // The grid grows on scroll (PagedGridTV), so focus may roam the whole
   // filtered list — bounds use the full length, not a display cap.
   const movGrid = (g, focus) => {
-    const n = { ...g, focus };
-    gridRef.current = n;
-    setGrid(n);
+    gridRef.current = { ...g, focus };
+    commitGrid();
   };
 
   const growGridDisplay = (next) => { const g = gridRef.current; if (g) { const n = { ...g, display: next }; gridRef.current = n; setGrid(n); } };
@@ -504,13 +556,13 @@ export default function SeriesScreenTV({ navigation, route }) {
   const onFilterLeft = () => {
     if (filterIdxRef.current > 0) {
       filterIdxRef.current -= 1;
-      setFilterIdx(filterIdxRef.current);
+      commitFilterIdx();
     }
   };
   const onFilterRight = () => {
     if (filterIdxRef.current < ALPHA.length - 1) {
       filterIdxRef.current += 1;
-      setFilterIdx(filterIdxRef.current);
+      commitFilterIdx();
     }
   };
   const onFilterUp = () => {
@@ -963,39 +1015,15 @@ export default function SeriesScreenTV({ navigation, route }) {
             )}
             <div className="tvl-episodes">
               {episodes.map((ep, i) => {
-                const epHistory = (watchHistory || []).find(
-                  (h) => h.type === "series" && String(h.episodeId) === String(ep.id),
-                );
-                const hasProgress = epHistory && epHistory.currentTime > 0;
-                const isWatched =
-                  hasProgress &&
-                  epHistory.duration > 0 &&
-                  epHistory.currentTime / epHistory.duration > 0.9;
+                const focused = section === "episodes" && i === epIdx;
                 return (
-                  <div
+                  <EpisodeRowTV
                     key={ep.id}
-                    ref={section === "episodes" && i === epIdx ? epElRef : null}
-                    role="button"
-                    aria-label={ep.title || `Episode ${ep.episode_num}`}
-                    aria-selected={section === "episodes" && i === epIdx}
-                    className={section === "episodes" && i === epIdx ? "tvl-episode tvl-episode--on" : "tvl-episode"}
-                  >
-                    <span className="tvl-ep-badge">E{ep.episode_num}</span>
-                    <div className="tvl-ep-body">
-                      <div className="tvl-ep-title">
-                        {ep.title || `Episode ${ep.episode_num}`}
-                        {isWatched && <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}><Icon name="check" size={iconSizes.sm} color={colors.accentText} /></span>}
-                      </div>
-                      {ep.info?.plot && <div className="tvl-ep-plot">{ep.info.plot}</div>}
-                      {ep.info?.duration && <div className="tvl-ep-dur">{ep.info.duration}</div>}
-                      {hasProgress && !isWatched && (
-                        <div style={{ fontSize: 14, color: colors.accentText, marginTop: 4 }}>
-                          Continue from {Math.floor(epHistory.currentTime / 60)}:{String(Math.floor(epHistory.currentTime % 60)).padStart(2, "0")}
-                        </div>
-                      )}
-                    </div>
-                    <span className="tvl-ep-play"><Icon name="play" size={iconSizes.md} color="currentColor" /></span>
-                  </div>
+                    ref={focused ? epElRef : null}
+                    ep={ep}
+                    focused={focused}
+                    progress={epProgressById.get(String(ep.id))}
+                  />
                 );
               })}
             </div>

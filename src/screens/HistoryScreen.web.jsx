@@ -9,7 +9,7 @@ import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
 import HeroWeb from "../presentation/components/Hero.web";
 import { LABELS } from "../ui/labels";
-import { useApp } from "../context/AppContext";
+import { useApp, useLibrary } from "../context/AppContext";
 import { useHistory } from "../domain/hooks/useHistory";
 import { useDeferredRemove } from "../hooks/useDeferredRemove";
 import { ss, useScale } from "../utils/scaleSize";
@@ -406,7 +406,8 @@ function HomeSkeleton() {
 }
 
 export default function HistoryScreen({ navigation }) {
-  const { activeUserId, isSyncing } = useApp();
+  const { activeUserId } = useApp();
+  const { isSyncing } = useLibrary();
   const {
     watchedHistory,
     removeFromWatchHistory,

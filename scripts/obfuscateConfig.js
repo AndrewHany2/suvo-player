@@ -32,8 +32,12 @@ const tvPreset = {
   identifierNamesGenerator: "mangled",
   numbersToExpressions: false,
   simplify: true,
-  splitStrings: true,
-  splitStringsChunkLength: 8,
+  // splitStrings OFF for TV (perf, 2026-07-28): it rewrites every string literal
+  // in the ~3.2MB bundle into 8-char concatenation chains, adding string-concat
+  // work at first evaluation on the weak webOS/Tizen JS engine — measurable in
+  // cold-start time. stringArray extraction (above) already hides literals; the
+  // per-char split bought little obfuscation for a real startup cost.
+  splitStrings: false,
   transformObjectKeys: false,
   unicodeEscapeSequence: false,
   disableConsoleOutput: false,
