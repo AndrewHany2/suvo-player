@@ -20,6 +20,7 @@ import "../styles/tvRemoteFocus.css";
 import "./SeriesScreen.tv.css";
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
+import { seriesActionTypes, seasonList } from "./seriesDetailActions.js";
 import { describeError } from "../utils/authError";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
 import { normalizeSearch } from "../utils/normalizeSearch.js";
@@ -270,12 +271,7 @@ export default function SeriesScreenTV({ navigation, route }) {
     detailRef.current = next;
     try {
       const info = await fetchSeriesInfo(item.series_id || item.id);
-      const rawSeasons = info?.seasons;
-      const seasons = Array.isArray(rawSeasons)
-        ? rawSeasons
-            .map((s) => String(s.season_number || s.id))
-            .sort((a, b) => Number(a) - Number(b))
-        : Object.keys(rawSeasons || {}).sort((a, b) => Number(a) - Number(b));
+      const seasons = seasonList(info);
 
       // If we have a target episode from history, find and focus it
       let seasonIdx = 0;
@@ -645,8 +641,8 @@ export default function SeriesScreenTV({ navigation, route }) {
       const hasHistory = (watchHistory || []).some(
         (h) => h.type === "series" && String(h.seriesId) === String(seriesId),
       );
-      // buttons: [Continue (if history), Favorites] → max index 1 or 0
-      if (d.actionIdx < (hasHistory ? 1 : 0))
+      // buttons: [Continue (if history), Browse Episodes, Favorites] → max 2 or 1
+      if (d.actionIdx < (hasHistory ? 2 : 1))
         updDetail({ ...d, actionIdx: d.actionIdx + 1 });
     } else if (!d.trailerFocus && d.section === "seasons") {
       if (d.seasonIdx < d.seasons.length - 1)
@@ -707,8 +703,12 @@ export default function SeriesScreenTV({ navigation, route }) {
         (h) => h.type === "series" && String(h.seriesId) === String(seriesId),
       );
       const inFav = isInMyList("series", seriesId);
-      if (historyEntry && d.actionIdx === 0) {
+      const t = seriesActionTypes(!!historyEntry)[d.actionIdx];
+      if (t === "continue") {
         continueWatching(d);
+      } else if (t === "episodes") {
+        // Browse Episodes → jump focus to the season/episode browser below.
+        if (d.seasons?.length) updDetail({ ...d, section: "seasons" });
       } else {
         if (inFav) removeFromMyList(`mylist_series_${seriesId}`);
         else
@@ -845,12 +845,15 @@ export default function SeriesScreenTV({ navigation, route }) {
               : ""),
           }]
         : []),
+      { type: "episodes", icon: "series", label: "Browse Episodes" },
       { type: "fav", icon: inFav ? "check" : "plus", label: inFav ? LABELS.inMyList : LABELS.myList },
     ];
     const actBtnClass = (i) =>
       [
         "tvl-det-hero-btn",
         actionBtns[i].type === "continue" ? "tvl-det-hero-btn--play" : "",
+        // With no history to resume, "Browse Episodes" is the primary CTA.
+        actionBtns[i].type === "episodes" && !historyEntry ? "tvl-det-hero-btn--play" : "",
         actionBtns[i].type === "fav" && inFav ? "tvl-det-hero-btn--saved" : "",
         section === "actions" && i === actionIdx ? "tvl-det-hero-btn--on" : "",
       ]
@@ -896,7 +899,9 @@ export default function SeriesScreenTV({ navigation, route }) {
                     className={actBtnClass(i)}
                     onClick={() => {
                       if (btn.type === "continue") continueWatching(detail);
-                      else if (btn.type === "fav") {
+                      else if (btn.type === "episodes") {
+                        if (seasons.length) updDetail({ ...detail, section: "seasons" });
+                      } else if (btn.type === "fav") {
                         if (inFav) removeFromMyList(`mylist_series_${seriesId}`);
                         else addToMyList({ type: "series", streamId: seriesId, seriesId, name: item.name, cover: poster });
                       }
@@ -918,18 +923,24 @@ export default function SeriesScreenTV({ navigation, route }) {
         {rawInfo ? (
           <>
             <div className="tvl-seasons-row">
-              {seasons.map((s, i) => (
-                <div
-                  key={s}
-                  ref={section === "seasons" && i === seasonIdx ? snElRef : null}
-                  role="button"
-                  aria-label={`Season ${s}`}
-                  aria-selected={section === "seasons" && i === seasonIdx}
-                  className={section === "seasons" && i === seasonIdx ? "tvl-season-btn tvl-season-btn--on" : "tvl-season-btn"}
-                >
-                  Season {s}
-                </div>
-              ))}
+              {seasons.map((s, i) => {
+                // Focused only while the ring is on the seasons row — NOT when it
+                // has moved right onto the Trailer chip (trailerFocus), which
+                // leaves seasonIdx on the last season and would light two at once.
+                const onSeason = section === "seasons" && i === seasonIdx && !trailerFocus;
+                return (
+                  <div
+                    key={s}
+                    ref={onSeason ? snElRef : null}
+                    role="button"
+                    aria-label={`Season ${s}`}
+                    aria-selected={onSeason}
+                    className={onSeason ? "tvl-season-btn tvl-season-btn--on" : "tvl-season-btn"}
+                  >
+                    Season {s}
+                  </div>
+                );
+              })}
               {trailer && (
                 <div className={trailerFocus ? "tvl-season-btn tvl-season-btn--on" : "tvl-season-btn"}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>

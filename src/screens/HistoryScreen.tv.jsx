@@ -25,6 +25,7 @@ import "./SeriesScreen.tv.css";
 // reusing the canonical .tvl-card poster card from the Movies/Series grids.
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
+import { seriesActionTypes, seasonList } from "./seriesDetailActions.js";
 
 // Continue-Watching card geometry (design px; VirtualShelvesTV scales via ss()).
 // The portrait poster (POSTER_W = 340) is tuned for ~5 cards per rail view; at
@@ -32,6 +33,13 @@ import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 // Row height = header + the card's 16:9 thumb + the title/episode/time-left block.
 const CW_CARD_W = 425;
 const CW_ROW_H = 40 + Math.round((CW_CARD_W * 9) / 16) + 120;
+
+// Home hero fills MOST — but deliberately not all — of the shelf viewport, so the
+// first shelf (Continue Watching) peeks below the fold and the user can see there's
+// more to scroll to. A full-height (100%) billboard hid the shelves entirely on the
+// 10-foot screen, so nothing hinted at the content underneath. Expressed as a
+// viewport fraction (not ss() design-px) so the peek holds at any TV resolution.
+const HOME_HERO_HEIGHT = "62vh";
 
 export default function HistoryScreenTV({ navigation }) {
   const {
@@ -186,12 +194,7 @@ export default function HistoryScreenTV({ navigation }) {
     seriesDetailRef.current = next;
     try {
       const info = await fetchSeriesInfo(seriesId);
-      const rawSeasons = info?.seasons;
-      const seasons = Array.isArray(rawSeasons)
-        ? rawSeasons
-            .map((s) => String(s.season_number || s.id))
-            .sort((a, b) => Number(a) - Number(b))
-        : Object.keys(rawSeasons || {}).sort((a, b) => Number(a) - Number(b));
+      const seasons = seasonList(info);
       const updated = { ...next, info, seasons };
       setSeriesDetail(updated);
       seriesDetailRef.current = updated;
@@ -413,7 +416,8 @@ export default function HistoryScreenTV({ navigation }) {
         (h) =>
           h.type === "series" && String(h.seriesId) === String(seriesId),
       );
-      if (d.actionIdx < (hasHistory ? 1 : 0))
+      // Button row: [continue?, episodes, fav] → max index 2 (history) or 1.
+      if (d.actionIdx < (hasHistory ? 2 : 1))
         updSeriesDetail({ ...d, actionIdx: d.actionIdx + 1 });
     } else if (!d.trailerFocus && d.section === "seasons") {
       if (d.seasonIdx < d.seasons.length - 1)
@@ -478,8 +482,12 @@ export default function HistoryScreenTV({ navigation }) {
           h.type === "series" && String(h.seriesId) === String(seriesId),
       );
       const inFav = isInMyList("series", seriesId);
-      if (historyEntry && d.actionIdx === 0) {
+      const t = seriesActionTypes(!!historyEntry)[d.actionIdx];
+      if (t === "continue") {
         continueSeriesWatching(d);
+      } else if (t === "episodes") {
+        // Browse Episodes → jump focus to the season/episode browser below.
+        if (d.seasons?.length) updSeriesDetail({ ...d, section: "seasons" });
       } else if (inFav) {
         removeFromMyList(`mylist_series_${seriesId}`);
       } else {
@@ -645,11 +653,14 @@ export default function HistoryScreenTV({ navigation }) {
         label: <><Icon name="play" size={16} color="currentColor" />&nbsp;&nbsp;{"Continue" + (historyEntry.seasonNum
           ? ` S${historyEntry.seasonNum}E${String(historyEntry.episodeNum).padStart(2, "0")}` : "")}</>,
       }] : []),
+      { type: "episodes", label: <><Icon name="series" size={16} color="currentColor" />&nbsp;&nbsp;Browse Episodes</> },
       { type: "fav", label: <><Icon name={inFav ? "check" : "plus"} size={16} color="currentColor" />&nbsp;&nbsp;{inFav ? LABELS.inMyList : LABELS.myList}</> },
     ];
     const actBtnClass = (i) =>
       ["tvl-det-hero-btn",
         actionBtns[i].type === "continue" ? "tvl-det-hero-btn--play" : "",
+        // With no history to resume, "Browse Episodes" is the primary CTA.
+        actionBtns[i].type === "episodes" && !historyEntry ? "tvl-det-hero-btn--play" : "",
         actionBtns[i].type === "fav" && inFav ? "tvl-det-hero-btn--saved" : "",
         section === "actions" && i === actionIdx ? "tvl-det-hero-btn--on" : ""]
         .filter(Boolean).join(" ");
@@ -690,7 +701,9 @@ export default function HistoryScreenTV({ navigation }) {
                     className={actBtnClass(i)}
                     onClick={() => {
                       if (btn.type === "continue") continueSeriesWatching(seriesDetail);
-                      else if (btn.type === "fav") {
+                      else if (btn.type === "episodes") {
+                        if (seasons.length) updSeriesDetail({ ...seriesDetail, section: "seasons" });
+                      } else if (btn.type === "fav") {
                         if (inFav) removeFromMyList(`mylist_series_${seriesId}`);
                         else addToMyList({ type: "series", streamId: seriesId, seriesId, name: item.name, cover: poster });
                       }
@@ -705,15 +718,22 @@ export default function HistoryScreenTV({ navigation }) {
         {rawInfo ? (
           <>
             <div className="tvl-seasons-row">
-              {seasons.map((s, i) => (
-                <div key={s} ref={section === "seasons" && i === seasonIdx ? seriesSnRef : null}
-                  role="button"
-                  aria-label={`Season ${s}`}
-                  aria-selected={section === "seasons" && i === seasonIdx}
-                  className={section === "seasons" && i === seasonIdx ? "tvl-season-btn tvl-season-btn--on" : "tvl-season-btn"}>
-                  Season {s}
-                </div>
-              ))}
+              {seasons.map((s, i) => {
+                // A season is focused only while the ring is actually on the
+                // seasons row — NOT when it has moved right onto the Trailer chip
+                // (trailerFocus), which leaves seasonIdx pointing at the last
+                // season and would otherwise light two chips at once.
+                const onSeason = section === "seasons" && i === seasonIdx && !trailerFocus;
+                return (
+                  <div key={s} ref={onSeason ? seriesSnRef : null}
+                    role="button"
+                    aria-label={`Season ${s}`}
+                    aria-selected={onSeason}
+                    className={onSeason ? "tvl-season-btn tvl-season-btn--on" : "tvl-season-btn"}>
+                    Season {s}
+                  </div>
+                );
+              })}
               {trailer && (
                 <div className={trailerFocus ? "tvl-season-btn tvl-season-btn--on" : "tvl-season-btn"}>
                   {showTrailer ? <><Icon name="close" size={16} color={colors.text} /> Trailer</> : <><Icon name="film" size={16} color={colors.text} /> Trailer</>}
@@ -819,7 +839,7 @@ export default function HistoryScreenTV({ navigation }) {
   const heroMeta = [heroEp, heroLeft].filter(Boolean).join(" · ") || null;
 
   const renderHomeHero = (item, { focusedButton }) => (
-    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", background: colors.bg }}>
+    <div style={{ position: "relative", width: "100%", height: HOME_HERO_HEIGHT, overflow: "hidden", background: colors.bg }}>
       {heroBackdrop && (
         <img
           src={heroBackdrop}
