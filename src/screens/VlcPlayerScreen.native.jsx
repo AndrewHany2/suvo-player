@@ -5,7 +5,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, accentAlpha, fonts, overlay, playerScrim, seekTrack } from "../ui/tokens";
+import { colors, accentAlpha, fonts, overlay, playerScrim } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
@@ -23,7 +23,7 @@ import { usePlayerPreferences } from "../playback/usePlayerPreferences";
 import { useSleepTimer, SLEEP_PRESETS, formatRemaining } from "../playback/useSleepTimer";
 import { useDeviceIntegrity } from "../security/useDeviceIntegrity";
 import ResumePrompt from "../playback/components/ResumePrompt";
-import { formatDuration as formatTime } from "../utils/formatDuration";
+import SeekBar from "../playback/components/SeekBar.native";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 
 const MODAL_ORIENTATIONS = ["portrait", "landscape"];
@@ -103,6 +103,10 @@ export default function VlcPlayerScreen({ navigation }) {
   const controlsTimerRef = useRef(null);
 
   const [showControls, setShowControls] = useState(true);
+  // Mirror showControls in a ref so the memoized PanResponder can read the
+  // current value (for tap-to-toggle) without being re-created each toggle.
+  const showControlsRef = useRef(true);
+  showControlsRef.current = showControls;
   const [resizeMode, setResizeMode] = useState("contain");
   const [audioTracks, setAudioTracks] = useState([]);
   const [textTracks, setTextTracks] = useState([]);
@@ -128,6 +132,16 @@ export default function VlcPlayerScreen({ navigation }) {
   const [volumeAdjusted, setVolumeAdjusted] = useState(false);
   const volumeRef = useRef(volume);
   volumeRef.current = volume;
+  // A volume swipe is applied to VLC IMPERATIVELY (setNativeProps) rather than
+  // through React state on every move frame. The per-frame setState re-rendered
+  // the whole screen at ~60 Hz, which re-fed <VLCPlayer> a fresh `source`/`src`
+  // each frame; the native side rebuilds its player on that prop (Android
+  // setSrc→createPlayer, iOS setSource→_release+recreate), so the stream
+  // reloaded and jumped back to the start mid-adjust. The React `volume` state
+  // is committed ONCE, on release (see onPanResponderRelease/Terminate). This
+  // ref holds the in-flight value until then. Mirrors the expo screen, which
+  // writes volume straight to its driver with no per-move re-render.
+  const pendingVolRef = useRef(null); // non-null while a volume swipe is active
 
   // Transient gesture indicator ("Vol 60%", "+10s", "2x", …). Rendered by the
   // memoized <GestureHint> leaf below; driven imperatively via this ref so a
@@ -136,8 +150,7 @@ export default function VlcPlayerScreen({ navigation }) {
 
   // VOD seek bar: fraction (0..1) + seconds, from onProgress.
   const [progress, setProgress] = useState({ position: 0, currentTimeSec: 0, durationSec: 0 });
-  const [scrubFrac, setScrubFrac] = useState(null);
-  const seekTrackWidth = useRef(0);
+  const scrubbingRef = useRef(false); // true while the user drags the seek bar
 
   const streamKey = currentVideo ? `${currentVideo.type}_${currentVideo.streamId}` : null;
   const { prefs, loaded: prefsLoaded, setPref } = usePlayerPreferences(streamKey);
@@ -405,33 +418,19 @@ export default function VlcPlayerScreen({ navigation }) {
     driver.seekTo(clamped);
   }, [driver]);
 
-  // Seek-bar scrub (fraction of duration).
-  const scrubToX = useCallback((x) => {
-    const w = seekTrackWidth.current;
-    if (!w) return;
-    setScrubFrac(Math.max(0, Math.min(1, x / w)));
+  // Seek committed on release by the memoized <SeekBar> leaf. Scrub state lives in
+  // that leaf, so dragging no longer re-renders the player — the churn that re-fed
+  // <VLCPlayer> its source and reloaded/restarted the stream mid-scrub. Route
+  // through the driver so a recovery RELOAD resumes at the scrubbed spot.
+  const handleSeek = useCallback((sec) => {
+    driver.seekTo(sec);
     resetControlsTimer();
+  }, [driver, resetControlsTimer]);
+  // Pause the position poll (another re-render source) while a drag is in flight.
+  const handleScrubbingChange = useCallback((active) => {
+    scrubbingRef.current = active;
+    if (active) resetControlsTimer();
   }, [resetControlsTimer]);
-  const commitScrub = useCallback(() => {
-    setScrubFrac((frac) => {
-      if (frac != null) {
-        // Route through the driver (not vlcRef directly) so the driver's saved
-        // position updates and a recovery RELOAD resumes at the scrubbed spot.
-        const dur = progressRef.current.durationSec;
-        if (dur > 0) driver.seekTo(frac * dur);
-      }
-      return null;
-    });
-    resetControlsTimer();
-  }, [resetControlsTimer, driver]);
-
-  // Screen-reader seek: ±10s via the same clamped seek helper the gestures use.
-  const handleSeekAccessibilityAction = useCallback((e) => {
-    const name = e?.nativeEvent?.actionName;
-    const cur = progressRef.current.currentTimeSec || 0;
-    if (name === "increment") seekToSeconds(cur + DOUBLE_TAP_SEEK);
-    else if (name === "decrement") seekToSeconds(cur - DOUBLE_TAP_SEEK);
-  }, [seekToSeconds]);
 
   // ── Touch gestures (PanResponder) — volume (right half) / brightness (left
   //    half) / horizontal drag-to-seek / double-tap ±10s / long-press 2× ──
@@ -487,8 +486,13 @@ export default function VlcPlayerScreen({ navigation }) {
         flashHint("seek", `${sign}${Math.abs(Math.round(deltaSec))}s`);
       } else if (gs.mode === "volume") {
         const next = Math.min(100, Math.max(0, gs.startVol - (g.dy / VERT_SWIPE_RANGE_PX) * 100));
-        setVolume(next);
-        setVolumeAdjusted(true);
+        // Imperative, no setState — see the pendingVolRef comment. Committed to
+        // React state on release. (iOS's VLC view exposes no `volume` prop, so
+        // the write is Android-only; the hint still shows on both.)
+        pendingVolRef.current = next;
+        if (Platform.OS === "android") {
+          try { vlcRef.current?.setNativeProps({ volume: Math.round(next) }); } catch { /* noop */ }
+        }
         flashHint("volume", `Vol ${Math.round(next)}%`);
       } else if (gs.mode === "brightness") {
         const mod = brightnessRef.current;
@@ -502,6 +506,14 @@ export default function VlcPlayerScreen({ navigation }) {
     onPanResponderRelease: (e, g) => {
       const gs = gestureState.current;
       clearTimeout(gs.longPressTimer);
+      // Commit a volume swipe's final value to React state once — from here on
+      // the <VLCPlayer> `volume` prop is authoritative again. The live value was
+      // applied imperatively during the move (no per-frame re-render).
+      if (pendingVolRef.current != null) {
+        setVolume(pendingVolRef.current);
+        setVolumeAdjusted(true);
+        pendingVolRef.current = null;
+      }
       if (gs.longPressed) {
         setBoost(false); // rate reverts to `speed`
         gs.longPressed = false;
@@ -527,7 +539,14 @@ export default function VlcPlayerScreen({ navigation }) {
         } else {
           gs.lastTapTime = now;
           gs.lastTapX = x;
-          resetControlsTimer();
+          // Tap toggles the chrome: hide it when it's showing, reveal it when
+          // hidden. resetControlsTimer both reveals and arms the auto-hide.
+          if (showControlsRef.current) {
+            clearTimeout(controlsTimerRef.current);
+            setShowControls(false);
+          } else {
+            resetControlsTimer();
+          }
         }
       }
       gs.mode = null;
@@ -536,6 +555,12 @@ export default function VlcPlayerScreen({ navigation }) {
       const gs = gestureState.current;
       clearTimeout(gs.longPressTimer);
       if (gs.longPressed) setBoost(false);
+      // Persist any in-flight volume if the responder was stolen mid-swipe.
+      if (pendingVolRef.current != null) {
+        setVolume(pendingVolRef.current);
+        setVolumeAdjusted(true);
+        pendingVolRef.current = null;
+      }
       gs.longPressed = false;
       gs.mode = null;
     },
@@ -566,8 +591,6 @@ export default function VlcPlayerScreen({ navigation }) {
 
   const nextEpisode = getNextEpisode();
   const topPadding = Platform.OS === "ios" ? 12 : 8;
-  const shownFrac = scrubFrac != null ? scrubFrac : progress.position;
-  const playedPct = Math.max(0, Math.min(100, shownFrac * 100));
 
   return (
     <YStack flex={1} backgroundColor="#000">
@@ -602,8 +625,11 @@ export default function VlcPlayerScreen({ navigation }) {
               };
               // Always refresh the ref (lifecycle/gestures read it); only touch
               // state — the seek bar — while the controls are actually visible.
+              // Suppressed while a volume swipe is active: a re-render here would
+              // re-feed <VLCPlayer> a fresh source and reload the stream (the very
+              // jump-back this imperative-volume path avoids). See pendingVolRef.
               progressRef.current = next;
-              if (showControls) setProgress(next);
+              if (showControls && pendingVolRef.current == null && !scrubbingRef.current) setProgress(next);
             }}
             onPlaying={(e) => ingest.playing(e)}
             onPaused={() => ingest.paused()}
@@ -707,46 +733,12 @@ export default function VlcPlayerScreen({ navigation }) {
             <Button variant={sleep.active ? "primary" : "secondary"} size="sm" icon={controlIcon.more} onPress={() => setShowMoreMenu(true)} accessibilityLabel={controlLabel.more}>{sleep.active ? formatRemaining(sleep.secondsLeft) : controlLabel.more}</Button>
           </XStack>
 
-          {progress.durationSec > 0 && (
-            <YStack paddingHorizontal={16} paddingTop={4}>
-              <View
-                style={{ height: 44, justifyContent: "center" }}
-                accessible
-                accessibilityRole="adjustable"
-                accessibilityLabel="Seek bar"
-                accessibilityValue={{
-                  min: 0,
-                  max: Math.round(progress.durationSec),
-                  now: Math.round(shownFrac * progress.durationSec),
-                  text: `${formatTime(shownFrac * progress.durationSec)} of ${formatTime(progress.durationSec)}`,
-                }}
-                accessibilityActions={[
-                  { name: "increment", label: "Forward 10 seconds" },
-                  { name: "decrement", label: "Back 10 seconds" },
-                ]}
-                onAccessibilityAction={handleSeekAccessibilityAction}
-                onLayout={(e) => { seekTrackWidth.current = e.nativeEvent.layout.width; }}
-                onStartShouldSetResponder={() => true}
-                onMoveShouldSetResponder={() => true}
-                onResponderGrant={(e) => scrubToX(e.nativeEvent.locationX)}
-                onResponderMove={(e) => scrubToX(e.nativeEvent.locationX)}
-                onResponderRelease={commitScrub}
-                onResponderTerminate={commitScrub}
-              >
-                {/* No buffered segment (unlike the expo seek bar): the VLC engine
-                    exposes no buffered-position value via onProgress / the driver's
-                    buffered() returns 0, so there is nothing truthful to shade. */}
-                <View style={{ height: 4, borderRadius: 2, backgroundColor: seekTrack.track }} />
-                <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${playedPct}%`, backgroundColor: colors.accent }} />
-                <View style={{ position: "absolute", left: `${playedPct}%`, width: 14, height: 14, borderRadius: 7, marginLeft: -7, backgroundColor: colors.accent }} />
-              </View>
-              <XStack justifyContent="space-between" marginTop={4}>
-                <Text color={colors.text} fontSize={12} fontWeight="600">{formatTime(shownFrac * progress.durationSec)}</Text>
-                {/* textDim (not muted) so the duration holds AA over bright frames. */}
-                <Text color={colors.textDim} fontSize={12}>{formatTime(progress.durationSec)}</Text>
-              </XStack>
-            </YStack>
-          )}
+          <SeekBar
+            positionSec={progress.currentTimeSec}
+            durationSec={progress.durationSec}
+            onSeek={handleSeek}
+            onScrubbingChange={handleScrubbingChange}
+          />
         </YStack>
       )}
 

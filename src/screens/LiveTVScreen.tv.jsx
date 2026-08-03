@@ -11,6 +11,7 @@ import { ss } from "../utils/scaleSize";
 import { describeError } from "../utils/authError";
 import { normalizeSearch } from "../utils/normalizeSearch.js";
 import { frameThrottle } from "../utils/frameThrottle";
+import { isDoublePress } from "../utils/doublePress";
 import {
   isMacCommand,
   KEY_LEFT, KEY_UP, KEY_RIGHT, KEY_DOWN, KEY_ENTER, KEY_BACK,
@@ -61,6 +62,7 @@ export default function LiveTVScreenTV({ navigation }) {
   const catsRef = useRef([]);
   const catFocusRef = useRef(0);
   const pageRef = useRef(null);
+  const lastUpRef = useRef(0); // last non-repeat UP timestamp, for double-press-to-top
   const catElRef = useRef(null);
   const navActiveRef = useRef(false);
   // State mirror of navActiveRef so search/zone highlights re-render (and clear)
@@ -368,7 +370,16 @@ export default function LiveTVScreenTV({ navigation }) {
         onChRight(pg);
         break;
       case KEY_UP:
-        onChUp(pg);
+        // Double-press UP jumps the channel-grid focus to the top (10-foot "back
+        // to top"; no pointer). Non-repeat presses only, so a held UP row-steps.
+        if (pg.focus > 0 && !e?.repeat && isDoublePress(Date.now(), lastUpRef.current)) {
+          lastUpRef.current = 0;
+          pageRef.current = { ...pg, focus: 0 };
+          setPage(pageRef.current);
+        } else {
+          if (!e?.repeat) lastUpRef.current = Date.now();
+          onChUp(pg);
+        }
         break;
       case KEY_DOWN:
         onChDown(pg);

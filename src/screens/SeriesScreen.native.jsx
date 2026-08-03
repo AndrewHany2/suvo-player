@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { FlatList, RefreshControl, BackHandler } from "react-native";
 import { YStack, XStack, Text } from "../ui/primitives";
 import { colors, fonts, fontWeights } from "../ui/tokens";
@@ -12,6 +12,8 @@ import { useIsOnline } from "../downloads/useIsOnline.js";
 import SeriesDetail from "../components/SeriesDetail";
 import ContentShelf from "../presentation/components/ContentShelf.native";
 import CategoryGridPage from "../presentation/components/CategoryGridPage.native";
+import BackToTopButton from "../ui/BackToTopButton";
+import { useScrollToTop } from "../hooks/useScrollToTop";
 
 /* ─── Screen ─── */
 export default function SeriesScreen({ navigation }) {
@@ -25,6 +27,9 @@ export default function SeriesScreen({ navigation }) {
   const { items: downloads } = useDownloads();
   const online = useIsOnline();
   const [showDownloaded, setShowDownloaded] = useState(false);
+  const listRef = useRef(null);
+  const { showButton, onScroll: onScrollTop } = useScrollToTop();
+  const scrollToTop = () => listRef.current?.scrollToOffset({ offset: 0, animated: true });
   const downloadedEpisodes = useMemo(
     () => downloads
       .filter((r) => r.kind === "episode")
@@ -159,6 +164,9 @@ export default function SeriesScreen({ navigation }) {
         </YStack>
       )}
       <FlatList
+        ref={listRef}
+        onScroll={onScrollTop}
+        scrollEventThrottle={16}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 80 }}
         showsVerticalScrollIndicator={false}
@@ -171,6 +179,7 @@ export default function SeriesScreen({ navigation }) {
         importantForAccessibility={overlayOpen ? "no-hide-descendants" : "auto"}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} colors={[colors.accent]} />}
       />
+      <BackToTopButton visible={showButton && !categoryPage && !selectedSeries} onPress={scrollToTop} />
       {categoryPage && (
         <YStack position="absolute" top={0} left={0} right={0} bottom={0} accessibilityViewIsModal>
           <CategoryGridPage

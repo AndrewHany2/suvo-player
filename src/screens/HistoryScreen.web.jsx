@@ -15,6 +15,8 @@ import { useDeferredRemove } from "../hooks/useDeferredRemove";
 import { ss, useScale } from "../utils/scaleSize";
 import MovieDetail from "../components/MovieDetail.web";
 import SeriesDetail from "../components/SeriesDetail.web";
+import BackToTopButton from "../ui/BackToTopButton";
+import { useScrollToTop } from "../hooks/useScrollToTop";
 
 const FILL = { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 };
 
@@ -420,6 +422,9 @@ export default function HistoryScreen({ navigation }) {
   const fav$ = useDragScroll();
   const cw$ = useDragScroll();
   const [currentDetail, setCurrentDetail] = useState(null);
+  const scrollRef = useRef(null);
+  const { showButton, onScroll: onScrollTop } = useScrollToTop();
+  const scrollToTop = () => scrollRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
 
   // Deferred, undoable removal (shared with native via useDeferredRemove): a
   // remove doesn't hit the store immediately — with cross-device sync a mis-tap
@@ -550,7 +555,10 @@ export default function HistoryScreen({ navigation }) {
       : watchedHistory;
 
   return (
+    <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
     <ScrollView
+      ref={scrollRef}
+      onScroll={onScrollTop}
       flex={1}
       backgroundColor={colors.bg}
       contentContainerStyle={{ paddingTop: ss(40), paddingBottom: ss(80) }}
@@ -777,5 +785,7 @@ export default function HistoryScreen({ navigation }) {
         </div>
       )}
     </ScrollView>
+    <BackToTopButton visible={showButton} onPress={scrollToTop} bottom={ss(24)} right={ss(24)} />
+    </YStack>
   );
 }

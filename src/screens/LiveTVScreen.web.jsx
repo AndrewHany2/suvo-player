@@ -14,6 +14,8 @@ import { normalizeSearch } from "../utils/normalizeSearch.js";
 import { useModalKeyTrap } from "../hooks/useModalKeyTrap";
 import { ss, useScale } from "../utils/scaleSize";
 import ProxiedImage from "../components/ProxiedImage";
+import BackToTopButton from "../ui/BackToTopButton";
+import { useScrollToTop } from "../hooks/useScrollToTop";
 
 // Caps the browse content width so rows don't stretch edge-to-edge on ultrawide
 // monitors. Centered via margin auto on the inner wrapper.
@@ -534,6 +536,9 @@ export default function LiveTVScreen({ navigation }) {
   // re-renders only the one subscribed LiveCard, never the shelf tree.
   const epgStore = useEpgStore(fetchEpgTitle);
   const [showAddChannel, setShowAddChannel] = useState(false);
+  const scrollRef = useRef(null);
+  const { showButton, onScroll: onScrollTop } = useScrollToTop();
+  const scrollToTop = () => scrollRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
   const [newChannelName, setNewChannelName] = useState("");
   const [newStreamUrl, setNewStreamUrl] = useState("");
   // Inline validation message for the Add-Channel sheet (empty fields / bad URL).
@@ -748,7 +753,10 @@ export default function LiveTVScreen({ navigation }) {
   }
 
   return (
+    <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
     <ScrollView
+      ref={scrollRef}
+      onScroll={onScrollTop}
       flex={1}
       backgroundColor={colors.bg}
       contentContainerStyle={{ paddingBottom: ss(60) }}
@@ -943,5 +951,7 @@ export default function LiveTVScreen({ navigation }) {
         </TouchableOpacity>
       </Modal>
     </ScrollView>
+    <BackToTopButton visible={showButton && !showAddChannel} onPress={scrollToTop} bottom={ss(24)} right={ss(24)} />
+    </YStack>
   );
 }

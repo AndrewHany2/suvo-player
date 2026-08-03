@@ -29,6 +29,7 @@ const ALPHA = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
 
 import { getTrailerEmbedUrl as getTrailerUrl } from "../utils/youtubeTrailer";
 import { frameThrottle } from "../utils/frameThrottle";
+import { isDoublePress } from "../utils/doublePress";
 import { describeError } from "../utils/authError";
 
 export default function MoviesScreenTV({ navigation, route }) {
@@ -66,6 +67,7 @@ export default function MoviesScreenTV({ navigation, route }) {
   const catsRef = useRef([]);
   const catFocusRef = useRef(0);
   const pageRef = useRef(null);
+  const lastUpRef = useRef(0); // timestamp of the last non-repeat UP, for double-press-to-top
   const detailRef = useRef(null);
   const catElRef = useRef(null);
   const btnElRef = useRef(null);
@@ -299,7 +301,23 @@ export default function MoviesScreenTV({ navigation, route }) {
           else if (!tvUseShelvesRef.current || browseAllRef.current) onCatLeft();
         },
         right: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("right"); },
-        up: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("up"); },
+        up: (e) => {
+          if (currentVideoRef.current || inputFocused()) return;
+          // Double-press UP jumps the category-grid focus to the top — the 10-foot
+          // equivalent of the "back to top" button (no pointer for a floating one).
+          // Guarded to the grid page + non-repeat presses so a held UP doesn't fire it.
+          const pg = pageRef.current;
+          const now = Date.now();
+          if (pg && pg.focus > 0 && !e?.repeat && isDoublePress(now, lastUpRef.current)) {
+            lastUpRef.current = 0;
+            const n = { ...pg, focus: 0 };
+            pageRef.current = n;
+            setPage(n);
+            return;
+          }
+          if (!e?.repeat) lastUpRef.current = now;
+          routeDir("up");
+        },
         down: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("down"); },
         enter: () => { if (!currentVideoRef.current && !inputFocused()) routeDir("enter"); },
         back: () => {

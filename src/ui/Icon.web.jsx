@@ -30,6 +30,8 @@ const PATHS = {
   back: <path d="M19 12H5M12 19l-7-7 7-7" />,
   // Chevron pointing right.
   "chevron-right": <path d="M9 6l6 6-6 6" />,
+  // Chevron pointing up — the "back to top" affordance.
+  "chevron-up": <path d="M6 15l6-6 6 6" />,
   // House: roof peak + body — the Home tab glyph.
   home: (
     <>

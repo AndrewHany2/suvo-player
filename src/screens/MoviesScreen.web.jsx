@@ -16,6 +16,8 @@ import VirtualGrid from "../presentation/components/VirtualGrid.web";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import MovieDetail from "../components/MovieDetail.web";
 import { useShelfWindow } from "../presentation/virtualization/useShelfWindow.js";
+import BackToTopButton from "../ui/BackToTopButton";
+import { useScrollToTop } from "../hooks/useScrollToTop";
 import { useCategoryGridNav } from "../hooks/useCategoryGridNav";
 import { getShelfConfig } from "../presentation/virtualization/shelfConfig.js";
 
@@ -97,6 +99,8 @@ export default function MoviesScreen({ navigation }) {
   const [vAnchor, setVAnchor] = useState(0);
   const scrollRef = useRef(null);
   const listRef = useRef(null);
+  const { showButton, onScroll: onScrollTop } = useScrollToTop();
+  const scrollToTop = () => scrollRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
   // Overlay wrappers — focus is moved into these when they open (see effects below).
   const categoryRef = useRef(null);
   const detailRef = useRef(null);
@@ -214,7 +218,7 @@ export default function MoviesScreen({ navigation }) {
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
       <ScrollView
         ref={scrollRef}
-        onScroll={(e) => setVAnchor(Math.max(0, Math.floor((e.nativeEvent.contentOffset.y - listTop) / rowStride)))}
+        onScroll={(e) => { setVAnchor(Math.max(0, Math.floor((e.nativeEvent.contentOffset.y - listTop) / rowStride))); onScrollTop(e); }}
         flex={1} minHeight={0} contentContainerStyle={{ paddingBottom: ss(80) }}
       >
         <YStack
@@ -256,6 +260,7 @@ export default function MoviesScreen({ navigation }) {
         </YStack>
         </YStack>
       </ScrollView>
+      <BackToTopButton visible={showButton && !categoryPage && !selectedMovie} onPress={scrollToTop} bottom={ss(24)} right={ss(24)} />
       {categoryPage && (
         <YStack
           ref={categoryRef}

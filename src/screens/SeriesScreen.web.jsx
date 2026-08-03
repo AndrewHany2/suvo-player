@@ -21,6 +21,8 @@ import { SkeletonPosterGrid, SkeletonLine, SkeletonShelfRow } from "../presentat
 import { useCategoryGridNav } from "../hooks/useCategoryGridNav";
 import DiscoverPills from "../presentation/components/DiscoverPills.web";
 import { useShelfWindow } from "../presentation/virtualization/useShelfWindow.js";
+import BackToTopButton from "../ui/BackToTopButton";
+import { useScrollToTop } from "../hooks/useScrollToTop";
 
 // Caps the browse content width on ultrawide monitors (centered via margin auto).
 const MAX_W = 1700;
@@ -346,6 +348,8 @@ export default function SeriesScreen({ navigation }) {
   // ~60×/sec while scrolling. Mirrors MoviesScreen.web.
   const [vAnchor, setVAnchor] = useState(0);
   const scrollRef = useRef(null);
+  const { showButton, onScroll: onScrollTop } = useScrollToTop();
+  const scrollToTop = () => scrollRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
   const listRef = useRef(null);
   // Overlay wrappers — focus is moved into these when they open (see effects below).
   const categoryRef = useRef(null);
@@ -462,7 +466,7 @@ export default function SeriesScreen({ navigation }) {
     <YStack flex={1} minHeight={0} backgroundColor={colors.bg} position="relative">
       <ScrollView
         ref={scrollRef}
-        onScroll={(e) => setVAnchor(Math.max(0, Math.floor((e.nativeEvent.contentOffset.y - listTop) / rowStride)))}
+        onScroll={(e) => { setVAnchor(Math.max(0, Math.floor((e.nativeEvent.contentOffset.y - listTop) / rowStride))); onScrollTop(e); }}
         flex={1}
         minHeight={0}
         contentContainerStyle={{ paddingBottom: ss(80) }}
@@ -526,6 +530,7 @@ export default function SeriesScreen({ navigation }) {
         </YStack>
         </YStack>
       </ScrollView>
+      <BackToTopButton visible={showButton && !categoryPage && !selectedSeries} onPress={scrollToTop} bottom={ss(24)} right={ss(24)} />
       {categoryPage && (
         <YStack
           ref={categoryRef}

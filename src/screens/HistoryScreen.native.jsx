@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useEffect } from "react";
+import { memo, useState, useCallback, useEffect, useRef } from "react";
 import { View, BackHandler } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { Image } from "expo-image";
@@ -10,6 +10,8 @@ import { colors, fonts, fontWeights, radii, zIndex, heroHeights, overlay } from 
 import { ss } from "../utils/scaleSize";
 import Icon from "../ui/Icon";
 import StatePanel from "../ui/StatePanel";
+import BackToTopButton from "../ui/BackToTopButton";
+import { useScrollToTop } from "../hooks/useScrollToTop";
 import SkeletonPoster from "../presentation/components/SkeletonPoster.native";
 import SkeletonBox from "../presentation/components/SkeletonBox";
 import HeroNative from "../presentation/components/Hero.native";
@@ -153,6 +155,9 @@ export default function HistoryScreen({ navigation }) {
   const online = useIsOnline();
   const { watchedHistory, removeFromWatchHistory, playLive, playVideoObject, myList, removeFromMyList } = useHistory({ navigation });
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef(null);
+  const { showButton, onScroll: onScrollTop } = useScrollToTop();
+  const scrollToTop = () => scrollRef.current?.scrollTo?.({ y: 0, animated: true });
   const [currentDetail, setCurrentDetail] = useState(null);
 
   const commit = useCallback((p) => {
@@ -250,7 +255,7 @@ export default function HistoryScreen({ navigation }) {
           <Text color={colors.muted} fontFamily={fonts.body} fontSize={ss(13)} fontWeight={fontWeights.medium}>You're offline — only downloaded titles will play.</Text>
         </YStack>
       )}
-      <ScrollView flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingTop: ss(24), paddingBottom: insets.bottom + ss(80) }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} onScroll={onScrollTop} scrollEventThrottle={16} flex={1} backgroundColor={colors.bg} contentContainerStyle={{ paddingTop: ss(24), paddingBottom: insets.bottom + ss(80) }} showsVerticalScrollIndicator={false}>
       {featured && (
         <HeroNative
           backdrop={featured.cover || featured.movie_image || featured.stream_icon || null}
@@ -320,6 +325,7 @@ export default function HistoryScreen({ navigation }) {
         </YStack>
       )}
       </ScrollView>
+      <BackToTopButton visible={showButton} onPress={scrollToTop} bottom={insets.bottom + ss(20)} />
     </YStack>
   );
 }

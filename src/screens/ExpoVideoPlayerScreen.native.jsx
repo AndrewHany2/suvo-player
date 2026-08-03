@@ -5,7 +5,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { YStack, XStack, Text, ScrollView, Spinner } from "../ui/primitives";
-import { colors, accentAlpha, fonts, overlay, playerScrim, seekTrack } from "../ui/tokens";
+import { colors, accentAlpha, fonts, overlay, playerScrim } from "../ui/tokens";
 import Icon from "../ui/Icon";
 import Button from "../ui/Button";
 import StatePanel from "../ui/StatePanel";
@@ -70,7 +70,7 @@ function loadBrightness() {
   }
 }
 
-import { formatDuration as formatTime } from "../utils/formatDuration";
+import SeekBar from "../playback/components/SeekBar.native";
 
 /**
  * Transient gesture indicator ("Vol 60%", "+10s", "2x", …). A memoized leaf that
@@ -152,8 +152,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
   // VOD seek bar: live-polled position/duration/buffered, and the in-progress
   // scrub preview (null when not dragging). Track width is measured on layout.
   const [progress, setProgress] = useState({ position: 0, duration: 0, buffered: 0 });
-  const [scrubSec, setScrubSec] = useState(null);
-  const seekTrackWidth = useRef(0);
+  const scrubbingRef = useRef(false); // true while the user drags the seek bar
   // Transient gesture indicator: rendered by the memoized <GestureHint> leaf and
   // driven imperatively via this ref, so a 60 Hz gesture move touches only that
   // node rather than re-rendering the whole player.
@@ -466,7 +465,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     // viewer is only watching with the chrome hidden.
     if (!player || isLive || !showControls) return undefined;
     const read = () => {
-      if (scrubSec != null) return;
+      if (scrubbingRef.current) return;
       const duration = Number.isFinite(player.duration) ? player.duration : 0;
       const position = Number.isFinite(player.currentTime) ? player.currentTime : 0;
       // bufferedPosition is -1 when indeterminable; guard so it never renders a
@@ -480,30 +479,19 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
     read();
     const id = setInterval(read, 500);
     return () => clearInterval(id);
-  }, [player, isLive, scrubSec, showControls]);
+  }, [player, isLive, showControls]);
 
-  // Map a touch x within the seek track to a clamped time, and commit on release.
-  const scrubToX = useCallback((x) => {
-    const w = seekTrackWidth.current;
-    if (!w || !progress.duration) return;
-    const frac = Math.max(0, Math.min(1, x / w));
-    setScrubSec(frac * progress.duration);
-    resetControlsTimer();
-  }, [progress.duration, resetControlsTimer]);
-
-  const commitScrub = useCallback(() => {
-    setScrubSec((sec) => {
-      if (sec != null) driverRef.current?.seekTo(sec);
-      return null;
-    });
+  // Seek committed on release by the memoized <SeekBar> leaf. Scrub state lives in
+  // that leaf so dragging re-renders only the bar, not the whole player — the
+  // whole-screen churn that made the timeline stutter. Route through the driver.
+  const handleSeek = useCallback((sec) => {
+    driverRef.current?.seekTo(sec);
     resetControlsTimer();
   }, [resetControlsTimer]);
-
-  // Seek by a relative offset, clamped to [0, duration]. Backs the seek bar's
-  // accessibilityActions (increment/decrement) so VoiceOver/TalkBack can scrub.
-  const seekBy = useCallback((delta) => {
-    driverRef.current?.seekBy(delta);
-    resetControlsTimer();
+  // Pause the position poll while a drag is in flight so it can't fight the drag.
+  const handleScrubbingChange = useCallback((active) => {
+    scrubbingRef.current = active;
+    if (active) resetControlsTimer();
   }, [resetControlsTimer]);
 
   // Apply remembered audio/subtitle selections once the tracks are discovered.
@@ -691,7 +679,7 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
 
   // ---- Group 3: touch gestures via PanResponder (no new deps) ----
   const brightnessRef = useRef(null); // lazy-loaded expo-brightness module
-  const gestureState = useRef({ mode: null, handled: false, startX: 0, startY: 0, startVol: 1, startBright: null, startTime: 0, lastTapTime: 0, lastTapX: 0, longPressTimer: null, longPressed: false, layoutW: 0 });
+  const gestureState = useRef({ mode: null, handled: false, granted: false, startX: 0, startY: 0, tapStartX: 0, tapStartY: 0, startVol: 1, startBright: null, startTime: 0, lastTapTime: 0, lastTapX: 0, longPressTimer: null, longPressed: false, layoutW: 0 });
 
   if (brightnessRef.current === null) brightnessRef.current = loadBrightness() || false;
 
@@ -763,6 +751,9 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       const gs = gestureState.current;
       const p = playerRef.current;
       gs.handled = false;
+      // Mark that the PanResponder took over this touch, so the View's onTouchEnd
+      // tap-to-hide path (below) skips any touch the responder already handled.
+      gs.granted = true;
       gs.mode = null;
       gs.startX = e.nativeEvent.pageX;
       gs.startY = e.nativeEvent.pageY;
@@ -868,12 +859,37 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       <View
         style={{ position: "absolute", top: 0, left: 0, width: winW, height: winH }}
         onLayout={(ev) => { gestureState.current.layoutW = ev.nativeEvent.layout.width; }}
+        // Record where each touch begins (and clear the PanResponder-owned flag)
+        // so onTouchEnd can tell a clean tap from a swipe for tap-to-toggle.
+        onTouchStart={(e) => {
+          const gs = gestureState.current;
+          gs.granted = false;
+          gs.tapStartX = e.nativeEvent.pageX;
+          gs.tapStartY = e.nativeEvent.pageY;
+        }}
         // Row-C backstop: if neither release nor terminate fires (ExoPlayer
         // swallowed ACTION_UP), the raw DOM-level touchEnd still reaches the
         // View. When controls are hidden, commit the gesture here so they can
         // reveal. Idempotent via gs.handled — a no-op if release/terminate ran.
+        //
+        // When controls are VISIBLE the PanResponder yields taps (so the on-top
+        // buttons get their onPress), so tap-to-HIDE lives here: a touch that the
+        // responder never claimed (gs.granted false) and barely moved is a clean
+        // tap on the empty video surface — hide the chrome. box-none control
+        // overlays keep button taps from ever reaching this View, and the guards
+        // skip swipes (seek/volume/brightness move far or are responder-owned).
         onTouchEnd={(e) => {
-          if (!showControlsRef.current) commitGesture(e.nativeEvent.pageX);
+          const gs = gestureState.current;
+          const { pageX, pageY } = e.nativeEvent;
+          if (!showControlsRef.current) {
+            commitGesture(pageX);
+            return;
+          }
+          const moved = Math.abs(pageX - gs.tapStartX) > 8 || Math.abs(pageY - gs.tapStartY) > 8;
+          if (!gs.granted && !moved) {
+            clearTimeout(controlsTimerRef.current);
+            setShowControls(false);
+          }
         }}
         {...panResponder.panHandlers}
       >
@@ -1041,53 +1057,15 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
           </XStack>
 
           {/* Seek bar (VOD only) */}
-          {!isLive && progress.duration > 0 && (() => {
-            const shown = scrubSec != null ? scrubSec : progress.position;
-            const playedPct = Math.max(0, Math.min(100, (shown / progress.duration) * 100));
-            const bufferedPct = Math.max(0, Math.min(100, (progress.buffered / progress.duration) * 100));
-            return (
-              <YStack paddingHorizontal={16} paddingTop={4}>
-                <View
-                  style={{ height: 44, justifyContent: "center" }}
-                  accessible
-                  accessibilityRole="adjustable"
-                  accessibilityLabel="Seek bar"
-                  accessibilityValue={{
-                    min: 0,
-                    max: Math.round(progress.duration),
-                    now: Math.round(shown),
-                    text: `${formatTime(shown)} of ${formatTime(progress.duration)}`,
-                  }}
-                  accessibilityActions={[
-                    { name: "increment", label: "Forward 10 seconds" },
-                    { name: "decrement", label: "Back 10 seconds" },
-                  ]}
-                  onAccessibilityAction={(e) => {
-                    if (e.nativeEvent.actionName === "increment") seekBy(DOUBLE_TAP_SEEK);
-                    else if (e.nativeEvent.actionName === "decrement") seekBy(-DOUBLE_TAP_SEEK);
-                  }}
-                  onLayout={(e) => { seekTrackWidth.current = e.nativeEvent.layout.width; }}
-                  onStartShouldSetResponder={() => true}
-                  onMoveShouldSetResponder={() => true}
-                  onResponderGrant={(e) => scrubToX(e.nativeEvent.locationX)}
-                  onResponderMove={(e) => scrubToX(e.nativeEvent.locationX)}
-                  onResponderRelease={commitScrub}
-                  onResponderTerminate={commitScrub}
-                >
-                  <View style={{ height: 4, borderRadius: 2, backgroundColor: seekTrack.track }} />
-                  <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${bufferedPct}%`, backgroundColor: seekTrack.buffered }} />
-                  <View style={{ position: "absolute", left: 0, height: 4, borderRadius: 2, width: `${playedPct}%`, backgroundColor: colors.accent }} />
-                  <View style={{ position: "absolute", left: `${playedPct}%`, width: 14, height: 14, borderRadius: 7, marginLeft: -7, backgroundColor: colors.accent }} />
-                </View>
-                <XStack justifyContent="space-between" marginTop={4}>
-                  <Text color={colors.text} fontSize={12} fontWeight="600">{formatTime(shown)}</Text>
-                  {/* textDim (not muted): the secondary duration must hold AA over
-                      bright frames — #7A86A8 can dip below 4.5:1, #B8C0DA holds. */}
-                  <Text color={colors.textDim} fontSize={12}>{formatTime(progress.duration)}</Text>
-                </XStack>
-              </YStack>
-            );
-          })()}
+          {!isLive && (
+            <SeekBar
+              positionSec={progress.position}
+              durationSec={progress.duration}
+              bufferedSec={progress.buffered}
+              onSeek={handleSeek}
+              onScrubbingChange={handleScrubbingChange}
+            />
+          )}
         </YStack>
       )}
 

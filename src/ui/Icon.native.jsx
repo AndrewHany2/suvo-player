@@ -549,6 +549,8 @@ function Icon({ name, size = 20, color = colors.text, ...rest }) {
       return <View {...rest}><PauseShape size={size} color={color} /></View>;
     case "chevron-right":
       return <View {...rest}><Chevron size={size} color={color} rotate={45} /></View>;
+    case "chevron-up":
+      return <View {...rest}><Chevron size={size} color={color} rotate={-45} /></View>;
     case "back":
       return <View {...rest}><Chevron size={size} color={color} rotate={-135} /></View>;
     case "check":

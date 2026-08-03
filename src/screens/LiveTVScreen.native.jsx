@@ -12,6 +12,8 @@ import { useLiveTV } from "../domain/hooks/useLiveTV";
 import { filterCategoriesBySearch } from "../domain/hooks/useLiveTV.helpers";
 import { isAuthError } from "../utils/authError";
 import { isConnectivityError } from "../utils/networkError.logic.js";
+import BackToTopButton from "../ui/BackToTopButton";
+import { useScrollToTop } from "../hooks/useScrollToTop";
 import { useIsOnline } from "../downloads/useIsOnline.js";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { ss } from "../utils/scaleSize";
@@ -171,6 +173,9 @@ export default function LiveTVScreen({ navigation }) {
   const [channelsByCategory, setChannelsByCategory] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddChannel, setShowAddChannel] = useState(false);
+  const listRef = useRef(null);
+  const { showButton, onScroll: onScrollTop } = useScrollToTop();
+  const scrollToTop = () => listRef.current?.scrollToOffset({ offset: 0, animated: true });
   const [newChannelName, setNewChannelName] = useState("");
   const [newStreamUrl, setNewStreamUrl] = useState("");
   const [addError, setAddError] = useState(null);
@@ -380,6 +385,9 @@ export default function LiveTVScreen({ navigation }) {
       </XStack>
 
       <FlatList
+        ref={listRef}
+        onScroll={onScrollTop}
+        scrollEventThrottle={16}
         data={displayCategories}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item: cat }) => (
@@ -403,6 +411,7 @@ export default function LiveTVScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} colors={[colors.accent]} />}
       />
+      <BackToTopButton visible={showButton && !showAddChannel} onPress={scrollToTop} />
 
       <Modal visible={showAddChannel} transparent animationType={reducedMotion ? "none" : "slide"} supportedOrientations={MODAL_ORIENTATIONS} onRequestClose={() => setShowAddChannel(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>

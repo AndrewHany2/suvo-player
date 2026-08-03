@@ -25,6 +25,7 @@ import { describeError } from "../utils/authError";
 import PosterCardWeb from "../presentation/components/PosterCard.web";
 import { normalizeSearch } from "../utils/normalizeSearch.js";
 import { frameThrottle } from "../utils/frameThrottle";
+import { isDoublePress } from "../utils/doublePress";
 
 const CAT_COLS = 4;
 const SER_COLS = 5;
@@ -123,6 +124,7 @@ export default function SeriesScreenTV({ navigation, route }) {
   const catZoneRef = useRef("grid");
   const searchInputRef = useRef(null);
   const gridRef = useRef(null);
+  const lastUpRef = useRef(0); // last non-repeat UP timestamp, for double-press-to-top
   const detailRef = useRef(null);
   const catElRef = useRef(null);
   const epElRef = useRef(null);
@@ -662,7 +664,19 @@ export default function SeriesScreenTV({ navigation, route }) {
     switch (k) {
       case KEY_LEFT: onGridLeft(g); break;
       case KEY_RIGHT: onGridRight(g); break;
-      case KEY_UP: onGridUp(g); break;
+      case KEY_UP:
+        // Double-press UP jumps the grid focus to the top (10-foot "back to top";
+        // no pointer for a floating button). Non-repeat presses only, so a held
+        // UP still row-steps normally.
+        if (g.focus > 0 && !e?.repeat && isDoublePress(Date.now(), lastUpRef.current)) {
+          lastUpRef.current = 0;
+          gridRef.current = { ...g, focus: 0 };
+          setGrid(gridRef.current);
+        } else {
+          if (!e?.repeat) lastUpRef.current = Date.now();
+          onGridUp(g);
+        }
+        break;
       case KEY_DOWN: onGridDown(g); break;
       case KEY_ENTER: onGridEnter(g); break;
     }
