@@ -18,6 +18,7 @@ import { FATAL_TITLE, fatalCause, cleanRawError } from "../playback/playerCopy";
 import { controlIcon, controlLabel, fitLabel } from "../playback/playerControls";
 import { findNextEpisode, buildNextEpisodeVideo, shouldAutoAdvanceOnEnd } from "../playback/episodeNav";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
+import { restorePortrait } from "../playback/restoreOrientation";
 import { useDeviceIntegrity } from "../security/useDeviceIntegrity";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 
@@ -271,13 +272,12 @@ export default function ExpoVideoPlayerScreen({ navigation }) {
       // Restore portrait on exit. Exiting while in fullscreen (landscape-locked)
       // must rotate the window back — a bare unlockAsync() only releases the
       // lock, it doesn't rotate, so the app would stay landscape (app policy is
-      // "default"/all orientations). So lock PORTRAIT_UP first to snap upright,
-      // THEN unlock so the app follows its native (default) policy again and the
-      // lock doesn't outlive the player (a persistent lock pinned the whole app
-      // portrait for the session — the bug the previous unlock-only fix caused).
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-        .then(() => ScreenOrientation.unlockAsync())
-        .catch(() => {});
+      // "default"/all orientations). restorePortrait locks PORTRAIT_UP, waits
+      // until portrait is actually applied, THEN unlocks so the app follows its
+      // native (default) policy again without the lock outliving the player.
+      // (A bare lock→unlock races and leaves the device sideways; see
+      // restoreOrientation.js.)
+      restorePortrait(ScreenOrientation);
     };
   }, []);
 

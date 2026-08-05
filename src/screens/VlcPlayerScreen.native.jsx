@@ -18,6 +18,7 @@ import { FATAL_TITLE, fatalCause, cleanRawError } from "../playback/playerCopy";
 import { controlIcon, controlLabel, fitLabel } from "../playback/playerControls";
 import { findNextEpisode, buildNextEpisodeVideo } from "../playback/episodeNav";
 import { useResilientPlayback } from "../playback/useResilientPlayback";
+import { restorePortrait } from "../playback/restoreOrientation";
 import { useResumePosition } from "../playback/useResumePosition";
 import { usePlayerPreferences } from "../playback/usePlayerPreferences";
 import { useSleepTimer, SLEEP_PRESETS, formatRemaining } from "../playback/useSleepTimer";
@@ -248,8 +249,9 @@ export default function VlcPlayerScreen({ navigation }) {
   // after playback. On unmount we DO restore portrait, because closing via the
   // Close button / hardware back / sleep timer while in fullscreen bypasses the
   // fullscreen toggle's own portrait restore and would otherwise leave the app
-  // stuck landscape (app policy is "default"/all orientations). Lock PORTRAIT_UP
-  // to snap upright, THEN unlock so the lock doesn't outlive the player.
+  // stuck landscape (app policy is "default"/all orientations). restorePortrait
+  // waits until portrait is actually applied before releasing the lock — a bare
+  // lock→unlock races and leaves the device sideways (see restoreOrientation.js).
   useEffect(() => {
     activateKeepAwakeAsync().catch(() => {});
     return () => {
@@ -258,9 +260,7 @@ export default function VlcPlayerScreen({ navigation }) {
       } catch {
         /* noop */
       }
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP)
-        .then(() => ScreenOrientation.unlockAsync())
-        .catch(() => {});
+      restorePortrait(ScreenOrientation);
     };
   }, []);
 
